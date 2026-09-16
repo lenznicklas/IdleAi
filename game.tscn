@@ -1,9 +1,8 @@
 [gd_scene format=3 uid="uid://hw3acgqp3mmv"]
 
 [ext_resource type="Script" uid="uid://dkenpco1k2m5t" path="res://game.gd" id="1_game"]
-[ext_resource type="Texture2D" uid="uid://clpuj5fxhi5gq" path="res://assets/background/topbar.png" id="2_topbar"]
 
-[node name="Game" type="Control" unique_id=1231499459]
+[node name="Game" type="Control" unique_id=1684043401]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -12,7 +11,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_game")
 
-[node name="Background" type="TextureRect" parent="." unique_id=1038923853]
+[node name="Background" type="TextureRect" parent="." unique_id=1183616692]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -21,7 +20,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="MarginContainer" type="MarginContainer" parent="." unique_id=758375359]
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1149808803]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -33,79 +32,108 @@ theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 16
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=300001165]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=754808505]
 layout_mode = 2
 size_flags_vertical = 3
+theme_override_constants/separation = 16
 
-[node name="TopBarBackground" type="NinePatchRect" parent="MarginContainer/VBoxContainer" unique_id=53389490]
-custom_minimum_size = Vector2(0, 110)
+[node name="TopSpacer" type="Control" parent="MarginContainer/VBoxContainer" unique_id=46387202]
+custom_minimum_size = Vector2(0, 8)
 layout_mode = 2
-texture = ExtResource("2_topbar")
-patch_margin_left = 30
-patch_margin_top = 30
-patch_margin_right = 30
-patch_margin_bottom = 30
 
-[node name="TopBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopBarBackground" unique_id=66578454]
+[node name="TopStats" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=107867311]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/separation = 10
+
+[node name="TokenCard" type="TextureRect" parent="MarginContainer/VBoxContainer/TopStats" unique_id=373550473]
+custom_minimum_size = Vector2(0, 56)
+layout_mode = 2
+size_flags_horizontal = 3
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 3
+
+[node name="TokenLabel" type="Label" parent="MarginContainer/VBoxContainer/TopStats/TokenCard" unique_id=1886759060]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_left = 30.0
-offset_top = 32.0
-offset_right = -30.0
-offset_bottom = -28.0
 grow_horizontal = 2
 grow_vertical = 2
-
-[node name="TokenLabel" type="Label" parent="MarginContainer/VBoxContainer/TopBarBackground/TopBar" unique_id=957035086]
-layout_mode = 2
-size_flags_horizontal = 3
+theme_override_font_sizes/font_size = 22
 text = "T0"
+horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="IncomeLabel" type="Label" parent="MarginContainer/VBoxContainer/TopBarBackground/TopBar" unique_id=649318173]
+[node name="IncomeCard" type="TextureRect" parent="MarginContainer/VBoxContainer/TopStats" unique_id=408383762]
+custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 size_flags_horizontal = 3
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 3
+
+[node name="IncomeLabel" type="Label" parent="MarginContainer/VBoxContainer/TopStats/IncomeCard" unique_id=1915102136]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 22
 text = "+0 / sec"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="TotalLevelLabel" type="Label" parent="MarginContainer/VBoxContainer/TopBarBackground/TopBar" unique_id=445689007]
+[node name="LevelCard" type="TextureRect" parent="MarginContainer/VBoxContainer/TopStats" unique_id=1258754559]
+custom_minimum_size = Vector2(0, 56)
 layout_mode = 2
 size_flags_horizontal = 3
+mouse_filter = 2
+expand_mode = 1
+stretch_mode = 3
+
+[node name="TotalLevelLabel" type="Label" parent="MarginContainer/VBoxContainer/TopStats/LevelCard" unique_id=57608470]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 22
 text = "L1"
-horizontal_alignment = 2
+horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="RoomPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer" unique_id=994712389]
+[node name="RoomPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer" unique_id=1554854802]
 layout_mode = 2
 size_flags_vertical = 3
 
-[node name="RoomVBox" type="VBoxContainer" parent="MarginContainer/VBoxContainer/RoomPanel" unique_id=326607777]
+[node name="RoomVBox" type="VBoxContainer" parent="MarginContainer/VBoxContainer/RoomPanel" unique_id=1696534762]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="RoomLabel" type="Label" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox" unique_id=306049269]
+[node name="RoomLabel" type="Label" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox" unique_id=387437075]
 layout_mode = 2
 text = "Garage"
 horizontal_alignment = 1
 
-[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox" unique_id=784473025]
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox" unique_id=1512318467]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 
-[node name="SlotGrid" type="GridContainer" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox/ScrollContainer" unique_id=1084475717]
+[node name="SlotGrid" type="GridContainer" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox/ScrollContainer" unique_id=1356697690]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/h_separation = 10
 theme_override_constants/v_separation = 10
 columns = 2
 
-[node name="MessageLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=1981470720]
+[node name="MessageLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=1358697461]
 custom_minimum_size = Vector2(0, 35)
 layout_mode = 2
 text = "Upgrade your first machine."

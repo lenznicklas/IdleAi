@@ -1,5 +1,6 @@
 extends Control
 
+
 const MAIN_THEME: Theme = preload(
 	"res://assets/themes/main_theme.tres"
 )
@@ -29,15 +30,15 @@ var slot_unlock_costs: Array[float] = [
 )
 
 @onready var token_label: Label = (
-	$MarginContainer/VBoxContainer/TopBarBackground/TopBar/TokenLabel
+	$MarginContainer/VBoxContainer/TopStats/TokenCard/TokenLabel
 )
 
 @onready var income_label: Label = (
-	$MarginContainer/VBoxContainer/TopBarBackground/TopBar/IncomeLabel
+	$MarginContainer/VBoxContainer/TopStats/IncomeCard/IncomeLabel
 )
 
 @onready var total_level_label: Label = (
-	$MarginContainer/VBoxContainer/TopBarBackground/TopBar/TotalLevelLabel
+	$MarginContainer/VBoxContainer/TopStats/LevelCard/TotalLevelLabel
 )
 
 @onready var slot_grid: GridContainer = (
@@ -50,6 +51,10 @@ var slot_unlock_costs: Array[float] = [
 
 
 func _ready() -> void:
+	# WICHTIG:
+	# Dadurch wird Orbitron auf das gesamte UI angewendet.
+	theme = MAIN_THEME
+
 	setup_background()
 
 	create_machine_data()

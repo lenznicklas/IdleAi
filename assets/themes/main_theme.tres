@@ -1,7 +1,16 @@
-[gd_resource type="Theme" load_steps=2 format=3]
+[gd_resource type="Theme" format=3 uid="uid://dqrsjh4onaae5"]
 
-[ext_resource type="FontFile" path="res://assets/fonts/Orbitron-Regular.ttf" id="1_font"]
+[ext_resource type="FontFile" uid="uid://dhcpgod11c2to" path="res://assets/fonts/Orbitron-Regular.ttf" id="1_font"]
 
 [resource]
 default_font = ExtResource("1_font")
 default_font_size = 18
+Button/colors/font_color = Color(1, 1, 1, 1)
+Button/colors/font_focus_color = Color(1, 1, 1, 1)
+Button/colors/font_hover_color = Color(1, 1, 1, 1)
+Button/colors/font_outline_color = Color(0.015, 0.055, 0.12, 1)
+Button/colors/font_pressed_color = Color(1, 1, 1, 1)
+Button/constants/outline_size = 4
+Label/colors/font_color = Color(1, 1, 1, 1)
+Label/colors/font_outline_color = Color(0.015, 0.055, 0.12, 1)
+Label/constants/outline_size = 4

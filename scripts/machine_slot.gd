@@ -42,6 +42,7 @@ func setup(index: int) -> void:
 
 	create_ui()
 
+
 func create_ui() -> void:
 	var margin := MarginContainer.new()
 
@@ -96,6 +97,7 @@ func create_ui() -> void:
 	create_milestone(content)
 	create_button(content)
 	create_border()
+
 
 func create_title(
 	content: VBoxContainer
@@ -248,12 +250,80 @@ func create_button(
 
 	action_button.clip_text = true
 
+	setup_button_style(
+		action_button
+	)
+
 	action_button.pressed.connect(
 		_on_action_pressed
 	)
 
 	content.add_child(
 		action_button
+	)
+
+
+func setup_button_style(
+	button: Button
+) -> void:
+	var normal := StyleBoxFlat.new()
+
+	normal.bg_color = Color(
+		0.025,
+		0.035,
+		0.055,
+		0.88
+	)
+
+	normal.corner_radius_top_left = 12
+	normal.corner_radius_top_right = 12
+	normal.corner_radius_bottom_left = 12
+	normal.corner_radius_bottom_right = 12
+
+	normal.content_margin_left = 8
+	normal.content_margin_right = 8
+	normal.content_margin_top = 6
+	normal.content_margin_bottom = 6
+
+
+	var hover := normal.duplicate() as StyleBoxFlat
+
+	hover.bg_color = Color(
+		0.04,
+		0.11,
+		0.18,
+		0.95
+	)
+
+
+	var pressed := normal.duplicate() as StyleBoxFlat
+
+	pressed.bg_color = Color(
+		0.02,
+		0.18,
+		0.28,
+		1.0
+	)
+
+
+	button.add_theme_stylebox_override(
+		"normal",
+		normal
+	)
+
+	button.add_theme_stylebox_override(
+		"hover",
+		hover
+	)
+
+	button.add_theme_stylebox_override(
+		"pressed",
+		pressed
+	)
+
+	button.add_theme_stylebox_override(
+		"focus",
+		hover
 	)
 
 

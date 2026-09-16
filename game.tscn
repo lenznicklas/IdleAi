@@ -3,7 +3,23 @@
 [ext_resource type="Script" uid="uid://dkenpco1k2m5t" path="res://game.gd" id="1_game"]
 [ext_resource type="Texture2D" uid="uid://cv35e47xx36il" path="res://assets/background/stat_box.png" id="2_statbox"]
 
-[node name="Game" type="Control" unique_id=912730254]
+[sub_resource type="StyleBoxFlat" id="PopupStyle"]
+content_margin_left = 12.0
+content_margin_top = 10.0
+content_margin_right = 12.0
+content_margin_bottom = 10.0
+bg_color = Color(0.02, 0.035, 0.06, 0.97)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0, 0.65, 1, 0.8)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+
+[node name="Game" type="Control" unique_id=453600368]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
@@ -12,7 +28,7 @@ grow_horizontal = 2
 grow_vertical = 2
 script = ExtResource("1_game")
 
-[node name="Background" type="TextureRect" parent="." unique_id=1709128475]
+[node name="Background" type="TextureRect" parent="." unique_id=598358320]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -21,7 +37,7 @@ grow_horizontal = 2
 grow_vertical = 2
 mouse_filter = 2
 
-[node name="MarginContainer" type="MarginContainer" parent="." unique_id=1050065663]
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=2021779840]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -33,29 +49,29 @@ theme_override_constants/margin_top = 16
 theme_override_constants/margin_right = 16
 theme_override_constants/margin_bottom = 16
 
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=1003713520]
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=961778328]
 layout_mode = 2
 size_flags_vertical = 3
 theme_override_constants/separation = 18
 
-[node name="TopSpacer" type="Control" parent="MarginContainer/VBoxContainer" unique_id=1583945474]
+[node name="TopSpacer" type="Control" parent="MarginContainer/VBoxContainer" unique_id=990014815]
 custom_minimum_size = Vector2(0, 12)
 layout_mode = 2
 
-[node name="TopStats" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=145890087]
+[node name="TopStats" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=688662630]
 layout_mode = 2
 size_flags_horizontal = 3
-theme_override_constants/separation = 1
+theme_override_constants/separation = 4
 
-[node name="TokenCard" type="TextureRect" parent="MarginContainer/VBoxContainer/TopStats" unique_id=799153465]
+[node name="TokenCard" type="TextureButton" parent="MarginContainer/VBoxContainer/TopStats" unique_id=1374959442]
 custom_minimum_size = Vector2(0, 64)
 layout_mode = 2
 size_flags_horizontal = 3
-mouse_filter = 2
-texture = ExtResource("2_statbox")
-expand_mode = 1
+texture_normal = ExtResource("2_statbox")
+ignore_texture_size = true
+stretch_mode = 0
 
-[node name="TokenLabel" type="Label" parent="MarginContainer/VBoxContainer/TopStats/TokenCard" unique_id=1620175771]
+[node name="TokenLabel" type="Label" parent="MarginContainer/VBoxContainer/TopStats/TokenCard" unique_id=1740172616]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -63,39 +79,39 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_font_sizes/font_size = 22
-text = "T0"
+text = "0"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="IncomeCard" type="TextureRect" parent="MarginContainer/VBoxContainer/TopStats" unique_id=1768117362]
-custom_minimum_size = Vector2(0, 90)
-layout_mode = 2
-size_flags_horizontal = 3
-mouse_filter = 2
-texture = ExtResource("2_statbox")
-expand_mode = 1
-
-[node name="IncomeLabel" type="Label" parent="MarginContainer/VBoxContainer/TopStats/IncomeCard" unique_id=1089858003]
-layout_mode = 1
-anchors_preset = 15
-anchor_right = 1.0
-anchor_bottom = 1.0
-grow_horizontal = 2
-grow_vertical = 2
-theme_override_font_sizes/font_size = 22
-text = "+0 / sec"
-horizontal_alignment = 1
-vertical_alignment = 1
-
-[node name="LevelCard" type="TextureRect" parent="MarginContainer/VBoxContainer/TopStats" unique_id=853402559]
+[node name="StatsCard" type="TextureButton" parent="MarginContainer/VBoxContainer/TopStats" unique_id=174317189]
 custom_minimum_size = Vector2(0, 64)
 layout_mode = 2
 size_flags_horizontal = 3
-mouse_filter = 2
-texture = ExtResource("2_statbox")
-expand_mode = 1
+texture_normal = ExtResource("2_statbox")
+ignore_texture_size = true
+stretch_mode = 0
 
-[node name="TotalLevelLabel" type="Label" parent="MarginContainer/VBoxContainer/TopStats/LevelCard" unique_id=676794191]
+[node name="StatsLabel" type="Label" parent="MarginContainer/VBoxContainer/TopStats/StatsCard" unique_id=754850553]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_font_sizes/font_size = 18
+text = "STATS"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="LevelCard" type="TextureButton" parent="MarginContainer/VBoxContainer/TopStats" unique_id=1121412051]
+custom_minimum_size = Vector2(0, 64)
+layout_mode = 2
+size_flags_horizontal = 3
+texture_normal = ExtResource("2_statbox")
+ignore_texture_size = true
+stretch_mode = 0
+
+[node name="TotalLevelLabel" type="Label" parent="MarginContainer/VBoxContainer/TopStats/LevelCard" unique_id=1649105175]
 layout_mode = 1
 anchors_preset = 15
 anchor_right = 1.0
@@ -103,43 +119,169 @@ anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
 theme_override_font_sizes/font_size = 22
-text = "L1"
+text = "1"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="RoomPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer" unique_id=520088625]
-layout_mode = 2
-size_flags_vertical = 3
-
-[node name="RoomVBox" type="VBoxContainer" parent="MarginContainer/VBoxContainer/RoomPanel" unique_id=1413309853]
+[node name="RoomPanel" type="MarginContainer" parent="MarginContainer/VBoxContainer" unique_id=1074062587]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 
-[node name="RoomLabel" type="Label" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox" unique_id=248366736]
+[node name="RoomVBox" type="VBoxContainer" parent="MarginContainer/VBoxContainer/RoomPanel" unique_id=1062219140]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+theme_override_constants/separation = 12
+
+[node name="RoomLabel" type="Label" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox" unique_id=1045312733]
 custom_minimum_size = Vector2(0, 42)
 layout_mode = 2
 text = "Garage"
 horizontal_alignment = 1
 vertical_alignment = 1
 
-[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox" unique_id=654675260]
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox" unique_id=775921358]
 layout_mode = 2
 size_flags_horizontal = 3
 size_flags_vertical = 3
 horizontal_scroll_mode = 0
 vertical_scroll_mode = 3
 
-[node name="SlotGrid" type="GridContainer" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox/ScrollContainer" unique_id=1898510750]
+[node name="SlotGrid" type="GridContainer" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox/ScrollContainer" unique_id=203972978]
 layout_mode = 2
 size_flags_horizontal = 3
 theme_override_constants/h_separation = 10
 theme_override_constants/v_separation = 55
 columns = 2
 
-[node name="MessageLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=2104681764]
+[node name="MessageLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=1278994063]
 custom_minimum_size = Vector2(0, 35)
 layout_mode = 2
 text = "Upgrade your first machine."
 horizontal_alignment = 1
 vertical_alignment = 1
+
+[node name="TokenPopup" type="PanelContainer" parent="." unique_id=1920500440]
+visible = false
+custom_minimum_size = Vector2(230, 70)
+layout_mode = 0
+theme_override_styles/panel = SubResource("PopupStyle")
+
+[node name="Label" type="Label" parent="TokenPopup" unique_id=764135610]
+layout_mode = 2
+text = "Tokens
+Used to buy slots and upgrade machines."
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="LevelPopup" type="PanelContainer" parent="." unique_id=621970052]
+visible = false
+custom_minimum_size = Vector2(230, 70)
+layout_mode = 0
+theme_override_styles/panel = SubResource("PopupStyle")
+
+[node name="Label" type="Label" parent="LevelPopup" unique_id=1121011257]
+layout_mode = 2
+text = "Level
+Your combined machine progression."
+horizontal_alignment = 1
+vertical_alignment = 1
+autowrap_mode = 2
+
+[node name="StatsOverlay" type="Control" parent="." unique_id=1617954962]
+visible = false
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+
+[node name="Dim" type="ColorRect" parent="StatsOverlay" unique_id=351609800]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+color = Color(0, 0, 0, 0.72)
+
+[node name="StatsPanel" type="PanelContainer" parent="StatsOverlay" unique_id=1569291804]
+layout_mode = 1
+anchors_preset = 8
+anchor_left = 0.5
+anchor_top = 0.5
+anchor_right = 0.5
+anchor_bottom = 0.5
+offset_left = -285.0
+offset_top = -360.0
+offset_right = 285.0
+offset_bottom = 360.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_styles/panel = SubResource("PopupStyle")
+
+[node name="Margin" type="MarginContainer" parent="StatsOverlay/StatsPanel" unique_id=351327404]
+layout_mode = 2
+theme_override_constants/margin_left = 30
+theme_override_constants/margin_top = 25
+theme_override_constants/margin_right = 30
+theme_override_constants/margin_bottom = 25
+
+[node name="VBox" type="VBoxContainer" parent="StatsOverlay/StatsPanel/Margin" unique_id=321692988]
+layout_mode = 2
+theme_override_constants/separation = 14
+
+[node name="Title" type="Label" parent="StatsOverlay/StatsPanel/Margin/VBox" unique_id=1041699890]
+layout_mode = 2
+theme_override_font_sizes/font_size = 28
+text = "STATS"
+horizontal_alignment = 1
+
+[node name="Separator" type="HSeparator" parent="StatsOverlay/StatsPanel/Margin/VBox" unique_id=2044952698]
+layout_mode = 2
+
+[node name="IncomeLabel" type="Label" parent="StatsOverlay/StatsPanel/Margin/VBox" unique_id=202800859]
+layout_mode = 2
+text = "Tokens / sec: 0"
+
+[node name="EarnedLabel" type="Label" parent="StatsOverlay/StatsPanel/Margin/VBox" unique_id=345937858]
+layout_mode = 2
+text = "Total earned: 0"
+
+[node name="SpentLabel" type="Label" parent="StatsOverlay/StatsPanel/Margin/VBox" unique_id=1870626803]
+layout_mode = 2
+text = "Total spent: 0"
+
+[node name="SlotsLabel" type="Label" parent="StatsOverlay/StatsPanel/Margin/VBox" unique_id=1290395511]
+layout_mode = 2
+text = "Unlocked slots: 1 / 6"
+
+[node name="LevelLabel" type="Label" parent="StatsOverlay/StatsPanel/Margin/VBox" unique_id=168005654]
+layout_mode = 2
+text = "Total level: 1"
+
+[node name="SpendTitle" type="Label" parent="StatsOverlay/StatsPanel/Margin/VBox" unique_id=218979272]
+layout_mode = 2
+theme_override_font_sizes/font_size = 20
+text = "SPENDING"
+
+[node name="UnlockSpendLabel" type="Label" parent="StatsOverlay/StatsPanel/Margin/VBox" unique_id=1997835056]
+layout_mode = 2
+text = "Slot unlocks: 0"
+
+[node name="MachineSpendLabel" type="Label" parent="StatsOverlay/StatsPanel/Margin/VBox" unique_id=890701639]
+layout_mode = 2
+text = "Machines:"
+autowrap_mode = 2
+
+[node name="Spacer" type="Control" parent="StatsOverlay/StatsPanel/Margin/VBox" unique_id=161364062]
+custom_minimum_size = Vector2(0, 15)
+layout_mode = 2
+
+[node name="CloseButton" type="Button" parent="StatsOverlay/StatsPanel/Margin/VBox" unique_id=1929189358]
+custom_minimum_size = Vector2(0, 60)
+layout_mode = 2
+text = "CLOSE"

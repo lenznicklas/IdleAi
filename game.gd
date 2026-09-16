@@ -15,6 +15,9 @@ var tokens: float = 0.0
 var machines: Array[MachineData] = []
 var slots: Array[SlotData] = []
 
+var stats := StatsData.new()
+
+
 var slot_unlock_costs: Array[float] = [
 	0.0,
 	10.0,
@@ -29,17 +32,27 @@ var slot_unlock_costs: Array[float] = [
 	$Background
 )
 
-@onready var token_label: Label = (
-	$MarginContainer/VBoxContainer/TopStats/TokenCard/TokenLabel
+@onready var token_card: TextureButton = (
+	$MarginContainer/VBoxContainer/TopStats/TokenCard
 )
 
-@onready var income_label: Label = (
-	$MarginContainer/VBoxContainer/TopStats/IncomeCard/IncomeLabel
+@onready var stats_card: TextureButton = (
+	$MarginContainer/VBoxContainer/TopStats/StatsCard
+)
+
+@onready var level_card: TextureButton = (
+	$MarginContainer/VBoxContainer/TopStats/LevelCard
+)
+
+
+@onready var token_label: Label = (
+	$MarginContainer/VBoxContainer/TopStats/TokenCard/TokenLabel
 )
 
 @onready var total_level_label: Label = (
 	$MarginContainer/VBoxContainer/TopStats/LevelCard/TotalLevelLabel
 )
+
 
 @onready var slot_grid: GridContainer = (
 	$MarginContainer/VBoxContainer/RoomPanel/RoomVBox/ScrollContainer/SlotGrid
@@ -50,12 +63,58 @@ var slot_unlock_costs: Array[float] = [
 )
 
 
+@onready var token_popup: PanelContainer = (
+	$TokenPopup
+)
+
+@onready var level_popup: PanelContainer = (
+	$LevelPopup
+)
+
+
+@onready var stats_overlay: Control = (
+	$StatsOverlay
+)
+
+@onready var stats_income_label: Label = (
+	$StatsOverlay/StatsPanel/Margin/VBox/IncomeLabel
+)
+
+@onready var stats_earned_label: Label = (
+	$StatsOverlay/StatsPanel/Margin/VBox/EarnedLabel
+)
+
+@onready var stats_spent_label: Label = (
+	$StatsOverlay/StatsPanel/Margin/VBox/SpentLabel
+)
+
+@onready var stats_slots_label: Label = (
+	$StatsOverlay/StatsPanel/Margin/VBox/SlotsLabel
+)
+
+@onready var stats_level_label: Label = (
+	$StatsOverlay/StatsPanel/Margin/VBox/LevelLabel
+)
+
+@onready var stats_unlock_spend_label: Label = (
+	$StatsOverlay/StatsPanel/Margin/VBox/UnlockSpendLabel
+)
+
+@onready var stats_machine_spend_label: Label = (
+	$StatsOverlay/StatsPanel/Margin/VBox/MachineSpendLabel
+)
+
+@onready var stats_close_button: Button = (
+	$StatsOverlay/StatsPanel/Margin/VBox/CloseButton
+)
+
+
 func _ready() -> void:
-	# WICHTIG:
-	# Dadurch wird Orbitron auf das gesamte UI angewendet.
 	theme = MAIN_THEME
 
 	setup_background()
+	setup_topbar_actions()
+	setup_stats_overlay()
 
 	create_machine_data()
 	create_slots()
@@ -68,16 +127,22 @@ func _ready() -> void:
 
 
 func _process(delta: float) -> void:
-	tokens += (
+	var earned: float = (
 		get_total_income()
 		* delta
+	)
+
+	tokens += earned
+
+	stats.add_earned(
+		earned
 	)
 
 	update_top_bar()
 
 
 # --------------------------------------------------
-# BACKGROUND
+# SETUP
 # --------------------------------------------------
 
 func setup_background() -> void:
@@ -100,6 +165,240 @@ func setup_background() -> void:
 	background.mouse_filter = (
 		Control.MOUSE_FILTER_IGNORE
 	)
+
+
+func setup_topbar_actions() -> void:
+	token_card.pressed.connect(
+		toggle_token_popup
+	)
+
+	level_card.pressed.connect(
+		toggle_level_popup
+	)
+
+	stats_card.pressed.connect(
+		open_stats
+	)
+
+
+func setup_stats_overlay() -> void:
+	stats_close_button.pressed.connect(
+		close_stats
+	)
+
+	setup_round_button(
+		stats_close_button
+	)
+
+
+func setup_round_button(
+	button: Button
+) -> void:
+	var normal := StyleBoxFlat.new()
+
+	normal.bg_color = Color(
+		0.025,
+		0.04,
+		0.065,
+		0.96
+	)
+
+	normal.corner_radius_top_left = 12
+	normal.corner_radius_top_right = 12
+	normal.corner_radius_bottom_left = 12
+	normal.corner_radius_bottom_right = 12
+
+	var hover := normal.duplicate() as StyleBoxFlat
+
+	hover.bg_color = Color(
+		0.03,
+		0.12,
+		0.2,
+		1.0
+	)
+
+	var pressed := normal.duplicate() as StyleBoxFlat
+
+	pressed.bg_color = Color(
+		0.02,
+		0.18,
+		0.3,
+		1.0
+	)
+
+	button.add_theme_stylebox_override(
+		"normal",
+		normal
+	)
+
+	button.add_theme_stylebox_override(
+		"hover",
+		hover
+	)
+
+	button.add_theme_stylebox_override(
+		"pressed",
+		pressed
+	)
+
+
+# --------------------------------------------------
+# TOPBAR POPUPS
+# --------------------------------------------------
+
+func toggle_token_popup() -> void:
+	level_popup.hide()
+
+	if token_popup.visible:
+		token_popup.hide()
+		return
+
+	position_popup_below(
+		token_popup,
+		token_card
+	)
+
+	token_popup.show()
+
+
+func toggle_level_popup() -> void:
+	token_popup.hide()
+
+	if level_popup.visible:
+		level_popup.hide()
+		return
+
+	position_popup_below(
+		level_popup,
+		level_card
+	)
+
+	level_popup.show()
+
+
+func position_popup_below(
+	popup: Control,
+	card: Control
+) -> void:
+	await get_tree().process_frame
+
+	var card_pos: Vector2 = (
+		card.global_position
+	)
+
+	var card_size: Vector2 = (
+		card.size
+	)
+
+	var popup_width: float = (
+		popup.size.x
+	)
+
+	popup.global_position = Vector2(
+		card_pos.x
+		+ card_size.x / 2.0
+		- popup_width / 2.0,
+		card_pos.y
+		+ card_size.y
+		+ 6.0
+	)
+
+
+# --------------------------------------------------
+# STATS OVERLAY
+# --------------------------------------------------
+
+func open_stats() -> void:
+	token_popup.hide()
+	level_popup.hide()
+
+	update_stats_overlay()
+
+	stats_overlay.show()
+	stats_overlay.move_to_front()
+
+
+func close_stats() -> void:
+	stats_overlay.hide()
+
+
+func update_stats_overlay() -> void:
+	stats_income_label.text = (
+		"Tokens / sec: "
+		+ format_number(
+			get_total_income()
+		)
+	)
+
+	stats_earned_label.text = (
+		"Total earned: "
+		+ format_number(
+			stats.total_earned
+		)
+	)
+
+	stats_spent_label.text = (
+		"Total spent: "
+		+ format_number(
+			stats.total_spent
+		)
+	)
+
+	stats_slots_label.text = (
+		"Unlocked slots: "
+		+ str(
+			get_unlocked_slot_count()
+		)
+		+ " / "
+		+ str(
+			slots.size()
+		)
+	)
+
+	stats_level_label.text = (
+		"Total level: "
+		+ str(
+			get_total_level()
+		)
+	)
+
+	stats_unlock_spend_label.text = (
+		"Slot unlocks: "
+		+ format_number(
+			stats.slot_unlock_spent
+		)
+	)
+
+
+	var machine_text: String = ""
+
+	for machine: MachineData in machines:
+		var spent: float = (
+			stats.get_machine_spending(
+				machine.machine_name
+			)
+		)
+
+		machine_text += (
+			machine.machine_name
+			+ ": "
+			+ format_number(spent)
+			+ "\n"
+		)
+
+	stats_machine_spend_label.text = (
+		machine_text.strip_edges()
+	)
+
+
+func get_unlocked_slot_count() -> int:
+	var count: int = 0
+
+	for slot: SlotData in slots:
+		if slot.unlocked:
+			count += 1
+
+	return count
 
 
 # --------------------------------------------------
@@ -229,6 +528,10 @@ func unlock_slot(
 
 	tokens -= cost
 
+	stats.add_slot_spending(
+		cost
+	)
+
 	slot.unlocked = true
 	slot.machine_tier = 0
 	slot.machine_level = 1
@@ -291,6 +594,11 @@ func upgrade_machine_level(
 
 	tokens -= cost
 
+	stats.add_machine_spending(
+		machine.machine_name,
+		cost
+	)
+
 	slot.machine_level += 1
 
 	if slot.machine_level == 5:
@@ -343,6 +651,11 @@ func upgrade_machine_tier(
 		return
 
 	tokens -= cost
+
+	stats.add_machine_spending(
+		machine.machine_name,
+		cost
+	)
 
 	slot.machine_tier += 1
 	slot.machine_level = 1
@@ -506,21 +819,11 @@ func update_ui() -> void:
 
 func update_top_bar() -> void:
 	token_label.text = (
-		"T"
-		+ format_number(tokens)
-	)
-
-	income_label.text = (
-		"+"
-		+ format_number(
-			get_total_income()
-		)
-		+ " / sec"
+		format_number(tokens)
 	)
 
 	total_level_label.text = (
-		"L"
-		+ str(
+		str(
 			get_total_level()
 		)
 	)

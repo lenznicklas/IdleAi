@@ -1,5 +1,8 @@
 extends Control
 
+const MAIN_THEME: Theme = preload(
+	"res://assets/themes/main_theme.tres"
+)
 
 const BACKGROUND_TEXTURE: Texture2D = preload(
 	"res://assets/background/bg.png"
@@ -26,15 +29,15 @@ var slot_unlock_costs: Array[float] = [
 )
 
 @onready var token_label: Label = (
-	$MarginContainer/VBoxContainer/TopBarBackground/TopBarMargin/TopBar/TokenLabel
+	$MarginContainer/VBoxContainer/TopBarBackground/TopBar/TokenLabel
 )
 
 @onready var income_label: Label = (
-	$MarginContainer/VBoxContainer/TopBarBackground/TopBarMargin/TopBar/IncomeLabel
+	$MarginContainer/VBoxContainer/TopBarBackground/TopBar/IncomeLabel
 )
 
 @onready var total_level_label: Label = (
-	$MarginContainer/VBoxContainer/TopBarBackground/TopBarMargin/TopBar/TotalLevelLabel
+	$MarginContainer/VBoxContainer/TopBarBackground/TopBar/TotalLevelLabel
 )
 
 @onready var slot_grid: GridContainer = (
@@ -68,9 +71,9 @@ func _process(delta: float) -> void:
 	update_top_bar()
 
 
-# -------------------------
+# --------------------------------------------------
 # BACKGROUND
-# -------------------------
+# --------------------------------------------------
 
 func setup_background() -> void:
 	background.texture = (
@@ -94,9 +97,9 @@ func setup_background() -> void:
 	)
 
 
-# -------------------------
+# --------------------------------------------------
 # MACHINES
-# -------------------------
+# --------------------------------------------------
 
 func create_machine_data() -> void:
 	machines.append(
@@ -152,9 +155,9 @@ func create_machine_data() -> void:
 	)
 
 
-# -------------------------
+# --------------------------------------------------
 # SLOTS
-# -------------------------
+# --------------------------------------------------
 
 func create_slots() -> void:
 	for i: int in range(
@@ -234,9 +237,9 @@ func unlock_slot(
 	update_ui()
 
 
-# -------------------------
+# --------------------------------------------------
 # UPGRADES
-# -------------------------
+# --------------------------------------------------
 
 func upgrade_slot(
 	slot: SlotData
@@ -354,9 +357,9 @@ func upgrade_machine_tier(
 	update_ui()
 
 
-# -------------------------
+# --------------------------------------------------
 # COSTS
-# -------------------------
+# --------------------------------------------------
 
 func get_level_upgrade_cost(
 	slot: SlotData
@@ -378,9 +381,9 @@ func get_level_upgrade_cost(
 	)
 
 
-# -------------------------
+# --------------------------------------------------
 # MILESTONES
-# -------------------------
+# --------------------------------------------------
 
 func get_milestone_multiplier(
 	level: int
@@ -408,9 +411,9 @@ func get_milestone_text(
 	return "Level 5: x2"
 
 
-# -------------------------
+# --------------------------------------------------
 # INCOME
-# -------------------------
+# --------------------------------------------------
 
 func get_slot_income(
 	slot: SlotData
@@ -458,9 +461,9 @@ func get_total_income() -> float:
 	return total
 
 
-# -------------------------
+# --------------------------------------------------
 # TOTAL LEVEL
-# -------------------------
+# --------------------------------------------------
 
 func get_total_level() -> int:
 	var total: int = 0
@@ -469,24 +472,21 @@ func get_total_level() -> int:
 		if not slot.unlocked:
 			continue
 
-		var machine: MachineData = (
-			machines[
-				slot.machine_tier
-			]
-		)
-
-		total += (
+		for tier: int in range(
 			slot.machine_tier
-			* machine.max_level
-			+ slot.machine_level
-		)
+		):
+			total += (
+				machines[tier].max_level
+			)
+
+		total += slot.machine_level
 
 	return total
 
 
-# -------------------------
+# --------------------------------------------------
 # UI
-# -------------------------
+# --------------------------------------------------
 
 func update_ui() -> void:
 	update_top_bar()
@@ -501,10 +501,8 @@ func update_ui() -> void:
 
 func update_top_bar() -> void:
 	token_label.text = (
-		"Tokens: "
-		+ format_number(
-			tokens
-		)
+		"T"
+		+ format_number(tokens)
 	)
 
 	income_label.text = (
@@ -516,7 +514,7 @@ func update_top_bar() -> void:
 	)
 
 	total_level_label.text = (
-		"Level: "
+		"L"
 		+ str(
 			get_total_level()
 		)
@@ -611,9 +609,9 @@ func update_slot_ui(
 	)
 
 
-# -------------------------
+# --------------------------------------------------
 # NUMBER FORMAT
-# -------------------------
+# --------------------------------------------------
 
 func format_number(
 	value: float

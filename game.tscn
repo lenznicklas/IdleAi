@@ -1,0 +1,62 @@
+[gd_scene format=3 uid="uid://hw3acgqp3mmv"]
+
+[ext_resource type="Script" uid="uid://dkenpco1k2m5t" path="res://game.gd" id="1_80nbo"]
+
+[node name="Game" type="Control" unique_id=765773630]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_80nbo")
+
+[node name="Background" type="TextureRect" parent="." unique_id=1743925444]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=401336819]
+layout_mode = 0
+offset_right = 40.0
+offset_bottom = 40.0
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=415763582]
+layout_mode = 2
+
+[node name="TopBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=1018914507]
+layout_mode = 2
+
+[node name="TokenLabel" type="Label" parent="MarginContainer/VBoxContainer/TopBar" unique_id=1524412697]
+layout_mode = 2
+text = "Tokens: 100"
+
+[node name="IncomeLabel" type="Label" parent="MarginContainer/VBoxContainer/TopBar" unique_id=1602992637]
+layout_mode = 2
+text = "+0 / sec"
+
+[node name="TotalLevelLabel" type="Label" parent="MarginContainer/VBoxContainer/TopBar" unique_id=1025929069]
+layout_mode = 2
+
+[node name="RoomPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer" unique_id=518255566]
+layout_mode = 2
+
+[node name="RoomVBox" type="VBoxContainer" parent="MarginContainer/VBoxContainer/RoomPanel" unique_id=850476573]
+layout_mode = 2
+
+[node name="RoomLabel" type="Label" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox" unique_id=1786369267]
+layout_mode = 2
+text = "Garage"
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox" unique_id=876566206]
+layout_mode = 2
+horizontal_scroll_mode = 0
+
+[node name="SlotGrid" type="GridContainer" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox/ScrollContainer" unique_id=1231727723]
+layout_mode = 2
+size_flags_horizontal = 3
+columns = 2
+
+[node name="MessageLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=385042079]
+layout_mode = 2
+text = "Select a computer."

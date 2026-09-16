@@ -10,12 +10,36 @@ const BACKGROUND_TEXTURE: Texture2D = preload(
 )
 
 
+# --------------------------------------------------
+# SAVE SETTINGS
+# --------------------------------------------------
+
+const SAVE_VERSION: int = 1
+
+# Autosave every 10 seconds.
+const AUTOSAVE_INTERVAL_SECONDS: float = 10.0
+
+# Offline production = 25 % of normal production.
+const OFFLINE_INCOME_FACTOR: float = 0.25
+
+
+# --------------------------------------------------
+# GAME DATA
+# --------------------------------------------------
+
 var tokens: float = 0.0
 
 var machines: Array[MachineData] = []
 var slots: Array[SlotData] = []
 
 var stats := StatsData.new()
+
+var save_manager: SaveManager
+
+
+var last_save_unix: int = 0
+
+var last_saved_income_per_second: float = 0.0
 
 
 var slot_unlock_costs: Array[float] = [
@@ -28,9 +52,14 @@ var slot_unlock_costs: Array[float] = [
 ]
 
 
+# --------------------------------------------------
+# UI REFERENCES
+# --------------------------------------------------
+
 @onready var background: TextureRect = (
 	$Background
 )
+
 
 @onready var token_card: TextureButton = (
 	$MarginContainer/VBoxContainer/TopStats/TokenCard
@@ -109,6 +138,10 @@ var slot_unlock_costs: Array[float] = [
 )
 
 
+# --------------------------------------------------
+# READY
+# --------------------------------------------------
+
 func _ready() -> void:
 	theme = MAIN_THEME
 
@@ -119,14 +152,38 @@ func _ready() -> void:
 	create_machine_data()
 	create_slots()
 
-	update_ui()
+	setup_save_system()
 
-	message_label.text = (
-		"Upgrade your first machine."
+	var offline_earned: float = (
+		load_game()
 	)
 
+	update_ui()
 
-func _process(delta: float) -> void:
+	if offline_earned > 0.0:
+		message_label.text = (
+			"Welcome back! +"
+			+ format_number(
+				offline_earned
+			)
+			+ " offline Tokens"
+		)
+
+	else:
+		message_label.text = (
+			"Upgrade your first machine."
+		)
+
+	save_game()
+
+
+# --------------------------------------------------
+# GAME LOOP
+# --------------------------------------------------
+
+func _process(
+	delta: float
+) -> void:
 	var earned: float = (
 		get_total_income()
 		* delta
@@ -139,6 +196,318 @@ func _process(delta: float) -> void:
 	)
 
 	update_top_bar()
+
+
+# --------------------------------------------------
+# APPLICATION EVENTS
+# --------------------------------------------------
+
+func _notification(
+	what: int
+) -> void:
+	if save_manager == null:
+		return
+
+	if (
+		what
+		== NOTIFICATION_APPLICATION_PAUSED
+	):
+		save_game()
+
+	elif (
+		what
+		== NOTIFICATION_APPLICATION_RESUMED
+	):
+		var earned: float = (
+			apply_offline_income(
+				last_save_unix,
+				last_saved_income_per_second
+			)
+		)
+
+		if earned > 0.0:
+			message_label.text = (
+				"Welcome back! +"
+				+ format_number(
+					earned
+				)
+				+ " offline Tokens"
+			)
+
+		update_ui()
+		save_game()
+
+	elif (
+		what
+		== NOTIFICATION_WM_CLOSE_REQUEST
+	):
+		save_game()
+
+		get_tree().quit()
+
+
+# --------------------------------------------------
+# SAVE SYSTEM
+# --------------------------------------------------
+
+func setup_save_system() -> void:
+	save_manager = SaveManager.new()
+
+	add_child(
+		save_manager
+	)
+
+	save_manager.autosave_requested.connect(
+		save_game
+	)
+
+	save_manager.start_autosave(
+		AUTOSAVE_INTERVAL_SECONDS
+	)
+
+	last_save_unix = (
+		get_current_unix_time()
+	)
+
+
+func save_game() -> void:
+	if save_manager == null:
+		return
+
+	if slots.is_empty():
+		return
+
+
+	var slot_data: Array = []
+
+	for slot: SlotData in slots:
+		slot_data.append(
+			slot.to_dict()
+		)
+
+
+	var now: int = (
+		get_current_unix_time()
+	)
+
+	var current_income: float = (
+		get_total_income()
+	)
+
+
+	var save_data: Dictionary = {
+		"save_version":
+			SAVE_VERSION,
+
+		"tokens":
+			tokens,
+
+		"last_save_unix":
+			now,
+
+		"income_per_second":
+			current_income,
+
+		"slots":
+			slot_data,
+
+		"stats":
+			stats.to_dict()
+	}
+
+
+	var success: bool = (
+		save_manager.save_data(
+			save_data
+		)
+	)
+
+
+	if success:
+		last_save_unix = now
+
+		last_saved_income_per_second = (
+			current_income
+		)
+
+
+func load_game() -> float:
+	if save_manager == null:
+		return 0.0
+
+	if not save_manager.has_save():
+		last_save_unix = (
+			get_current_unix_time()
+		)
+
+		last_saved_income_per_second = (
+			get_total_income()
+		)
+
+		return 0.0
+
+
+	var save_data: Dictionary = (
+		save_manager.load_data()
+	)
+
+	if save_data.is_empty():
+		return 0.0
+
+
+	tokens = float(
+		save_data.get(
+			"tokens",
+			0.0
+		)
+	)
+
+
+	load_slots_from_save(
+		save_data
+	)
+
+
+	var saved_stats: Variant = (
+		save_data.get(
+			"stats",
+			{}
+		)
+	)
+
+	if saved_stats is Dictionary:
+		stats.load_from_dict(
+			saved_stats
+			as Dictionary
+		)
+
+
+	var saved_time: int = int(
+		save_data.get(
+			"last_save_unix",
+			get_current_unix_time()
+		)
+	)
+
+
+	var saved_income: float = float(
+		save_data.get(
+			"income_per_second",
+			get_total_income()
+		)
+	)
+
+
+	var offline_earned: float = (
+		apply_offline_income(
+			saved_time,
+			saved_income
+		)
+	)
+
+
+	last_save_unix = (
+		get_current_unix_time()
+	)
+
+	last_saved_income_per_second = (
+		get_total_income()
+	)
+
+
+	return offline_earned
+
+
+func load_slots_from_save(
+	save_data: Dictionary
+) -> void:
+	var saved_slots: Variant = (
+		save_data.get(
+			"slots",
+			[]
+		)
+	)
+
+	if not saved_slots is Array:
+		return
+
+
+	var saved_array: Array = (
+		saved_slots as Array
+	)
+
+
+	var amount: int = mini(
+		saved_array.size(),
+		slots.size()
+	)
+
+
+	for i: int in range(
+		amount
+	):
+		var slot_entry: Variant = (
+			saved_array[i]
+		)
+
+		if not slot_entry is Dictionary:
+			continue
+
+		slots[i].load_from_dict(
+			slot_entry as Dictionary
+		)
+
+
+func apply_offline_income(
+	saved_time: int,
+	income_per_second: float
+) -> float:
+	var now: int = (
+		get_current_unix_time()
+	)
+
+	var seconds_offline: int = (
+		now - saved_time
+	)
+
+
+	if seconds_offline <= 0:
+		return 0.0
+
+
+	if income_per_second <= 0.0:
+		return 0.0
+
+
+	var full_income: float = (
+		income_per_second
+		* float(
+			seconds_offline
+		)
+	)
+
+
+	var offline_income: float = (
+		full_income
+		* OFFLINE_INCOME_FACTOR
+	)
+
+
+	tokens += offline_income
+
+
+	stats.add_offline_earned(
+		offline_income
+	)
+
+
+	return offline_income
+
+
+func get_current_unix_time() -> int:
+	return int(
+		Time.get_unix_time_from_system()
+	)
 
 
 # --------------------------------------------------
@@ -208,7 +577,11 @@ func setup_round_button(
 	normal.corner_radius_bottom_left = 12
 	normal.corner_radius_bottom_right = 12
 
-	var hover := normal.duplicate() as StyleBoxFlat
+
+	var hover := (
+		normal.duplicate()
+		as StyleBoxFlat
+	)
 
 	hover.bg_color = Color(
 		0.03,
@@ -217,7 +590,11 @@ func setup_round_button(
 		1.0
 	)
 
-	var pressed := normal.duplicate() as StyleBoxFlat
+
+	var pressed := (
+		normal.duplicate()
+		as StyleBoxFlat
+	)
 
 	pressed.bg_color = Color(
 		0.02,
@@ -225,6 +602,7 @@ func setup_round_button(
 		0.3,
 		1.0
 	)
+
 
 	button.add_theme_stylebox_override(
 		"normal",
@@ -298,6 +676,7 @@ func position_popup_below(
 		card_pos.x
 		+ card_size.x / 2.0
 		- popup_width / 2.0,
+
 		card_pos.y
 		+ card_size.y
 		+ 6.0
@@ -330,12 +709,18 @@ func update_stats_overlay() -> void:
 		)
 	)
 
+
 	stats_earned_label.text = (
 		"Total earned: "
 		+ format_number(
 			stats.total_earned
 		)
+		+ "\nOffline earned: "
+		+ format_number(
+			stats.offline_earned
+		)
 	)
+
 
 	stats_spent_label.text = (
 		"Total spent: "
@@ -343,6 +728,7 @@ func update_stats_overlay() -> void:
 			stats.total_spent
 		)
 	)
+
 
 	stats_slots_label.text = (
 		"Unlocked slots: "
@@ -355,12 +741,14 @@ func update_stats_overlay() -> void:
 		)
 	)
 
+
 	stats_level_label.text = (
 		"Total level: "
 		+ str(
 			get_total_level()
 		)
 	)
+
 
 	stats_unlock_spend_label.text = (
 		"Slot unlocks: "
@@ -382,9 +770,12 @@ func update_stats_overlay() -> void:
 		machine_text += (
 			machine.machine_name
 			+ ": "
-			+ format_number(spent)
+			+ format_number(
+				spent
+			)
 			+ "\n"
 		)
+
 
 	stats_machine_spend_label.text = (
 		machine_text.strip_edges()
@@ -472,11 +863,18 @@ func create_slots() -> void:
 		if i == 0:
 			slot.unlocked = true
 
-		slots.append(slot)
+		slots.append(
+			slot
+		)
 
-		var slot_ui := MachineSlot.new()
 
-		slot_ui.setup(i)
+		var slot_ui := (
+			MachineSlot.new()
+		)
+
+		slot_ui.setup(
+			i
+		)
 
 		slot_ui.action_pressed.connect(
 			on_slot_button_pressed
@@ -491,7 +889,9 @@ func on_slot_button_pressed(
 	slot_index: int
 ) -> void:
 	var slot: SlotData = (
-		slots[slot_index]
+		slots[
+			slot_index
+		]
 	)
 
 	if not slot.unlocked:
@@ -500,6 +900,7 @@ func on_slot_button_pressed(
 		)
 
 		return
+
 
 	upgrade_slot(
 		slot
@@ -510,7 +911,9 @@ func unlock_slot(
 	slot_index: int
 ) -> void:
 	var slot: SlotData = (
-		slots[slot_index]
+		slots[
+			slot_index
+		]
 	)
 
 	var cost: float = (
@@ -519,6 +922,7 @@ func unlock_slot(
 		]
 	)
 
+
 	if tokens < cost:
 		message_label.text = (
 			"Not enough Tokens."
@@ -526,21 +930,28 @@ func unlock_slot(
 
 		return
 
+
 	tokens -= cost
+
 
 	stats.add_slot_spending(
 		cost
 	)
 
+
 	slot.unlocked = true
 	slot.machine_tier = 0
 	slot.machine_level = 1
 
+
 	message_label.text = (
 		"Slot "
-		+ str(slot_index + 1)
+		+ str(
+			slot_index + 1
+		)
 		+ " unlocked!"
 	)
+
 
 	update_ui()
 
@@ -558,6 +969,7 @@ func upgrade_slot(
 		]
 	)
 
+
 	if (
 		slot.machine_level
 		< machine.max_level
@@ -568,6 +980,7 @@ func upgrade_slot(
 		)
 
 		return
+
 
 	upgrade_machine_tier(
 		slot,
@@ -585,6 +998,7 @@ func upgrade_machine_level(
 		)
 	)
 
+
 	if tokens < cost:
 		message_label.text = (
 			"Not enough Tokens."
@@ -592,14 +1006,18 @@ func upgrade_machine_level(
 
 		return
 
+
 	tokens -= cost
+
 
 	stats.add_machine_spending(
 		machine.machine_name,
 		cost
 	)
 
+
 	slot.machine_level += 1
+
 
 	if slot.machine_level == 5:
 		message_label.text = (
@@ -622,6 +1040,7 @@ func upgrade_machine_level(
 			)
 		)
 
+
 	update_ui()
 
 
@@ -639,9 +1058,11 @@ func upgrade_machine_tier(
 
 		return
 
+
 	var cost: float = (
 		machine.tier_upgrade_cost
 	)
+
 
 	if tokens < cost:
 		message_label.text = (
@@ -650,15 +1071,19 @@ func upgrade_machine_tier(
 
 		return
 
+
 	tokens -= cost
+
 
 	stats.add_machine_spending(
 		machine.machine_name,
 		cost
 	)
 
+
 	slot.machine_tier += 1
 	slot.machine_level = 1
+
 
 	var new_machine: MachineData = (
 		machines[
@@ -666,11 +1091,13 @@ func upgrade_machine_tier(
 		]
 	)
 
+
 	message_label.text = (
 		"Upgraded to "
 		+ new_machine.machine_name
 		+ "!"
 	)
+
 
 	update_ui()
 
@@ -688,10 +1115,12 @@ func get_level_upgrade_cost(
 		]
 	)
 
+
 	var multiplier: float = pow(
 		1.35,
 		slot.machine_level - 1
 	)
+
 
 	return (
 		machine.base_upgrade_cost
@@ -708,11 +1137,14 @@ func get_milestone_multiplier(
 ) -> float:
 	var multiplier: float = 1.0
 
+
 	if level >= 5:
 		multiplier *= 2.0
 
+
 	if level >= 10:
 		multiplier *= 2.0
+
 
 	return multiplier
 
@@ -723,8 +1155,10 @@ func get_milestone_text(
 	if level >= 10:
 		return "x4 production"
 
+
 	if level >= 5:
 		return "x2 production"
+
 
 	return "Level 5: x2"
 
@@ -739,11 +1173,13 @@ func get_slot_income(
 	if not slot.unlocked:
 		return 0.0
 
+
 	var machine: MachineData = (
 		machines[
 			slot.machine_tier
 		]
 	)
+
 
 	var level_multiplier: float = (
 		1.0
@@ -753,11 +1189,13 @@ func get_slot_income(
 		* 0.25
 	)
 
+
 	var milestone_multiplier: float = (
 		get_milestone_multiplier(
 			slot.machine_level
 		)
 	)
+
 
 	return (
 		machine.base_income
@@ -769,12 +1207,14 @@ func get_slot_income(
 func get_total_income() -> float:
 	var total: float = 0.0
 
+
 	for slot: SlotData in slots:
 		total += (
 			get_slot_income(
 				slot
 			)
 		)
+
 
 	return total
 
@@ -786,18 +1226,26 @@ func get_total_income() -> float:
 func get_total_level() -> int:
 	var total: int = 0
 
+
 	for slot: SlotData in slots:
 		if not slot.unlocked:
 			continue
+
 
 		for tier: int in range(
 			slot.machine_tier
 		):
 			total += (
-				machines[tier].max_level
+				machines[
+					tier
+				].max_level
 			)
 
-		total += slot.machine_level
+
+		total += (
+			slot.machine_level
+		)
+
 
 	return total
 
@@ -809,6 +1257,7 @@ func get_total_level() -> int:
 func update_ui() -> void:
 	update_top_bar()
 
+
 	for i: int in range(
 		slots.size()
 	):
@@ -819,8 +1268,11 @@ func update_ui() -> void:
 
 func update_top_bar() -> void:
 	token_label.text = (
-		format_number(tokens)
+		format_number(
+			tokens
+		)
 	)
+
 
 	total_level_label.text = (
 		str(
@@ -838,12 +1290,14 @@ func update_slot_ui(
 		]
 	)
 
+
 	var slot_ui: MachineSlot = (
 		slot_grid.get_child(
 			slot_index
 		)
 		as MachineSlot
 	)
+
 
 	if not slot.unlocked:
 		slot_ui.show_locked(
@@ -856,13 +1310,16 @@ func update_slot_ui(
 
 		return
 
+
 	var machine: MachineData = (
 		machines[
 			slot.machine_tier
 		]
 	)
 
+
 	var button_text: String
+
 
 	if (
 		slot.machine_level
@@ -878,6 +1335,7 @@ func update_slot_ui(
 			+ " Tokens"
 		)
 
+
 	elif (
 		slot.machine_tier
 		< machines.size() - 1
@@ -889,6 +1347,7 @@ func update_slot_ui(
 			]
 		)
 
+
 		button_text = (
 			"Upgrade: "
 			+ next_machine.machine_name
@@ -899,20 +1358,25 @@ func update_slot_ui(
 			+ " Tokens"
 		)
 
+
 	else:
 		button_text = "MAX"
+
 
 	slot_ui.show_machine(
 		machine,
 		slot.machine_level,
+
 		format_number(
 			get_slot_income(
 				slot
 			)
 		),
+
 		get_milestone_text(
 			slot.machine_level
 		),
+
 		button_text
 	)
 
@@ -930,11 +1394,13 @@ func format_number(
 			/ 1_000_000_000_000.0
 		)
 
+
 	if value >= 1_000_000_000.0:
 		return "%.2fB" % (
 			value
 			/ 1_000_000_000.0
 		)
+
 
 	if value >= 1_000_000.0:
 		return "%.2fM" % (
@@ -942,16 +1408,20 @@ func format_number(
 			/ 1_000_000.0
 		)
 
+
 	if value >= 1_000.0:
 		return "%.2fK" % (
 			value
 			/ 1_000.0
 		)
 
+
 	if value >= 100.0:
 		return "%.0f" % value
 
+
 	if value >= 10.0:
 		return "%.1f" % value
+
 
 	return "%.2f" % value

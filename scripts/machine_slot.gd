@@ -29,7 +29,7 @@ func setup(index: int) -> void:
 
 	custom_minimum_size = Vector2(
 		0.0,
-		340.0
+		380.0
 	)
 
 	size_flags_horizontal = (
@@ -42,22 +42,14 @@ func setup(index: int) -> void:
 
 	create_ui()
 
-
 func create_ui() -> void:
-	var panel := PanelContainer.new()
-
-	panel.name = "Panel"
-
-	panel.set_anchors_and_offsets_preset(
-		Control.PRESET_FULL_RECT
-	)
-
-	add_child(panel)
-
-
 	var margin := MarginContainer.new()
 
 	margin.name = "Margin"
+
+	margin.set_anchors_and_offsets_preset(
+		Control.PRESET_FULL_RECT
+	)
 
 	margin.add_theme_constant_override(
 		"margin_left",
@@ -79,7 +71,7 @@ func create_ui() -> void:
 		12
 	)
 
-	panel.add_child(margin)
+	add_child(margin)
 
 
 	var content := VBoxContainer.new()
@@ -104,7 +96,6 @@ func create_ui() -> void:
 	create_milestone(content)
 	create_button(content)
 	create_border()
-
 
 func create_title(
 	content: VBoxContainer

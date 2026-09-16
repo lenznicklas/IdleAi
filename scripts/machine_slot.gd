@@ -32,16 +32,18 @@ func setup(index: int) -> void:
 		340.0
 	)
 
-	size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	size_flags_horizontal = (
+		Control.SIZE_EXPAND_FILL
+	)
+
+	size_flags_vertical = (
+		Control.SIZE_FILL
+	)
 
 	create_ui()
 
 
 func create_ui() -> void:
-	# -------------------------
-	# PANEL
-	# -------------------------
-
 	var panel := PanelContainer.new()
 
 	panel.name = "Panel"
@@ -53,9 +55,32 @@ func create_ui() -> void:
 	add_child(panel)
 
 
-	# -------------------------
-	# CONTENT
-	# -------------------------
+	var margin := MarginContainer.new()
+
+	margin.name = "Margin"
+
+	margin.add_theme_constant_override(
+		"margin_left",
+		12
+	)
+
+	margin.add_theme_constant_override(
+		"margin_right",
+		12
+	)
+
+	margin.add_theme_constant_override(
+		"margin_top",
+		12
+	)
+
+	margin.add_theme_constant_override(
+		"margin_bottom",
+		12
+	)
+
+	panel.add_child(margin)
+
 
 	var content := VBoxContainer.new()
 
@@ -69,13 +94,21 @@ func create_ui() -> void:
 		Control.SIZE_EXPAND_FILL
 	)
 
-	panel.add_child(content)
+	margin.add_child(content)
 
 
-	# -------------------------
-	# TITLE
-	# -------------------------
+	create_title(content)
+	create_machine_image(content)
+	create_level(content)
+	create_income(content)
+	create_milestone(content)
+	create_button(content)
+	create_border()
 
+
+func create_title(
+	content: VBoxContainer
+) -> void:
 	title_label = Label.new()
 
 	title_label.name = "Title"
@@ -93,13 +126,16 @@ func create_ui() -> void:
 		VERTICAL_ALIGNMENT_CENTER
 	)
 
-	content.add_child(title_label)
+	title_label.clip_text = true
+
+	content.add_child(
+		title_label
+	)
 
 
-	# -------------------------
-	# MACHINE IMAGE
-	# -------------------------
-
+func create_machine_image(
+	content: VBoxContainer
+) -> void:
 	machine_texture = TextureRect.new()
 
 	machine_texture.name = "MachineTexture"
@@ -113,6 +149,10 @@ func create_ui() -> void:
 		Control.SIZE_EXPAND_FILL
 	)
 
+	machine_texture.size_flags_vertical = (
+		Control.SIZE_EXPAND_FILL
+	)
+
 	machine_texture.expand_mode = (
 		TextureRect.EXPAND_IGNORE_SIZE
 	)
@@ -121,13 +161,18 @@ func create_ui() -> void:
 		TextureRect.STRETCH_KEEP_ASPECT_CENTERED
 	)
 
-	content.add_child(machine_texture)
+	machine_texture.mouse_filter = (
+		Control.MOUSE_FILTER_IGNORE
+	)
+
+	content.add_child(
+		machine_texture
+	)
 
 
-	# -------------------------
-	# LEVEL
-	# -------------------------
-
+func create_level(
+	content: VBoxContainer
+) -> void:
 	level_label = Label.new()
 
 	level_label.name = "Level"
@@ -141,13 +186,16 @@ func create_ui() -> void:
 		HORIZONTAL_ALIGNMENT_CENTER
 	)
 
-	content.add_child(level_label)
+	level_label.clip_text = true
+
+	content.add_child(
+		level_label
+	)
 
 
-	# -------------------------
-	# INCOME
-	# -------------------------
-
+func create_income(
+	content: VBoxContainer
+) -> void:
 	income_label = Label.new()
 
 	income_label.name = "Income"
@@ -161,13 +209,16 @@ func create_ui() -> void:
 		HORIZONTAL_ALIGNMENT_CENTER
 	)
 
-	content.add_child(income_label)
+	income_label.clip_text = true
+
+	content.add_child(
+		income_label
+	)
 
 
-	# -------------------------
-	# MILESTONE
-	# -------------------------
-
+func create_milestone(
+	content: VBoxContainer
+) -> void:
 	milestone_label = Label.new()
 
 	milestone_label.name = "Milestone"
@@ -181,13 +232,16 @@ func create_ui() -> void:
 		HORIZONTAL_ALIGNMENT_CENTER
 	)
 
-	content.add_child(milestone_label)
+	milestone_label.clip_text = true
+
+	content.add_child(
+		milestone_label
+	)
 
 
-	# -------------------------
-	# BUTTON
-	# -------------------------
-
+func create_button(
+	content: VBoxContainer
+) -> void:
 	action_button = Button.new()
 
 	action_button.name = "ActionButton"
@@ -207,13 +261,12 @@ func create_ui() -> void:
 		_on_action_pressed
 	)
 
-	content.add_child(action_button)
+	content.add_child(
+		action_button
+	)
 
 
-	# -------------------------
-	# BORDER
-	# -------------------------
-
+func create_border() -> void:
 	var border := NinePatchRect.new()
 
 	border.name = "Border"

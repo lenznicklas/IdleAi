@@ -26,15 +26,15 @@ var slot_unlock_costs: Array[float] = [
 )
 
 @onready var token_label: Label = (
-	$MarginContainer/VBoxContainer/TopBar/TokenLabel
+	$MarginContainer/VBoxContainer/TopBarBackground/TopBarMargin/TopBar/TokenLabel
 )
 
 @onready var income_label: Label = (
-	$MarginContainer/VBoxContainer/TopBar/IncomeLabel
+	$MarginContainer/VBoxContainer/TopBarBackground/TopBarMargin/TopBar/IncomeLabel
 )
 
 @onready var total_level_label: Label = (
-	$MarginContainer/VBoxContainer/TopBar/TotalLevelLabel
+	$MarginContainer/VBoxContainer/TopBarBackground/TopBarMargin/TopBar/TotalLevelLabel
 )
 
 @onready var slot_grid: GridContainer = (

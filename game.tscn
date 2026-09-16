@@ -1,62 +1,100 @@
 [gd_scene format=3 uid="uid://hw3acgqp3mmv"]
 
-[ext_resource type="Script" uid="uid://dkenpco1k2m5t" path="res://game.gd" id="1_80nbo"]
+[ext_resource type="Script" uid="uid://dkenpco1k2m5t" path="res://game.gd" id="1_game"]
+[ext_resource type="Texture2D" uid="uid://clpuj5fxhi5gq" path="res://assets/background/topbar.png" id="2_e2o6t"]
 
-[node name="Game" type="Control" unique_id=765773630]
+[node name="Game" type="Control" unique_id=217620977]
 layout_mode = 3
 anchors_preset = 15
 anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
-script = ExtResource("1_80nbo")
+script = ExtResource("1_game")
 
-[node name="Background" type="TextureRect" parent="." unique_id=1743925444]
+[node name="Background" type="TextureRect" parent="." unique_id=417885140]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+
+[node name="MarginContainer" type="MarginContainer" parent="." unique_id=10727192]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+theme_override_constants/margin_left = 16
+theme_override_constants/margin_top = 16
+theme_override_constants/margin_right = 16
+theme_override_constants/margin_bottom = 16
+
+[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=2098165815]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="TopBarBackground" type="NinePatchRect" parent="MarginContainer/VBoxContainer" unique_id=212457983]
+layout_mode = 2
+texture = ExtResource("2_e2o6t")
+
+[node name="TopBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer/TopBarBackground" unique_id=718160645]
 layout_mode = 0
-offset_right = 40.0
-offset_bottom = 40.0
+offset_top = 4.0
+offset_right = 688.0
+offset_bottom = 27.0
+size_flags_horizontal = 3
 
-[node name="MarginContainer" type="MarginContainer" parent="." unique_id=401336819]
-layout_mode = 0
-offset_right = 40.0
-offset_bottom = 40.0
-
-[node name="VBoxContainer" type="VBoxContainer" parent="MarginContainer" unique_id=415763582]
-layout_mode = 2
-
-[node name="TopBar" type="HBoxContainer" parent="MarginContainer/VBoxContainer" unique_id=1018914507]
-layout_mode = 2
-
-[node name="TokenLabel" type="Label" parent="MarginContainer/VBoxContainer/TopBar" unique_id=1524412697]
-layout_mode = 2
-text = "Tokens: 100"
-
-[node name="IncomeLabel" type="Label" parent="MarginContainer/VBoxContainer/TopBar" unique_id=1602992637]
-layout_mode = 2
-text = "+0 / sec"
-
-[node name="TotalLevelLabel" type="Label" parent="MarginContainer/VBoxContainer/TopBar" unique_id=1025929069]
-layout_mode = 2
-
-[node name="RoomPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer" unique_id=518255566]
-layout_mode = 2
-
-[node name="RoomVBox" type="VBoxContainer" parent="MarginContainer/VBoxContainer/RoomPanel" unique_id=850476573]
-layout_mode = 2
-
-[node name="RoomLabel" type="Label" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox" unique_id=1786369267]
-layout_mode = 2
-text = "Garage"
-
-[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox" unique_id=876566206]
-layout_mode = 2
-horizontal_scroll_mode = 0
-
-[node name="SlotGrid" type="GridContainer" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox/ScrollContainer" unique_id=1231727723]
+[node name="TokenLabel" type="Label" parent="MarginContainer/VBoxContainer/TopBarBackground/TopBar" unique_id=1296848872]
 layout_mode = 2
 size_flags_horizontal = 3
+text = "Tokens: 0"
+
+[node name="IncomeLabel" type="Label" parent="MarginContainer/VBoxContainer/TopBarBackground/TopBar" unique_id=2108882310]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "+0 / sec"
+horizontal_alignment = 1
+
+[node name="TotalLevelLabel" type="Label" parent="MarginContainer/VBoxContainer/TopBarBackground/TopBar" unique_id=139510756]
+layout_mode = 2
+size_flags_horizontal = 3
+text = "Level: 1"
+horizontal_alignment = 2
+
+[node name="RoomPanel" type="PanelContainer" parent="MarginContainer/VBoxContainer" unique_id=1933104196]
+layout_mode = 2
+size_flags_vertical = 3
+
+[node name="RoomVBox" type="VBoxContainer" parent="MarginContainer/VBoxContainer/RoomPanel" unique_id=1141195862]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+
+[node name="RoomLabel" type="Label" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox" unique_id=1748520560]
+layout_mode = 2
+text = "Garage"
+horizontal_alignment = 1
+
+[node name="ScrollContainer" type="ScrollContainer" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox" unique_id=187947979]
+layout_mode = 2
+size_flags_horizontal = 3
+size_flags_vertical = 3
+horizontal_scroll_mode = 0
+
+[node name="SlotGrid" type="GridContainer" parent="MarginContainer/VBoxContainer/RoomPanel/RoomVBox/ScrollContainer" unique_id=1662055020]
+layout_mode = 2
+size_flags_horizontal = 3
+theme_override_constants/h_separation = 10
+theme_override_constants/v_separation = 10
 columns = 2
 
-[node name="MessageLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=385042079]
+[node name="MessageLabel" type="Label" parent="MarginContainer/VBoxContainer" unique_id=2129194327]
+custom_minimum_size = Vector2(0, 35)
 layout_mode = 2
-text = "Select a computer."
+text = "Upgrade your first machine."
+horizontal_alignment = 1
+vertical_alignment = 1

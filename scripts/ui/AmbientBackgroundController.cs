@@ -5,6 +5,14 @@ namespace IdleAi;
 
 public sealed class AmbientBackgroundController
 {
+	private const int ParticleCount =
+		26;
+
+
+	private const int LightLineCount =
+		4;
+
+
 	private readonly Game _root;
 
 
@@ -12,25 +20,35 @@ public sealed class AmbientBackgroundController
 		null!;
 
 
-	private GpuParticles2D _particles =
-		null!;
-
-
-	private readonly ColorRect[] _lightLines =
-		new ColorRect[4];
-
-
-	private Tween? _lineTween;
-
-	private Tween? _pulseTween;
-
-
 	private ColorRect _pulseOverlay =
 		null!;
 
 
+	private readonly ColorRect[] _particles =
+		new ColorRect[ParticleCount];
+
+
+	private readonly Tween?[] _particleTweens =
+		new Tween?[ParticleCount];
+
+
+	private readonly ColorRect[] _lightLines =
+		new ColorRect[LightLineCount];
+
+
+	private readonly Tween?[] _lineTweens =
+		new Tween?[LightLineCount];
+
+
+	private Tween? _pulseTween;
+
+
 	private int _currentRoom =
 		-1;
+
+
+	private Color _currentColor =
+		Colors.White;
 
 
 	// ==================================================
@@ -53,16 +71,16 @@ public sealed class AmbientBackgroundController
 	{
 		CreateLayer();
 
+		CreatePulseOverlay();
+
 		CreateParticles();
 
 		CreateLightLines();
-
-		CreatePulseOverlay();
 	}
 
 
 	// ==================================================
-	// MAIN AMBIENT LAYER
+	// MAIN LAYER
 	// ==================================================
 
 	private void CreateLayer()
@@ -86,15 +104,9 @@ public sealed class AmbientBackgroundController
 
 
 		/*
-		 * Root layout:
-		 *
-		 * 0 Background
-		 * 1 Ambient
-		 * 2+ UI
-		 *
-		 * Therefore ambient effects are visible
-		 * above the room background but below
-		 * machines and interface.
+		 * Background = index 0
+		 * Ambient    = index 1
+		 * UI         = above ambient
 		 */
 
 		_root.MoveChild(
@@ -105,277 +117,7 @@ public sealed class AmbientBackgroundController
 
 
 	// ==================================================
-	// PARTICLES
-	// ==================================================
-
-	private void CreateParticles()
-	{
-		_particles =
-			new GpuParticles2D
-			{
-				Amount =
-					26,
-
-				Lifetime =
-					7.0,
-
-				Randomness =
-					0.45f,
-
-				Explosiveness =
-					0.0f,
-
-				Emitting =
-					true,
-
-				Position =
-					new Vector2(
-						360.0f,
-						1280.0f
-					)
-			};
-
-
-		ParticleProcessMaterial material =
-			new()
-			{
-				EmissionShape =
-					ParticleProcessMaterial
-						.EmissionShapeEnum
-						.Box,
-
-				EmissionBoxExtents =
-					new Vector3(
-						360.0f,
-						30.0f,
-						0.0f
-					),
-
-				Direction =
-					new Vector3(
-						0.0f,
-						-1.0f,
-						0.0f
-					),
-
-				Spread =
-					20.0f,
-
-				InitialVelocityMin =
-					20.0f,
-
-				InitialVelocityMax =
-					45.0f,
-
-				Gravity =
-					Vector3.Zero,
-
-				ScaleMin =
-					0.7f,
-
-				ScaleMax =
-					1.6f
-			};
-
-
-		Gradient particleGradient =
-			new();
-
-
-		particleGradient.SetColor(
-			0,
-			new Color(
-				1,
-				1,
-				1,
-				0
-			)
-		);
-
-
-		particleGradient.AddPoint(
-			0.15f,
-			new Color(
-				1,
-				1,
-				1,
-				0.55f
-			)
-		);
-
-
-		particleGradient.AddPoint(
-			0.75f,
-			new Color(
-				1,
-				1,
-				1,
-				0.30f
-			)
-		);
-
-
-		particleGradient.SetColor(
-			particleGradient.GetPointCount() - 1,
-			new Color(
-				1,
-				1,
-				1,
-				0
-			)
-		);
-
-		GradientTexture1D gradientTexture =
-		new()
-		{
-			Gradient =
-				particleGradient
-		};
-
-		material.ColorRamp =
-			gradientTexture;
-
-
-		_particles.ProcessMaterial =
-			material;
-
-
-		_layer.AddChild(
-			_particles
-		);
-	}
-
-
-	// ==================================================
-	// LIGHT LINES
-	// ==================================================
-
-	private void CreateLightLines()
-	{
-		for (
-			int i = 0;
-			i < _lightLines.Length;
-			i++
-		)
-		{
-			ColorRect line =
-				new()
-				{
-					Size =
-						new Vector2(
-							180.0f,
-							2.0f
-						),
-
-					CustomMinimumSize =
-						new Vector2(
-							180.0f,
-							2.0f
-						),
-
-					MouseFilter =
-						Control.MouseFilterEnum.Ignore
-				};
-
-
-			line.Position =
-				new Vector2(
-					-220.0f,
-					210.0f
-					+ i * 245.0f
-				);
-
-
-			_lightLines[
-				i
-			] =
-				line;
-
-
-			_layer.AddChild(
-				line
-			);
-		}
-
-
-		StartLightLineAnimation();
-	}
-
-
-	// ==================================================
-	// LIGHT LINE ANIMATION
-	// ==================================================
-
-	private void StartLightLineAnimation()
-	{
-		_lineTween?.Kill();
-
-
-		_lineTween =
-			_root.CreateTween();
-
-
-		_lineTween.SetLoops();
-
-
-		for (
-			int i = 0;
-			i < _lightLines.Length;
-			i++
-		)
-		{
-			ColorRect line =
-				_lightLines[
-					i
-				];
-
-
-			float startY =
-				line.Position.Y;
-
-
-			_lineTween.TweenProperty(
-				line,
-				"position",
-				new Vector2(
-					760.0f,
-					startY
-				),
-				3.8
-				+ i * 0.45
-			)
-			.SetTrans(
-				Tween.TransitionType.Sine
-			)
-			.SetEase(
-				Tween.EaseType.InOut
-			);
-
-
-			_lineTween.TweenCallback(
-				Callable.From(
-					() =>
-					{
-						line.Position =
-							new Vector2(
-								-220.0f,
-								startY
-							);
-					}
-				)
-			);
-
-
-			_lineTween.TweenInterval(
-				0.6
-				+ i * 0.15
-			);
-		}
-	}
-
-
-	// ==================================================
-	// ROOM GLOW
+	// PULSE / AMBIENT GLOW
 	// ==================================================
 
 	private void CreatePulseOverlay()
@@ -391,7 +133,7 @@ public sealed class AmbientBackgroundController
 						1,
 						1,
 						1,
-						0.05f
+						0.025f
 					)
 			};
 
@@ -420,7 +162,7 @@ public sealed class AmbientBackgroundController
 				1,
 				1,
 				1,
-				0.03f
+				0.35f
 			);
 
 
@@ -434,8 +176,8 @@ public sealed class AmbientBackgroundController
 		_pulseTween.TweenProperty(
 			_pulseOverlay,
 			"modulate:a",
-			0.10f,
-			3.5
+			0.75f,
+			4.0
 		)
 		.SetTrans(
 			Tween.TransitionType.Sine
@@ -448,14 +190,544 @@ public sealed class AmbientBackgroundController
 		_pulseTween.TweenProperty(
 			_pulseOverlay,
 			"modulate:a",
-			0.025f,
-			3.5
+			0.25f,
+			4.0
 		)
 		.SetTrans(
 			Tween.TransitionType.Sine
 		)
 		.SetEase(
 			Tween.EaseType.InOut
+		);
+	}
+
+
+	// ==================================================
+	// PARTICLES
+	// ==================================================
+
+	private void CreateParticles()
+	{
+		Vector2 viewportSize =
+			GetViewportSize();
+
+
+		for (
+			int i = 0;
+			i < ParticleCount;
+			i++
+		)
+		{
+			float size =
+				(float)GD.RandRange(
+					3.0,
+					8.0
+				);
+
+
+			ColorRect particle =
+				new()
+				{
+					Size =
+						new Vector2(
+							size,
+							size
+						),
+
+					CustomMinimumSize =
+						new Vector2(
+							size,
+							size
+						),
+
+					Color =
+						new Color(
+							1,
+							1,
+							1,
+							0.65f
+						),
+
+					MouseFilter =
+						Control.MouseFilterEnum.Ignore
+				};
+
+
+			/*
+			 * Spread the initial particles over the
+			 * full height so we don't have to wait
+			 * several seconds before seeing them.
+			 */
+
+			particle.Position =
+				new Vector2(
+					(float)GD.RandRange(
+						10.0,
+						Math.Max(
+							20.0,
+							viewportSize.X - 10.0
+						)
+					),
+
+					(float)GD.RandRange(
+						0.0,
+						Math.Max(
+							100.0,
+							viewportSize.Y
+						)
+					)
+				);
+
+
+			particle.Modulate =
+				new Color(
+					1,
+					1,
+					1,
+					(float)GD.RandRange(
+						0.30,
+						0.80
+					)
+				);
+
+
+			_particles[i] =
+				particle;
+
+
+			_layer.AddChild(
+				particle
+			);
+
+
+			StartParticleAnimation(
+				i
+			);
+		}
+	}
+
+
+	// ==================================================
+	// PARTICLE ANIMATION
+	// ==================================================
+
+	private void StartParticleAnimation(
+		int index)
+	{
+		ColorRect particle =
+			_particles[
+				index
+			];
+
+
+		_particleTweens[
+			index
+		]?.Kill();
+
+
+		Vector2 viewportSize =
+			GetViewportSize();
+
+
+		float startX =
+			particle.Position.X;
+
+
+		float startY =
+			particle.Position.Y;
+
+
+		/*
+		 * Slight sideways drift.
+		 */
+
+		float horizontalDrift =
+			(float)GD.RandRange(
+				-45.0,
+				45.0
+			);
+
+
+		/*
+		 * Different speeds keep the movement
+		 * from looking synchronized.
+		 */
+
+		double duration =
+			GD.RandRange(
+				7.0,
+				13.0
+			);
+
+
+		/*
+		 * If a particle starts halfway up the
+		 * screen, shorten its first trip.
+		 */
+
+		double distanceFactor =
+			Math.Clamp(
+				(
+					startY + 30.0
+				)
+				/ (
+					viewportSize.Y + 30.0
+				),
+				0.15,
+				1.0
+			);
+
+
+		double firstDuration =
+			duration
+			* distanceFactor;
+
+
+		Tween tween =
+			_root.CreateTween();
+
+
+		_particleTweens[
+			index
+		] =
+			tween;
+
+
+		/*
+		 * First movement from the random initial
+		 * position to the top.
+		 */
+
+		tween.TweenProperty(
+			particle,
+			"position",
+			new Vector2(
+				startX
+				+ horizontalDrift,
+
+				-30.0f
+			),
+			firstDuration
+		)
+		.SetTrans(
+			Tween.TransitionType.Linear
+		);
+
+
+		tween.TweenCallback(
+			Callable.From(
+				() =>
+					RestartParticle(
+						index
+					)
+			)
+		);
+	}
+
+
+	private void RestartParticle(
+		int index)
+	{
+		if (
+			index < 0
+			|| index >= _particles.Length
+		)
+		{
+			return;
+		}
+
+
+		ColorRect particle =
+			_particles[
+				index
+			];
+
+
+		if (
+			particle == null
+			|| !GodotObject.IsInstanceValid(
+				particle
+			)
+		)
+		{
+			return;
+		}
+
+
+		Vector2 viewportSize =
+			GetViewportSize();
+
+
+		float size =
+			(float)GD.RandRange(
+				3.0,
+				8.0
+			);
+
+
+		particle.Size =
+			new Vector2(
+				size,
+				size
+			);
+
+
+		particle.CustomMinimumSize =
+			new Vector2(
+				size,
+				size
+			);
+
+
+		/*
+		 * THIS is the important part:
+		 *
+		 * Reappear slightly below the screen,
+		 * then move upward.
+		 */
+
+		float startX =
+			(float)GD.RandRange(
+				10.0,
+				Math.Max(
+					20.0,
+					viewportSize.X - 10.0
+				)
+			);
+
+
+		particle.Position =
+			new Vector2(
+				startX,
+				viewportSize.Y
+				+ (float)GD.RandRange(
+					5.0,
+					40.0
+				)
+			);
+
+
+		particle.Modulate =
+			new Color(
+				1,
+				1,
+				1,
+				(float)GD.RandRange(
+					0.30,
+					0.80
+				)
+			);
+
+
+		float horizontalDrift =
+			(float)GD.RandRange(
+				-55.0,
+				55.0
+			);
+
+
+		double duration =
+			GD.RandRange(
+				8.0,
+				14.0
+			);
+
+
+		Tween tween =
+			_root.CreateTween();
+
+
+		_particleTweens[
+			index
+		] =
+			tween;
+
+
+		tween.TweenProperty(
+			particle,
+			"position",
+			new Vector2(
+				startX
+				+ horizontalDrift,
+
+				-40.0f
+			),
+			duration
+		)
+		.SetTrans(
+			Tween.TransitionType.Linear
+		);
+
+
+		tween.TweenCallback(
+			Callable.From(
+				() =>
+					RestartParticle(
+						index
+					)
+			)
+		);
+	}
+
+
+	// ==================================================
+	// LIGHT LINES
+	// ==================================================
+
+	private void CreateLightLines()
+	{
+		Vector2 viewportSize =
+			GetViewportSize();
+
+
+		for (
+			int i = 0;
+			i < LightLineCount;
+			i++
+		)
+		{
+			ColorRect line =
+				new()
+				{
+					Size =
+						new Vector2(
+							140.0f,
+							2.0f
+						),
+
+					CustomMinimumSize =
+						new Vector2(
+							140.0f,
+							2.0f
+						),
+
+					Color =
+						new Color(
+							1,
+							1,
+							1,
+							0.15f
+						),
+
+					MouseFilter =
+						Control.MouseFilterEnum.Ignore
+				};
+
+
+			line.Position =
+				new Vector2(
+					(float)GD.RandRange(
+						-300.0,
+						0.0
+					),
+
+					viewportSize.Y
+					* (
+						0.20f
+						+ i * 0.20f
+					)
+				);
+
+
+			_lightLines[
+				i
+			] =
+				line;
+
+
+			_layer.AddChild(
+				line
+			);
+
+
+			StartLightLineAnimation(
+				i
+			);
+		}
+	}
+
+
+	// ==================================================
+	// INDIVIDUAL LIGHT LINE
+	// ==================================================
+
+	private void StartLightLineAnimation(
+		int index)
+	{
+		ColorRect line =
+			_lightLines[
+				index
+			];
+
+
+		_lineTweens[
+			index
+		]?.Kill();
+
+
+		Vector2 viewportSize =
+			GetViewportSize();
+
+
+		float y =
+			line.Position.Y;
+
+
+		line.Position =
+			new Vector2(
+				(float)GD.RandRange(
+					-350.0,
+					-150.0
+				),
+
+				y
+			);
+
+
+		double duration =
+			GD.RandRange(
+				5.5,
+				9.0
+			);
+
+
+		Tween tween =
+			_root.CreateTween();
+
+
+		_lineTweens[
+			index
+		] =
+			tween;
+
+
+		tween.TweenInterval(
+			GD.RandRange(
+				0.3,
+				2.5
+			)
+		);
+
+
+		tween.TweenProperty(
+			line,
+			"position:x",
+			viewportSize.X
+			+ 250.0f,
+			duration
+		)
+		.SetTrans(
+			Tween.TransitionType.Linear
+		);
+
+
+		tween.TweenCallback(
+			Callable.From(
+				() =>
+					StartLightLineAnimation(
+						index
+					)
+			)
 		);
 	}
 
@@ -468,8 +740,8 @@ public sealed class AmbientBackgroundController
 		int roomIndex)
 	{
 		if (
-			roomIndex ==
-			_currentRoom
+			roomIndex
+			== _currentRoom
 		)
 		{
 			return;
@@ -480,16 +752,13 @@ public sealed class AmbientBackgroundController
 			roomIndex;
 
 
-		Color roomColor =
+		_currentColor =
 			GetRoomColor(
 				roomIndex
 			);
 
 
-		ApplyRoomColor(
-			roomColor
-		);
-
+		ApplyRoomColor();
 
 		ApplyRoomIntensity(
 			roomIndex
@@ -498,7 +767,7 @@ public sealed class AmbientBackgroundController
 
 
 	// ==================================================
-	// ROOM COLORS
+	// ROOM COLOR
 	// ==================================================
 
 	private static Color GetRoomColor(
@@ -506,39 +775,35 @@ public sealed class AmbientBackgroundController
 	{
 		return roomIndex switch
 		{
-			// Garage
 			0 =>
 				new Color(
-					0.05f,
-					0.65f,
-					1.0f,
+					0.10f,
+					0.70f,
+					1.00f,
 					1.0f
 				),
 
-			// Server Room
 			1 =>
 				new Color(
-					1.0f,
-					0.12f,
+					1.00f,
 					0.18f,
+					0.20f,
 					1.0f
 				),
 
-			// Data Center
 			2 =>
 				new Color(
 					0.10f,
-					1.0f,
-					0.42f,
+					1.00f,
+					0.40f,
 					1.0f
 				),
 
-			// Quantum Lab
 			3 =>
 				new Color(
-					0.68f,
-					0.22f,
-					1.0f,
+					0.70f,
+					0.25f,
+					1.00f,
 					1.0f
 				),
 
@@ -549,19 +814,28 @@ public sealed class AmbientBackgroundController
 
 
 	// ==================================================
-	// APPLY COLOR
+	// APPLY ROOM COLORS
 	// ==================================================
 
-	private void ApplyRoomColor(
-		Color color)
+	private void ApplyRoomColor()
 	{
-		_particles.Modulate =
-			new Color(
-				color.R,
-				color.G,
-				color.B,
-				0.50f
-			);
+		foreach (
+			ColorRect particle
+			in _particles
+		)
+		{
+			if (particle == null)
+				continue;
+
+
+			particle.Color =
+				new Color(
+					_currentColor.R,
+					_currentColor.G,
+					_currentColor.B,
+					0.80f
+				);
+		}
 
 
 		foreach (
@@ -569,22 +843,26 @@ public sealed class AmbientBackgroundController
 			in _lightLines
 		)
 		{
+			if (line == null)
+				continue;
+
+
 			line.Color =
 				new Color(
-					color.R,
-					color.G,
-					color.B,
-					0.20f
+					_currentColor.R,
+					_currentColor.G,
+					_currentColor.B,
+					0.18f
 				);
 		}
 
 
 		_pulseOverlay.Color =
 			new Color(
-				color.R,
-				color.G,
-				color.B,
-				1.0f
+				_currentColor.R,
+				_currentColor.G,
+				_currentColor.B,
+				0.035f
 			);
 	}
 
@@ -596,66 +874,67 @@ public sealed class AmbientBackgroundController
 	private void ApplyRoomIntensity(
 		int roomIndex)
 	{
-		switch (roomIndex)
+		/*
+		 * Instead of changing the number of
+		 * particles at runtime, vary visibility.
+		 */
+
+		int visibleParticles =
+			roomIndex switch
+			{
+				0 => 18,
+				1 => 21,
+				2 => 24,
+				3 => 26,
+				_ => 18
+			};
+
+
+		for (
+			int i = 0;
+			i < _particles.Length;
+			i++
+		)
 		{
-			// Garage:
-			// quietest room
-			case 0:
-				_particles.Amount =
-					18;
-
-				_particles.Lifetime =
-					8.0;
-
-				break;
+			_particles[
+				i
+			].Visible =
+				i < visibleParticles;
+		}
+	}
 
 
-			// Server Room
-			case 1:
-				_particles.Amount =
-					24;
+	// ==================================================
+	// VIEWPORT SIZE
+	// ==================================================
 
-				_particles.Lifetime =
-					7.0;
-
-				break;
-
-
-			// Data Center
-			case 2:
-				_particles.Amount =
-					30;
-
-				_particles.Lifetime =
-					6.5;
-
-				break;
+	private Vector2 GetViewportSize()
+	{
+		Vector2 size =
+			_root.GetViewportRect()
+				.Size;
 
 
-			// Quantum Lab:
-			// most active room
-			case 3:
-				_particles.Amount =
-					38;
+		/*
+		 * Safety fallback for initialization before
+		 * the viewport has received its final size.
+		 */
 
-				_particles.Lifetime =
-					6.0;
-
-				break;
-
-
-			default:
-				_particles.Amount =
-					20;
-
-				_particles.Lifetime =
-					7.0;
-
-				break;
+		if (size.X <= 0.0f)
+		{
+			size.X =
+				720.0f;
 		}
 
 
-		_particles.Restart();
+		if (size.Y <= 0.0f)
+		{
+			size.Y =
+				1280.0f;
+		}
+
+
+		return size;
 	}
 
 
@@ -665,8 +944,24 @@ public sealed class AmbientBackgroundController
 
 	public void Cleanup()
 	{
-		_lineTween?.Kill();
-
 		_pulseTween?.Kill();
+
+
+		foreach (
+			Tween? tween
+			in _particleTweens
+		)
+		{
+			tween?.Kill();
+		}
+
+
+		foreach (
+			Tween? tween
+			in _lineTweens
+		)
+		{
+			tween?.Kill();
+		}
 	}
 }

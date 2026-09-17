@@ -6,28 +6,55 @@ namespace IdleAi;
 
 public partial class Game : Control
 {
-	private const int SaveVersion = 5;
-
-	private const double AutosaveIntervalSeconds = 10.0;
-
-	private const double OfflineIncomeFactor = 0.25;
+	private const int SaveVersion =
+		6;
 
 
-	private GameState _state = null!;
+	private const double AutosaveIntervalSeconds =
+		10.0;
 
-	private EconomyService _economy = null!;
 
-	private ProgressionService _progression = null!;
+	private const double OfflineIncomeFactor =
+		0.25;
 
-	private GameUiController _ui = null!;
 
-	private SaveManager _saveManager = null!;
+	private GameState _state =
+		null!;
+
+
+	private EconomyService _economy =
+		null!;
+
+
+	private ProgressionService _progression =
+		null!;
+
+
+	private PrestigeService _prestige =
+		null!;
+
+
+	private GameUiController _ui =
+		null!;
+
+
+	private PrestigeUiController _prestigeUi =
+		null!;
+
+
+	private SaveManager _saveManager =
+		null!;
 
 
 	private long _lastSaveUnix;
 
+
 	private double _lastSavedIncomePerSecond;
 
+
+	// ==================================================
+	// READY
+	// ==================================================
 
 	public override void _Ready()
 	{
@@ -35,7 +62,11 @@ public partial class Game : Control
 
 		CreateRoomStates();
 
+
 		_ui.Initialize();
+
+		_prestigeUi.Initialize();
+
 
 		SetupSaveSystem();
 
@@ -46,11 +77,15 @@ public partial class Game : Control
 
 		_ui.UpdateAll();
 
+		_prestigeUi.Update();
+
 
 		if (offlineEarned > 0.0)
 		{
 			_ui.SetMessage(
-				$"Welcome back! +{NumberFormatter.Format(offlineEarned)} offline Tokens"
+				$"Welcome back! +"
+				+ $"{NumberFormatter.Format(offlineEarned)} "
+				+ "offline Tokens"
 			);
 		}
 		else
@@ -65,6 +100,10 @@ public partial class Game : Control
 	}
 
 
+	// ==================================================
+	// PROCESS
+	// ==================================================
+
 	public override void _Process(
 		double delta)
 	{
@@ -73,7 +112,12 @@ public partial class Game : Control
 			* delta;
 
 
-		_state.Tokens += earned;
+		_state.Tokens +=
+			earned;
+
+
+		_state.RunEarnedTokens +=
+			earned;
 
 
 		_state.Stats.AddEarned(
@@ -82,6 +126,8 @@ public partial class Game : Control
 
 
 		_ui.UpdateTopBar();
+
+		_prestigeUi.Update();
 	}
 
 
@@ -90,6 +136,10 @@ public partial class Game : Control
 		SaveGame();
 	}
 
+
+	// ==================================================
+	// CREATE SYSTEMS
+	// ==================================================
 
 	private void CreateGameSystems()
 	{
@@ -112,6 +162,12 @@ public partial class Game : Control
 			);
 
 
+		_prestige =
+			new PrestigeService(
+				_state
+			);
+
+
 		_ui =
 			new GameUiController(
 				this,
@@ -121,14 +177,30 @@ public partial class Game : Control
 			);
 
 
+		_prestigeUi =
+			new PrestigeUiController(
+				this,
+				_state,
+				_prestige
+			);
+
+
 		_ui.SlotActionRequested +=
 			OnSlotActionRequested;
 
 
 		_ui.RoomChangeRequested +=
 			OnRoomChangeRequested;
+
+
+		_prestigeUi.PrestigeRequested +=
+			OnPrestigeRequested;
 	}
 
+
+	// ==================================================
+	// INITIAL ROOM STATES
+	// ==================================================
 
 	private void CreateRoomStates()
 	{
@@ -176,6 +248,10 @@ public partial class Game : Control
 	}
 
 
+	// ==================================================
+	// SLOT ACTION
+	// ==================================================
+
 	private void OnSlotActionRequested(
 		int slotIndex)
 	{
@@ -199,6 +275,10 @@ public partial class Game : Control
 		SaveGame();
 	}
 
+
+	// ==================================================
+	// ROOM CHANGE
+	// ==================================================
 
 	private void OnRoomChangeRequested(
 		int direction)
@@ -253,6 +333,42 @@ public partial class Game : Control
 	}
 
 
+	// ==================================================
+	// PRESTIGE
+	// ==================================================
+
+	private void OnPrestigeRequested()
+	{
+		PrestigeResult result =
+			_prestige.Prestige();
+
+
+		_ui.SetMessage(
+			result.Message
+		);
+
+
+		if (!result.Success)
+		{
+			_prestigeUi.Update();
+
+			return;
+		}
+
+
+		_ui.UpdateAll();
+
+		_prestigeUi.Update();
+
+
+		SaveGame();
+	}
+
+
+	// ==================================================
+	// SAVE SYSTEM
+	// ==================================================
+
 	private void SetupSaveSystem()
 	{
 		_saveManager =
@@ -280,6 +396,10 @@ public partial class Game : Control
 
 	private void SaveGame()
 	{
+		if (_saveManager == null)
+			return;
+
+
 		long now =
 			GetCurrentUnixTime();
 
@@ -297,6 +417,9 @@ public partial class Game : Control
 				Tokens =
 					_state.Tokens,
 
+				RunEarnedTokens =
+					_state.RunEarnedTokens,
+
 				LastSaveUnix =
 					now,
 
@@ -305,6 +428,12 @@ public partial class Game : Control
 
 				CurrentRoomIndex =
 					_state.CurrentRoomIndex,
+
+				AiCores =
+					_state.Prestige.AiCores,
+
+				PrestigeCount =
+					_state.Prestige.PrestigeCount,
 
 				Rooms =
 					_state.RoomStates
@@ -347,6 +476,10 @@ public partial class Game : Control
 	}
 
 
+	// ==================================================
+	// LOAD
+	// ==================================================
+
 	private double LoadGame()
 	{
 		if (!_saveManager.HasSave())
@@ -365,6 +498,18 @@ public partial class Game : Control
 
 		_state.Tokens =
 			save.Tokens;
+
+
+		_state.RunEarnedTokens =
+			save.RunEarnedTokens;
+
+
+		_state.Prestige.AiCores =
+			save.AiCores;
+
+
+		_state.Prestige.PrestigeCount =
+			save.PrestigeCount;
 
 
 		for (
@@ -446,6 +591,10 @@ public partial class Game : Control
 	}
 
 
+	// ==================================================
+	// OFFLINE
+	// ==================================================
+
 	private double ApplyOfflineIncome(
 		long savedTime,
 		double incomePerSecond)
@@ -473,7 +622,12 @@ public partial class Game : Control
 			* OfflineIncomeFactor;
 
 
-		_state.Tokens += amount;
+		_state.Tokens +=
+			amount;
+
+
+		_state.RunEarnedTokens +=
+			amount;
 
 
 		_state.Stats.AddOfflineEarned(

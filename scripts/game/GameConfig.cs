@@ -163,4 +163,10 @@ public static class GameConfig
 				GarageSlotUnlockCosts
 		};
 	}
+	
+	public const double PrestigeTokensPerCore =
+		1_000_000_000_000_000_000.0; // 1 Qi
+
+	public const double ProductionBoostPerAiCore =
+		0.10; // +10 %
 }

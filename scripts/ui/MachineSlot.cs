@@ -30,6 +30,15 @@ public partial class MachineSlot : Control
 	private Button _actionButton = null!;
 
 
+	private Tween? _idleTween;
+
+	private Vector2 _machineBasePosition;
+
+
+	// ==================================================
+	// SETUP
+	// ==================================================
+
 	public void Setup(
 		int index)
 	{
@@ -53,6 +62,18 @@ public partial class MachineSlot : Control
 
 
 		CreateUi();
+	}
+
+
+	// ==================================================
+	// READY
+	// ==================================================
+
+	public override void _Ready()
+	{
+		CallDeferred(
+			MethodName.StartIdleAnimation
+		);
 	}
 
 
@@ -437,6 +458,102 @@ public partial class MachineSlot : Control
 
 
 	// ==================================================
+	// IDLE FLOAT ANIMATION
+	// ==================================================
+
+	private void StartIdleAnimation()
+	{
+		if (_machineTexture == null)
+			return;
+
+
+		_idleTween?.Kill();
+
+
+		_machineBasePosition =
+			_machineTexture.Position;
+
+
+		float offset =
+			4.0f;
+
+
+		double duration =
+			1.4;
+
+
+		double delay =
+			GD.RandRange(
+				0.0,
+				1.2
+			);
+
+
+		// Startet jede Maschine leicht versetzt.
+		_idleTween =
+			CreateTween();
+
+
+		_idleTween.SetLoops();
+
+
+		_idleTween.TweenInterval(
+			delay
+		);
+
+
+		_idleTween.TweenProperty(
+			_machineTexture,
+			"position",
+			_machineBasePosition
+			+ new Vector2(
+				0,
+				-offset
+			),
+			duration
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.InOut
+		);
+
+
+		_idleTween.TweenProperty(
+			_machineTexture,
+			"position",
+			_machineBasePosition
+			+ new Vector2(
+				0,
+				offset
+			),
+			duration * 2.0
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.InOut
+		);
+
+
+		_idleTween.TweenProperty(
+			_machineTexture,
+			"position",
+			_machineBasePosition,
+			duration
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.InOut
+		);
+	}
+
+
+	// ==================================================
 	// LOCKED SLOT
 	// ==================================================
 
@@ -609,5 +726,15 @@ public partial class MachineSlot : Control
 			"disabled",
 			disabled
 		);
+	}
+
+
+	// ==================================================
+	// CLEANUP
+	// ==================================================
+
+	public override void _ExitTree()
+	{
+		_idleTween?.Kill();
 	}
 }

@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 
 namespace IdleAi;
 
@@ -11,9 +10,14 @@ public sealed class EconomyService
 	public EconomyService(
 		GameState state)
 	{
-		_state = state;
+		_state =
+			state;
 	}
 
+
+	// ==================================================
+	// UPGRADE COST
+	// ==================================================
 
 	public double GetLevelUpgradeCost(
 		int roomIndex,
@@ -47,6 +51,10 @@ public sealed class EconomyService
 	}
 
 
+	// ==================================================
+	// TIER COST
+	// ==================================================
+
 	public double GetTierUpgradeCost(
 		int roomIndex,
 		SlotData slot,
@@ -66,6 +74,10 @@ public sealed class EconomyService
 			   ];
 	}
 
+
+	// ==================================================
+	// SLOT INCOME
+	// ==================================================
 
 	public double GetSlotIncome(
 		int roomIndex,
@@ -92,13 +104,27 @@ public sealed class EconomyService
 			* GameConfig.IncomePerLevel;
 
 
+		double milestoneMultiplier =
+			GetMilestoneMultiplier(
+				slot.MachineLevel
+			);
+
+
+		double prestigeMultiplier =
+			_state.Prestige
+				.GetProductionMultiplier();
+
+
 		return machine.BaseIncome
 			   * levelMultiplier
-			   * GetMilestoneMultiplier(
-				   slot.MachineLevel
-			   );
+			   * milestoneMultiplier
+			   * prestigeMultiplier;
 	}
 
+
+	// ==================================================
+	// ROOM INCOME
+	// ==================================================
 
 	public double GetRoomIncome(
 		int roomIndex)
@@ -136,6 +162,10 @@ public sealed class EconomyService
 	}
 
 
+	// ==================================================
+	// TOTAL INCOME
+	// ==================================================
+
 	public double GetTotalIncome()
 	{
 		double total =
@@ -158,6 +188,21 @@ public sealed class EconomyService
 		return total;
 	}
 
+
+	// ==================================================
+	// PRESTIGE
+	// ==================================================
+
+	public double GetPrestigeMultiplier()
+	{
+		return _state.Prestige
+			.GetProductionMultiplier();
+	}
+
+
+	// ==================================================
+	// MILESTONES
+	// ==================================================
 
 	public static double GetMilestoneMultiplier(
 		int level)

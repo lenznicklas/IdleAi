@@ -11,26 +11,71 @@ public partial class MachineSlot : Control
 		);
 
 
-	public event Action<int>? ActionPressed;
+	private static readonly Texture2D StartTexture =
+		GD.Load<Texture2D>(
+            "res://assets/ui/button.png"
+		);
+
+
+	public event Action<int>? UnlockPressed;
+
+	public event Action<int>? ManualStartPressed;
+
+	public event Action<int>? DetailsPressed;
 
 
 	private int _slotIndex;
 
 
-	private Label _titleLabel = null!;
-
-	private TextureRect _machineTexture = null!;
-
-	private Label _levelLabel = null!;
-
-	private Label _incomeLabel = null!;
-
-	private Label _milestoneLabel = null!;
-
-	private Button _actionButton = null!;
+	private Label _titleLabel =
+		null!;
 
 
-	private Tween? _idleTween;
+	private Control _machineHolder =
+		null!;
+
+
+	private Control _machineVisual =
+		null!;
+
+
+	private TextureButton _machineButton =
+		null!;
+
+
+	private Label _levelLabel =
+		null!;
+
+
+	private TextureButton _startButton =
+		null!;
+
+
+	private TextureButton _botButton =
+		null!;
+
+
+	private ProgressBar _progressBar =
+		null!;
+
+
+	private Label _statusLabel =
+		null!;
+
+
+	private Button _unlockButton =
+		null!;
+
+
+	// ==================================================
+	// ANIMATION
+	// ==================================================
+
+	private Tween? _runningTween;
+
+
+	private bool _animationRunning;
+
 
 	private Vector2 _machineBasePosition;
 
@@ -49,7 +94,7 @@ public partial class MachineSlot : Control
 		CustomMinimumSize =
 			new Vector2(
 				0,
-				380
+				340
 			);
 
 
@@ -57,67 +102,51 @@ public partial class MachineSlot : Control
 			SizeFlags.ExpandFill;
 
 
-		SizeFlagsVertical =
-			SizeFlags.Fill;
-
-
 		CreateUi();
 	}
 
 
 	// ==================================================
-	// READY
-	// ==================================================
-
-	public override void _Ready()
-	{
-		CallDeferred(
-			MethodName.StartIdleAnimation
-		);
-	}
-
-
-	// ==================================================
-	// UI CREATION
+	// CREATE UI
 	// ==================================================
 
 	private void CreateUi()
 	{
-		MarginContainer outerMargin =
+		MarginContainer margin =
 			new();
 
 
-		outerMargin.SetAnchorsAndOffsetsPreset(
+		margin.SetAnchorsAndOffsetsPreset(
 			LayoutPreset.FullRect
 		);
 
 
-		outerMargin.AddThemeConstantOverride(
+		margin.AddThemeConstantOverride(
 			"margin_left",
 			12
 		);
 
 
-		outerMargin.AddThemeConstantOverride(
+		margin.AddThemeConstantOverride(
 			"margin_top",
-			12
+			10
 		);
 
 
-		outerMargin.AddThemeConstantOverride(
+		margin.AddThemeConstantOverride(
 			"margin_right",
 			12
 		);
 
 
-		outerMargin.AddThemeConstantOverride(
+		margin.AddThemeConstantOverride(
 			"margin_bottom",
-			12
+			10
 		);
 
 
 		AddChild(
-			outerMargin
+			margin
 		);
 
 
@@ -135,11 +164,11 @@ public partial class MachineSlot : Control
 
 		vbox.AddThemeConstantOverride(
 			"separation",
-			8
+			6
 		);
 
 
-		outerMargin.AddChild(
+		margin.AddChild(
 			vbox
 		);
 
@@ -149,27 +178,22 @@ public partial class MachineSlot : Control
 		);
 
 
-		CreateMachineImage(
+		CreateMachineArea(
 			vbox
 		);
 
 
-		CreateLevelLabel(
+		CreateInfoRow(
 			vbox
 		);
 
 
-		CreateIncomeLabel(
+		CreateProgress(
 			vbox
 		);
 
 
-		CreateMilestoneLabel(
-			vbox
-		);
-
-
-		CreateActionButton(
+		CreateUnlockButton(
 			vbox
 		);
 
@@ -191,7 +215,7 @@ public partial class MachineSlot : Control
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						35
+						32
 					),
 
 				HorizontalAlignment =
@@ -207,7 +231,7 @@ public partial class MachineSlot : Control
 
 		_titleLabel.AddThemeFontSizeOverride(
 			"font_size",
-			18
+			17
 		);
 
 
@@ -218,122 +242,256 @@ public partial class MachineSlot : Control
 
 
 	// ==================================================
-	// MACHINE IMAGE
+	// MACHINE AREA
 	// ==================================================
 
-	private void CreateMachineImage(
+	private void CreateMachineArea(
 		VBoxContainer parent)
 	{
-		_machineTexture =
-			new TextureRect
+		/*
+		 * Important:
+		 *
+		 * _machineHolder is controlled by the VBoxContainer.
+		 *
+		 * _machineVisual is NOT controlled by the VBoxContainer.
+		 * Therefore we can safely animate its Position.
+		 */
+
+		_machineHolder =
+			new Control
 			{
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						150
-					),
-
-				ExpandMode =
-					TextureRect.ExpandModeEnum.IgnoreSize,
-
-				StretchMode =
-					TextureRect.StretchModeEnum.KeepAspectCentered,
-
-				MouseFilter =
-					MouseFilterEnum.Ignore
+						165
+					)
 			};
 
 
-		_machineTexture.SizeFlagsHorizontal =
+		_machineHolder.SizeFlagsHorizontal =
 			SizeFlags.ExpandFill;
 
 
 		parent.AddChild(
-			_machineTexture
+			_machineHolder
+		);
+
+
+		_machineVisual =
+			new Control();
+
+
+		_machineVisual.SetAnchorsAndOffsetsPreset(
+			LayoutPreset.FullRect
+		);
+
+
+		_machineHolder.AddChild(
+			_machineVisual
+		);
+
+
+		_machineButton =
+			new TextureButton
+			{
+				IgnoreTextureSize =
+					true,
+
+				StretchMode =
+					TextureButton.StretchModeEnum.KeepAspectCentered
+			};
+
+
+		_machineButton.SetAnchorsAndOffsetsPreset(
+			LayoutPreset.FullRect
+		);
+
+
+		_machineButton.Pressed +=
+			OnMachinePressed;
+
+
+		_machineVisual.AddChild(
+			_machineButton
+		);
+
+
+		_machineBasePosition =
+			Vector2.Zero;
+	}
+
+
+	private void OnMachinePressed()
+	{
+		DetailsPressed?.Invoke(
+			_slotIndex
 		);
 	}
 
 
 	// ==================================================
-	// LEVEL
+	// INFO ROW
 	// ==================================================
 
-	private void CreateLevelLabel(
+	private void CreateInfoRow(
 		VBoxContainer parent)
 	{
+		HBoxContainer infoRow =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						52
+					)
+			};
+
+
+		infoRow.SizeFlagsHorizontal =
+			SizeFlags.ExpandFill;
+
+
+		parent.AddChild(
+			infoRow
+		);
+
+
+		// LEVEL
+
 		_levelLabel =
 			new Label
 			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						30
-					),
-
-				HorizontalAlignment =
-					HorizontalAlignment.Center,
+				SizeFlagsHorizontal =
+					SizeFlags.ExpandFill,
 
 				VerticalAlignment =
 					VerticalAlignment.Center,
 
 				Text =
-                    "Level 1"
+                    "Lv. 1"
 			};
 
 
-		parent.AddChild(
+		infoRow.AddChild(
 			_levelLabel
 		);
-	}
 
 
-	// ==================================================
-	// INCOME
-	// ==================================================
+		// START BUTTON
 
-	private void CreateIncomeLabel(
-		VBoxContainer parent)
-	{
-		_incomeLabel =
-			new Label
+		_startButton =
+			new TextureButton
 			{
 				CustomMinimumSize =
 					new Vector2(
-						0,
-						28
+						52,
+						52
 					),
 
-				HorizontalAlignment =
-					HorizontalAlignment.Center,
+				TextureNormal =
+					StartTexture,
 
-				VerticalAlignment =
-					VerticalAlignment.Center,
+				IgnoreTextureSize =
+					true,
 
-				Text =
-                    "+0 Tokens/s"
+				StretchMode =
+					TextureButton.StretchModeEnum.KeepAspectCentered
 			};
 
 
-		parent.AddChild(
-			_incomeLabel
+		_startButton.Pressed +=
+			OnStartPressed;
+
+
+		infoRow.AddChild(
+			_startButton
+		);
+
+
+		// BOT IMAGE
+
+		_botButton =
+			new TextureButton
+			{
+				CustomMinimumSize =
+					new Vector2(
+						52,
+						52
+					),
+
+				IgnoreTextureSize =
+					true,
+
+				StretchMode =
+					TextureButton.StretchModeEnum.KeepAspectCentered
+			};
+
+
+		_botButton.Pressed +=
+			OnBotPressed;
+
+
+		infoRow.AddChild(
+			_botButton
+		);
+	}
+
+
+	private void OnStartPressed()
+	{
+		ManualStartPressed?.Invoke(
+			_slotIndex
+		);
+	}
+
+
+	private void OnBotPressed()
+	{
+		DetailsPressed?.Invoke(
+			_slotIndex
 		);
 	}
 
 
 	// ==================================================
-	// MILESTONE
+	// PROGRESS
 	// ==================================================
 
-	private void CreateMilestoneLabel(
+	private void CreateProgress(
 		VBoxContainer parent)
 	{
-		_milestoneLabel =
+		_progressBar =
+			new ProgressBar
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						18
+					),
+
+				MinValue =
+					0.0,
+
+				MaxValue =
+					100.0,
+
+				ShowPercentage =
+					false
+			};
+
+
+		parent.AddChild(
+			_progressBar
+		);
+
+
+		_statusLabel =
 			new Label
 			{
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						28
+						24
 					),
 
 				HorizontalAlignment =
@@ -343,66 +501,417 @@ public partial class MachineSlot : Control
 					VerticalAlignment.Center,
 
 				Text =
-                    ""
+                    "READY"
 			};
 
 
-		_milestoneLabel.AddThemeFontSizeOverride(
+		_statusLabel.AddThemeFontSizeOverride(
 			"font_size",
-			13
+			12
 		);
 
 
 		parent.AddChild(
-			_milestoneLabel
+			_statusLabel
 		);
 	}
 
 
 	// ==================================================
-	// ACTION BUTTON
+	// UNLOCK
 	// ==================================================
 
-	private void CreateActionButton(
+	private void CreateUnlockButton(
 		VBoxContainer parent)
 	{
-		_actionButton =
+		_unlockButton =
 			new Button
 			{
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						65
+						55
 					),
 
 				Text =
-                    "Upgrade"
+                    "Unlock"
 			};
 
 
-		_actionButton.SizeFlagsHorizontal =
-			SizeFlags.ExpandFill;
-
-
-		_actionButton.Pressed +=
-			OnActionButtonPressed;
-
-
-		SetupButtonStyle(
-			_actionButton
-		);
+		_unlockButton.Pressed +=
+			OnUnlockPressed;
 
 
 		parent.AddChild(
-			_actionButton
+			_unlockButton
 		);
 	}
 
 
-	private void OnActionButtonPressed()
+	private void OnUnlockPressed()
 	{
-		ActionPressed?.Invoke(
+		UnlockPressed?.Invoke(
 			_slotIndex
+		);
+	}
+
+
+	// ==================================================
+	// LOCKED SLOT
+	// ==================================================
+
+	public void ShowLocked(
+		string unlockCost,
+		Texture2D emptyTexture)
+	{
+		StopRunningAnimation();
+
+
+		_titleLabel.Text =
+			$"Slot {_slotIndex + 1}";
+
+
+		_machineButton.TextureNormal =
+			emptyTexture;
+
+
+		_machineButton.Disabled =
+			true;
+
+
+		_levelLabel.Text =
+			"LOCKED";
+
+
+		_startButton.Hide();
+
+		_botButton.Hide();
+
+		_progressBar.Hide();
+
+		_statusLabel.Hide();
+
+
+		_unlockButton.Show();
+
+
+		_unlockButton.Text =
+			$"Unlock\n{unlockCost} Tokens";
+	}
+
+
+	// ==================================================
+	// MACHINE
+	// ==================================================
+
+	public void ShowMachine(
+		MachineData machine,
+		SlotData slot,
+		BotDefinition? bot)
+	{
+		_unlockButton.Hide();
+
+
+		_machineButton.Show();
+
+
+		_machineButton.Disabled =
+			false;
+
+
+		_machineButton.TextureNormal =
+			machine.Texture;
+
+
+		_titleLabel.Text =
+			machine.MachineName;
+
+
+		_levelLabel.Text =
+			$"Lv. {slot.MachineLevel}";
+
+
+		_progressBar.Show();
+
+		_statusLabel.Show();
+
+
+		// ==================================================
+		// MANUAL / BOT
+		// ==================================================
+
+		if (bot == null)
+		{
+			_botButton.Hide();
+
+			_startButton.Show();
+		}
+		else
+		{
+			_startButton.Hide();
+
+			_botButton.Show();
+
+
+			_botButton.TextureNormal =
+				bot.Texture;
+		}
+
+
+		UpdateRuntime(
+			slot
+		);
+	}
+
+
+	// ==================================================
+	// RUNTIME UPDATE
+	// ==================================================
+
+	public void UpdateRuntime(
+		SlotData slot)
+	{
+		if (!slot.Unlocked)
+		{
+			StopRunningAnimation();
+
+			return;
+		}
+
+
+		if (slot.IsRunning)
+		{
+			StartRunningAnimation();
+
+
+			double progress =
+				(
+					GameConfig.ProductionCycleSeconds
+					- slot.CycleRemaining
+				)
+				/ GameConfig.ProductionCycleSeconds
+				* 100.0;
+
+
+			_progressBar.Value =
+				Math.Clamp(
+					progress,
+					0.0,
+					100.0
+				);
+
+
+			if (slot.HasBot)
+			{
+				_statusLabel.Text =
+					$"AUTO • "
+					+ $"{Math.Max(0.0, slot.CycleRemaining):F1}s";
+			}
+			else
+			{
+				_statusLabel.Text =
+					$"{Math.Max(0.0, slot.CycleRemaining):F1}s";
+			}
+
+
+			_startButton.Disabled =
+				true;
+
+
+			return;
+		}
+
+
+		// ==================================================
+		// MACHINE IS OFF
+		// ==================================================
+
+		StopRunningAnimation();
+
+
+		_progressBar.Value =
+			100.0;
+
+
+		if (slot.HasBot)
+		{
+			_statusLabel.Text =
+				"AUTO";
+
+
+			_startButton.Disabled =
+				true;
+		}
+		else
+		{
+			_statusLabel.Text =
+				"READY";
+
+
+			_startButton.Disabled =
+				false;
+		}
+	}
+
+
+	// ==================================================
+	// RUNNING ANIMATION
+	// ==================================================
+
+	private void StartRunningAnimation()
+	{
+		if (_animationRunning)
+			return;
+
+
+		_animationRunning =
+			true;
+
+
+		_runningTween?.Kill();
+
+
+		_machineVisual.Position =
+			_machineBasePosition;
+
+
+		/*
+		 * Small random difference so that machines
+		 * do not all move perfectly in sync.
+		 */
+
+		double duration =
+			GD.RandRange(
+				0.55,
+				0.75
+			);
+
+
+		float movement =
+			(float)GD.RandRange(
+				3.0,
+				5.0
+			);
+
+
+		_runningTween =
+			CreateTween();
+
+
+		_runningTween.SetLoops();
+
+
+		// UP
+
+		_runningTween.TweenProperty(
+			_machineVisual,
+			"position",
+			_machineBasePosition
+			+ new Vector2(
+				0,
+				-movement
+			),
+			duration
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.InOut
+		);
+
+
+		// DOWN
+
+		_runningTween.TweenProperty(
+			_machineVisual,
+			"position",
+			_machineBasePosition
+			+ new Vector2(
+				0,
+				movement
+			),
+			duration * 2.0
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.InOut
+		);
+
+
+		// BACK TO CENTER
+
+		_runningTween.TweenProperty(
+			_machineVisual,
+			"position",
+			_machineBasePosition,
+			duration
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.InOut
+		);
+	}
+
+
+	// ==================================================
+	// STOP ANIMATION
+	// ==================================================
+
+	private void StopRunningAnimation()
+	{
+		if (!_animationRunning)
+		{
+			if (_machineVisual != null)
+			{
+				_machineVisual.Position =
+					_machineBasePosition;
+			}
+
+
+			return;
+		}
+
+
+		_animationRunning =
+			false;
+
+
+		_runningTween?.Kill();
+
+
+		_runningTween =
+			null;
+
+
+		if (_machineVisual == null)
+			return;
+
+
+		/*
+		 * Instead of snapping back instantly,
+		 * move smoothly back to the center.
+		 */
+
+		Tween returnTween =
+			CreateTween();
+
+
+		returnTween.TweenProperty(
+			_machineVisual,
+			"position",
+			_machineBasePosition,
+			0.12
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.Out
 		);
 	}
 
@@ -458,283 +967,11 @@ public partial class MachineSlot : Control
 
 
 	// ==================================================
-	// IDLE FLOAT ANIMATION
-	// ==================================================
-
-	private void StartIdleAnimation()
-	{
-		if (_machineTexture == null)
-			return;
-
-
-		_idleTween?.Kill();
-
-
-		_machineBasePosition =
-			_machineTexture.Position;
-
-
-		float offset =
-			4.0f;
-
-
-		double duration =
-			1.4;
-
-
-		double delay =
-			GD.RandRange(
-				0.0,
-				1.2
-			);
-
-
-		// Startet jede Maschine leicht versetzt.
-		_idleTween =
-			CreateTween();
-
-
-		_idleTween.SetLoops();
-
-
-		_idleTween.TweenInterval(
-			delay
-		);
-
-
-		_idleTween.TweenProperty(
-			_machineTexture,
-			"position",
-			_machineBasePosition
-			+ new Vector2(
-				0,
-				-offset
-			),
-			duration
-		)
-		.SetTrans(
-			Tween.TransitionType.Sine
-		)
-		.SetEase(
-			Tween.EaseType.InOut
-		);
-
-
-		_idleTween.TweenProperty(
-			_machineTexture,
-			"position",
-			_machineBasePosition
-			+ new Vector2(
-				0,
-				offset
-			),
-			duration * 2.0
-		)
-		.SetTrans(
-			Tween.TransitionType.Sine
-		)
-		.SetEase(
-			Tween.EaseType.InOut
-		);
-
-
-		_idleTween.TweenProperty(
-			_machineTexture,
-			"position",
-			_machineBasePosition,
-			duration
-		)
-		.SetTrans(
-			Tween.TransitionType.Sine
-		)
-		.SetEase(
-			Tween.EaseType.InOut
-		);
-	}
-
-
-	// ==================================================
-	// LOCKED SLOT
-	// ==================================================
-
-	public void ShowLocked(
-		string unlockCost,
-		Texture2D emptyTexture)
-	{
-		_titleLabel.Text =
-			$"Slot {_slotIndex + 1}";
-
-
-		_machineTexture.Texture =
-			emptyTexture;
-
-
-		_levelLabel.Text =
-			"LOCKED";
-
-
-		_incomeLabel.Text =
-			"";
-
-
-		_milestoneLabel.Text =
-			"";
-
-
-		_actionButton.Disabled =
-			false;
-
-
-		_actionButton.Text =
-			$"Unlock\n{unlockCost} Tokens";
-	}
-
-
-	// ==================================================
-	// MACHINE
-	// ==================================================
-
-	public void ShowMachine(
-		MachineData machine,
-		int level,
-		string income,
-		string milestoneText,
-		string buttonText)
-	{
-		_titleLabel.Text =
-			machine.MachineName;
-
-
-		_machineTexture.Texture =
-			machine.Texture;
-
-
-		_levelLabel.Text =
-			$"Level {level} / {machine.MaxLevel}";
-
-
-		_incomeLabel.Text =
-			$"+{income} Tokens/s";
-
-
-		_milestoneLabel.Text =
-			milestoneText;
-
-
-		_actionButton.Text =
-			buttonText;
-
-
-		_actionButton.Disabled =
-			buttonText == "MAX";
-	}
-
-
-	// ==================================================
-	// BUTTON STYLE
-	// ==================================================
-
-	private static void SetupButtonStyle(
-		Button button)
-	{
-		StyleBoxFlat normal =
-			new()
-			{
-				BgColor =
-					new Color(
-						0.025f,
-						0.035f,
-						0.055f,
-						0.88f
-					),
-
-				CornerRadiusTopLeft =
-					12,
-
-				CornerRadiusTopRight =
-					12,
-
-				CornerRadiusBottomLeft =
-					12,
-
-				CornerRadiusBottomRight =
-					12
-			};
-
-
-		StyleBoxFlat hover =
-			(StyleBoxFlat)
-			normal.Duplicate();
-
-
-		hover.BgColor =
-			new Color(
-				0.04f,
-				0.11f,
-				0.18f,
-				0.95f
-			);
-
-
-		StyleBoxFlat pressed =
-			(StyleBoxFlat)
-			normal.Duplicate();
-
-
-		pressed.BgColor =
-			new Color(
-				0.02f,
-				0.18f,
-				0.28f,
-				1.0f
-			);
-
-
-		StyleBoxFlat disabled =
-			(StyleBoxFlat)
-			normal.Duplicate();
-
-
-		disabled.BgColor =
-			new Color(
-				0.02f,
-				0.025f,
-				0.035f,
-				0.70f
-			);
-
-
-		button.AddThemeStyleboxOverride(
-			"normal",
-			normal
-		);
-
-
-		button.AddThemeStyleboxOverride(
-			"hover",
-			hover
-		);
-
-
-		button.AddThemeStyleboxOverride(
-			"pressed",
-			pressed
-		);
-
-
-		button.AddThemeStyleboxOverride(
-			"disabled",
-			disabled
-		);
-	}
-
-
-	// ==================================================
 	// CLEANUP
 	// ==================================================
 
 	public override void _ExitTree()
 	{
-		_idleTween?.Kill();
+		_runningTween?.Kill();
 	}
 }

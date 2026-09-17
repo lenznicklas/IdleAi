@@ -1,5 +1,4 @@
 using Godot;
-
 using System;
 using System.Collections.Generic;
 
@@ -21,103 +20,139 @@ public sealed class GameUiController
 
 	private readonly ProgressionService _progression;
 
+	private readonly ProductionService _production;
+
+	private readonly BotService _bots;
+
 
 	public event Action<int>? SlotActionRequested;
 
 	public event Action<int>? RoomChangeRequested;
 
-
-	// ==================================================
-	// GENERAL
-	// ==================================================
-
-	private TextureRect _background = null!;
-
-	private Label _messageLabel = null!;
+	public event Action? StateChanged;
 
 
-	// ==================================================
-	// TOPBAR
-	// ==================================================
-
-	private TextureButton _tokenCard = null!;
-
-	private TextureButton _statsCard = null!;
-
-	private TextureButton _levelCard = null!;
-
-	private Label _tokenLabel = null!;
-
-	private Label _totalLevelLabel = null!;
+	private TextureRect _background =
+		null!;
 
 
-	// ==================================================
-	// ROOM
-	// ==================================================
-
-	private Label _roomLabel = null!;
-
-	private Button _previousRoomButton = null!;
-
-	private Button _nextRoomButton = null!;
-
-	private Label _roomPageLabel = null!;
-
-	private GridContainer _slotGrid = null!;
+	private Label _messageLabel =
+		null!;
 
 
-	// ==================================================
-	// POPUPS
-	// ==================================================
-
-	private PanelContainer _tokenPopup = null!;
-
-	private PanelContainer _levelPopup = null!;
+	private TextureButton _tokenCard =
+		null!;
 
 
-	// ==================================================
-	// STATS
-	// ==================================================
+	private TextureButton _statsCard =
+		null!;
 
-	private Control _statsOverlay = null!;
 
-	private Label _statsIncomeLabel = null!;
+	private TextureButton _levelCard =
+		null!;
 
-	private Label _statsEarnedLabel = null!;
 
-	private Label _statsSpentLabel = null!;
+	private Label _tokenLabel =
+		null!;
 
-	private Label _statsSlotsLabel = null!;
 
-	private Label _statsLevelLabel = null!;
+	private Label _totalLevelLabel =
+		null!;
 
-	private Label _statsUnlockSpendLabel = null!;
 
-	private Label _statsMachineSpendLabel = null!;
+	private Label _roomLabel =
+		null!;
 
-	private Button _statsCloseButton = null!;
+
+	private Button _previousRoomButton =
+		null!;
+
+
+	private Button _nextRoomButton =
+		null!;
+
+
+	private Label _roomPageLabel =
+		null!;
+
+
+	private GridContainer _slotGrid =
+		null!;
+
+
+	private PanelContainer _tokenPopup =
+		null!;
+
+
+	private PanelContainer _levelPopup =
+		null!;
+
+
+	private Control _statsOverlay =
+		null!;
+
+
+	private Label _statsIncomeLabel =
+		null!;
+
+
+	private Label _statsEarnedLabel =
+		null!;
+
+
+	private Label _statsSpentLabel =
+		null!;
+
+
+	private Label _statsSlotsLabel =
+		null!;
+
+
+	private Label _statsLevelLabel =
+		null!;
+
+
+	private Label _statsUnlockSpendLabel =
+		null!;
+
+
+	private Label _statsMachineSpendLabel =
+		null!;
+
+
+	private Button _statsCloseButton =
+		null!;
+
+
+	private MachineDetailsOverlay _details =
+		null!;
 
 
 	public GameUiController(
 		Game root,
 		GameState state,
 		EconomyService economy,
-		ProgressionService progression)
+		ProgressionService progression,
+		ProductionService production,
+		BotService bots)
 	{
 		_root =
 			root;
 
-
 		_state =
 			state;
-
 
 		_economy =
 			economy;
 
-
 		_progression =
 			progression;
+
+		_production =
+			production;
+
+		_bots =
+			bots;
 	}
 
 
@@ -143,11 +178,28 @@ public sealed class GameUiController
 		SetupStatsOverlay();
 
 		CreateSlotViews();
+
+
+		_details =
+			new MachineDetailsOverlay(
+				_root,
+				_state,
+				_economy,
+				_progression,
+				_bots
+			);
+
+
+		_details.Initialize();
+
+
+		_details.StateChanged +=
+			OnDetailsStateChanged;
 	}
 
 
 	// ==================================================
-	// CACHE NODES
+	// CACHE
 	// ==================================================
 
 	private void CacheNodes()
@@ -291,10 +343,6 @@ public sealed class GameUiController
 	}
 
 
-	// ==================================================
-	// BACKGROUND
-	// ==================================================
-
 	private void SetupBackground()
 	{
 		_background.SetAnchorsAndOffsetsPreset(
@@ -316,7 +364,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// TOPBAR
+	// TOP BAR
 	// ==================================================
 
 	private void SetupTopbar()
@@ -350,43 +398,31 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// ROOM NAVIGATION
+	// ROOMS
 	// ==================================================
 
 	private void SetupRoomNavigation()
 	{
 		_previousRoomButton.Pressed +=
-			OnPreviousRoomPressed;
+			() =>
+			{
+				_details?.Close();
+
+				RoomChangeRequested?.Invoke(
+					-1
+				);
+			};
 
 
 		_nextRoomButton.Pressed +=
-			OnNextRoomPressed;
+			() =>
+			{
+				_details?.Close();
 
-
-		SetupRoundButton(
-			_previousRoomButton
-		);
-
-
-		SetupRoundButton(
-			_nextRoomButton
-		);
-	}
-
-
-	private void OnPreviousRoomPressed()
-	{
-		RoomChangeRequested?.Invoke(
-			-1
-		);
-	}
-
-
-	private void OnNextRoomPressed()
-	{
-		RoomChangeRequested?.Invoke(
-			1
-		);
+				RoomChangeRequested?.Invoke(
+					1
+				);
+			};
 	}
 
 
@@ -412,8 +448,6 @@ public sealed class GameUiController
 			room.Background;
 
 
-		// PREVIOUS
-
 		_previousRoomButton.Disabled =
 			roomIndex <= 0;
 
@@ -422,11 +456,9 @@ public sealed class GameUiController
 			"<";
 
 
-		// NEXT
-
 		if (
-			roomIndex
-			>= _state.Rooms.Count - 1
+			roomIndex >=
+			_state.Rooms.Count - 1
 		)
 		{
 			_nextRoomButton.Disabled =
@@ -449,35 +481,30 @@ public sealed class GameUiController
 			roomIndex + 1;
 
 
-		RoomState nextRoomState =
+		if (
 			_state.RoomStates[
 				nextRoomIndex
-			];
-
-
-		if (nextRoomState.Unlocked)
+			].Unlocked
+		)
 		{
 			_nextRoomButton.Text =
 				">";
-
-
-			return;
 		}
-
-
-		double unlockCost =
-			_state.Rooms[
-				nextRoomIndex
-			].UnlockCost;
-
-
-		_nextRoomButton.Text =
-			$"> {NumberFormatter.Format(unlockCost)}";
+		else
+		{
+			_nextRoomButton.Text =
+                "> "
+				+ NumberFormatter.Format(
+					_state.Rooms[
+						nextRoomIndex
+					].UnlockCost
+				);
+		}
 	}
 
 
 	// ==================================================
-	// SLOT VIEWS
+	// SLOTS
 	// ==================================================
 
 	private void CreateSlotViews()
@@ -497,8 +524,16 @@ public sealed class GameUiController
 			);
 
 
-			slotUi.ActionPressed +=
-				OnSlotPressed;
+			slotUi.UnlockPressed +=
+				OnUnlockPressed;
+
+
+			slotUi.ManualStartPressed +=
+				OnManualStartPressed;
+
+
+			slotUi.DetailsPressed +=
+				OnDetailsPressed;
 
 
 			_slotGrid.AddChild(
@@ -508,7 +543,7 @@ public sealed class GameUiController
 	}
 
 
-	private void OnSlotPressed(
+	private void OnUnlockPressed(
 		int slotIndex)
 	{
 		SlotActionRequested?.Invoke(
@@ -517,8 +552,119 @@ public sealed class GameUiController
 	}
 
 
+	private void OnManualStartPressed(
+		int slotIndex)
+	{
+		ManualStartResult result =
+			_production.TryStartManual(
+				_state.CurrentRoomIndex,
+				slotIndex
+			);
+
+
+		SetMessage(
+			result.Message
+		);
+
+
+		UpdateRuntime();
+	}
+
+
+	private void OnDetailsPressed(
+		int slotIndex)
+	{
+		SlotData slot =
+			_state.CurrentRoomState
+				.Slots[
+					slotIndex
+				];
+
+
+		if (!slot.Unlocked)
+			return;
+
+
+		_details.Open(
+			_state.CurrentRoomIndex,
+			slotIndex
+		);
+	}
+
+
+	private void UpdateSlot(
+		int slotIndex)
+	{
+		int roomIndex =
+			_state.CurrentRoomIndex;
+
+
+		RoomData room =
+			_state.CurrentRoom;
+
+
+		SlotData slot =
+			_state.CurrentRoomState
+				.Slots[
+					slotIndex
+				];
+
+
+		MachineSlot slotUi =
+			(MachineSlot)
+			_slotGrid.GetChild(
+				slotIndex
+			);
+
+
+		if (!slot.Unlocked)
+		{
+			double cost =
+				GameConfig
+					.GetSlotUnlockCosts(
+						roomIndex
+					)[
+						slotIndex
+					];
+
+
+			slotUi.ShowLocked(
+				NumberFormatter.Format(
+					cost
+				),
+
+				room.EmptyTexture
+			);
+
+
+			return;
+		}
+
+
+		MachineData machine =
+			room.Machines[
+				slot.MachineTier
+			];
+
+
+		BotDefinition? bot =
+			slot.BotRarity.HasValue
+				? BotCatalog.Get(
+					slot.BotRarity.Value
+				)
+				: null;
+
+
+		slotUi.ShowMachine(
+			machine,
+			slot,
+			bot
+		);
+	}
+
+
 	// ==================================================
-	// UPDATE ALL
+	// UPDATES
 	// ==================================================
 
 	public void UpdateAll()
@@ -551,172 +697,84 @@ public sealed class GameUiController
 		{
 			UpdateStatsOverlay();
 		}
+
+
+		if (
+			_details != null
+			&& _details.Visible
+		)
+		{
+			_details.Refresh();
+		}
 	}
 
 
-	// ==================================================
-	// UPDATE SLOT
-	// ==================================================
-
-	private void UpdateSlot(
-		int slotIndex)
+	public void UpdateRuntime()
 	{
-		int roomIndex =
-			_state.CurrentRoomIndex;
+		UpdateTopBar();
 
 
-		RoomData room =
-			_state.CurrentRoom;
-
-
-		RoomState roomState =
-			_state.CurrentRoomState;
-
-
-		SlotData slot =
-			roomState.Slots[
-				slotIndex
-			];
-
-
-		MachineSlot slotUi =
-			(MachineSlot)
-			_slotGrid.GetChild(
-				slotIndex
+		int count =
+			Math.Min(
+				_state.CurrentRoomState.Slots.Count,
+				_slotGrid.GetChildCount()
 			);
 
 
-		// ==================================================
-		// LOCKED
-		// ==================================================
-
-		if (!slot.Unlocked)
+		for (
+			int i = 0;
+			i < count;
+			i++
+		)
 		{
-			double unlockCost =
-				GameConfig
-					.GetSlotUnlockCosts(
-						roomIndex
-					)[
-						slotIndex
+			SlotData slot =
+				_state.CurrentRoomState
+					.Slots[
+						i
 					];
 
 
-			slotUi.ShowLocked(
-				NumberFormatter.Format(
-					unlockCost
-				),
-
-				room.EmptyTexture
-			);
+			if (!slot.Unlocked)
+				continue;
 
 
-			return;
-		}
-
-
-		// ==================================================
-		// MACHINE
-		// ==================================================
-
-		MachineData machine =
-			room.Machines[
-				slot.MachineTier
-			];
-
-
-		string buttonText;
-
-
-		// LEVEL UPGRADE
-
-		if (
-			slot.MachineLevel
-			< machine.MaxLevel
-		)
-		{
-			double cost =
-				_economy.GetLevelUpgradeCost(
-					roomIndex,
-					slot,
-					slotIndex
+			MachineSlot slotUi =
+				(MachineSlot)
+				_slotGrid.GetChild(
+					i
 				);
 
 
-			buttonText =
-                "Upgrade\n"
-				+ NumberFormatter.Format(
-					cost
-				)
-				+ " Tokens";
-		}
-
-		// TIER UPGRADE
-
-		else if (
-			slot.MachineTier
-			< room.Machines.Count - 1
-		)
-		{
-			MachineData nextMachine =
-				room.Machines[
-					slot.MachineTier
-					+ 1
-				];
-
-
-			double cost =
-				_economy.GetTierUpgradeCost(
-					roomIndex,
-					slot,
-					slotIndex
-				);
-
-
-			buttonText =
-				$"Upgrade: {nextMachine.MachineName}\n"
-				+ NumberFormatter.Format(
-					cost
-				)
-				+ " Tokens";
-		}
-
-		// MAX
-
-		else
-		{
-			buttonText =
-				"MAX";
-		}
-
-
-		double income =
-			_economy.GetSlotIncome(
-				roomIndex,
+			slotUi.UpdateRuntime(
 				slot
 			);
+		}
 
 
-		slotUi.ShowMachine(
-			machine,
-
-			slot.MachineLevel,
-
-			NumberFormatter.Format(
-				income
-			),
-
-			EconomyService.GetMilestoneText(
-				slot.MachineLevel
-			),
-
-			buttonText
-		);
+		if (
+			_details != null
+			&& _details.Visible
+		)
+		{
+			_details.Refresh();
+		}
 	}
 
 
-	// ==================================================
-	// MESSAGE
-	// ==================================================
+	private void OnDetailsStateChanged(
+		string message)
+	{
+		SetMessage(
+			message
+		);
+
+
+		UpdateAll();
+
+
+		StateChanged?.Invoke();
+	}
+
 
 	public void SetMessage(
 		string message)
@@ -727,7 +785,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// TOKEN POPUP
+	// POPUPS
 	// ==================================================
 
 	private void ToggleTokenPopup()
@@ -753,10 +811,6 @@ public sealed class GameUiController
 	}
 
 
-	// ==================================================
-	// LEVEL POPUP
-	// ==================================================
-
 	private void ToggleLevelPopup()
 	{
 		_tokenPopup.Hide();
@@ -779,10 +833,6 @@ public sealed class GameUiController
 		_levelPopup.Show();
 	}
 
-
-	// ==================================================
-	// POPUP POSITION
-	// ==================================================
 
 	private async void PositionPopupBelow(
 		Control popup,
@@ -823,11 +873,6 @@ public sealed class GameUiController
 	{
 		_statsCloseButton.Pressed +=
 			CloseStats;
-
-
-		SetupRoundButton(
-			_statsCloseButton
-		);
 	}
 
 
@@ -836,6 +881,8 @@ public sealed class GameUiController
 		_tokenPopup.Hide();
 
 		_levelPopup.Hide();
+
+		_details?.Close();
 
 
 		UpdateStatsOverlay();
@@ -855,14 +902,10 @@ public sealed class GameUiController
 
 	private void UpdateStatsOverlay()
 	{
-		double totalIncome =
-			_economy.GetTotalIncome();
-
-
 		_statsIncomeLabel.Text =
-            "Tokens / sec: "
+            "Automated Tokens / sec: "
 			+ NumberFormatter.Format(
-				totalIncome
+				_economy.GetTotalIncome()
 			);
 
 
@@ -884,33 +927,22 @@ public sealed class GameUiController
 			);
 
 
-		int roomIndex =
-			_state.CurrentRoomIndex;
-
-
 		int unlockedSlots =
 			_progression.GetUnlockedSlotCount(
-				roomIndex
+				_state.CurrentRoomIndex
 			);
-
-
-		int totalSlots =
-			_state.CurrentRoomState
-				.Slots
-				.Count;
 
 
 		_statsSlotsLabel.Text =
 			$"Unlocked slots: "
-			+ $"{unlockedSlots} / {totalSlots}"
+			+ $"{unlockedSlots} / "
+			+ $"{_state.CurrentRoomState.Slots.Count}"
 			+ $" ({_state.CurrentRoom.Name})";
 
 
 		_statsLevelLabel.Text =
             "Total level: "
-			+ _progression
-				.GetTotalLevel()
-				.ToString();
+			+ _progression.GetTotalLevel();
 
 
 		_statsUnlockSpendLabel.Text =
@@ -940,10 +972,9 @@ public sealed class GameUiController
 			)
 			{
 				double spent =
-					_state.Stats
-						.GetMachineSpending(
-							machine.MachineName
-						);
+					_state.Stats.GetMachineSpending(
+						machine.MachineName
+					);
 
 
 				lines.Add(
@@ -961,109 +992,20 @@ public sealed class GameUiController
 		}
 
 
+		lines.Add(
+            "BOTS: "
+			+ NumberFormatter.Format(
+				_state.Stats.GetMachineSpending(
+                    "Bots"
+				)
+			)
+		);
+
+
 		_statsMachineSpendLabel.Text =
 			string.Join(
 				"\n",
 				lines
 			);
-	}
-
-
-	// ==================================================
-	// BUTTON STYLE
-	// ==================================================
-
-	private static void SetupRoundButton(
-		Button button)
-	{
-		StyleBoxFlat normal =
-			new()
-			{
-				BgColor =
-					new Color(
-						0.025f,
-						0.04f,
-						0.065f,
-						0.96f
-					),
-
-				CornerRadiusTopLeft =
-					12,
-
-				CornerRadiusTopRight =
-					12,
-
-				CornerRadiusBottomLeft =
-					12,
-
-				CornerRadiusBottomRight =
-					12
-			};
-
-
-		StyleBoxFlat hover =
-			(StyleBoxFlat)
-			normal.Duplicate();
-
-
-		hover.BgColor =
-			new Color(
-				0.03f,
-				0.12f,
-				0.2f,
-				1.0f
-			);
-
-
-		StyleBoxFlat pressed =
-			(StyleBoxFlat)
-			normal.Duplicate();
-
-
-		pressed.BgColor =
-			new Color(
-				0.02f,
-				0.18f,
-				0.3f,
-				1.0f
-			);
-
-
-		StyleBoxFlat disabled =
-			(StyleBoxFlat)
-			normal.Duplicate();
-
-
-		disabled.BgColor =
-			new Color(
-				0.02f,
-				0.025f,
-				0.035f,
-				0.7f
-			);
-
-
-		button.AddThemeStyleboxOverride(
-			"normal",
-			normal
-		);
-
-
-		button.AddThemeStyleboxOverride(
-			"hover",
-			hover
-		);
-
-
-		button.AddThemeStyleboxOverride(
-			"pressed",
-			pressed
-		);
-
-
-		button.AddThemeStyleboxOverride(
-			"disabled",
-			disabled
-		);
 	}
 }

@@ -22,10 +22,6 @@ public sealed class PrestigeService
 	}
 
 
-	// ==================================================
-	// REWARD
-	// ==================================================
-
 	public long GetAvailableAiCores()
 	{
 		if (
@@ -58,10 +54,6 @@ public sealed class PrestigeService
 	}
 
 
-	// ==================================================
-	// BOOST
-	// ==================================================
-
 	public double GetProductionMultiplier()
 	{
 		return _state.Prestige
@@ -75,10 +67,6 @@ public sealed class PrestigeService
 			.GetProductionBonusPercent();
 	}
 
-
-	// ==================================================
-	// PRESTIGE
-	// ==================================================
 
 	public PrestigeResult Prestige()
 	{
@@ -98,7 +86,6 @@ public sealed class PrestigeService
 		}
 
 
-		// Permanent prestige progress.
 		_state.Prestige.AiCores +=
 			reward;
 
@@ -116,10 +103,6 @@ public sealed class PrestigeService
 		);
 	}
 
-
-	// ==================================================
-	// RESET NORMAL GAME
-	// ==================================================
 
 	private void ResetNormalProgress()
 	{
@@ -147,7 +130,6 @@ public sealed class PrestigeService
 				];
 
 
-			// Only room 1 stays unlocked.
 			room.Unlocked =
 				roomIndex == 0;
 
@@ -164,8 +146,6 @@ public sealed class PrestigeService
 					];
 
 
-				// Only the first slot of room 1
-				// starts unlocked again.
 				slot.Unlocked =
 					roomIndex == 0
 					&& slotIndex == 0;
@@ -177,6 +157,22 @@ public sealed class PrestigeService
 
 				slot.MachineLevel =
 					1;
+
+
+				slot.BotRarity =
+					null;
+
+
+				slot.BotPurchasePrice =
+					0.0;
+
+
+				slot.IsRunning =
+					false;
+
+
+				slot.CycleRemaining =
+					0.0;
 			}
 		}
 	}

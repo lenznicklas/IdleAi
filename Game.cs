@@ -7,7 +7,7 @@ namespace IdleAi;
 public partial class Game : Control
 {
 	private const int SaveVersion =
-		6;
+		7;
 
 
 	private const double AutosaveIntervalSeconds =
@@ -30,6 +30,14 @@ public partial class Game : Control
 		null!;
 
 
+	private ProductionService _production =
+		null!;
+
+
+	private BotService _bots =
+		null!;
+
+
 	private PrestigeService _prestige =
 		null!;
 
@@ -44,12 +52,6 @@ public partial class Game : Control
 
 	private SaveManager _saveManager =
 		null!;
-
-
-	private long _lastSaveUnix;
-
-
-	private double _lastSavedIncomePerSecond;
 
 
 	// ==================================================
@@ -75,6 +77,9 @@ public partial class Game : Control
 			LoadGame();
 
 
+		_production.PrepareAfterLoad();
+
+
 		_ui.UpdateAll();
 
 		_prestigeUi.Update();
@@ -91,7 +96,7 @@ public partial class Game : Control
 		else
 		{
 			_ui.SetMessage(
-                "Upgrade your first machine."
+                "Press START to run your first machine."
 			);
 		}
 
@@ -108,24 +113,20 @@ public partial class Game : Control
 		double delta)
 	{
 		double earned =
-			_economy.GetTotalIncome()
-			* delta;
+			_production.Update(
+				delta
+			);
 
 
-		_state.Tokens +=
-			earned;
+		if (earned > 0.0)
+		{
+			AddEarnedTokens(
+				earned
+			);
+		}
 
 
-		_state.RunEarnedTokens +=
-			earned;
-
-
-		_state.Stats.AddEarned(
-			earned
-		);
-
-
-		_ui.UpdateTopBar();
+		_ui.UpdateRuntime();
 
 		_prestigeUi.Update();
 	}
@@ -138,7 +139,7 @@ public partial class Game : Control
 
 
 	// ==================================================
-	// CREATE SYSTEMS
+	// SYSTEMS
 	// ==================================================
 
 	private void CreateGameSystems()
@@ -162,6 +163,20 @@ public partial class Game : Control
 			);
 
 
+		_production =
+			new ProductionService(
+				_state,
+				_economy
+			);
+
+
+		_bots =
+			new BotService(
+				_state,
+				_economy
+			);
+
+
 		_prestige =
 			new PrestigeService(
 				_state
@@ -173,7 +188,9 @@ public partial class Game : Control
 				this,
 				_state,
 				_economy,
-				_progression
+				_progression,
+				_production,
+				_bots
 			);
 
 
@@ -193,13 +210,17 @@ public partial class Game : Control
 			OnRoomChangeRequested;
 
 
+		_ui.StateChanged +=
+			SaveGame;
+
+
 		_prestigeUi.PrestigeRequested +=
 			OnPrestigeRequested;
 	}
 
 
 	// ==================================================
-	// INITIAL ROOM STATES
+	// INITIAL STATE
 	// ==================================================
 
 	private void CreateRoomStates()
@@ -235,7 +256,19 @@ public partial class Game : Control
 							0,
 
 						MachineLevel =
-							1
+							1,
+
+						BotRarity =
+							null,
+
+						BotPurchasePrice =
+							0.0,
+
+						IsRunning =
+							false,
+
+						CycleRemaining =
+							0.0
 					}
 				);
 			}
@@ -249,7 +282,7 @@ public partial class Game : Control
 
 
 	// ==================================================
-	// SLOT ACTION
+	// SLOT
 	// ==================================================
 
 	private void OnSlotActionRequested(
@@ -277,7 +310,7 @@ public partial class Game : Control
 
 
 	// ==================================================
-	// ROOM CHANGE
+	// ROOM
 	// ==================================================
 
 	private void OnRoomChangeRequested(
@@ -366,7 +399,32 @@ public partial class Game : Control
 
 
 	// ==================================================
-	// SAVE SYSTEM
+	// EARNINGS
+	// ==================================================
+
+	private void AddEarnedTokens(
+		double amount)
+	{
+		if (amount <= 0.0)
+			return;
+
+
+		_state.Tokens +=
+			amount;
+
+
+		_state.RunEarnedTokens +=
+			amount;
+
+
+		_state.Stats.AddEarned(
+			amount
+		);
+	}
+
+
+	// ==================================================
+	// SAVE
 	// ==================================================
 
 	private void SetupSaveSystem()
@@ -387,10 +445,6 @@ public partial class Game : Control
 		_saveManager.StartAutosave(
 			AutosaveIntervalSeconds
 		);
-
-
-		_lastSaveUnix =
-			GetCurrentUnixTime();
 	}
 
 
@@ -404,7 +458,8 @@ public partial class Game : Control
 			GetCurrentUnixTime();
 
 
-		double income =
+		// Only bots count as continuous/offline income.
+		double automatedIncome =
 			_economy.GetTotalIncome();
 
 
@@ -424,7 +479,7 @@ public partial class Game : Control
 					now,
 
 				IncomePerSecond =
-					income,
+					automatedIncome,
 
 				CurrentRoomIndex =
 					_state.CurrentRoomIndex,
@@ -460,19 +515,9 @@ public partial class Game : Control
 			};
 
 
-		if (
-			_saveManager.SaveData(
-				saveData
-			)
-		)
-		{
-			_lastSaveUnix =
-				now;
-
-
-			_lastSavedIncomePerSecond =
-				income;
-		}
+		_saveManager.SaveData(
+			saveData
+		);
 	}
 
 
@@ -483,9 +528,7 @@ public partial class Game : Control
 	private double LoadGame()
 	{
 		if (!_saveManager.HasSave())
-		{
 			return 0.0;
-		}
 
 
 		SaveGameData? save =
@@ -597,7 +640,7 @@ public partial class Game : Control
 
 	private double ApplyOfflineIncome(
 		long savedTime,
-		double incomePerSecond)
+		double automatedIncomePerSecond)
 	{
 		long now =
 			GetCurrentUnixTime();
@@ -609,15 +652,18 @@ public partial class Game : Control
 
 		if (
 			secondsOffline <= 0
-			|| incomePerSecond <= 0
+			|| automatedIncomePerSecond <= 0.0
 		)
 		{
 			return 0.0;
 		}
 
 
+		// IMPORTANT:
+		// Only bot-controlled machines are part of
+		// automatedIncomePerSecond.
 		double amount =
-			incomePerSecond
+			automatedIncomePerSecond
 			* secondsOffline
 			* OfflineIncomeFactor;
 

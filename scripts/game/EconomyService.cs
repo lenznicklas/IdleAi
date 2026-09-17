@@ -16,7 +16,7 @@ public sealed class EconomyService
 
 
 	// ==================================================
-	// UPGRADE COST
+	// LEVEL UPGRADE
 	// ==================================================
 
 	public double GetLevelUpgradeCost(
@@ -25,11 +25,10 @@ public sealed class EconomyService
 		int slotIndex)
 	{
 		MachineData machine =
-			_state.Rooms[
-				roomIndex
-			].Machines[
-				slot.MachineTier
-			];
+			GetMachine(
+				roomIndex,
+				slot
+			);
 
 
 		double slotMultiplier =
@@ -52,7 +51,7 @@ public sealed class EconomyService
 
 
 	// ==================================================
-	// TIER COST
+	// MACHINE TIER
 	// ==================================================
 
 	public double GetTierUpgradeCost(
@@ -61,11 +60,10 @@ public sealed class EconomyService
 		int slotIndex)
 	{
 		MachineData machine =
-			_state.Rooms[
-				roomIndex
-			].Machines[
-				slot.MachineTier
-			];
+			GetMachine(
+				roomIndex,
+				slot
+			);
 
 
 		return machine.TierUpgradeCost
@@ -76,10 +74,34 @@ public sealed class EconomyService
 
 
 	// ==================================================
-	// SLOT INCOME
+	// BOT COST
 	// ==================================================
 
-	public double GetSlotIncome(
+	public double GetBotCost(
+		int roomIndex,
+		SlotData slot,
+		int slotIndex)
+	{
+		MachineData machine =
+			GetMachine(
+				roomIndex,
+				slot
+			);
+
+
+		return machine.BaseUpgradeCost
+			   * GameConfig.BotBaseCostMultiplier
+			   * GameConfig.SlotUpgradeMultipliers[
+				   slotIndex
+			   ];
+	}
+
+
+	// ==================================================
+	// PRODUCTION
+	// ==================================================
+
+	public double GetCycleReward(
 		int roomIndex,
 		SlotData slot)
 	{
@@ -88,18 +110,16 @@ public sealed class EconomyService
 
 
 		MachineData machine =
-			_state.Rooms[
-				roomIndex
-			].Machines[
-				slot.MachineTier
-			];
+			GetMachine(
+				roomIndex,
+				slot
+			);
 
 
 		double levelMultiplier =
 			1.0
 			+ (
-				slot.MachineLevel
-				- 1
+				slot.MachineLevel - 1
 			)
 			* GameConfig.IncomePerLevel;
 
@@ -110,20 +130,44 @@ public sealed class EconomyService
 			);
 
 
+		double botMultiplier =
+			BotCatalog.GetMultiplier(
+				slot.BotRarity
+			);
+
+
 		double prestigeMultiplier =
 			_state.Prestige
 				.GetProductionMultiplier();
 
 
+		// BaseIncome used to mean Tokens / second.
+		//
+		// We keep the old balancing intact by converting
+		// it to one four-second production cycle.
 		return machine.BaseIncome
+			   * GameConfig.ProductionCycleSeconds
 			   * levelMultiplier
 			   * milestoneMultiplier
+			   * botMultiplier
 			   * prestigeMultiplier;
 	}
 
 
+	public double GetSlotIncome(
+		int roomIndex,
+		SlotData slot)
+	{
+		return GetCycleReward(
+				   roomIndex,
+				   slot
+			   )
+			   / GameConfig.ProductionCycleSeconds;
+	}
+
+
 	// ==================================================
-	// ROOM INCOME
+	// AUTOMATED INCOME
 	// ==================================================
 
 	public double GetRoomIncome(
@@ -150,6 +194,15 @@ public sealed class EconomyService
 			].Slots
 		)
 		{
+			if (
+				!slot.Unlocked
+				|| !slot.HasBot
+			)
+			{
+				continue;
+			}
+
+
 			total +=
 				GetSlotIncome(
 					roomIndex,
@@ -161,10 +214,6 @@ public sealed class EconomyService
 		return total;
 	}
 
-
-	// ==================================================
-	// TOTAL INCOME
-	// ==================================================
 
 	public double GetTotalIncome()
 	{
@@ -190,18 +239,7 @@ public sealed class EconomyService
 
 
 	// ==================================================
-	// PRESTIGE
-	// ==================================================
-
-	public double GetPrestigeMultiplier()
-	{
-		return _state.Prestige
-			.GetProductionMultiplier();
-	}
-
-
-	// ==================================================
-	// MILESTONES
+	// MILESTONE
 	// ==================================================
 
 	public static double GetMilestoneMultiplier(
@@ -245,5 +283,17 @@ public sealed class EconomyService
 			return "Level 10: x2";
 
 		return "Level 5: x1.5";
+	}
+
+
+	private MachineData GetMachine(
+		int roomIndex,
+		SlotData slot)
+	{
+		return _state.Rooms[
+			roomIndex
+		].Machines[
+			slot.MachineTier
+		];
 	}
 }

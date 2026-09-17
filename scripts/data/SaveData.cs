@@ -58,6 +58,18 @@ public sealed class SlotSaveData
 
 	public int MachineLevel { get; set; } =
 		1;
+
+
+	public BotRarity? BotRarity { get; set; }
+
+
+	public double BotPurchasePrice { get; set; }
+
+
+	public bool IsRunning { get; set; }
+
+
+	public double CycleRemaining { get; set; }
 }
 
 

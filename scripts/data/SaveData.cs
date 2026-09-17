@@ -13,13 +13,25 @@ public sealed class SaveGameData
 
 	public double IncomePerSecond { get; set; }
 
+	public int CurrentRoomIndex { get; set; }
 
-	public List<SlotSaveData> Slots { get; set; } =
+
+	public List<RoomSaveData> Rooms { get; set; } =
 		[];
 
 
 	public StatsSaveData Stats { get; set; } =
 		new();
+}
+
+
+public sealed class RoomSaveData
+{
+	public bool Unlocked { get; set; }
+
+
+	public List<SlotSaveData> Slots { get; set; } =
+		[];
 }
 
 
@@ -45,8 +57,7 @@ public sealed class StatsSaveData
 	public double SlotUnlockSpent { get; set; }
 
 
-	public Dictionary<string, double>
-		MachineSpending
+	public Dictionary<string, double> MachineSpending
 		{ get; set; } =
 			[];
 }

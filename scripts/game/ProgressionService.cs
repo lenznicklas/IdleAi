@@ -1,4 +1,3 @@
-using System;
 using System.Linq;
 
 namespace IdleAi;
@@ -16,33 +15,31 @@ public sealed class ProgressionService
 
 	private readonly EconomyService _economy;
 
-	private readonly double[] _slotUnlockCosts;
-
 
 	public ProgressionService(
 		GameState state,
-		EconomyService economy,
-		double[] slotUnlockCosts)
+		EconomyService economy)
 	{
-		_state =
-			state;
+		_state = state;
 
-
-		_economy =
-			economy;
-
-
-		_slotUnlockCosts =
-			slotUnlockCosts;
+		_economy = economy;
 	}
 
 
 	public ProgressionResult HandleSlotAction(
 		int slotIndex)
 	{
+		int roomIndex =
+			_state.CurrentRoomIndex;
+
+
+		RoomState roomState =
+			_state.CurrentRoomState;
+
+
 		if (
 			slotIndex < 0
-			|| slotIndex >= _state.Slots.Count
+			|| slotIndex >= roomState.Slots.Count
 		)
 		{
 			return new ProgressionResult(
@@ -53,7 +50,7 @@ public sealed class ProgressionService
 
 
 		SlotData slot =
-			_state.Slots[
+			roomState.Slots[
 				slotIndex
 			];
 
@@ -61,35 +58,39 @@ public sealed class ProgressionService
 		if (!slot.Unlocked)
 		{
 			return UnlockSlot(
+				roomIndex,
 				slotIndex
 			);
 		}
 
 
 		return UpgradeSlot(
+			roomIndex,
 			slot,
 			slotIndex
 		);
 	}
 
 
-	// ==================================================
-	// SLOT UNLOCK
-	// ==================================================
-
 	private ProgressionResult UnlockSlot(
+		int roomIndex,
 		int slotIndex)
 	{
 		SlotData slot =
-			_state.Slots[
+			_state.RoomStates[
+				roomIndex
+			].Slots[
 				slotIndex
 			];
 
 
 		double cost =
-			_slotUnlockCosts[
-				slotIndex
-			];
+			GameConfig
+				.GetSlotUnlockCosts(
+					roomIndex
+				)[
+					slotIndex
+				];
 
 
 		if (_state.Tokens < cost)
@@ -101,25 +102,18 @@ public sealed class ProgressionService
 		}
 
 
-		_state.Tokens -=
-			cost;
-
+		_state.Tokens -= cost;
 
 		_state.Stats.AddSlotSpending(
 			cost
 		);
 
 
-		slot.Unlocked =
-			true;
+		slot.Unlocked = true;
 
+		slot.MachineTier = 0;
 
-		slot.MachineTier =
-			0;
-
-
-		slot.MachineLevel =
-			1;
+		slot.MachineLevel = 1;
 
 
 		return new ProgressionResult(
@@ -129,16 +123,19 @@ public sealed class ProgressionService
 	}
 
 
-	// ==================================================
-	// MACHINE UPGRADE
-	// ==================================================
-
 	private ProgressionResult UpgradeSlot(
+		int roomIndex,
 		SlotData slot,
 		int slotIndex)
 	{
+		RoomData room =
+			_state.Rooms[
+				roomIndex
+			];
+
+
 		MachineData machine =
-			_state.Machines[
+			room.Machines[
 				slot.MachineTier
 			];
 
@@ -149,6 +146,7 @@ public sealed class ProgressionService
 		)
 		{
 			return UpgradeMachineLevel(
+				roomIndex,
 				slot,
 				machine,
 				slotIndex
@@ -157,6 +155,7 @@ public sealed class ProgressionService
 
 
 		return UpgradeMachineTier(
+			roomIndex,
 			slot,
 			machine,
 			slotIndex
@@ -165,12 +164,14 @@ public sealed class ProgressionService
 
 
 	private ProgressionResult UpgradeMachineLevel(
+		int roomIndex,
 		SlotData slot,
 		MachineData machine,
 		int slotIndex)
 	{
 		double cost =
 			_economy.GetLevelUpgradeCost(
+				roomIndex,
 				slot,
 				slotIndex
 			);
@@ -185,8 +186,7 @@ public sealed class ProgressionService
 		}
 
 
-		_state.Tokens -=
-			cost;
+		_state.Tokens -= cost;
 
 
 		_state.Stats.AddMachineSpending(
@@ -209,13 +209,20 @@ public sealed class ProgressionService
 
 
 	private ProgressionResult UpgradeMachineTier(
+		int roomIndex,
 		SlotData slot,
 		MachineData machine,
 		int slotIndex)
 	{
+		RoomData room =
+			_state.Rooms[
+				roomIndex
+			];
+
+
 		if (
 			slot.MachineTier
-			>= _state.Machines.Count - 1
+			>= room.Machines.Count - 1
 		)
 		{
 			return new ProgressionResult(
@@ -227,6 +234,7 @@ public sealed class ProgressionService
 
 		double cost =
 			_economy.GetTierUpgradeCost(
+				roomIndex,
 				slot,
 				slotIndex
 			);
@@ -241,8 +249,7 @@ public sealed class ProgressionService
 		}
 
 
-		_state.Tokens -=
-			cost;
+		_state.Tokens -= cost;
 
 
 		_state.Stats.AddMachineSpending(
@@ -253,13 +260,11 @@ public sealed class ProgressionService
 
 		slot.MachineTier++;
 
-
-		slot.MachineLevel =
-			1;
+		slot.MachineLevel = 1;
 
 
 		MachineData newMachine =
-			_state.Machines[
+			room.Machines[
 				slot.MachineTier
 			];
 
@@ -271,9 +276,80 @@ public sealed class ProgressionService
 	}
 
 
-	// ==================================================
-	// TOTAL PROGRESSION
-	// ==================================================
+	public ProgressionResult UnlockRoom(
+		int roomIndex)
+	{
+		if (
+			roomIndex < 0
+			|| roomIndex >= _state.Rooms.Count
+		)
+		{
+			return new ProgressionResult(
+				false,
+                "Invalid room."
+			);
+		}
+
+
+		RoomState roomState =
+			_state.RoomStates[
+				roomIndex
+			];
+
+
+		if (roomState.Unlocked)
+		{
+			return new ProgressionResult(
+				false,
+                "Room already unlocked."
+			);
+		}
+
+
+		double cost =
+			_state.Rooms[
+				roomIndex
+			].UnlockCost;
+
+
+		if (_state.Tokens < cost)
+		{
+			return new ProgressionResult(
+				false,
+				$"You need {NumberFormatter.Format(cost)} Tokens."
+			);
+		}
+
+
+		_state.Tokens -= cost;
+
+		_state.Stats.AddSlotSpending(
+			cost
+		);
+
+
+		roomState.Unlocked =
+			true;
+
+
+		roomState.Slots[0].Unlocked =
+			true;
+
+
+		roomState.Slots[0].MachineTier =
+			0;
+
+
+		roomState.Slots[0].MachineLevel =
+			1;
+
+
+		return new ProgressionResult(
+			true,
+			$"{_state.Rooms[roomIndex].Name} unlocked!"
+		);
+	}
+
 
 	public int GetTotalLevel()
 	{
@@ -281,30 +357,55 @@ public sealed class ProgressionService
 			0;
 
 
-		foreach (
-			SlotData slot
-			in _state.Slots
+		for (
+			int roomIndex = 0;
+			roomIndex < _state.Rooms.Count;
+			roomIndex++
 		)
 		{
-			if (!slot.Unlocked)
-				continue;
-
-
-			for (
-				int tier = 0;
-				tier < slot.MachineTier;
-				tier++
+			if (
+				!_state.RoomStates[
+					roomIndex
+				].Unlocked
 			)
 			{
-				total +=
-					_state.Machines[
-						tier
-					].MaxLevel;
+				continue;
 			}
 
 
-			total +=
-				slot.MachineLevel;
+			RoomData room =
+				_state.Rooms[
+					roomIndex
+				];
+
+
+			foreach (
+				SlotData slot
+				in _state.RoomStates[
+					roomIndex
+				].Slots
+			)
+			{
+				if (!slot.Unlocked)
+					continue;
+
+
+				for (
+					int tier = 0;
+					tier < slot.MachineTier;
+					tier++
+				)
+				{
+					total +=
+						room.Machines[
+							tier
+						].MaxLevel;
+				}
+
+
+				total +=
+					slot.MachineLevel;
+			}
 		}
 
 
@@ -312,18 +413,19 @@ public sealed class ProgressionService
 	}
 
 
-	public int GetUnlockedSlotCount()
+	public int GetUnlockedSlotCount(
+		int roomIndex)
 	{
-		return _state.Slots.Count(
-			slot =>
-				slot.Unlocked
-		);
+		return _state.RoomStates[
+				roomIndex
+			]
+			.Slots
+			.Count(
+				slot =>
+					slot.Unlocked
+			);
 	}
 
-
-	// ==================================================
-	// MESSAGES
-	// ==================================================
 
 	private static string GetUpgradeMessage(
 		MachineData machine,

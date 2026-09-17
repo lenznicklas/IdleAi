@@ -1,17 +1,10 @@
 using Godot;
-
 using System;
 
 namespace IdleAi;
 
 public partial class MachineSlot : Control
 {
-	private static readonly Texture2D EmptyTexture =
-		GD.Load<Texture2D>(
-            "res://assets/machines/empty.png"
-		);
-
-
 	private static readonly Texture2D BorderTexture =
 		GD.Load<Texture2D>(
             "res://assets/background/border.png"
@@ -40,13 +33,14 @@ public partial class MachineSlot : Control
 	public void Setup(
 		int index)
 	{
-		_slotIndex = index;
+		_slotIndex =
+			index;
 
 
 		CustomMinimumSize =
 			new Vector2(
-				0.0f,
-				380.0f
+				0,
+				380
 			);
 
 
@@ -62,82 +56,121 @@ public partial class MachineSlot : Control
 	}
 
 
+	// ==================================================
+	// UI CREATION
+	// ==================================================
+
 	private void CreateUi()
 	{
-		MarginContainer margin =
-			new()
-			{
-				Name = "Margin"
-			};
+		MarginContainer outerMargin =
+			new();
 
 
-		margin.SetAnchorsAndOffsetsPreset(
+		outerMargin.SetAnchorsAndOffsetsPreset(
 			LayoutPreset.FullRect
 		);
 
 
-		margin.AddThemeConstantOverride(
+		outerMargin.AddThemeConstantOverride(
 			"margin_left",
 			12
 		);
 
-		margin.AddThemeConstantOverride(
-			"margin_right",
-			12
-		);
 
-		margin.AddThemeConstantOverride(
+		outerMargin.AddThemeConstantOverride(
 			"margin_top",
 			12
 		);
 
-		margin.AddThemeConstantOverride(
+
+		outerMargin.AddThemeConstantOverride(
+			"margin_right",
+			12
+		);
+
+
+		outerMargin.AddThemeConstantOverride(
 			"margin_bottom",
 			12
 		);
 
 
-		AddChild(margin);
+		AddChild(
+			outerMargin
+		);
 
 
-		VBoxContainer content =
-			new()
-			{
-				Name = "Content",
-
-				SizeFlagsHorizontal =
-					SizeFlags.ExpandFill,
-
-				SizeFlagsVertical =
-					SizeFlags.ExpandFill
-			};
+		VBoxContainer vbox =
+			new();
 
 
-		margin.AddChild(content);
+		vbox.SizeFlagsHorizontal =
+			SizeFlags.ExpandFill;
 
 
-		CreateTitle(content);
-		CreateMachineImage(content);
-		CreateLevel(content);
-		CreateIncome(content);
-		CreateMilestone(content);
-		CreateButton(content);
+		vbox.SizeFlagsVertical =
+			SizeFlags.ExpandFill;
+
+
+		vbox.AddThemeConstantOverride(
+			"separation",
+			8
+		);
+
+
+		outerMargin.AddChild(
+			vbox
+		);
+
+
+		CreateTitle(
+			vbox
+		);
+
+
+		CreateMachineImage(
+			vbox
+		);
+
+
+		CreateLevelLabel(
+			vbox
+		);
+
+
+		CreateIncomeLabel(
+			vbox
+		);
+
+
+		CreateMilestoneLabel(
+			vbox
+		);
+
+
+		CreateActionButton(
+			vbox
+		);
+
+
 		CreateBorder();
 	}
 
 
+	// ==================================================
+	// TITLE
+	// ==================================================
+
 	private void CreateTitle(
-		VBoxContainer content)
+		VBoxContainer parent)
 	{
 		_titleLabel =
 			new Label
 			{
-				Name = "Title",
-
 				CustomMinimumSize =
 					new Vector2(
-						0.0f,
-						35.0f
+						0,
+						35
 					),
 
 				HorizontalAlignment =
@@ -146,35 +179,38 @@ public partial class MachineSlot : Control
 				VerticalAlignment =
 					VerticalAlignment.Center,
 
-				ClipText = true
+				Text =
+					$"Slot {_slotIndex + 1}"
 			};
 
 
-		content.AddChild(
+		_titleLabel.AddThemeFontSizeOverride(
+			"font_size",
+			18
+		);
+
+
+		parent.AddChild(
 			_titleLabel
 		);
 	}
 
 
+	// ==================================================
+	// MACHINE IMAGE
+	// ==================================================
+
 	private void CreateMachineImage(
-		VBoxContainer content)
+		VBoxContainer parent)
 	{
 		_machineTexture =
 			new TextureRect
 			{
-				Name = "MachineTexture",
-
 				CustomMinimumSize =
 					new Vector2(
-						0.0f,
-						150.0f
+						0,
+						150
 					),
-
-				SizeFlagsHorizontal =
-					SizeFlags.ExpandFill,
-
-				SizeFlagsVertical =
-					SizeFlags.ExpandFill,
 
 				ExpandMode =
 					TextureRect.ExpandModeEnum.IgnoreSize,
@@ -187,112 +223,148 @@ public partial class MachineSlot : Control
 			};
 
 
-		content.AddChild(
+		_machineTexture.SizeFlagsHorizontal =
+			SizeFlags.ExpandFill;
+
+
+		parent.AddChild(
 			_machineTexture
 		);
 	}
 
 
-	private void CreateLevel(
-		VBoxContainer content)
+	// ==================================================
+	// LEVEL
+	// ==================================================
+
+	private void CreateLevelLabel(
+		VBoxContainer parent)
 	{
 		_levelLabel =
 			new Label
 			{
-				Name = "Level",
-
 				CustomMinimumSize =
 					new Vector2(
-						0.0f,
-						25.0f
+						0,
+						30
 					),
 
 				HorizontalAlignment =
 					HorizontalAlignment.Center,
 
-				ClipText = true
+				VerticalAlignment =
+					VerticalAlignment.Center,
+
+				Text =
+                    "Level 1"
 			};
 
 
-		content.AddChild(
+		parent.AddChild(
 			_levelLabel
 		);
 	}
 
 
-	private void CreateIncome(
-		VBoxContainer content)
+	// ==================================================
+	// INCOME
+	// ==================================================
+
+	private void CreateIncomeLabel(
+		VBoxContainer parent)
 	{
 		_incomeLabel =
 			new Label
 			{
-				Name = "Income",
-
 				CustomMinimumSize =
 					new Vector2(
-						0.0f,
-						25.0f
+						0,
+						28
 					),
 
 				HorizontalAlignment =
 					HorizontalAlignment.Center,
 
-				ClipText = true
+				VerticalAlignment =
+					VerticalAlignment.Center,
+
+				Text =
+                    "+0 Tokens/s"
 			};
 
 
-		content.AddChild(
+		parent.AddChild(
 			_incomeLabel
 		);
 	}
 
 
-	private void CreateMilestone(
-		VBoxContainer content)
+	// ==================================================
+	// MILESTONE
+	// ==================================================
+
+	private void CreateMilestoneLabel(
+		VBoxContainer parent)
 	{
 		_milestoneLabel =
 			new Label
 			{
-				Name = "Milestone",
-
 				CustomMinimumSize =
 					new Vector2(
-						0.0f,
-						30.0f
+						0,
+						28
 					),
 
 				HorizontalAlignment =
 					HorizontalAlignment.Center,
 
-				ClipText = true
+				VerticalAlignment =
+					VerticalAlignment.Center,
+
+				Text =
+                    ""
 			};
 
 
-		content.AddChild(
+		_milestoneLabel.AddThemeFontSizeOverride(
+			"font_size",
+			13
+		);
+
+
+		parent.AddChild(
 			_milestoneLabel
 		);
 	}
 
 
-	private void CreateButton(
-		VBoxContainer content)
+	// ==================================================
+	// ACTION BUTTON
+	// ==================================================
+
+	private void CreateActionButton(
+		VBoxContainer parent)
 	{
 		_actionButton =
 			new Button
 			{
-				Name = "ActionButton",
-
 				CustomMinimumSize =
 					new Vector2(
-						0.0f,
-						65.0f
+						0,
+						65
 					),
 
-				SizeFlagsHorizontal =
-					SizeFlags.ExpandFill,
-
-				ClipText = true
+				Text =
+                    "Upgrade"
 			};
+
+
+		_actionButton.SizeFlagsHorizontal =
+			SizeFlags.ExpandFill;
+
+
+		_actionButton.Pressed +=
+			OnActionButtonPressed;
 
 
 		SetupButtonStyle(
@@ -300,108 +372,37 @@ public partial class MachineSlot : Control
 		);
 
 
-		_actionButton.Pressed +=
-			OnActionPressed;
-
-
-		content.AddChild(
+		parent.AddChild(
 			_actionButton
 		);
 	}
 
 
-	private static void SetupButtonStyle(
-		Button button)
+	private void OnActionButtonPressed()
 	{
-		StyleBoxFlat normal =
-			new()
-			{
-				BgColor =
-					new Color(
-						0.025f,
-						0.035f,
-						0.055f,
-						0.88f
-					),
-
-				CornerRadiusTopLeft = 12,
-				CornerRadiusTopRight = 12,
-				CornerRadiusBottomLeft = 12,
-				CornerRadiusBottomRight = 12,
-
-				ContentMarginLeft = 8,
-				ContentMarginRight = 8,
-				ContentMarginTop = 6,
-				ContentMarginBottom = 6
-			};
-
-
-		StyleBoxFlat hover =
-			(StyleBoxFlat)normal.Duplicate();
-
-
-		hover.BgColor =
-			new Color(
-				0.04f,
-				0.11f,
-				0.18f,
-				0.95f
-			);
-
-
-		StyleBoxFlat pressed =
-			(StyleBoxFlat)normal.Duplicate();
-
-
-		pressed.BgColor =
-			new Color(
-				0.02f,
-				0.18f,
-				0.28f,
-				1.0f
-			);
-
-
-		button.AddThemeStyleboxOverride(
-			"normal",
-			normal
-		);
-
-		button.AddThemeStyleboxOverride(
-			"hover",
-			hover
-		);
-
-		button.AddThemeStyleboxOverride(
-			"pressed",
-			pressed
-		);
-
-		button.AddThemeStyleboxOverride(
-			"focus",
-			hover
+		ActionPressed?.Invoke(
+			_slotIndex
 		);
 	}
 
+
+	// ==================================================
+	// BORDER
+	// ==================================================
 
 	private void CreateBorder()
 	{
 		NinePatchRect border =
 			new()
 			{
-				Name = "Border",
+				Texture =
+					BorderTexture,
 
-				Texture = BorderTexture,
+				DrawCenter =
+					false,
 
 				MouseFilter =
-					MouseFilterEnum.Ignore,
-
-				PatchMarginLeft = 20,
-				PatchMarginTop = 20,
-				PatchMarginRight = 20,
-				PatchMarginBottom = 20,
-
-				DrawCenter = false
+					MouseFilterEnum.Ignore
 			};
 
 
@@ -410,29 +411,45 @@ public partial class MachineSlot : Control
 		);
 
 
-		AddChild(border);
+		border.PatchMarginLeft =
+			20;
+
+
+		border.PatchMarginTop =
+			20;
+
+
+		border.PatchMarginRight =
+			20;
+
+
+		border.PatchMarginBottom =
+			20;
+
+
+		AddChild(
+			border
+		);
+
 
 		border.MoveToFront();
 	}
 
 
-	private void OnActionPressed()
-	{
-		ActionPressed?.Invoke(
-			_slotIndex
-		);
-	}
-
+	// ==================================================
+	// LOCKED SLOT
+	// ==================================================
 
 	public void ShowLocked(
-		string unlockCost)
+		string unlockCost,
+		Texture2D emptyTexture)
 	{
 		_titleLabel.Text =
 			$"Slot {_slotIndex + 1}";
 
 
 		_machineTexture.Texture =
-			EmptyTexture;
+			emptyTexture;
 
 
 		_levelLabel.Text =
@@ -447,16 +464,24 @@ public partial class MachineSlot : Control
 			"";
 
 
+		_actionButton.Disabled =
+			false;
+
+
 		_actionButton.Text =
 			$"Unlock\n{unlockCost} Tokens";
 	}
 
 
+	// ==================================================
+	// MACHINE
+	// ==================================================
+
 	public void ShowMachine(
 		MachineData machine,
 		int level,
 		string income,
-		string milestone,
+		string milestoneText,
 		string buttonText)
 	{
 		_titleLabel.Text =
@@ -476,10 +501,113 @@ public partial class MachineSlot : Control
 
 
 		_milestoneLabel.Text =
-			milestone;
+			milestoneText;
 
 
 		_actionButton.Text =
 			buttonText;
+
+
+		_actionButton.Disabled =
+			buttonText == "MAX";
+	}
+
+
+	// ==================================================
+	// BUTTON STYLE
+	// ==================================================
+
+	private static void SetupButtonStyle(
+		Button button)
+	{
+		StyleBoxFlat normal =
+			new()
+			{
+				BgColor =
+					new Color(
+						0.025f,
+						0.035f,
+						0.055f,
+						0.88f
+					),
+
+				CornerRadiusTopLeft =
+					12,
+
+				CornerRadiusTopRight =
+					12,
+
+				CornerRadiusBottomLeft =
+					12,
+
+				CornerRadiusBottomRight =
+					12
+			};
+
+
+		StyleBoxFlat hover =
+			(StyleBoxFlat)
+			normal.Duplicate();
+
+
+		hover.BgColor =
+			new Color(
+				0.04f,
+				0.11f,
+				0.18f,
+				0.95f
+			);
+
+
+		StyleBoxFlat pressed =
+			(StyleBoxFlat)
+			normal.Duplicate();
+
+
+		pressed.BgColor =
+			new Color(
+				0.02f,
+				0.18f,
+				0.28f,
+				1.0f
+			);
+
+
+		StyleBoxFlat disabled =
+			(StyleBoxFlat)
+			normal.Duplicate();
+
+
+		disabled.BgColor =
+			new Color(
+				0.02f,
+				0.025f,
+				0.035f,
+				0.70f
+			);
+
+
+		button.AddThemeStyleboxOverride(
+			"normal",
+			normal
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"hover",
+			hover
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"pressed",
+			pressed
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"disabled",
+			disabled
+		);
 	}
 }

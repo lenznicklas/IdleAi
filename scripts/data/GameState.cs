@@ -7,10 +7,13 @@ public sealed class GameState
 	public double Tokens { get; set; }
 
 
-	public List<MachineData> Machines { get; }
+	public List<RoomData> Rooms { get; }
 
-	public List<SlotData> Slots { get; } =
+	public List<RoomState> RoomStates { get; } =
 		[];
+
+
+	public int CurrentRoomIndex { get; set; }
 
 
 	public StatsData Stats { get; } =
@@ -18,9 +21,20 @@ public sealed class GameState
 
 
 	public GameState(
-		List<MachineData> machines)
+		List<RoomData> rooms)
 	{
-		Machines =
-			machines;
+		Rooms = rooms;
 	}
+
+
+	public RoomData CurrentRoom =>
+		Rooms[
+			CurrentRoomIndex
+		];
+
+
+	public RoomState CurrentRoomState =>
+		RoomStates[
+			CurrentRoomIndex
+		];
 }

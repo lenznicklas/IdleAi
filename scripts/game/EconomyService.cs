@@ -5,43 +5,31 @@ namespace IdleAi;
 
 public sealed class EconomyService
 {
-	private readonly IReadOnlyList<MachineData>
-		_machines;
-
-
-	private readonly double[]
-		_slotUpgradeMultipliers;
+	private readonly GameState _state;
 
 
 	public EconomyService(
-		IReadOnlyList<MachineData> machines,
-		double[] slotUpgradeMultipliers)
+		GameState state)
 	{
-		_machines =
-			machines;
-
-
-		_slotUpgradeMultipliers =
-			slotUpgradeMultipliers;
+		_state = state;
 	}
 
 
-	// ==================================================
-	// UPGRADE COST
-	// ==================================================
-
 	public double GetLevelUpgradeCost(
+		int roomIndex,
 		SlotData slot,
 		int slotIndex)
 	{
 		MachineData machine =
-			GetMachine(
-				slot
-			);
+			_state.Rooms[
+				roomIndex
+			].Machines[
+				slot.MachineTier
+			];
 
 
 		double slotMultiplier =
-			_slotUpgradeMultipliers[
+			GameConfig.SlotUpgradeMultipliers[
 				slotIndex
 			];
 
@@ -60,27 +48,27 @@ public sealed class EconomyService
 
 
 	public double GetTierUpgradeCost(
+		int roomIndex,
 		SlotData slot,
 		int slotIndex)
 	{
 		MachineData machine =
-			GetMachine(
-				slot
-			);
+			_state.Rooms[
+				roomIndex
+			].Machines[
+				slot.MachineTier
+			];
 
 
 		return machine.TierUpgradeCost
-			   * _slotUpgradeMultipliers[
+			   * GameConfig.SlotUpgradeMultipliers[
 				   slotIndex
 			   ];
 	}
 
 
-	// ==================================================
-	// INCOME
-	// ==================================================
-
 	public double GetSlotIncome(
+		int roomIndex,
 		SlotData slot)
 	{
 		if (!slot.Unlocked)
@@ -88,9 +76,11 @@ public sealed class EconomyService
 
 
 		MachineData machine =
-			GetMachine(
-				slot
-			);
+			_state.Rooms[
+				roomIndex
+			].Machines[
+				slot.MachineTier
+			];
 
 
 		double levelMultiplier =
@@ -102,32 +92,41 @@ public sealed class EconomyService
 			* GameConfig.IncomePerLevel;
 
 
-		double milestoneMultiplier =
-			GetMilestoneMultiplier(
-				slot.MachineLevel
-			);
-
-
 		return machine.BaseIncome
 			   * levelMultiplier
-			   * milestoneMultiplier;
+			   * GetMilestoneMultiplier(
+				   slot.MachineLevel
+			   );
 	}
 
 
-	public double GetTotalIncome(
-		IEnumerable<SlotData> slots)
+	public double GetRoomIncome(
+		int roomIndex)
 	{
+		if (
+			!_state.RoomStates[
+				roomIndex
+			].Unlocked
+		)
+		{
+			return 0.0;
+		}
+
+
 		double total =
 			0.0;
 
 
 		foreach (
 			SlotData slot
-			in slots
+			in _state.RoomStates[
+				roomIndex
+			].Slots
 		)
 		{
 			total +=
 				GetSlotIncome(
+					roomIndex,
 					slot
 				);
 		}
@@ -137,9 +136,28 @@ public sealed class EconomyService
 	}
 
 
-	// ==================================================
-	// MILESTONES
-	// ==================================================
+	public double GetTotalIncome()
+	{
+		double total =
+			0.0;
+
+
+		for (
+			int roomIndex = 0;
+			roomIndex < _state.Rooms.Count;
+			roomIndex++
+		)
+		{
+			total +=
+				GetRoomIncome(
+					roomIndex
+				);
+		}
+
+
+		return total;
+	}
+
 
 	public static double GetMilestoneMultiplier(
 		int level)
@@ -147,22 +165,17 @@ public sealed class EconomyService
 		if (level >= 25)
 			return 8.0;
 
-
 		if (level >= 20)
 			return 5.0;
-
 
 		if (level >= 15)
 			return 3.0;
 
-
 		if (level >= 10)
 			return 2.0;
 
-
 		if (level >= 5)
 			return 1.5;
-
 
 		return 1.0;
 	}
@@ -174,32 +187,18 @@ public sealed class EconomyService
 		if (level >= 25)
 			return "x8 production";
 
-
 		if (level >= 20)
 			return "Level 25: x8";
-
 
 		if (level >= 15)
 			return "Level 20: x5";
 
-
 		if (level >= 10)
 			return "Level 15: x3";
-
 
 		if (level >= 5)
 			return "Level 10: x2";
 
-
 		return "Level 5: x1.5";
-	}
-
-
-	private MachineData GetMachine(
-		SlotData slot)
-	{
-		return _machines[
-			slot.MachineTier
-		];
 	}
 }

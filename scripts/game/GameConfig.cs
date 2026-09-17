@@ -2,7 +2,7 @@ namespace IdleAi;
 
 public static class GameConfig
 {
-	public static readonly double[] SlotUnlockCosts =
+	public static readonly double[] GarageSlotUnlockCosts =
 	[
 		0.0,
 		50.0,
@@ -12,6 +12,19 @@ public static class GameConfig
 		500_000.0,
 		5_000_000.0,
 		50_000_000.0
+	];
+
+
+	public static readonly double[] ServerRoomSlotUnlockCosts =
+	[
+		0.0,
+		25_000_000.0,
+		100_000_000.0,
+		500_000_000.0,
+		2_500_000_000.0,
+		10_000_000_000.0,
+		50_000_000_000.0,
+		250_000_000_000.0
 	];
 
 
@@ -34,4 +47,18 @@ public static class GameConfig
 
 	public const double IncomePerLevel =
 		0.10;
+
+
+	public static double[] GetSlotUnlockCosts(
+		int roomIndex)
+	{
+		return roomIndex switch
+		{
+			0 => GarageSlotUnlockCosts,
+
+			1 => ServerRoomSlotUnlockCosts,
+
+			_ => GarageSlotUnlockCosts
+		};
+	}
 }

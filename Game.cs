@@ -1,5 +1,4 @@
 using Godot;
-
 using System;
 using System.Linq;
 
@@ -7,7 +6,7 @@ namespace IdleAi;
 
 public partial class Game : Control
 {
-	private const int SaveVersion = 3;
+	private const int SaveVersion = 4;
 
 	private const double AutosaveIntervalSeconds = 10.0;
 
@@ -34,7 +33,7 @@ public partial class Game : Control
 	{
 		CreateGameSystems();
 
-		CreateInitialSlots();
+		CreateRoomStates();
 
 		_ui.Initialize();
 
@@ -51,9 +50,7 @@ public partial class Game : Control
 		if (offlineEarned > 0.0)
 		{
 			_ui.SetMessage(
-				$"Welcome back! +"
-				+ $"{NumberFormatter.Format(offlineEarned)} "
-				+ "offline Tokens"
+				$"Welcome back! +{NumberFormatter.Format(offlineEarned)} offline Tokens"
 			);
 		}
 		else
@@ -72,14 +69,11 @@ public partial class Game : Control
 		double delta)
 	{
 		double earned =
-			_economy.GetTotalIncome(
-				_state.Slots
-			)
+			_economy.GetTotalIncome()
 			* delta;
 
 
-		_state.Tokens +=
-			earned;
+		_state.Tokens += earned;
 
 
 		_state.Stats.AddEarned(
@@ -97,77 +91,24 @@ public partial class Game : Control
 	}
 
 
-	public override void _Notification(
-		int what)
-	{
-		if (_saveManager == null)
-			return;
-
-
-		if (
-			what
-			== MainLoop.NotificationApplicationPaused
-		)
-		{
-			SaveGame();
-
-			return;
-		}
-
-
-		if (
-			what
-			== MainLoop.NotificationApplicationResumed
-		)
-		{
-			double earned =
-				ApplyOfflineIncome(
-					_lastSaveUnix,
-					_lastSavedIncomePerSecond
-				);
-
-
-			if (earned > 0.0)
-			{
-				_ui.SetMessage(
-					$"Welcome back! +"
-					+ $"{NumberFormatter.Format(earned)} "
-					+ "offline Tokens"
-				);
-			}
-
-
-			_ui.UpdateAll();
-
-			SaveGame();
-		}
-	}
-
-
 	private void CreateGameSystems()
 	{
-		var machines =
-			MachineCatalog.Create();
-
-
 		_state =
 			new GameState(
-				machines
+				RoomCatalog.Create()
 			);
 
 
 		_economy =
 			new EconomyService(
-				machines,
-				GameConfig.SlotUpgradeMultipliers
+				_state
 			);
 
 
 		_progression =
 			new ProgressionService(
 				_state,
-				_economy,
-				GameConfig.SlotUnlockCosts
+				_economy
 			);
 
 
@@ -176,36 +117,60 @@ public partial class Game : Control
 				this,
 				_state,
 				_economy,
-				_progression,
-				GameConfig.SlotUnlockCosts
+				_progression
 			);
 
 
 		_ui.SlotActionRequested +=
 			OnSlotActionRequested;
+
+
+		_ui.RoomChangeRequested +=
+			OnRoomChangeRequested;
 	}
 
 
-	private void CreateInitialSlots()
+	private void CreateRoomStates()
 	{
 		for (
-			int i = 0;
-			i < GameConfig.SlotUnlockCosts.Length;
-			i++
+			int roomIndex = 0;
+			roomIndex < _state.Rooms.Count;
+			roomIndex++
 		)
 		{
-			_state.Slots.Add(
-				new SlotData
+			RoomState roomState =
+				new()
 				{
 					Unlocked =
-						i == 0,
+						roomIndex == 0
+				};
 
-					MachineTier =
-						0,
 
-					MachineLevel =
-						1
-				}
+			for (
+				int slotIndex = 0;
+				slotIndex < 8;
+				slotIndex++
+			)
+			{
+				roomState.Slots.Add(
+					new SlotData
+					{
+						Unlocked =
+							roomIndex == 0
+							&& slotIndex == 0,
+
+						MachineTier =
+							0,
+
+						MachineLevel =
+							1
+					}
+				);
+			}
+
+
+			_state.RoomStates.Add(
+				roomState
 			);
 		}
 	}
@@ -235,9 +200,58 @@ public partial class Game : Control
 	}
 
 
-	// ==================================================
-	// SAVE SYSTEM
-	// ==================================================
+	private void OnRoomChangeRequested(
+		int direction)
+	{
+		int targetRoom =
+			_state.CurrentRoomIndex
+			+ direction;
+
+
+		if (
+			targetRoom < 0
+			|| targetRoom >= _state.Rooms.Count
+		)
+		{
+			return;
+		}
+
+
+		if (
+			!_state.RoomStates[
+				targetRoom
+			].Unlocked
+		)
+		{
+			ProgressionResult result =
+				_progression.UnlockRoom(
+					targetRoom
+				);
+
+
+			_ui.SetMessage(
+				result.Message
+			);
+
+
+			if (!result.Changed)
+			{
+				_ui.UpdateAll();
+
+				return;
+			}
+		}
+
+
+		_state.CurrentRoomIndex =
+			targetRoom;
+
+
+		_ui.UpdateAll();
+
+		SaveGame();
+	}
+
 
 	private void SetupSaveSystem()
 	{
@@ -266,22 +280,12 @@ public partial class Game : Control
 
 	private void SaveGame()
 	{
-		if (_saveManager == null)
-			return;
-
-
-		if (_state.Slots.Count == 0)
-			return;
-
-
 		long now =
 			GetCurrentUnixTime();
 
 
-		double currentIncome =
-			_economy.GetTotalIncome(
-				_state.Slots
-			);
+		double income =
+			_economy.GetTotalIncome();
 
 
 		SaveGameData saveData =
@@ -297,13 +301,28 @@ public partial class Game : Control
 					now,
 
 				IncomePerSecond =
-					currentIncome,
+					income,
 
-				Slots =
-					_state.Slots
+				CurrentRoomIndex =
+					_state.CurrentRoomIndex,
+
+				Rooms =
+					_state.RoomStates
 						.Select(
-							slot =>
-								slot.ToSaveData()
+							room =>
+								new RoomSaveData
+								{
+									Unlocked =
+										room.Unlocked,
+
+									Slots =
+										room.Slots
+											.Select(
+												slot =>
+													slot.ToSaveData()
+											)
+											.ToList()
+								}
 						)
 						.ToList(),
 
@@ -313,21 +332,18 @@ public partial class Game : Control
 
 
 		if (
-			!_saveManager.SaveData(
+			_saveManager.SaveData(
 				saveData
 			)
 		)
 		{
-			return;
+			_lastSaveUnix =
+				now;
+
+
+			_lastSavedIncomePerSecond =
+				income;
 		}
-
-
-		_lastSaveUnix =
-			now;
-
-
-		_lastSavedIncomePerSecond =
-			currentIncome;
 	}
 
 
@@ -335,135 +351,137 @@ public partial class Game : Control
 	{
 		if (!_saveManager.HasSave())
 		{
-			_lastSaveUnix =
-				GetCurrentUnixTime();
-
-
-			_lastSavedIncomePerSecond =
-				_economy.GetTotalIncome(
-					_state.Slots
-				);
-
-
 			return 0.0;
 		}
 
 
-		SaveGameData? saveData =
+		SaveGameData? save =
 			_saveManager.LoadData();
 
 
-		if (saveData == null)
+		if (save == null)
 			return 0.0;
 
 
 		_state.Tokens =
-			saveData.Tokens;
-
-
-		LoadSlots(
-			saveData
-		);
-
-
-		if (saveData.Stats != null)
-		{
-			_state.Stats.LoadFromSaveData(
-				saveData.Stats
-			);
-		}
-
-
-		double offlineEarned =
-			ApplyOfflineIncome(
-				saveData.LastSaveUnix,
-				saveData.IncomePerSecond
-			);
-
-
-		_lastSaveUnix =
-			GetCurrentUnixTime();
-
-
-		_lastSavedIncomePerSecond =
-			_economy.GetTotalIncome(
-				_state.Slots
-			);
-
-
-		return offlineEarned;
-	}
-
-
-	private void LoadSlots(
-		SaveGameData saveData)
-	{
-		int count =
-			Math.Min(
-				saveData.Slots.Count,
-				_state.Slots.Count
-			);
+			save.Tokens;
 
 
 		for (
-			int i = 0;
-			i < count;
-			i++
+			int roomIndex = 0;
+			roomIndex < Math.Min(
+				save.Rooms.Count,
+				_state.RoomStates.Count
+			);
+			roomIndex++
 		)
 		{
-			_state.Slots[i]
-				.LoadFromSaveData(
-					saveData.Slots[i]
+			RoomSaveData savedRoom =
+				save.Rooms[
+					roomIndex
+				];
+
+
+			RoomState room =
+				_state.RoomStates[
+					roomIndex
+				];
+
+
+			room.Unlocked =
+				savedRoom.Unlocked;
+
+
+			for (
+				int slotIndex = 0;
+				slotIndex < Math.Min(
+					savedRoom.Slots.Count,
+					room.Slots.Count
 				);
+				slotIndex++
+			)
+			{
+				room.Slots[
+					slotIndex
+				].LoadFromSaveData(
+					savedRoom.Slots[
+						slotIndex
+					]
+				);
+			}
 		}
+
+
+		_state.CurrentRoomIndex =
+			Math.Clamp(
+				save.CurrentRoomIndex,
+				0,
+				_state.Rooms.Count - 1
+			);
+
+
+		if (
+			!_state.RoomStates[
+				_state.CurrentRoomIndex
+			].Unlocked
+		)
+		{
+			_state.CurrentRoomIndex =
+				0;
+		}
+
+
+		if (save.Stats != null)
+		{
+			_state.Stats.LoadFromSaveData(
+				save.Stats
+			);
+		}
+
+
+		return ApplyOfflineIncome(
+			save.LastSaveUnix,
+			save.IncomePerSecond
+		);
 	}
 
-
-	// ==================================================
-	// OFFLINE INCOME
-	// ==================================================
 
 	private double ApplyOfflineIncome(
 		long savedTime,
 		double incomePerSecond)
 	{
-		long currentTime =
+		long now =
 			GetCurrentUnixTime();
 
 
 		long secondsOffline =
-			currentTime
-			- savedTime;
+			now - savedTime;
 
 
-		if (secondsOffline <= 0)
+		if (
+			secondsOffline <= 0
+			|| incomePerSecond <= 0
+		)
+		{
 			return 0.0;
+		}
 
 
-		if (incomePerSecond <= 0.0)
-			return 0.0;
-
-
-		double normalIncome =
+		double amount =
 			incomePerSecond
-			* secondsOffline;
-
-
-		double offlineIncome =
-			normalIncome
+			* secondsOffline
 			* OfflineIncomeFactor;
 
 
-		_state.Tokens +=
-			offlineIncome;
+		_state.Tokens += amount;
 
 
 		_state.Stats.AddOfflineEarned(
-			offlineIncome
+			amount
 		);
 
 
-		return offlineIncome;
+		return amount;
 	}
 
 

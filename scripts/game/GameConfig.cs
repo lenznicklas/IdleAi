@@ -88,7 +88,7 @@ public static class GameConfig
 
 
 	// ==================================================
-	// NORMAL UPGRADES
+	// LEVELS
 	// ==================================================
 
 	public const double LevelCostGrowth =
@@ -108,11 +108,9 @@ public static class GameConfig
 
 
 	// ==================================================
-	// BOT
+	// BOTS
 	// ==================================================
 
-	// Laptop slot 1:
-	// BaseUpgradeCost 5 * 20 = 100 Tokens.
 	public const double BotBaseCostMultiplier =
 		20.0;
 
@@ -133,7 +131,7 @@ public static class GameConfig
 		0.10;
 
 
-	// Remaining 5 % = legendary.
+	// remaining 5 % = Legendary
 
 
 	// ==================================================
@@ -144,8 +142,14 @@ public static class GameConfig
 		1_000_000_000_000_000_000.0;
 
 
+	// 2 % permanent production per AI Core.
+	//
+	// 1 Core   = x1.02
+	// 10 Cores = x1.20
+	// 25 Cores = x1.50
+	// 50 Cores = x2.00
 	public const double ProductionBoostPerAiCore =
-		0.10;
+		0.02;
 
 
 	// ==================================================

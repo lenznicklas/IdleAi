@@ -6,73 +6,37 @@ namespace IdleAi;
 public sealed class MachineDetailsOverlay
 {
 	private readonly Game _root;
-
 	private readonly GameState _state;
-
 	private readonly EconomyService _economy;
-
 	private readonly ProgressionService _progression;
-
 	private readonly BotService _bots;
 
 
 	public event Action<string>? StateChanged;
 
 
-	private Control _overlay =
-		null!;
+	private Control _overlay = null!;
 
+	private Label _title = null!;
+	private TextureRect _machineImage = null!;
+	private Label _level = null!;
+	private Label _production = null!;
+	private Label _cycle = null!;
 
-	private Label _title =
-		null!;
+	private Label _upgradeInfo = null!;
+	private Button _upgradeButton = null!;
 
+	private TextureRect _botImage = null!;
+	private Label _botName = null!;
+	private Label _botMultiplier = null!;
+	private Button _buyBotButton = null!;
+	private Button _sellBotButton = null!;
 
-	private TextureRect _machineImage =
-		null!;
-
-
-	private Label _level =
-		null!;
-
-
-	private Label _production =
-		null!;
-
-
-	private Label _cycle =
-		null!;
-
-
-	private Label _upgradeInfo =
-		null!;
-
-
-	private Button _upgradeButton =
-		null!;
-
-
-	private TextureRect _botImage =
-		null!;
-
-
-	private Label _botName =
-		null!;
-
-
-	private Label _botMultiplier =
-		null!;
-
-
-	private Button _buyBotButton =
-		null!;
-
-
-	private Button _sellBotButton =
+	private ConfirmationDialog _sellConfirmation =
 		null!;
 
 
 	private int _roomIndex;
-
 	private int _slotIndex;
 
 
@@ -80,6 +44,10 @@ public sealed class MachineDetailsOverlay
 		_overlay != null
 		&& _overlay.Visible;
 
+
+	// ==================================================
+	// CONSTRUCTOR
+	// ==================================================
 
 	public MachineDetailsOverlay(
 		Game root,
@@ -113,6 +81,8 @@ public sealed class MachineDetailsOverlay
 	{
 		CreateUi();
 
+		CreateSellConfirmation();
+
 		Close();
 	}
 
@@ -145,7 +115,9 @@ public sealed class MachineDetailsOverlay
 	public void Close()
 	{
 		if (_overlay != null)
+		{
 			_overlay.Hide();
+		}
 	}
 
 
@@ -164,10 +136,23 @@ public sealed class MachineDetailsOverlay
 		}
 
 
-		SlotData slot =
+		RoomState roomState =
 			_state.RoomStates[
 				_roomIndex
-			].Slots[
+			];
+
+
+		if (
+			_slotIndex < 0
+			|| _slotIndex >= roomState.Slots.Count
+		)
+		{
+			return;
+		}
+
+
+		SlotData slot =
+			roomState.Slots[
 				_slotIndex
 			];
 
@@ -221,8 +206,7 @@ public sealed class MachineDetailsOverlay
 			+ NumberFormatter.Format(
 				cycleReward
 			)
-			+ " Tokens\n"
-			+ "Equivalent: "
+			+ " Tokens\nEquivalent: "
 			+ NumberFormatter.Format(
 				theoreticalPerSecond
 			)
@@ -386,8 +370,6 @@ public sealed class MachineDetailsOverlay
 
 	private void OnUpgradePressed()
 	{
-		// Details are only opened for the current room,
-		// therefore HandleSlotAction can be reused.
 		ProgressionResult result =
 			_progression.HandleSlotAction(
 				_slotIndex
@@ -484,6 +466,10 @@ public sealed class MachineDetailsOverlay
 	}
 
 
+	// ==================================================
+	// BUY
+	// ==================================================
+
 	private void OnBuyBotPressed()
 	{
 		BotActionResult result =
@@ -502,7 +488,53 @@ public sealed class MachineDetailsOverlay
 	}
 
 
+	// ==================================================
+	// SELL
+	// ==================================================
+
 	private void OnSellBotPressed()
+	{
+		SlotData slot =
+			_state.RoomStates[
+				_roomIndex
+			].Slots[
+				_slotIndex
+			];
+
+
+		if (!slot.HasBot)
+			return;
+
+
+		BotDefinition bot =
+			BotCatalog.Get(
+				slot.BotRarity!.Value
+			);
+
+
+		double sellPrice =
+			_bots.GetSellPrice(
+				slot
+			);
+
+
+		_sellConfirmation.DialogText =
+			$"Sell {bot.Name}?\n\n"
+			+ $"Multiplier: x{bot.ProductionMultiplier:F1}\n"
+			+ $"Refund: {NumberFormatter.Format(sellPrice)} Tokens\n\n"
+			+ "You only receive one third of the original purchase price.";
+
+
+		_sellConfirmation.PopupCentered(
+			new Vector2I(
+				500,
+				320
+			)
+		);
+	}
+
+
+	private void ConfirmSellBot()
 	{
 		BotActionResult result =
 			_bots.SellBot(
@@ -517,6 +549,29 @@ public sealed class MachineDetailsOverlay
 
 
 		Refresh();
+	}
+
+
+	private void CreateSellConfirmation()
+	{
+		_sellConfirmation =
+			new ConfirmationDialog
+			{
+				Title =
+					"Sell Bot",
+
+				OkButtonText =
+                    "SELL"
+			};
+
+
+		_sellConfirmation.Confirmed +=
+			ConfirmSellBot;
+
+
+		_root.AddChild(
+			_sellConfirmation
+		);
 	}
 
 
@@ -583,7 +638,7 @@ public sealed class MachineDetailsOverlay
 				CustomMinimumSize =
 					new Vector2(
 						580,
-						850
+						900
 					)
 			};
 
@@ -594,48 +649,7 @@ public sealed class MachineDetailsOverlay
 
 
 		StyleBoxFlat panelStyle =
-			new()
-			{
-				BgColor =
-					new Color(
-						0.02f,
-						0.035f,
-						0.06f,
-						0.98f
-					),
-
-				CornerRadiusTopLeft =
-					18,
-
-				CornerRadiusTopRight =
-					18,
-
-				CornerRadiusBottomLeft =
-					18,
-
-				CornerRadiusBottomRight =
-					18,
-
-				BorderWidthLeft =
-					2,
-
-				BorderWidthTop =
-					2,
-
-				BorderWidthRight =
-					2,
-
-				BorderWidthBottom =
-					2,
-
-				BorderColor =
-					new Color(
-						0.1f,
-						0.6f,
-						1.0f,
-						0.8f
-					)
-			};
+			CreatePanelStyle();
 
 
 		panel.AddThemeStyleboxOverride(
@@ -653,15 +667,18 @@ public sealed class MachineDetailsOverlay
 			28
 		);
 
+
 		margin.AddThemeConstantOverride(
 			"margin_top",
 			24
 		);
 
+
 		margin.AddThemeConstantOverride(
 			"margin_right",
 			28
 		);
+
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
@@ -674,8 +691,31 @@ public sealed class MachineDetailsOverlay
 		);
 
 
+		ScrollContainer scroll =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
+
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill,
+
+				HorizontalScrollMode =
+					ScrollContainer.ScrollMode.Disabled
+			};
+
+
+		margin.AddChild(
+			scroll
+		);
+
+
 		VBoxContainer vbox =
-			new();
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
 
 
 		vbox.AddThemeConstantOverride(
@@ -684,15 +724,14 @@ public sealed class MachineDetailsOverlay
 		);
 
 
-		margin.AddChild(
+		scroll.AddChild(
 			vbox
 		);
 
 
 		_title =
 			CreateLabel(
-				28,
-				HorizontalAlignment.Center
+				28
 			);
 
 
@@ -707,7 +746,7 @@ public sealed class MachineDetailsOverlay
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						220
+						200
 					),
 
 				ExpandMode =
@@ -725,8 +764,7 @@ public sealed class MachineDetailsOverlay
 
 		_level =
 			CreateLabel(
-				18,
-				HorizontalAlignment.Center
+				18
 			);
 
 
@@ -737,8 +775,7 @@ public sealed class MachineDetailsOverlay
 
 		_production =
 			CreateLabel(
-				16,
-				HorizontalAlignment.Center
+				15
 			);
 
 
@@ -749,8 +786,7 @@ public sealed class MachineDetailsOverlay
 
 		_cycle =
 			CreateLabel(
-				15,
-				HorizontalAlignment.Center
+				15
 			);
 
 
@@ -766,8 +802,7 @@ public sealed class MachineDetailsOverlay
 
 		_upgradeInfo =
 			CreateLabel(
-				15,
-				HorizontalAlignment.Center
+				15
 			);
 
 
@@ -803,8 +838,7 @@ public sealed class MachineDetailsOverlay
 
 		Label botTitle =
 			CreateLabel(
-				21,
-				HorizontalAlignment.Center
+				21
 			);
 
 
@@ -823,7 +857,7 @@ public sealed class MachineDetailsOverlay
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						120
+						125
 					),
 
 				ExpandMode =
@@ -841,8 +875,7 @@ public sealed class MachineDetailsOverlay
 
 		_botName =
 			CreateLabel(
-				17,
-				HorizontalAlignment.Center
+				17
 			);
 
 
@@ -853,8 +886,7 @@ public sealed class MachineDetailsOverlay
 
 		_botMultiplier =
 			CreateLabel(
-				14,
-				HorizontalAlignment.Center
+				14
 			);
 
 
@@ -927,15 +959,18 @@ public sealed class MachineDetailsOverlay
 	}
 
 
+	// ==================================================
+	// HELPERS
+	// ==================================================
+
 	private static Label CreateLabel(
-		int size,
-		HorizontalAlignment alignment)
+		int fontSize)
 	{
 		Label label =
 			new()
 			{
 				HorizontalAlignment =
-					alignment,
+					HorizontalAlignment.Center,
 
 				AutowrapMode =
 					TextServer.AutowrapMode.WordSmart
@@ -944,10 +979,57 @@ public sealed class MachineDetailsOverlay
 
 		label.AddThemeFontSizeOverride(
 			"font_size",
-			size
+			fontSize
 		);
 
 
 		return label;
+	}
+
+
+	private static StyleBoxFlat CreatePanelStyle()
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				new Color(
+					0.02f,
+					0.035f,
+					0.06f,
+					0.98f
+				),
+
+			BorderWidthLeft =
+				2,
+
+			BorderWidthTop =
+				2,
+
+			BorderWidthRight =
+				2,
+
+			BorderWidthBottom =
+				2,
+
+			BorderColor =
+				new Color(
+					0.0f,
+					0.65f,
+					1.0f,
+					0.8f
+				),
+
+			CornerRadiusTopLeft =
+				18,
+
+			CornerRadiusTopRight =
+				18,
+
+			CornerRadiusBottomLeft =
+				18,
+
+			CornerRadiusBottomRight =
+				18
+		};
 	}
 }

@@ -13,120 +13,104 @@ public sealed class GameUiController
 
 
 	private readonly Game _root;
-
 	private readonly GameState _state;
-
 	private readonly EconomyService _economy;
-
 	private readonly ProgressionService _progression;
-
 	private readonly ProductionService _production;
-
 	private readonly BotService _bots;
+	private readonly PrestigeService _prestige;
 
 
 	public event Action<int>? SlotActionRequested;
-
 	public event Action<int>? RoomChangeRequested;
-
 	public event Action? StateChanged;
+	public event Action? PrestigeRequested;
 
 
-	private TextureRect _background =
-		null!;
+	// ==================================================
+	// GENERAL
+	// ==================================================
+
+	private TextureRect _background = null!;
+	private Label _messageLabel = null!;
 
 
-	private Label _messageLabel =
-		null!;
+	// ==================================================
+	// TOP BAR
+	// ==================================================
+
+	private TextureButton _tokenCard = null!;
+	private TextureButton _statsCard = null!;
+	private TextureButton _levelCard = null!;
+
+	private Label _tokenLabel = null!;
+	private Label _totalLevelLabel = null!;
+
+	private int _lastTopBarRoom =
+		-1;
 
 
-	private TextureButton _tokenCard =
-		null!;
+	// ==================================================
+	// ROOM
+	// ==================================================
+
+	private Label _roomLabel = null!;
+	private Button _previousRoomButton = null!;
+	private Button _nextRoomButton = null!;
+	private Label _roomPageLabel = null!;
+	private GridContainer _slotGrid = null!;
 
 
-	private TextureButton _statsCard =
-		null!;
+	// ==================================================
+	// POPUPS
+	// ==================================================
+
+	private PanelContainer _tokenPopup = null!;
+	private PanelContainer _levelPopup = null!;
 
 
-	private TextureButton _levelCard =
-		null!;
+	// ==================================================
+	// STATS
+	// ==================================================
+
+	private Control _statsOverlay = null!;
+
+	private Label _statsIncomeLabel = null!;
+	private Label _statsEarnedLabel = null!;
+	private Label _statsSpentLabel = null!;
+	private Label _statsSlotsLabel = null!;
+	private Label _statsLevelLabel = null!;
+	private Label _statsUnlockSpendLabel = null!;
+	private Label _statsMachineSpendLabel = null!;
+
+	private Label _aiCoresLabel = null!;
+	private Label _prestigeBoostLabel = null!;
+	private Label _prestigeProgressLabel = null!;
+
+	private Button _prestigeButton = null!;
+	private Button _statsCloseButton = null!;
 
 
-	private Label _tokenLabel =
-		null!;
+	// ==================================================
+	// PRESTIGE CONFIRM
+	// ==================================================
+
+	private Control _prestigeConfirmOverlay = null!;
+	private Label _prestigeConfirmInfo = null!;
+	private Button _prestigeConfirmButton = null!;
+	private Button _prestigeCancelButton = null!;
 
 
-	private Label _totalLevelLabel =
-		null!;
+	// ==================================================
+	// DETAILS
+	// ==================================================
+
+	private MachineDetailsOverlay _details = null!;
 
 
-	private Label _roomLabel =
-		null!;
-
-
-	private Button _previousRoomButton =
-		null!;
-
-
-	private Button _nextRoomButton =
-		null!;
-
-
-	private Label _roomPageLabel =
-		null!;
-
-
-	private GridContainer _slotGrid =
-		null!;
-
-
-	private PanelContainer _tokenPopup =
-		null!;
-
-
-	private PanelContainer _levelPopup =
-		null!;
-
-
-	private Control _statsOverlay =
-		null!;
-
-
-	private Label _statsIncomeLabel =
-		null!;
-
-
-	private Label _statsEarnedLabel =
-		null!;
-
-
-	private Label _statsSpentLabel =
-		null!;
-
-
-	private Label _statsSlotsLabel =
-		null!;
-
-
-	private Label _statsLevelLabel =
-		null!;
-
-
-	private Label _statsUnlockSpendLabel =
-		null!;
-
-
-	private Label _statsMachineSpendLabel =
-		null!;
-
-
-	private Button _statsCloseButton =
-		null!;
-
-
-	private MachineDetailsOverlay _details =
-		null!;
-
+	// ==================================================
+	// CONSTRUCTOR
+	// ==================================================
 
 	public GameUiController(
 		Game root,
@@ -134,7 +118,8 @@ public sealed class GameUiController
 		EconomyService economy,
 		ProgressionService progression,
 		ProductionService production,
-		BotService bots)
+		BotService bots,
+		PrestigeService prestige)
 	{
 		_root =
 			root;
@@ -153,6 +138,9 @@ public sealed class GameUiController
 
 		_bots =
 			bots;
+
+		_prestige =
+			prestige;
 	}
 
 
@@ -176,6 +164,8 @@ public sealed class GameUiController
 		SetupRoomNavigation();
 
 		SetupStatsOverlay();
+
+		SetupPrestigeConfirmation();
 
 		CreateSlotViews();
 
@@ -288,6 +278,10 @@ public sealed class GameUiController
 			);
 
 
+		const string stats =
+			"StatsOverlay/StatsPanel/Margin/Scroll/VBox/";
+
+
 		_statsOverlay =
 			_root.GetNode<Control>(
                 "StatsOverlay"
@@ -296,52 +290,104 @@ public sealed class GameUiController
 
 		_statsIncomeLabel =
 			_root.GetNode<Label>(
-                "StatsOverlay/StatsPanel/Margin/VBox/IncomeLabel"
+				stats + "IncomeLabel"
 			);
 
 
 		_statsEarnedLabel =
 			_root.GetNode<Label>(
-                "StatsOverlay/StatsPanel/Margin/VBox/EarnedLabel"
+				stats + "EarnedLabel"
 			);
 
 
 		_statsSpentLabel =
 			_root.GetNode<Label>(
-                "StatsOverlay/StatsPanel/Margin/VBox/SpentLabel"
+				stats + "SpentLabel"
 			);
 
 
 		_statsSlotsLabel =
 			_root.GetNode<Label>(
-                "StatsOverlay/StatsPanel/Margin/VBox/SlotsLabel"
+				stats + "SlotsLabel"
 			);
 
 
 		_statsLevelLabel =
 			_root.GetNode<Label>(
-                "StatsOverlay/StatsPanel/Margin/VBox/LevelLabel"
+				stats + "LevelLabel"
 			);
 
 
 		_statsUnlockSpendLabel =
 			_root.GetNode<Label>(
-                "StatsOverlay/StatsPanel/Margin/VBox/UnlockSpendLabel"
+				stats + "UnlockSpendLabel"
 			);
 
 
 		_statsMachineSpendLabel =
 			_root.GetNode<Label>(
-                "StatsOverlay/StatsPanel/Margin/VBox/MachineSpendLabel"
+				stats + "MachineSpendLabel"
+			);
+
+
+		_aiCoresLabel =
+			_root.GetNode<Label>(
+				stats + "AiCoresLabel"
+			);
+
+
+		_prestigeBoostLabel =
+			_root.GetNode<Label>(
+				stats + "PrestigeBoostLabel"
+			);
+
+
+		_prestigeProgressLabel =
+			_root.GetNode<Label>(
+				stats + "PrestigeProgressLabel"
+			);
+
+
+		_prestigeButton =
+			_root.GetNode<Button>(
+				stats + "PrestigeButton"
 			);
 
 
 		_statsCloseButton =
 			_root.GetNode<Button>(
-                "StatsOverlay/StatsPanel/Margin/VBox/CloseButton"
+				stats + "CloseButton"
+			);
+
+
+		_prestigeConfirmOverlay =
+			_root.GetNode<Control>(
+                "PrestigeConfirmOverlay"
+			);
+
+
+		_prestigeConfirmInfo =
+			_root.GetNode<Label>(
+                "PrestigeConfirmOverlay/Panel/Margin/VBox/InfoLabel"
+			);
+
+
+		_prestigeConfirmButton =
+			_root.GetNode<Button>(
+                "PrestigeConfirmOverlay/Panel/Margin/VBox/ConfirmButton"
+			);
+
+
+		_prestigeCancelButton =
+			_root.GetNode<Button>(
+                "PrestigeConfirmOverlay/Panel/Margin/VBox/CancelButton"
 			);
 	}
 
+
+	// ==================================================
+	// BACKGROUND
+	// ==================================================
 
 	private void SetupBackground()
 	{
@@ -364,7 +410,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// TOP BAR
+	// TOPBAR
 	// ==================================================
 
 	private void SetupTopbar()
@@ -379,6 +425,11 @@ public sealed class GameUiController
 
 		_levelCard.Pressed +=
 			ToggleLevelPopup;
+
+
+		ApplyRoomTopBarTheme(
+			true
+		);
 	}
 
 
@@ -394,11 +445,252 @@ public sealed class GameUiController
 			_progression
 				.GetTotalLevel()
 				.ToString();
+
+
+		ApplyRoomTopBarTheme();
+	}
+
+
+	private void ApplyRoomTopBarTheme(
+		bool force = false)
+	{
+		int room =
+			_state.CurrentRoomIndex;
+
+
+		if (
+			!force
+			&& room == _lastTopBarRoom
+		)
+		{
+			return;
+		}
+
+
+		_lastTopBarRoom =
+			room;
+
+
+		(Color main, Color secondary) =
+			GetRoomTopBarColors(
+				room
+			);
+
+
+		ApplyGradient(
+			_tokenCard,
+			main,
+			secondary
+		);
+
+
+		ApplyGradient(
+			_statsCard,
+			main,
+			secondary
+		);
+
+
+		ApplyGradient(
+			_levelCard,
+			main,
+			secondary
+		);
+	}
+
+
+	private static (
+		Color Main,
+		Color Secondary
+	) GetRoomTopBarColors(
+		int roomIndex)
+	{
+		return roomIndex switch
+		{
+			// Garage - blue
+			0 =>
+				(
+					new Color(
+						0.015f,
+						0.27f,
+						0.52f,
+						0.96f
+					),
+
+					new Color(
+						0.01f,
+						0.21f,
+						0.42f,
+						0.96f
+					)
+				),
+
+			// Server room - red
+			1 =>
+				(
+					new Color(
+						0.50f,
+						0.07f,
+						0.10f,
+						0.96f
+					),
+
+					new Color(
+						0.39f,
+						0.045f,
+						0.075f,
+						0.96f
+					)
+				),
+
+			// Data center - green
+			2 =>
+				(
+					new Color(
+						0.04f,
+						0.39f,
+						0.20f,
+						0.96f
+					),
+
+					new Color(
+						0.025f,
+						0.30f,
+						0.15f,
+						0.96f
+					)
+				),
+
+			// Quantum lab - purple
+			3 =>
+				(
+					new Color(
+						0.33f,
+						0.10f,
+						0.52f,
+						0.96f
+					),
+
+					new Color(
+						0.25f,
+						0.07f,
+						0.41f,
+						0.96f
+					)
+				),
+
+			_ =>
+				(
+					new Color(
+						0.08f,
+						0.12f,
+						0.18f,
+						0.96f
+					),
+
+					new Color(
+						0.05f,
+						0.08f,
+						0.13f,
+						0.96f
+					)
+				)
+		};
+	}
+
+
+	private static void ApplyGradient(
+		TextureButton button,
+		Color first,
+		Color second)
+	{
+		button.TextureNormal =
+			CreateGradientTexture(
+				first,
+				second
+			);
+
+
+		button.TextureHover =
+			CreateGradientTexture(
+				first.Lightened(
+					0.08f
+				),
+
+				second.Lightened(
+					0.08f
+				)
+			);
+
+
+		button.TexturePressed =
+			CreateGradientTexture(
+				first.Darkened(
+					0.08f
+				),
+
+				second.Darkened(
+					0.08f
+				)
+			);
+	}
+
+
+	private static GradientTexture2D CreateGradientTexture(
+		Color first,
+		Color second)
+	{
+		Gradient gradient =
+			new();
+
+
+		gradient.SetColor(
+			0,
+			first
+		);
+
+
+		gradient.SetColor(
+			1,
+			second
+		);
+
+
+		GradientTexture2D texture =
+			new()
+			{
+				Gradient =
+					gradient,
+
+				Width =
+					256,
+
+				Height =
+					64,
+
+				Fill =
+					GradientTexture2D.FillEnum.Linear,
+
+				FillFrom =
+					new Vector2(
+						0.0f,
+						0.5f
+					),
+
+				FillTo =
+					new Vector2(
+						1.0f,
+						0.5f
+					)
+			};
+
+
+		return texture;
 	}
 
 
 	// ==================================================
-	// ROOMS
+	// ROOM NAVIGATION
 	// ==================================================
 
 	private void SetupRoomNavigation()
@@ -446,6 +738,9 @@ public sealed class GameUiController
 
 		_background.Texture =
 			room.Background;
+
+
+		ApplyRoomTopBarTheme();
 
 
 		_previousRoomButton.Disabled =
@@ -664,7 +959,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// UPDATES
+	// UPDATE
 	// ==================================================
 
 	public void UpdateAll()
@@ -758,6 +1053,12 @@ public sealed class GameUiController
 		{
 			_details.Refresh();
 		}
+
+
+		if (_statsOverlay.Visible)
+		{
+			UpdatePrestigeSection();
+		}
 	}
 
 
@@ -776,6 +1077,10 @@ public sealed class GameUiController
 	}
 
 
+	// ==================================================
+	// MESSAGE
+	// ==================================================
+
 	public void SetMessage(
 		string message)
 	{
@@ -785,7 +1090,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// POPUPS
+	// TOKEN / LEVEL POPUPS
 	// ==================================================
 
 	private void ToggleTokenPopup()
@@ -844,22 +1149,14 @@ public sealed class GameUiController
 		);
 
 
-		Vector2 cardPosition =
-			card.GlobalPosition;
-
-
-		Vector2 cardSize =
-			card.Size;
-
-
 		popup.GlobalPosition =
 			new Vector2(
-				cardPosition.X
-				+ cardSize.X / 2.0f
+				card.GlobalPosition.X
+				+ card.Size.X / 2.0f
 				- popup.Size.X / 2.0f,
 
-				cardPosition.Y
-				+ cardSize.Y
+				card.GlobalPosition.Y
+				+ card.Size.Y
 				+ 6.0f
 			);
 	}
@@ -873,6 +1170,10 @@ public sealed class GameUiController
 	{
 		_statsCloseButton.Pressed +=
 			CloseStats;
+
+
+		_prestigeButton.Pressed +=
+			OpenPrestigeConfirmation;
 	}
 
 
@@ -934,8 +1235,7 @@ public sealed class GameUiController
 
 
 		_statsSlotsLabel.Text =
-			$"Unlocked slots: "
-			+ $"{unlockedSlots} / "
+			$"Unlocked slots: {unlockedSlots} / "
 			+ $"{_state.CurrentRoomState.Slots.Count}"
 			+ $" ({_state.CurrentRoom.Name})";
 
@@ -1007,5 +1307,159 @@ public sealed class GameUiController
 				"\n",
 				lines
 			);
+
+
+		UpdatePrestigeSection();
+	}
+
+
+	// ==================================================
+	// PRESTIGE IN STATS
+	// ==================================================
+
+	private void UpdatePrestigeSection()
+	{
+		long cores =
+			_state.Prestige.AiCores;
+
+
+		long available =
+			_prestige.GetAvailableAiCores();
+
+
+		double multiplier =
+			_prestige.GetProductionMultiplier();
+
+
+		_aiCoresLabel.Text =
+			$"AI Cores: {cores}";
+
+
+		_prestigeBoostLabel.Text =
+			$"Permanent production: x{multiplier:F2}";
+
+
+		if (available > 0)
+		{
+			_prestigeProgressLabel.Text =
+                "Current run: "
+				+ NumberFormatter.Format(
+					_state.RunEarnedTokens
+				)
+				+ $"\nPrestige reward: +{available} AI Cores";
+
+
+			_prestigeButton.Text =
+				$"PRESTIGE +{available} AI CORES";
+
+
+			_prestigeButton.Disabled =
+				false;
+
+
+			return;
+		}
+
+
+		double remaining =
+			Math.Max(
+				0.0,
+				GameConfig.PrestigeTokensPerCore
+				- _state.RunEarnedTokens
+			);
+
+
+		_prestigeProgressLabel.Text =
+            "Current run: "
+			+ NumberFormatter.Format(
+				_state.RunEarnedTokens
+			)
+			+ "\nNext AI Core in: "
+			+ NumberFormatter.Format(
+				remaining
+			);
+
+
+		_prestigeButton.Text =
+			"PRESTIGE";
+
+
+		_prestigeButton.Disabled =
+			true;
+	}
+
+
+	// ==================================================
+	// PRESTIGE CONFIRM
+	// ==================================================
+
+	private void SetupPrestigeConfirmation()
+	{
+		_prestigeConfirmButton.Pressed +=
+			ConfirmPrestige;
+
+
+		_prestigeCancelButton.Pressed +=
+			ClosePrestigeConfirmation;
+	}
+
+
+	private void OpenPrestigeConfirmation()
+	{
+		long reward =
+			_prestige.GetAvailableAiCores();
+
+
+		if (reward <= 0)
+			return;
+
+
+		long totalCores =
+			_state.Prestige.AiCores
+			+ reward;
+
+
+		double multiplierAfter =
+			1.0
+			+ totalCores
+			* GameConfig.ProductionBoostPerAiCore;
+
+
+		_prestigeConfirmInfo.Text =
+			$"You will receive +{reward} AI Cores.\n\n"
+			+ $"AI Cores after prestige: {totalCores}\n"
+			+ $"Permanent production: x{multiplierAfter:F2}\n\n"
+			+ "AI Cores are permanent.";
+
+
+		_statsOverlay.Hide();
+
+
+		_prestigeConfirmOverlay.Show();
+
+		_prestigeConfirmOverlay.MoveToFront();
+	}
+
+
+	private void ClosePrestigeConfirmation()
+	{
+		_prestigeConfirmOverlay.Hide();
+
+
+		UpdateStatsOverlay();
+
+
+		_statsOverlay.Show();
+
+		_statsOverlay.MoveToFront();
+	}
+
+
+	private void ConfirmPrestige()
+	{
+		_prestigeConfirmOverlay.Hide();
+
+
+		PrestigeRequested?.Invoke();
 	}
 }

@@ -7,7 +7,7 @@ namespace IdleAi;
 public partial class Game : Control
 {
 	private const int SaveVersion =
-		7;
+		8;
 
 
 	private const double AutosaveIntervalSeconds =
@@ -18,40 +18,21 @@ public partial class Game : Control
 		0.25;
 
 
-	private GameState _state =
-		null!;
+	private GameState _state = null!;
 
+	private EconomyService _economy = null!;
 
-	private EconomyService _economy =
-		null!;
+	private ProgressionService _progression = null!;
 
+	private ProductionService _production = null!;
 
-	private ProgressionService _progression =
-		null!;
+	private BotService _bots = null!;
 
+	private PrestigeService _prestige = null!;
 
-	private ProductionService _production =
-		null!;
+	private GameUiController _ui = null!;
 
-
-	private BotService _bots =
-		null!;
-
-
-	private PrestigeService _prestige =
-		null!;
-
-
-	private GameUiController _ui =
-		null!;
-
-
-	private PrestigeUiController _prestigeUi =
-		null!;
-
-
-	private SaveManager _saveManager =
-		null!;
+	private SaveManager _saveManager = null!;
 
 
 	// ==================================================
@@ -67,8 +48,6 @@ public partial class Game : Control
 
 		_ui.Initialize();
 
-		_prestigeUi.Initialize();
-
 
 		SetupSaveSystem();
 
@@ -82,15 +61,15 @@ public partial class Game : Control
 
 		_ui.UpdateAll();
 
-		_prestigeUi.Update();
-
 
 		if (offlineEarned > 0.0)
 		{
 			_ui.SetMessage(
-				$"Welcome back! +"
-				+ $"{NumberFormatter.Format(offlineEarned)} "
-				+ "offline Tokens"
+                "Welcome back! +"
+				+ NumberFormatter.Format(
+					offlineEarned
+				)
+				+ " offline Tokens"
 			);
 		}
 		else
@@ -127,8 +106,6 @@ public partial class Game : Control
 
 
 		_ui.UpdateRuntime();
-
-		_prestigeUi.Update();
 	}
 
 
@@ -190,14 +167,7 @@ public partial class Game : Control
 				_economy,
 				_progression,
 				_production,
-				_bots
-			);
-
-
-		_prestigeUi =
-			new PrestigeUiController(
-				this,
-				_state,
+				_bots,
 				_prestige
 			);
 
@@ -214,7 +184,7 @@ public partial class Game : Control
 			SaveGame;
 
 
-		_prestigeUi.PrestigeRequested +=
+		_ui.PrestigeRequested +=
 			OnPrestigeRequested;
 	}
 
@@ -381,20 +351,13 @@ public partial class Game : Control
 		);
 
 
-		if (!result.Success)
-		{
-			_prestigeUi.Update();
-
-			return;
-		}
-
-
 		_ui.UpdateAll();
 
-		_prestigeUi.Update();
 
-
-		SaveGame();
+		if (result.Success)
+		{
+			SaveGame();
+		}
 	}
 
 
@@ -458,7 +421,6 @@ public partial class Game : Control
 			GetCurrentUnixTime();
 
 
-		// Only bots count as continuous/offline income.
 		double automatedIncome =
 			_economy.GetTotalIncome();
 
@@ -659,9 +621,6 @@ public partial class Game : Control
 		}
 
 
-		// IMPORTANT:
-		// Only bot-controlled machines are part of
-		// automatedIncomePerSecond.
 		double amount =
 			automatedIncomePerSecond
 			* secondsOffline

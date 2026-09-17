@@ -7,7 +7,7 @@ namespace IdleAi;
 public partial class Game : Control
 {
 	private const int SaveVersion =
-		8;
+		9;
 
 
 	private const double AutosaveIntervalSeconds =
@@ -34,10 +34,6 @@ public partial class Game : Control
 
 	private SaveManager _saveManager = null!;
 
-
-	// ==================================================
-	// READY
-	// ==================================================
 
 	public override void _Ready()
 	{
@@ -84,10 +80,6 @@ public partial class Game : Control
 	}
 
 
-	// ==================================================
-	// PROCESS
-	// ==================================================
-
 	public override void _Process(
 		double delta)
 	{
@@ -114,10 +106,6 @@ public partial class Game : Control
 		SaveGame();
 	}
 
-
-	// ==================================================
-	// SYSTEMS
-	// ==================================================
 
 	private void CreateGameSystems()
 	{
@@ -176,8 +164,8 @@ public partial class Game : Control
 			OnSlotActionRequested;
 
 
-		_ui.RoomChangeRequested +=
-			OnRoomChangeRequested;
+		_ui.RoomSelectedRequested +=
+			OnRoomSelectedRequested;
 
 
 		_ui.StateChanged +=
@@ -189,10 +177,6 @@ public partial class Game : Control
 	}
 
 
-	// ==================================================
-	// INITIAL STATE
-	// ==================================================
-
 	private void CreateRoomStates()
 	{
 		for (
@@ -201,7 +185,7 @@ public partial class Game : Control
 			roomIndex++
 		)
 		{
-			RoomState roomState =
+			RoomState room =
 				new()
 				{
 					Unlocked =
@@ -210,17 +194,17 @@ public partial class Game : Control
 
 
 			for (
-				int slotIndex = 0;
-				slotIndex < 8;
-				slotIndex++
+				int i = 0;
+				i < 8;
+				i++
 			)
 			{
-				roomState.Slots.Add(
+				room.Slots.Add(
 					new SlotData
 					{
 						Unlocked =
 							roomIndex == 0
-							&& slotIndex == 0,
+							&& i == 0,
 
 						MachineTier =
 							0,
@@ -232,28 +216,24 @@ public partial class Game : Control
 							null,
 
 						BotPurchasePrice =
-							0.0,
+							0,
 
 						IsRunning =
 							false,
 
 						CycleRemaining =
-							0.0
+							0
 					}
 				);
 			}
 
 
 			_state.RoomStates.Add(
-				roomState
+				room
 			);
 		}
 	}
 
-
-	// ==================================================
-	// SLOT
-	// ==================================================
 
 	private void OnSlotActionRequested(
 		int slotIndex)
@@ -280,17 +260,12 @@ public partial class Game : Control
 
 
 	// ==================================================
-	// ROOM
+	// MAP ROOM SELECTION
 	// ==================================================
 
-	private void OnRoomChangeRequested(
-		int direction)
+	private void OnRoomSelectedRequested(
+		int targetRoom)
 	{
-		int targetRoom =
-			_state.CurrentRoomIndex
-			+ direction;
-
-
 		if (
 			targetRoom < 0
 			|| targetRoom >= _state.Rooms.Count
@@ -330,15 +305,14 @@ public partial class Game : Control
 			targetRoom;
 
 
+		_ui.ClosePages();
+
 		_ui.UpdateAll();
+
 
 		SaveGame();
 	}
 
-
-	// ==================================================
-	// PRESTIGE
-	// ==================================================
 
 	private void OnPrestigeRequested()
 	{
@@ -361,14 +335,10 @@ public partial class Game : Control
 	}
 
 
-	// ==================================================
-	// EARNINGS
-	// ==================================================
-
 	private void AddEarnedTokens(
 		double amount)
 	{
-		if (amount <= 0.0)
+		if (amount <= 0)
 			return;
 
 
@@ -385,10 +355,6 @@ public partial class Game : Control
 		);
 	}
 
-
-	// ==================================================
-	// SAVE
-	// ==================================================
 
 	private void SetupSaveSystem()
 	{
@@ -417,15 +383,7 @@ public partial class Game : Control
 			return;
 
 
-		long now =
-			GetCurrentUnixTime();
-
-
-		double automatedIncome =
-			_economy.GetTotalIncome();
-
-
-		SaveGameData saveData =
+		SaveGameData save =
 			new()
 			{
 				SaveVersion =
@@ -438,10 +396,10 @@ public partial class Game : Control
 					_state.RunEarnedTokens,
 
 				LastSaveUnix =
-					now,
+					GetCurrentUnixTime(),
 
 				IncomePerSecond =
-					automatedIncome,
+					_economy.GetTotalIncome(),
 
 				CurrentRoomIndex =
 					_state.CurrentRoomIndex,
@@ -478,19 +436,15 @@ public partial class Game : Control
 
 
 		_saveManager.SaveData(
-			saveData
+			save
 		);
 	}
 
 
-	// ==================================================
-	// LOAD
-	// ==================================================
-
 	private double LoadGame()
 	{
 		if (!_saveManager.HasSave())
-			return 0.0;
+			return 0;
 
 
 		SaveGameData? save =
@@ -498,7 +452,7 @@ public partial class Game : Control
 
 
 		if (save == null)
-			return 0.0;
+			return 0;
 
 
 		_state.Tokens =
@@ -596,34 +550,27 @@ public partial class Game : Control
 	}
 
 
-	// ==================================================
-	// OFFLINE
-	// ==================================================
-
 	private double ApplyOfflineIncome(
 		long savedTime,
-		double automatedIncomePerSecond)
+		double incomePerSecond)
 	{
-		long now =
-			GetCurrentUnixTime();
-
-
-		long secondsOffline =
-			now - savedTime;
+		long seconds =
+			GetCurrentUnixTime()
+			- savedTime;
 
 
 		if (
-			secondsOffline <= 0
-			|| automatedIncomePerSecond <= 0.0
+			seconds <= 0
+			|| incomePerSecond <= 0
 		)
 		{
-			return 0.0;
+			return 0;
 		}
 
 
 		double amount =
-			automatedIncomePerSecond
-			* secondsOffline
+			incomePerSecond
+			* seconds
 			* OfflineIncomeFactor;
 
 

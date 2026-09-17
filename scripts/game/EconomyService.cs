@@ -15,10 +15,6 @@ public sealed class EconomyService
 	}
 
 
-	// ==================================================
-	// LEVEL UPGRADE
-	// ==================================================
-
 	public double GetLevelUpgradeCost(
 		int roomIndex,
 		SlotData slot,
@@ -50,10 +46,6 @@ public sealed class EconomyService
 	}
 
 
-	// ==================================================
-	// MACHINE TIER
-	// ==================================================
-
 	public double GetTierUpgradeCost(
 		int roomIndex,
 		SlotData slot,
@@ -72,10 +64,6 @@ public sealed class EconomyService
 			   ];
 	}
 
-
-	// ==================================================
-	// BOT COST
-	// ==================================================
 
 	public double GetBotCost(
 		int roomIndex,
@@ -98,8 +86,18 @@ public sealed class EconomyService
 
 
 	// ==================================================
-	// PRODUCTION
+	// CYCLE
 	// ==================================================
+
+	public double GetCycleDuration(
+		SlotData slot)
+	{
+		return GameConfig
+			.GetProductionCycleSeconds(
+				slot.MachineTier
+			);
+	}
+
 
 	public double GetCycleReward(
 		int roomIndex,
@@ -141,12 +139,14 @@ public sealed class EconomyService
 				.GetProductionMultiplier();
 
 
-		// BaseIncome used to mean Tokens / second.
-		//
-		// We keep the old balancing intact by converting
-		// it to one four-second production cycle.
+		double cycleDuration =
+			GetCycleDuration(
+				slot
+			);
+
+
 		return machine.BaseIncome
-			   * GameConfig.ProductionCycleSeconds
+			   * cycleDuration
 			   * levelMultiplier
 			   * milestoneMultiplier
 			   * botMultiplier
@@ -158,11 +158,21 @@ public sealed class EconomyService
 		int roomIndex,
 		SlotData slot)
 	{
+		double duration =
+			GetCycleDuration(
+				slot
+			);
+
+
+		if (duration <= 0.0)
+			return 0.0;
+
+
 		return GetCycleReward(
 				   roomIndex,
 				   slot
 			   )
-			   / GameConfig.ProductionCycleSeconds;
+			   / duration;
 	}
 
 
@@ -239,7 +249,7 @@ public sealed class EconomyService
 
 
 	// ==================================================
-	// MILESTONE
+	// MILESTONES
 	// ==================================================
 
 	public static double GetMilestoneMultiplier(

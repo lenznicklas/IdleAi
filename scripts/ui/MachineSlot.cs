@@ -27,100 +27,48 @@ public partial class MachineSlot : Control
 	private int _slotIndex;
 
 
-	// ==================================================
-	// UI
-	// ==================================================
+	private Label _titleLabel = null!;
 
-	private Label _titleLabel =
-		null!;
+	private Control _machineHolder = null!;
 
+	private Control _machineVisual = null!;
 
-	private Control _machineHolder =
-		null!;
+	private TextureButton _machineButton = null!;
 
+	private Label _levelLabel = null!;
 
-	private Control _machineVisual =
-		null!;
+	private Control _actionHolder = null!;
 
+	private TextureButton _startButton = null!;
 
-	private TextureButton _machineButton =
-		null!;
+	private Control _botVisual = null!;
 
+	private TextureButton _botButton = null!;
 
-	private Label _levelLabel =
-		null!;
+	private ProgressBar _progressBar = null!;
 
+	private Label _statusLabel = null!;
 
-	/*
-	 * IMPORTANT:
-	 *
-	 * Start button and bot now live inside the SAME
-	 * fixed 58x58 holder.
-	 *
-	 * This prevents layout shifting.
-	 */
+	private Button _unlockButton = null!;
 
-	private Control _actionHolder =
-		null!;
-
-
-	private TextureButton _startButton =
-		null!;
-
-
-	private Control _botVisual =
-		null!;
-
-
-	private TextureButton _botButton =
-		null!;
-
-
-	private ProgressBar _progressBar =
-		null!;
-
-
-	private Label _statusLabel =
-		null!;
-
-
-	private Button _unlockButton =
-		null!;
-
-
-	// ==================================================
-	// MACHINE ANIMATION
-	// ==================================================
 
 	private Tween? _machineTween;
 
 	private Tween? _machineReturnTween;
 
-
 	private bool _machineAnimationRunning;
-
 
 	private Vector2 _machineBasePosition;
 
-
-	// ==================================================
-	// BOT ANIMATION
-	// ==================================================
 
 	private Tween? _botTween;
 
 	private Tween? _botReturnTween;
 
-
 	private bool _botAnimationRunning;
-
 
 	private Vector2 _botBasePosition;
 
-
-	// ==================================================
-	// SETUP
-	// ==================================================
 
 	public void Setup(
 		int index)
@@ -147,10 +95,6 @@ public partial class MachineSlot : Control
 		CreateUi();
 	}
 
-
-	// ==================================================
-	// CREATE UI
-	// ==================================================
 
 	private void CreateUi()
 	{
@@ -244,10 +188,6 @@ public partial class MachineSlot : Control
 	}
 
 
-	// ==================================================
-	// TITLE
-	// ==================================================
-
 	private void CreateTitle(
 		VBoxContainer parent)
 	{
@@ -283,10 +223,6 @@ public partial class MachineSlot : Control
 	}
 
 
-	// ==================================================
-	// MACHINE
-	// ==================================================
-
 	private void CreateMachineArea(
 		VBoxContainer parent)
 	{
@@ -309,11 +245,6 @@ public partial class MachineSlot : Control
 			_machineHolder
 		);
 
-
-		/*
-		 * We animate this node instead of the container
-		 * controlled node.
-		 */
 
 		_machineVisual =
 			new Control();
@@ -346,7 +277,10 @@ public partial class MachineSlot : Control
 
 
 		_machineButton.Pressed +=
-			OnMachinePressed;
+			() =>
+				DetailsPressed?.Invoke(
+					_slotIndex
+				);
 
 
 		_machineVisual.AddChild(
@@ -358,18 +292,6 @@ public partial class MachineSlot : Control
 			Vector2.Zero;
 	}
 
-
-	private void OnMachinePressed()
-	{
-		DetailsPressed?.Invoke(
-			_slotIndex
-		);
-	}
-
-
-	// ==================================================
-	// INFO ROW
-	// ==================================================
 
 	private void CreateInfoRow(
 		VBoxContainer parent)
@@ -389,20 +311,10 @@ public partial class MachineSlot : Control
 			SizeFlags.ExpandFill;
 
 
-		infoRow.AddThemeConstantOverride(
-			"separation",
-			8
-		);
-
-
 		parent.AddChild(
 			infoRow
 		);
 
-
-		// ==================================================
-		// LEVEL
-		// ==================================================
 
 		_levelLabel =
 			new Label
@@ -429,10 +341,6 @@ public partial class MachineSlot : Control
 		);
 
 
-		// ==================================================
-		// FIXED ACTION HOLDER
-		// ==================================================
-
 		_actionHolder =
 			new Control
 			{
@@ -444,18 +352,10 @@ public partial class MachineSlot : Control
 			};
 
 
-		_actionHolder.SizeFlagsHorizontal =
-			SizeFlags.ShrinkEnd;
-
-
 		infoRow.AddChild(
 			_actionHolder
 		);
 
-
-		// ==================================================
-		// START BUTTON
-		// ==================================================
 
 		_startButton =
 			new TextureButton
@@ -477,17 +377,16 @@ public partial class MachineSlot : Control
 
 
 		_startButton.Pressed +=
-			OnStartPressed;
+			() =>
+				ManualStartPressed?.Invoke(
+					_slotIndex
+				);
 
 
 		_actionHolder.AddChild(
 			_startButton
 		);
 
-
-		// ==================================================
-		// BOT ANIMATION WRAPPER
-		// ==================================================
 
 		_botVisual =
 			new Control();
@@ -503,10 +402,6 @@ public partial class MachineSlot : Control
 		);
 
 
-		// ==================================================
-		// BOT BUTTON
-		// ==================================================
-
 		_botButton =
 			new TextureButton
 			{
@@ -518,45 +413,24 @@ public partial class MachineSlot : Control
 			};
 
 
-		/*
-		 * Give the bot a little breathing room inside
-		 * its 64x58 area.
-		 */
-
 		_botButton.AnchorLeft =
 			0.08f;
-
 
 		_botButton.AnchorTop =
 			0.08f;
 
-
 		_botButton.AnchorRight =
 			0.92f;
-
 
 		_botButton.AnchorBottom =
 			0.92f;
 
 
-		_botButton.OffsetLeft =
-			0;
-
-
-		_botButton.OffsetTop =
-			0;
-
-
-		_botButton.OffsetRight =
-			0;
-
-
-		_botButton.OffsetBottom =
-			0;
-
-
 		_botButton.Pressed +=
-			OnBotPressed;
+			() =>
+				DetailsPressed?.Invoke(
+					_slotIndex
+				);
 
 
 		_botVisual.AddChild(
@@ -571,26 +445,6 @@ public partial class MachineSlot : Control
 		_botVisual.Hide();
 	}
 
-
-	private void OnStartPressed()
-	{
-		ManualStartPressed?.Invoke(
-			_slotIndex
-		);
-	}
-
-
-	private void OnBotPressed()
-	{
-		DetailsPressed?.Invoke(
-			_slotIndex
-		);
-	}
-
-
-	// ==================================================
-	// PROGRESS AREA
-	// ==================================================
 
 	private void CreateProgressArea(
 		VBoxContainer parent)
@@ -655,10 +509,6 @@ public partial class MachineSlot : Control
 	}
 
 
-	// ==================================================
-	// UNLOCK
-	// ==================================================
-
 	private void CreateUnlockButton(
 		VBoxContainer parent)
 	{
@@ -669,15 +519,15 @@ public partial class MachineSlot : Control
 					new Vector2(
 						0,
 						55
-					),
-
-				Text =
-                    "Unlock"
+					)
 			};
 
 
 		_unlockButton.Pressed +=
-			OnUnlockPressed;
+			() =>
+				UnlockPressed?.Invoke(
+					_slotIndex
+				);
 
 
 		parent.AddChild(
@@ -685,18 +535,6 @@ public partial class MachineSlot : Control
 		);
 	}
 
-
-	private void OnUnlockPressed()
-	{
-		UnlockPressed?.Invoke(
-			_slotIndex
-		);
-	}
-
-
-	// ==================================================
-	// LOCKED SLOT
-	// ==================================================
 
 	public void ShowLocked(
 		string unlockCost,
@@ -725,7 +563,6 @@ public partial class MachineSlot : Control
 
 		_actionHolder.Hide();
 
-
 		_progressBar.Hide();
 
 		_statusLabel.Hide();
@@ -739,10 +576,6 @@ public partial class MachineSlot : Control
 	}
 
 
-	// ==================================================
-	// SHOW MACHINE
-	// ==================================================
-
 	public void ShowMachine(
 		MachineData machine,
 		SlotData slot,
@@ -750,11 +583,7 @@ public partial class MachineSlot : Control
 	{
 		_unlockButton.Hide();
 
-
 		_actionHolder.Show();
-
-
-		_machineButton.Show();
 
 
 		_machineButton.Disabled =
@@ -778,10 +607,6 @@ public partial class MachineSlot : Control
 		_statusLabel.Show();
 
 
-		// ==================================================
-		// NO BOT
-		// ==================================================
-
 		if (bot == null)
 		{
 			StopBotAnimation();
@@ -789,18 +614,11 @@ public partial class MachineSlot : Control
 
 			_botVisual.Hide();
 
-
 			_startButton.Show();
 		}
-
-		// ==================================================
-		// BOT
-		// ==================================================
-
 		else
 		{
 			_startButton.Hide();
-
 
 			_botVisual.Show();
 
@@ -819,24 +637,19 @@ public partial class MachineSlot : Control
 	}
 
 
-	// ==================================================
-	// RUNTIME
-	// ==================================================
-
 	public void UpdateRuntime(
 		SlotData slot)
 	{
 		if (!slot.Unlocked)
-		{
-			StopMachineAnimation();
-
 			return;
-		}
 
 
-		// ==================================================
-		// MACHINE RUNNING
-		// ==================================================
+		double cycleDuration =
+			GameConfig
+				.GetProductionCycleSeconds(
+					slot.MachineTier
+				);
+
 
 		if (slot.IsRunning)
 		{
@@ -845,10 +658,10 @@ public partial class MachineSlot : Control
 
 			double progress =
 				(
-					GameConfig.ProductionCycleSeconds
+					cycleDuration
 					- slot.CycleRemaining
 				)
-				/ GameConfig.ProductionCycleSeconds
+				/ cycleDuration
 				* 100.0;
 
 
@@ -863,7 +676,7 @@ public partial class MachineSlot : Control
 			if (slot.HasBot)
 			{
 				_statusLabel.Text =
-                    "AUTO • "
+					$"AUTO • "
 					+ $"{Math.Max(
                         0.0,
                         slot.CycleRemaining
@@ -886,10 +699,6 @@ public partial class MachineSlot : Control
 			return;
 		}
 
-
-		// ==================================================
-		// MACHINE STOPPED
-		// ==================================================
 
 		StopMachineAnimation();
 
@@ -918,10 +727,6 @@ public partial class MachineSlot : Control
 		}
 	}
 
-
-	// ==================================================
-	// MACHINE ANIMATION
-	// ==================================================
 
 	private void StartMachineAnimation()
 	{
@@ -963,10 +768,6 @@ public partial class MachineSlot : Control
 		_machineTween.SetLoops();
 
 
-		// ==================================================
-		// UP
-		// ==================================================
-
 		_machineTween.TweenProperty(
 			_machineVisual,
 			"position",
@@ -984,10 +785,6 @@ public partial class MachineSlot : Control
 			Tween.EaseType.InOut
 		);
 
-
-		// ==================================================
-		// DOWN
-		// ==================================================
 
 		_machineTween.TweenProperty(
 			_machineVisual,
@@ -1007,21 +804,11 @@ public partial class MachineSlot : Control
 		);
 
 
-		// ==================================================
-		// CENTER
-		// ==================================================
-
 		_machineTween.TweenProperty(
 			_machineVisual,
 			"position",
 			_machineBasePosition,
 			duration
-		)
-		.SetTrans(
-			Tween.TransitionType.Sine
-		)
-		.SetEase(
-			Tween.EaseType.InOut
 		);
 	}
 
@@ -1047,16 +834,6 @@ public partial class MachineSlot : Control
 
 		_machineTween?.Kill();
 
-		_machineTween =
-			null;
-
-
-		if (_machineVisual == null)
-			return;
-
-
-		_machineReturnTween?.Kill();
-
 
 		_machineReturnTween =
 			CreateTween();
@@ -1067,29 +844,14 @@ public partial class MachineSlot : Control
 			"position",
 			_machineBasePosition,
 			0.15
-		)
-		.SetTrans(
-			Tween.TransitionType.Sine
-		)
-		.SetEase(
-			Tween.EaseType.Out
 		);
 	}
 
 
-	// ==================================================
-	// BOT ANIMATION
-	// ==================================================
-
 	private void StartBotAnimation()
 	{
-		if (
-			_botVisual == null
-			|| _botAnimationRunning
-		)
-		{
+		if (_botAnimationRunning)
 			return;
-		}
 
 
 		_botAnimationRunning =
@@ -1113,15 +875,30 @@ public partial class MachineSlot : Control
 			Vector2.One;
 
 
-		/*
-		 * Fixed size allows us to use the middle of
-		 * the bot area as pivot.
-		 */
-
 		_botVisual.PivotOffset =
 			new Vector2(
-				32.0f,
-				29.0f
+				32,
+				29
+			);
+
+
+		float x =
+			(float)GD.RandRange(
+				2.0,
+				4.0
+			);
+
+
+		float y =
+			(float)GD.RandRange(
+				3.0,
+				5.0
+			);
+
+
+		float rotation =
+			Mathf.DegToRad(
+				3.0f
 			);
 
 
@@ -1132,36 +909,6 @@ public partial class MachineSlot : Control
 			);
 
 
-		float xMovement =
-			(float)GD.RandRange(
-				2.0,
-				4.0
-			);
-
-
-		float yMovement =
-			(float)GD.RandRange(
-				3.0,
-				5.0
-			);
-
-
-		float rotationAmount =
-			Mathf.DegToRad(
-				(float)GD.RandRange(
-					2.0,
-					4.0
-				)
-			);
-
-
-		float scaleAmount =
-			(float)GD.RandRange(
-				1.02,
-				1.045
-			);
-
-
 		_botTween =
 			CreateTween();
 
@@ -1169,25 +916,15 @@ public partial class MachineSlot : Control
 		_botTween.SetLoops();
 
 
-		// ==================================================
-		// UP + RIGHT
-		// ==================================================
-
 		_botTween.TweenProperty(
 			_botVisual,
 			"position",
 			_botBasePosition
 			+ new Vector2(
-				xMovement,
-				-yMovement
+				x,
+				-y
 			),
 			duration
-		)
-		.SetTrans(
-			Tween.TransitionType.Sine
-		)
-		.SetEase(
-			Tween.EaseType.InOut
 		);
 
 
@@ -1196,14 +933,8 @@ public partial class MachineSlot : Control
 			.TweenProperty(
 				_botVisual,
 				"rotation",
-				rotationAmount,
+				rotation,
 				duration
-			)
-			.SetTrans(
-				Tween.TransitionType.Sine
-			)
-			.SetEase(
-				Tween.EaseType.InOut
 			);
 
 
@@ -1213,38 +944,22 @@ public partial class MachineSlot : Control
 				_botVisual,
 				"scale",
 				new Vector2(
-					scaleAmount,
-					scaleAmount
+					1.04f,
+					1.04f
 				),
 				duration
-			)
-			.SetTrans(
-				Tween.TransitionType.Sine
-			)
-			.SetEase(
-				Tween.EaseType.InOut
 			);
 
-
-		// ==================================================
-		// DOWN + LEFT
-		// ==================================================
 
 		_botTween.TweenProperty(
 			_botVisual,
 			"position",
 			_botBasePosition
 			+ new Vector2(
-				-xMovement,
-				yMovement
+				-x,
+				y
 			),
 			duration * 1.35
-		)
-		.SetTrans(
-			Tween.TransitionType.Sine
-		)
-		.SetEase(
-			Tween.EaseType.InOut
 		);
 
 
@@ -1253,14 +968,8 @@ public partial class MachineSlot : Control
 			.TweenProperty(
 				_botVisual,
 				"rotation",
-				-rotationAmount,
+				-rotation,
 				duration * 1.35
-			)
-			.SetTrans(
-				Tween.TransitionType.Sine
-			)
-			.SetEase(
-				Tween.EaseType.InOut
 			);
 
 
@@ -1271,30 +980,14 @@ public partial class MachineSlot : Control
 				"scale",
 				Vector2.One,
 				duration * 1.35
-			)
-			.SetTrans(
-				Tween.TransitionType.Sine
-			)
-			.SetEase(
-				Tween.EaseType.InOut
 			);
 
-
-		// ==================================================
-		// CENTER
-		// ==================================================
 
 		_botTween.TweenProperty(
 			_botVisual,
 			"position",
 			_botBasePosition,
 			duration
-		)
-		.SetTrans(
-			Tween.TransitionType.Sine
-		)
-		.SetEase(
-			Tween.EaseType.InOut
 		);
 
 
@@ -1305,57 +998,14 @@ public partial class MachineSlot : Control
 				"rotation",
 				0.0f,
 				duration
-			)
-			.SetTrans(
-				Tween.TransitionType.Sine
-			)
-			.SetEase(
-				Tween.EaseType.InOut
-			);
-
-
-		_botTween
-			.Parallel()
-			.TweenProperty(
-				_botVisual,
-				"scale",
-				Vector2.One,
-				duration
-			)
-			.SetTrans(
-				Tween.TransitionType.Sine
-			)
-			.SetEase(
-				Tween.EaseType.InOut
 			);
 	}
 
 
-	// ==================================================
-	// STOP BOT
-	// ==================================================
-
 	private void StopBotAnimation()
 	{
 		if (!_botAnimationRunning)
-		{
-			if (_botVisual != null)
-			{
-				_botVisual.Position =
-					_botBasePosition;
-
-
-				_botVisual.Rotation =
-					0.0f;
-
-
-				_botVisual.Scale =
-					Vector2.One;
-			}
-
-
 			return;
-		}
 
 
 		_botAnimationRunning =
@@ -1363,16 +1013,6 @@ public partial class MachineSlot : Control
 
 
 		_botTween?.Kill();
-
-		_botTween =
-			null;
-
-
-		if (_botVisual == null)
-			return;
-
-
-		_botReturnTween?.Kill();
 
 
 		_botReturnTween =
@@ -1388,13 +1028,7 @@ public partial class MachineSlot : Control
 			_botVisual,
 			"position",
 			_botBasePosition,
-			0.16
-		)
-		.SetTrans(
-			Tween.TransitionType.Sine
-		)
-		.SetEase(
-			Tween.EaseType.Out
+			0.15
 		);
 
 
@@ -1402,13 +1036,7 @@ public partial class MachineSlot : Control
 			_botVisual,
 			"rotation",
 			0.0f,
-			0.16
-		)
-		.SetTrans(
-			Tween.TransitionType.Sine
-		)
-		.SetEase(
-			Tween.EaseType.Out
+			0.15
 		);
 
 
@@ -1416,20 +1044,10 @@ public partial class MachineSlot : Control
 			_botVisual,
 			"scale",
 			Vector2.One,
-			0.16
-		)
-		.SetTrans(
-			Tween.TransitionType.Sine
-		)
-		.SetEase(
-			Tween.EaseType.Out
+			0.15
 		);
 	}
 
-
-	// ==================================================
-	// BORDER
-	// ==================================================
 
 	private void CreateBorder()
 	{
@@ -1455,14 +1073,11 @@ public partial class MachineSlot : Control
 		border.PatchMarginLeft =
 			20;
 
-
 		border.PatchMarginTop =
 			20;
 
-
 		border.PatchMarginRight =
 			20;
-
 
 		border.PatchMarginBottom =
 			20;
@@ -1476,10 +1091,6 @@ public partial class MachineSlot : Control
 		border.MoveToFront();
 	}
 
-
-	// ==================================================
-	// CLEANUP
-	// ==================================================
 
 	public override void _ExitTree()
 	{

@@ -108,7 +108,10 @@ public sealed class BotService
 			cost;
 
 
-		// Bot immediately starts automation.
+		// ==================================================
+		// START AUTOMATIC PRODUCTION
+		// ==================================================
+
 		if (!slot.IsRunning)
 		{
 			slot.IsRunning =
@@ -116,11 +119,16 @@ public sealed class BotService
 
 
 			slot.CycleRemaining =
-				GameConfig.ProductionCycleSeconds;
+				_economy.GetCycleDuration(
+					slot
+				);
 		}
 
 
-		// Reuse existing spending statistics.
+		// ==================================================
+		// STATS
+		// ==================================================
+
 		_state.Stats.AddMachineSpending(
 			"Bots",
 			cost
@@ -135,7 +143,8 @@ public sealed class BotService
 
 		return new BotActionResult(
 			true,
-			$"You got a {bot.Name}! x{bot.ProductionMultiplier:F1}"
+			$"You got a {bot.Name}! "
+			+ $"x{bot.ProductionMultiplier:F1}"
 		);
 	}
 
@@ -190,8 +199,7 @@ public sealed class BotService
 			0.0;
 
 
-		// After selling, the machine returns
-		// to fully manual mode.
+		// Machine becomes manual again.
 		slot.IsRunning =
 			false;
 
@@ -209,7 +217,7 @@ public sealed class BotService
 
 
 	// ==================================================
-	// PRICE
+	// BOT PRICE
 	// ==================================================
 
 	public double GetBotPrice(
@@ -234,6 +242,10 @@ public sealed class BotService
 		);
 	}
 
+
+	// ==================================================
+	// SELL PRICE
+	// ==================================================
 
 	public double GetSellPrice(
 		SlotData slot)
@@ -295,6 +307,10 @@ public sealed class BotService
 		return BotRarity.Legendary;
 	}
 
+
+	// ==================================================
+	// SLOT LOOKUP
+	// ==================================================
 
 	private SlotData? GetSlot(
 		int roomIndex,

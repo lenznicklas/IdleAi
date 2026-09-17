@@ -25,10 +25,6 @@ public sealed class ProductionService
 	}
 
 
-	// ==================================================
-	// PROCESS ALL MACHINES
-	// ==================================================
-
 	public double Update(
 		double delta)
 	{
@@ -61,8 +57,6 @@ public sealed class ProductionService
 					continue;
 
 
-				// Bots always make sure that
-				// the machine is running.
 				if (
 					slot.HasBot
 					&& !slot.IsRunning
@@ -103,22 +97,24 @@ public sealed class ProductionService
 
 					if (slot.HasBot)
 					{
-						// Start next automatic cycle.
 						slot.CycleRemaining +=
-							GameConfig.ProductionCycleSeconds;
+							_economy.GetCycleDuration(
+								slot
+							);
+
 
 						slot.IsRunning =
 							true;
 					}
 					else
 					{
-						// Manual machine waits for
-						// the user to press START again.
 						slot.CycleRemaining =
 							0.0;
 
+
 						slot.IsRunning =
 							false;
+
 
 						break;
 					}
@@ -130,10 +126,6 @@ public sealed class ProductionService
 		return earned;
 	}
 
-
-	// ==================================================
-	// MANUAL START
-	// ==================================================
 
 	public ManualStartResult TryStartManual(
 		int roomIndex,
@@ -214,10 +206,6 @@ public sealed class ProductionService
 	}
 
 
-	// ==================================================
-	// AFTER LOADING
-	// ==================================================
-
 	public void PrepareAfterLoad()
 	{
 		foreach (
@@ -239,20 +227,20 @@ public sealed class ProductionService
 				}
 
 
-				// Offline income was already calculated
-				// separately, so start a fresh bot cycle.
 				slot.IsRunning =
 					true;
 
 
 				slot.CycleRemaining =
-					GameConfig.ProductionCycleSeconds;
+					_economy.GetCycleDuration(
+						slot
+					);
 			}
 		}
 	}
 
 
-	private static void StartCycle(
+	private void StartCycle(
 		SlotData slot)
 	{
 		slot.IsRunning =
@@ -260,6 +248,8 @@ public sealed class ProductionService
 
 
 		slot.CycleRemaining =
-			GameConfig.ProductionCycleSeconds;
+			_economy.GetCycleDuration(
+				slot
+			);
 	}
 }

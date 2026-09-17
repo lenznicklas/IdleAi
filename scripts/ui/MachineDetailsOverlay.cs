@@ -6,9 +6,13 @@ namespace IdleAi;
 public sealed class MachineDetailsOverlay
 {
 	private readonly Game _root;
+
 	private readonly GameState _state;
+
 	private readonly EconomyService _economy;
+
 	private readonly ProgressionService _progression;
+
 	private readonly BotService _bots;
 
 
@@ -17,26 +21,40 @@ public sealed class MachineDetailsOverlay
 
 	private Control _overlay = null!;
 
+	private PanelContainer _panel = null!;
+
 	private Label _title = null!;
+
 	private TextureRect _machineImage = null!;
+
 	private Label _level = null!;
+
 	private Label _production = null!;
+
 	private Label _cycle = null!;
 
 	private Label _upgradeInfo = null!;
+
 	private Button _upgradeButton = null!;
 
 	private TextureRect _botImage = null!;
+
 	private Label _botName = null!;
+
 	private Label _botMultiplier = null!;
+
 	private Button _buyBotButton = null!;
+
 	private Button _sellBotButton = null!;
 
-	private ConfirmationDialog _sellConfirmation =
-		null!;
+
+	private Control _sellOverlay = null!;
+
+	private Label _sellInfo = null!;
 
 
 	private int _roomIndex;
+
 	private int _slotIndex;
 
 
@@ -44,10 +62,6 @@ public sealed class MachineDetailsOverlay
 		_overlay != null
 		&& _overlay.Visible;
 
-
-	// ==================================================
-	// CONSTRUCTOR
-	// ==================================================
 
 	public MachineDetailsOverlay(
 		Game root,
@@ -73,23 +87,16 @@ public sealed class MachineDetailsOverlay
 	}
 
 
-	// ==================================================
-	// INITIALIZE
-	// ==================================================
-
 	public void Initialize()
 	{
 		CreateUi();
 
-		CreateSellConfirmation();
+		CreateSellOverlay();
+
 
 		Close();
 	}
 
-
-	// ==================================================
-	// OPEN
-	// ==================================================
 
 	public void Open(
 		int roomIndex,
@@ -114,16 +121,11 @@ public sealed class MachineDetailsOverlay
 
 	public void Close()
 	{
-		if (_overlay != null)
-		{
-			_overlay.Hide();
-		}
+		_sellOverlay?.Hide();
+
+		_overlay?.Hide();
 	}
 
-
-	// ==================================================
-	// REFRESH
-	// ==================================================
 
 	public void Refresh()
 	{
@@ -177,6 +179,12 @@ public sealed class MachineDetailsOverlay
 			];
 
 
+		double cycleDuration =
+			_economy.GetCycleDuration(
+				slot
+			);
+
+
 		double cycleReward =
 			_economy.GetCycleReward(
 				_roomIndex,
@@ -184,9 +192,9 @@ public sealed class MachineDetailsOverlay
 			);
 
 
-		double theoreticalPerSecond =
+		double perSecond =
 			cycleReward
-			/ GameConfig.ProductionCycleSeconds;
+			/ cycleDuration;
 
 
 		_title.Text =
@@ -202,13 +210,14 @@ public sealed class MachineDetailsOverlay
 
 
 		_production.Text =
-            "Production / cycle: "
+            "Production: "
 			+ NumberFormatter.Format(
 				cycleReward
 			)
-			+ " Tokens\nEquivalent: "
+			+ " Tokens / cycle"
+			+ "\nAverage: "
 			+ NumberFormatter.Format(
-				theoreticalPerSecond
+				perSecond
 			)
 			+ " Tokens/s";
 
@@ -216,17 +225,12 @@ public sealed class MachineDetailsOverlay
 		if (slot.IsRunning)
 		{
 			_cycle.Text =
-				$"Cycle: {slot.CycleRemaining:F1}s remaining";
-		}
-		else if (slot.HasBot)
-		{
-			_cycle.Text =
-				"Cycle: AUTO";
+				$"Cycle: {slot.CycleRemaining:F1}s / {cycleDuration:F1}s";
 		}
 		else
 		{
 			_cycle.Text =
-				"Cycle: READY - press START";
+				$"Cycle time: {cycleDuration:F1}s";
 		}
 
 
@@ -242,10 +246,6 @@ public sealed class MachineDetailsOverlay
 		);
 	}
 
-
-	// ==================================================
-	// UPGRADE
-	// ==================================================
 
 	private void UpdateUpgradeSection(
 		RoomData room,
@@ -265,21 +265,21 @@ public sealed class MachineDetailsOverlay
 				);
 
 
-			double currentProduction =
+			double current =
 				_economy.GetCycleReward(
 					_roomIndex,
 					slot
 				);
 
 
-			int oldLevel =
+			int original =
 				slot.MachineLevel;
 
 
 			slot.MachineLevel++;
 
 
-			double nextProduction =
+			double next =
 				_economy.GetCycleReward(
 					_roomIndex,
 					slot
@@ -287,19 +287,18 @@ public sealed class MachineDetailsOverlay
 
 
 			slot.MachineLevel =
-				oldLevel;
+				original;
 
 
 			_upgradeInfo.Text =
-                "Next level\n"
+                "Next level: "
 				+ NumberFormatter.Format(
-					currentProduction
+					current
 				)
 				+ " → "
 				+ NumberFormatter.Format(
-					nextProduction
-				)
-				+ " / cycle";
+					next
+				);
 
 
 			_upgradeButton.Text =
@@ -322,7 +321,7 @@ public sealed class MachineDetailsOverlay
 			< room.Machines.Count - 1
 		)
 		{
-			MachineData next =
+			MachineData nextMachine =
 				room.Machines[
 					slot.MachineTier + 1
 				];
@@ -337,7 +336,7 @@ public sealed class MachineDetailsOverlay
 
 
 			_upgradeInfo.Text =
-				$"Next machine: {next.MachineName}";
+				$"Next machine: {nextMachine.MachineName}";
 
 
 			_upgradeButton.Text =
@@ -385,10 +384,6 @@ public sealed class MachineDetailsOverlay
 	}
 
 
-	// ==================================================
-	// BOT
-	// ==================================================
-
 	private void UpdateBotSection(
 		SlotData slot)
 	{
@@ -406,17 +401,13 @@ public sealed class MachineDetailsOverlay
 				"Manual production";
 
 
-			double botPrice =
-				_bots.GetBotPrice(
-					_roomIndex,
-					_slotIndex
-				);
-
-
 			_buyBotButton.Text =
                 "BUY RANDOM BOT • "
 				+ NumberFormatter.Format(
-					botPrice
+					_bots.GetBotPrice(
+						_roomIndex,
+						_slotIndex
+					)
 				);
 
 
@@ -452,25 +443,17 @@ public sealed class MachineDetailsOverlay
 		_sellBotButton.Show();
 
 
-		double sellPrice =
-			_bots.GetSellPrice(
-				slot
-			);
-
-
 		_sellBotButton.Text =
             "SELL BOT • "
 			+ NumberFormatter.Format(
-				sellPrice
+				_bots.GetSellPrice(
+					slot
+				)
 			);
 	}
 
 
-	// ==================================================
-	// BUY
-	// ==================================================
-
-	private void OnBuyBotPressed()
+	private void BuyBot()
 	{
 		BotActionResult result =
 			_bots.BuyBot(
@@ -488,11 +471,7 @@ public sealed class MachineDetailsOverlay
 	}
 
 
-	// ==================================================
-	// SELL
-	// ==================================================
-
-	private void OnSellBotPressed()
+	private void OpenSellConfirmation()
 	{
 		SlotData slot =
 			_state.RoomStates[
@@ -512,30 +491,24 @@ public sealed class MachineDetailsOverlay
 			);
 
 
-		double sellPrice =
-			_bots.GetSellPrice(
-				slot
-			);
-
-
-		_sellConfirmation.DialogText =
+		_sellInfo.Text =
 			$"Sell {bot.Name}?\n\n"
-			+ $"Multiplier: x{bot.ProductionMultiplier:F1}\n"
-			+ $"Refund: {NumberFormatter.Format(sellPrice)} Tokens\n\n"
-			+ "You only receive one third of the original purchase price.";
+			+ $"Production multiplier: x{bot.ProductionMultiplier:F1}\n"
+			+ $"Refund: {NumberFormatter.Format(_bots.GetSellPrice(slot))} Tokens\n\n"
+			+ "You receive one third of the original purchase price.";
 
 
-		_sellConfirmation.PopupCentered(
-			new Vector2I(
-				500,
-				320
-			)
-		);
+		_sellOverlay.Show();
+
+		_sellOverlay.MoveToFront();
 	}
 
 
-	private void ConfirmSellBot()
+	private void ConfirmSell()
 	{
+		_sellOverlay.Hide();
+
+
 		BotActionResult result =
 			_bots.SellBot(
 				_roomIndex,
@@ -552,42 +525,16 @@ public sealed class MachineDetailsOverlay
 	}
 
 
-	private void CreateSellConfirmation()
-	{
-		_sellConfirmation =
-			new ConfirmationDialog
-			{
-				Title =
-					"Sell Bot",
-
-				OkButtonText =
-                    "SELL"
-			};
-
-
-		_sellConfirmation.Confirmed +=
-			ConfirmSellBot;
-
-
-		_root.AddChild(
-			_sellConfirmation
-		);
-	}
-
-
 	// ==================================================
-	// CREATE UI
+	// MAIN CARD
 	// ==================================================
 
 	private void CreateUi()
 	{
 		_overlay =
-			new Control();
-
-
-		_overlay.SetAnchorsAndOffsetsPreset(
-			Control.LayoutPreset.FullRect
-		);
+			CreateFullScreenOverlay(
+				Close
+			);
 
 
 		_root.AddChild(
@@ -595,26 +542,314 @@ public sealed class MachineDetailsOverlay
 		);
 
 
-		ColorRect dim =
-			new()
-			{
-				Color =
-					new Color(
-						0,
-						0,
-						0,
-						0.76f
-					)
-			};
+		_panel =
+			CreatePanel(
+				new Vector2(
+					580,
+					850
+				)
+			);
 
 
-		dim.SetAnchorsAndOffsetsPreset(
+		CenterContainer center =
+			new();
+
+
+		center.SetAnchorsAndOffsetsPreset(
 			Control.LayoutPreset.FullRect
 		);
 
 
+		center.MouseFilter =
+			Control.MouseFilterEnum.Ignore;
+
+
 		_overlay.AddChild(
-			dim
+			center
+		);
+
+
+		center.AddChild(
+			_panel
+		);
+
+
+		MarginContainer margin =
+			CreateMargin();
+
+
+		_panel.AddChild(
+			margin
+		);
+
+
+		VBoxContainer vbox =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
+
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		vbox.AddThemeConstantOverride(
+			"separation",
+			8
+		);
+
+
+		margin.AddChild(
+			vbox
+		);
+
+
+		_title =
+			CreateLabel(
+				27
+			);
+
+
+		vbox.AddChild(
+			_title
+		);
+
+
+		_machineImage =
+			new TextureRect
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						180
+					),
+
+				ExpandMode =
+					TextureRect.ExpandModeEnum.IgnoreSize,
+
+				StretchMode =
+					TextureRect.StretchModeEnum.KeepAspectCentered
+			};
+
+
+		vbox.AddChild(
+			_machineImage
+		);
+
+
+		_level =
+			CreateLabel(
+				17
+			);
+
+
+		vbox.AddChild(
+			_level
+		);
+
+
+		_production =
+			CreateLabel(
+				14
+			);
+
+
+		vbox.AddChild(
+			_production
+		);
+
+
+		_cycle =
+			CreateLabel(
+				14
+			);
+
+
+		vbox.AddChild(
+			_cycle
+		);
+
+
+		vbox.AddChild(
+			new HSeparator()
+		);
+
+
+		_upgradeInfo =
+			CreateLabel(
+				14
+			);
+
+
+		vbox.AddChild(
+			_upgradeInfo
+		);
+
+
+		_upgradeButton =
+			new Button
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						54
+					)
+			};
+
+
+		_upgradeButton.Pressed +=
+			OnUpgradePressed;
+
+
+		vbox.AddChild(
+			_upgradeButton
+		);
+
+
+		vbox.AddChild(
+			new HSeparator()
+		);
+
+
+		Label botTitle =
+			CreateLabel(
+				19
+			);
+
+
+		botTitle.Text =
+			"BOT";
+
+
+		vbox.AddChild(
+			botTitle
+		);
+
+
+		_botImage =
+			new TextureRect
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						100
+					),
+
+				ExpandMode =
+					TextureRect.ExpandModeEnum.IgnoreSize,
+
+				StretchMode =
+					TextureRect.StretchModeEnum.KeepAspectCentered
+			};
+
+
+		vbox.AddChild(
+			_botImage
+		);
+
+
+		_botName =
+			CreateLabel(
+				16
+			);
+
+
+		vbox.AddChild(
+			_botName
+		);
+
+
+		_botMultiplier =
+			CreateLabel(
+				13
+			);
+
+
+		vbox.AddChild(
+			_botMultiplier
+		);
+
+
+		_buyBotButton =
+			new Button
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						52
+					)
+			};
+
+
+		_buyBotButton.Pressed +=
+			BuyBot;
+
+
+		vbox.AddChild(
+			_buyBotButton
+		);
+
+
+		_sellBotButton =
+			new Button
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						52
+					)
+			};
+
+
+		_sellBotButton.Pressed +=
+			OpenSellConfirmation;
+
+
+		vbox.AddChild(
+			_sellBotButton
+		);
+
+
+		Button close =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						50
+					),
+
+				Text =
+                    "CLOSE"
+			};
+
+
+		close.Pressed +=
+			Close;
+
+
+		vbox.AddChild(
+			close
+		);
+	}
+
+
+	// ==================================================
+	// SELL CARD
+	// ==================================================
+
+	private void CreateSellOverlay()
+	{
+		_sellOverlay =
+			CreateFullScreenOverlay(
+				() =>
+					_sellOverlay.Hide()
+			);
+
+
+		_root.AddChild(
+			_sellOverlay
 		);
 
 
@@ -627,20 +862,22 @@ public sealed class MachineDetailsOverlay
 		);
 
 
-		_overlay.AddChild(
+		center.MouseFilter =
+			Control.MouseFilterEnum.Ignore;
+
+
+		_sellOverlay.AddChild(
 			center
 		);
 
 
 		PanelContainer panel =
-			new()
-			{
-				CustomMinimumSize =
-					new Vector2(
-						580,
-						900
-					)
-			};
+			CreatePanel(
+				new Vector2(
+					540,
+					410
+				)
+			);
 
 
 		center.AddChild(
@@ -648,16 +885,204 @@ public sealed class MachineDetailsOverlay
 		);
 
 
-		StyleBoxFlat panelStyle =
-			CreatePanelStyle();
+		MarginContainer margin =
+			CreateMargin();
+
+
+		panel.AddChild(
+			margin
+		);
+
+
+		VBoxContainer box =
+			new();
+
+
+		box.AddThemeConstantOverride(
+			"separation",
+			16
+		);
+
+
+		margin.AddChild(
+			box
+		);
+
+
+		Label title =
+			CreateLabel(
+				26
+			);
+
+
+		title.Text =
+			"SELL BOT";
+
+
+		box.AddChild(
+			title
+		);
+
+
+		box.AddChild(
+			new HSeparator()
+		);
+
+
+		_sellInfo =
+			CreateLabel(
+				15
+			);
+
+
+		box.AddChild(
+			_sellInfo
+		);
+
+
+		Button confirm =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						58
+					),
+
+				Text =
+                    "SELL"
+			};
+
+
+		confirm.Pressed +=
+			ConfirmSell;
+
+
+		box.AddChild(
+			confirm
+		);
+
+
+		Button cancel =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						54
+					),
+
+				Text =
+                    "CANCEL"
+			};
+
+
+		cancel.Pressed +=
+			() =>
+				_sellOverlay.Hide();
+
+
+		box.AddChild(
+			cancel
+		);
+
+
+		_sellOverlay.Hide();
+	}
+
+
+	private static Control CreateFullScreenOverlay(
+		Action outsidePressed)
+	{
+		Control overlay =
+			new();
+
+
+		overlay.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+
+		ColorRect dim =
+			new()
+			{
+				Color =
+					new Color(
+						0,
+						0,
+						0,
+						0.76f
+					),
+
+				MouseFilter =
+					Control.MouseFilterEnum.Stop
+			};
+
+
+		dim.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+
+		dim.GuiInput +=
+			@event =>
+			{
+				if (
+					@event is InputEventMouseButton mouse
+					&& mouse.Pressed
+					&& mouse.ButtonIndex
+					== MouseButton.Left
+				)
+				{
+					outsidePressed();
+				}
+
+
+				if (
+					@event is InputEventScreenTouch touch
+					&& touch.Pressed
+				)
+				{
+					outsidePressed();
+				}
+			};
+
+
+		overlay.AddChild(
+			dim
+		);
+
+
+		return overlay;
+	}
+
+
+	private static PanelContainer CreatePanel(
+		Vector2 size)
+	{
+		PanelContainer panel =
+			new()
+			{
+				CustomMinimumSize =
+					size,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Stop
+			};
 
 
 		panel.AddThemeStyleboxOverride(
 			"panel",
-			panelStyle
+			CreatePanelStyle()
 		);
 
 
+		return panel;
+	}
+
+
+	private static MarginContainer CreateMargin()
+	{
 		MarginContainer margin =
 			new();
 
@@ -686,282 +1111,9 @@ public sealed class MachineDetailsOverlay
 		);
 
 
-		panel.AddChild(
-			margin
-		);
-
-
-		ScrollContainer scroll =
-			new()
-			{
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
-
-				SizeFlagsVertical =
-					Control.SizeFlags.ExpandFill,
-
-				HorizontalScrollMode =
-					ScrollContainer.ScrollMode.Disabled
-			};
-
-
-		margin.AddChild(
-			scroll
-		);
-
-
-		VBoxContainer vbox =
-			new()
-			{
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
-			};
-
-
-		vbox.AddThemeConstantOverride(
-			"separation",
-			12
-		);
-
-
-		scroll.AddChild(
-			vbox
-		);
-
-
-		_title =
-			CreateLabel(
-				28
-			);
-
-
-		vbox.AddChild(
-			_title
-		);
-
-
-		_machineImage =
-			new TextureRect
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						200
-					),
-
-				ExpandMode =
-					TextureRect.ExpandModeEnum.IgnoreSize,
-
-				StretchMode =
-					TextureRect.StretchModeEnum.KeepAspectCentered
-			};
-
-
-		vbox.AddChild(
-			_machineImage
-		);
-
-
-		_level =
-			CreateLabel(
-				18
-			);
-
-
-		vbox.AddChild(
-			_level
-		);
-
-
-		_production =
-			CreateLabel(
-				15
-			);
-
-
-		vbox.AddChild(
-			_production
-		);
-
-
-		_cycle =
-			CreateLabel(
-				15
-			);
-
-
-		vbox.AddChild(
-			_cycle
-		);
-
-
-		vbox.AddChild(
-			new HSeparator()
-		);
-
-
-		_upgradeInfo =
-			CreateLabel(
-				15
-			);
-
-
-		vbox.AddChild(
-			_upgradeInfo
-		);
-
-
-		_upgradeButton =
-			new Button
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						60
-					)
-			};
-
-
-		_upgradeButton.Pressed +=
-			OnUpgradePressed;
-
-
-		vbox.AddChild(
-			_upgradeButton
-		);
-
-
-		vbox.AddChild(
-			new HSeparator()
-		);
-
-
-		Label botTitle =
-			CreateLabel(
-				21
-			);
-
-
-		botTitle.Text =
-			"BOT";
-
-
-		vbox.AddChild(
-			botTitle
-		);
-
-
-		_botImage =
-			new TextureRect
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						125
-					),
-
-				ExpandMode =
-					TextureRect.ExpandModeEnum.IgnoreSize,
-
-				StretchMode =
-					TextureRect.StretchModeEnum.KeepAspectCentered
-			};
-
-
-		vbox.AddChild(
-			_botImage
-		);
-
-
-		_botName =
-			CreateLabel(
-				17
-			);
-
-
-		vbox.AddChild(
-			_botName
-		);
-
-
-		_botMultiplier =
-			CreateLabel(
-				14
-			);
-
-
-		vbox.AddChild(
-			_botMultiplier
-		);
-
-
-		_buyBotButton =
-			new Button
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						60
-					)
-			};
-
-
-		_buyBotButton.Pressed +=
-			OnBuyBotPressed;
-
-
-		vbox.AddChild(
-			_buyBotButton
-		);
-
-
-		_sellBotButton =
-			new Button
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						55
-					)
-			};
-
-
-		_sellBotButton.Pressed +=
-			OnSellBotPressed;
-
-
-		vbox.AddChild(
-			_sellBotButton
-		);
-
-
-		Button close =
-			new()
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						55
-					),
-
-				Text =
-                    "CLOSE"
-			};
-
-
-		close.Pressed +=
-			Close;
-
-
-		vbox.AddChild(
-			close
-		);
+		return margin;
 	}
 
-
-	// ==================================================
-	// HELPERS
-	// ==================================================
 
 	private static Label CreateLabel(
 		int fontSize)
@@ -1013,23 +1165,23 @@ public sealed class MachineDetailsOverlay
 
 			BorderColor =
 				new Color(
-					0.0f,
+					0,
 					0.65f,
-					1.0f,
+					1,
 					0.8f
 				),
 
 			CornerRadiusTopLeft =
-				18,
+				14,
 
 			CornerRadiusTopRight =
-				18,
+				14,
 
 			CornerRadiusBottomLeft =
-				18,
+				14,
 
 			CornerRadiusBottomRight =
-				18
+				14
 		};
 	}
 }

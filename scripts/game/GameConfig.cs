@@ -2,10 +2,6 @@ namespace IdleAi;
 
 public static class GameConfig
 {
-	// ==================================================
-	// ROOM 1
-	// ==================================================
-
 	public static readonly double[] GarageSlotUnlockCosts =
 	[
 		0.0,
@@ -18,10 +14,6 @@ public static class GameConfig
 		50_000_000.0
 	];
 
-
-	// ==================================================
-	// ROOM 2
-	// ==================================================
 
 	public static readonly double[] ServerRoomSlotUnlockCosts =
 	[
@@ -36,10 +28,6 @@ public static class GameConfig
 	];
 
 
-	// ==================================================
-	// ROOM 3
-	// ==================================================
-
 	public static readonly double[] DataCenterSlotUnlockCosts =
 	[
 		0.0,
@@ -52,10 +40,6 @@ public static class GameConfig
 		5_000_000_000_000_000.0
 	];
 
-
-	// ==================================================
-	// ROOM 4
-	// ==================================================
 
 	public static readonly double[] QuantumLabSlotUnlockCosts =
 	[
@@ -70,10 +54,6 @@ public static class GameConfig
 	];
 
 
-	// ==================================================
-	// SLOT MULTIPLIER
-	// ==================================================
-
 	public static readonly double[] SlotUpgradeMultipliers =
 	[
 		1.0,
@@ -87,10 +67,6 @@ public static class GameConfig
 	];
 
 
-	// ==================================================
-	// LEVELS
-	// ==================================================
-
 	public const double LevelCostGrowth =
 		1.22;
 
@@ -98,18 +74,6 @@ public static class GameConfig
 	public const double IncomePerLevel =
 		0.10;
 
-
-	// ==================================================
-	// PRODUCTION
-	// ==================================================
-
-	public const double ProductionCycleSeconds =
-		4.0;
-
-
-	// ==================================================
-	// BOTS
-	// ==================================================
 
 	public const double BotBaseCostMultiplier =
 		20.0;
@@ -131,30 +95,31 @@ public static class GameConfig
 		0.10;
 
 
-	// remaining 5 % = Legendary
-
-
-	// ==================================================
-	// PRESTIGE
-	// ==================================================
-
 	public const double PrestigeTokensPerCore =
 		1_000_000_000_000_000_000.0;
 
 
-	// 2 % permanent production per AI Core.
-	//
-	// 1 Core   = x1.02
-	// 10 Cores = x1.20
-	// 25 Cores = x1.50
-	// 50 Cores = x2.00
 	public const double ProductionBoostPerAiCore =
 		0.02;
 
 
 	// ==================================================
-	// SLOT COST LOOKUP
+	// CYCLE DURATION
 	// ==================================================
+
+	public static double GetProductionCycleSeconds(
+		int machineTier)
+	{
+		return machineTier switch
+		{
+			0 => 4.0,
+			1 => 4.5,
+			2 => 5.0,
+			3 => 5.5,
+			_ => 5.5
+		};
+	}
+
 
 	public static double[] GetSlotUnlockCosts(
 		int roomIndex)

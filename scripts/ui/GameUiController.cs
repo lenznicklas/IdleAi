@@ -13,112 +13,223 @@ public sealed class GameUiController
 
 
 	private readonly Game _root;
-
 	private readonly GameState _state;
-
 	private readonly EconomyService _economy;
-
 	private readonly ProgressionService _progression;
-
 	private readonly ProductionService _production;
-
 	private readonly BotService _bots;
-
 	private readonly PrestigeService _prestige;
 
 
 	public event Action<int>? SlotActionRequested;
-
 	public event Action<int>? RoomSelectedRequested;
-
 	public event Action? StateChanged;
-
 	public event Action? PrestigeRequested;
 
 
-	private TextureRect _background = null!;
+	// ==================================================
+	// GENERAL
+	// ==================================================
 
-	private Label _messageLabel = null!;
-
-
-	private TextureButton _tokenCard = null!;
-
-	private TextureButton _statsCard = null!;
-
-	private TextureButton _levelCard = null!;
-
-	private Label _tokenLabel = null!;
-
-	private Label _totalLevelLabel = null!;
+	private TextureRect _background =
+		null!;
 
 
-	private Label _roomLabel = null!;
-
-	private GridContainer _slotGrid = null!;
-
-
-	private PanelContainer _tokenPopup = null!;
-
-	private PanelContainer _levelPopup = null!;
+	private Label _messageLabel =
+		null!;
 
 
-	private Control _statsOverlay = null!;
+	// ==================================================
+	// AMBIENT BACKGROUND
+	// ==================================================
 
-	private Label _statsIncomeLabel = null!;
-
-	private Label _statsEarnedLabel = null!;
-
-	private Label _statsSpentLabel = null!;
-
-	private Label _statsSlotsLabel = null!;
-
-	private Label _statsLevelLabel = null!;
-
-	private Label _statsUnlockSpendLabel = null!;
-
-	private Label _statsMachineSpendLabel = null!;
-
-	private Label _aiCoresLabel = null!;
-
-	private Label _prestigeBoostLabel = null!;
-
-	private Label _prestigeProgressLabel = null!;
-
-	private Button _prestigeButton = null!;
-
-	private Button _statsCloseButton = null!;
+	private AmbientBackgroundController _ambient =
+		null!;
 
 
-	private Control _prestigeConfirmOverlay = null!;
+	// ==================================================
+	// TOP BAR
+	// ==================================================
 
-	private Label _prestigeConfirmInfo = null!;
-
-	private Button _prestigeConfirmButton = null!;
-
-	private Button _prestigeCancelButton = null!;
-
-
-	private Control _mapPage = null!;
-
-	private VBoxContainer _mapRoomButtons = null!;
+	private TextureRect _topBarBackground =
+		null!;
 
 
-	private Control _shopPage = null!;
+	private TextureButton _tokenCard =
+		null!;
 
 
-	private TextureRect _bottomBackground = null!;
-
-	private Button _mapButton = null!;
-
-	private Button _shopButton = null!;
+	private TextureButton _statsCard =
+		null!;
 
 
-	private MachineDetailsOverlay _details = null!;
+	private TextureButton _levelCard =
+		null!;
 
+
+	private Label _tokenLabel =
+		null!;
+
+
+	private Label _totalLevelLabel =
+		null!;
+
+
+	private Label _roomInTopBarLabel =
+		null!;
+
+
+	// ==================================================
+	// MACHINE GRID
+	// ==================================================
+
+	private GridContainer _slotGrid =
+		null!;
+
+
+	// ==================================================
+	// SMALL POPUPS
+	// ==================================================
+
+	private PanelContainer _tokenPopup =
+		null!;
+
+
+	private PanelContainer _levelPopup =
+		null!;
+
+
+	// ==================================================
+	// STATS
+	// ==================================================
+
+	private Control _statsOverlay =
+		null!;
+
+
+	private Label _statsIncomeLabel =
+		null!;
+
+
+	private Label _statsEarnedLabel =
+		null!;
+
+
+	private Label _statsSpentLabel =
+		null!;
+
+
+	private Label _statsSlotsLabel =
+		null!;
+
+
+	private Label _statsLevelLabel =
+		null!;
+
+
+	private Label _statsUnlockSpendLabel =
+		null!;
+
+
+	private Label _statsMachineSpendLabel =
+		null!;
+
+
+	private Label _aiCoresLabel =
+		null!;
+
+
+	private Label _prestigeBoostLabel =
+		null!;
+
+
+	private Label _prestigeProgressLabel =
+		null!;
+
+
+	private Button _prestigeButton =
+		null!;
+
+
+	private Button _statsCloseButton =
+		null!;
+
+
+	// ==================================================
+	// PRESTIGE CONFIRMATION
+	// ==================================================
+
+	private Control _prestigeConfirmOverlay =
+		null!;
+
+
+	private Label _prestigeConfirmInfo =
+		null!;
+
+
+	private Button _prestigeConfirmButton =
+		null!;
+
+
+	private Button _prestigeCancelButton =
+		null!;
+
+
+	// ==================================================
+	// MAP
+	// ==================================================
+
+	private Control _mapPage =
+		null!;
+
+
+	private VBoxContainer _mapRoomButtons =
+		null!;
+
+
+	// ==================================================
+	// SHOP
+	// ==================================================
+
+	private Control _shopPage =
+		null!;
+
+
+	// ==================================================
+	// BOTTOM BAR
+	// ==================================================
+
+	private TextureRect _bottomBackground =
+		null!;
+
+
+	private TextureButton _mapButton =
+		null!;
+
+
+	private TextureButton _shopButton =
+		null!;
+
+
+	// ==================================================
+	// MACHINE DETAILS
+	// ==================================================
+
+	private MachineDetailsOverlay _details =
+		null!;
+
+
+	// ==================================================
+	// ROOM THEME CACHE
+	// ==================================================
 
 	private int _lastThemeRoom =
 		-1;
 
+
+	// ==================================================
+	// CONSTRUCTOR
+	// ==================================================
 
 	public GameUiController(
 		Game root,
@@ -132,25 +243,35 @@ public sealed class GameUiController
 		_root =
 			root;
 
+
 		_state =
 			state;
+
 
 		_economy =
 			economy;
 
+
 		_progression =
 			progression;
+
 
 		_production =
 			production;
 
+
 		_bots =
 			bots;
+
 
 		_prestige =
 			prestige;
 	}
 
+
+	// ==================================================
+	// INITIALIZE
+	// ==================================================
 
 	public void Initialize()
 	{
@@ -162,6 +283,8 @@ public sealed class GameUiController
 
 
 		SetupBackground();
+
+		SetupAmbientBackground();
 
 		SetupTopbar();
 
@@ -198,8 +321,17 @@ public sealed class GameUiController
 		ApplyRoomTheme(
 			true
 		);
+
+
+		_ambient.SetRoom(
+			_state.CurrentRoomIndex
+		);
 	}
 
+
+	// ==================================================
+	// CACHE NODES
+	// ==================================================
 
 	private void CacheNodes()
 	{
@@ -209,39 +341,45 @@ public sealed class GameUiController
 			);
 
 
+		_topBarBackground =
+			_root.GetNode<TextureRect>(
+                "MarginContainer/VBoxContainer/TopBar/Background"
+			);
+
+
 		_tokenCard =
 			_root.GetNode<TextureButton>(
-                "MarginContainer/VBoxContainer/TopStats/TokenCard"
+                "MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/TokenCard"
 			);
 
 
 		_statsCard =
 			_root.GetNode<TextureButton>(
-                "MarginContainer/VBoxContainer/TopStats/StatsCard"
+                "MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/StatsCard"
 			);
 
 
 		_levelCard =
 			_root.GetNode<TextureButton>(
-                "MarginContainer/VBoxContainer/TopStats/LevelCard"
+                "MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/LevelCard"
 			);
 
 
 		_tokenLabel =
 			_root.GetNode<Label>(
-                "MarginContainer/VBoxContainer/TopStats/TokenCard/TokenLabel"
+                "MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/TokenCard/TokenLabel"
 			);
 
 
 		_totalLevelLabel =
 			_root.GetNode<Label>(
-                "MarginContainer/VBoxContainer/TopStats/LevelCard/TotalLevelLabel"
+                "MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/LevelCard/TotalLevelLabel"
 			);
 
 
-		_roomLabel =
+		_roomInTopBarLabel =
 			_root.GetNode<Label>(
-                "MarginContainer/VBoxContainer/RoomPanel/RoomVBox/RoomLabel"
+                "MarginContainer/VBoxContainer/TopBar/Margin/VBox/RoomInTopBarLabel"
 			);
 
 
@@ -276,13 +414,13 @@ public sealed class GameUiController
 
 
 		_mapButton =
-			_root.GetNode<Button>(
+			_root.GetNode<TextureButton>(
                 "BottomBar/Margin/HBox/MapButton"
 			);
 
 
 		_shopButton =
-			_root.GetNode<Button>(
+			_root.GetNode<TextureButton>(
                 "BottomBar/Margin/HBox/ShopButton"
 			);
 
@@ -412,6 +550,10 @@ public sealed class GameUiController
 	}
 
 
+	// ==================================================
+	// BACKGROUND
+	// ==================================================
+
 	private void SetupBackground()
 	{
 		_background.ExpandMode =
@@ -420,8 +562,32 @@ public sealed class GameUiController
 
 		_background.StretchMode =
 			TextureRect.StretchModeEnum.KeepAspectCovered;
+
+
+		_background.MouseFilter =
+			Control.MouseFilterEnum.Ignore;
 	}
 
+
+	// ==================================================
+	// AMBIENT BACKGROUND
+	// ==================================================
+
+	private void SetupAmbientBackground()
+	{
+		_ambient =
+			new AmbientBackgroundController(
+				_root
+			);
+
+
+		_ambient.Initialize();
+	}
+
+
+	// ==================================================
+	// TOP BAR
+	// ==================================================
 
 	private void SetupTopbar()
 	{
@@ -438,6 +604,10 @@ public sealed class GameUiController
 	}
 
 
+	// ==================================================
+	// BOTTOM BAR
+	// ==================================================
+
 	private void SetupBottomBar()
 	{
 		_mapButton.Pressed +=
@@ -449,6 +619,10 @@ public sealed class GameUiController
 	}
 
 
+	// ==================================================
+	// FULL PAGES
+	// ==================================================
+
 	private void SetupPages()
 	{
 		_mapPage.Hide();
@@ -456,6 +630,10 @@ public sealed class GameUiController
 		_shopPage.Hide();
 	}
 
+
+	// ==================================================
+	// STATS
+	// ==================================================
 
 	private void SetupStats()
 	{
@@ -479,7 +657,8 @@ public sealed class GameUiController
 				if (
 					@event is InputEventMouseButton mouse
 					&& mouse.Pressed
-					&& mouse.ButtonIndex == MouseButton.Left
+					&& mouse.ButtonIndex
+					== MouseButton.Left
 				)
 				{
 					CloseStats();
@@ -496,6 +675,10 @@ public sealed class GameUiController
 			};
 	}
 
+
+	// ==================================================
+	// PRESTIGE CONFIRMATION
+	// ==================================================
 
 	private void SetupPrestigeConfirmation()
 	{
@@ -519,6 +702,8 @@ public sealed class GameUiController
 				if (
 					@event is InputEventMouseButton mouse
 					&& mouse.Pressed
+					&& mouse.ButtonIndex
+					== MouseButton.Left
 				)
 				{
 					ClosePrestigeConfirmation();
@@ -557,7 +742,7 @@ public sealed class GameUiController
 			roomIndex++
 		)
 		{
-			int target =
+			int targetRoom =
 				roomIndex;
 
 
@@ -575,7 +760,7 @@ public sealed class GameUiController
 			button.Pressed +=
 				() =>
 					SelectRoomFromMap(
-						target
+						targetRoom
 					);
 
 
@@ -624,7 +809,8 @@ public sealed class GameUiController
 
 
 			if (
-				i == _state.CurrentRoomIndex
+				i
+				== _state.CurrentRoomIndex
 			)
 			{
 				button.Text =
@@ -675,6 +861,10 @@ public sealed class GameUiController
 
 		_prestigeConfirmOverlay.Hide();
 
+		_tokenPopup.Hide();
+
+		_levelPopup.Hide();
+
 
 		UpdateMapButtons();
 
@@ -684,11 +874,13 @@ public sealed class GameUiController
 		_mapPage.MoveToFront();
 
 
-		_root.GetNode<Control>(
-            "BottomBar"
-		).MoveToFront();
+		MoveBottomBarToFront();
 	}
 
+
+	// ==================================================
+	// SHOP
+	// ==================================================
 
 	private void ToggleShopPage()
 	{
@@ -709,12 +901,22 @@ public sealed class GameUiController
 
 		_prestigeConfirmOverlay.Hide();
 
+		_tokenPopup.Hide();
+
+		_levelPopup.Hide();
+
 
 		_shopPage.Show();
 
 		_shopPage.MoveToFront();
 
 
+		MoveBottomBarToFront();
+	}
+
+
+	private void MoveBottomBarToFront()
+	{
 		_root.GetNode<Control>(
             "BottomBar"
 		).MoveToFront();
@@ -730,7 +932,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// SLOTS
+	// MACHINE SLOTS
 	// ==================================================
 
 	private void CreateSlotViews()
@@ -791,16 +993,15 @@ public sealed class GameUiController
 	private void OpenMachineDetails(
 		int slotIndex)
 	{
-		if (
-			!_state.CurrentRoomState
+		SlotData slot =
+			_state.CurrentRoomState
 				.Slots[
 					slotIndex
-				]
-				.Unlocked
-		)
-		{
+				];
+
+
+		if (!slot.Unlocked)
 			return;
-		}
 
 
 		_details.Open(
@@ -811,29 +1012,43 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// UPDATE
+	// UPDATE ALL
 	// ==================================================
 
 	public void UpdateAll()
 	{
-		_roomLabel.Text =
-			_state.CurrentRoom.Name;
-
-
 		_background.Texture =
 			_state.CurrentRoom.Background;
 
 
+		_roomInTopBarLabel.Text =
+			_state.CurrentRoom.Name;
+
+
 		UpdateTopBar();
 
+
 		ApplyRoomTheme();
+
+
+		_ambient.SetRoom(
+			_state.CurrentRoomIndex
+		);
+
 
 		UpdateMapButtons();
 
 
+		int count =
+			Math.Min(
+				_slotGrid.GetChildCount(),
+				_state.CurrentRoomState.Slots.Count
+			);
+
+
 		for (
 			int i = 0;
-			i < _slotGrid.GetChildCount();
+			i < count;
 			i++
 		)
 		{
@@ -849,12 +1064,19 @@ public sealed class GameUiController
 		}
 
 
-		if (_details.Visible)
+		if (
+			_details != null
+			&& _details.Visible
+		)
 		{
 			_details.Refresh();
 		}
 	}
 
+
+	// ==================================================
+	// UPDATE SLOT
+	// ==================================================
 
 	private void UpdateSlot(
 		int index)
@@ -921,14 +1143,25 @@ public sealed class GameUiController
 	}
 
 
+	// ==================================================
+	// RUNTIME UPDATE
+	// ==================================================
+
 	public void UpdateRuntime()
 	{
 		UpdateTopBar();
 
 
+		int count =
+			Math.Min(
+				_slotGrid.GetChildCount(),
+				_state.CurrentRoomState.Slots.Count
+			);
+
+
 		for (
 			int i = 0;
-			i < _slotGrid.GetChildCount();
+			i < count;
 			i++
 		)
 		{
@@ -943,17 +1176,23 @@ public sealed class GameUiController
 				continue;
 
 
-			((MachineSlot)
+			MachineSlot slotView =
+				(MachineSlot)
 				_slotGrid.GetChild(
 					i
-				))
-				.UpdateRuntime(
-					slot
 				);
+
+
+			slotView.UpdateRuntime(
+				slot
+			);
 		}
 
 
-		if (_details.Visible)
+		if (
+			_details != null
+			&& _details.Visible
+		)
 		{
 			_details.Refresh();
 		}
@@ -967,7 +1206,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// TOP / BOTTOM COLORS
+	// ROOM THEME
 	// ==================================================
 
 	private void ApplyRoomTheme(
@@ -999,38 +1238,85 @@ public sealed class GameUiController
 			);
 
 
-		ApplyGradient(
-			_tokenCard,
-			main,
-			secondary
-		);
-
-
-		ApplyGradient(
-			_statsCard,
-			main,
-			secondary
-		);
-
-
-		ApplyGradient(
-			_levelCard,
-			main,
-			secondary
-		);
-
-
-		_bottomBackground.Texture =
+		Texture2D barTexture =
 			CreateGradientTexture(
 				main,
 				secondary
 			);
+
+
+		Texture2D cardTexture =
+			CreateGradientTexture(
+				main.Darkened(
+					0.18f
+				),
+
+				secondary.Darkened(
+					0.18f
+				)
+			);
+
+
+		Texture2D cardHoverTexture =
+			CreateGradientTexture(
+				main.Darkened(
+					0.10f
+				),
+
+				secondary.Darkened(
+					0.10f
+				)
+			);
+
+
+		Texture2D cardPressedTexture =
+			CreateGradientTexture(
+				main.Darkened(
+					0.28f
+				),
+
+				secondary.Darkened(
+					0.28f
+				)
+			);
+
+
+		_topBarBackground.Texture =
+			barTexture;
+
+
+		_bottomBackground.Texture =
+			barTexture;
+
+
+		ApplyCardTexture(
+			_tokenCard,
+			cardTexture,
+			cardHoverTexture,
+			cardPressedTexture
+		);
+
+
+		ApplyCardTexture(
+			_statsCard,
+			cardTexture,
+			cardHoverTexture,
+			cardPressedTexture
+		);
+
+
+		ApplyCardTexture(
+			_levelCard,
+			cardTexture,
+			cardHoverTexture,
+			cardPressedTexture
+		);
 	}
 
 
 	private static (
-		Color,
-		Color
+		Color Main,
+		Color Secondary
 	) GetRoomColors(
 		int room)
 	{
@@ -1107,9 +1393,9 @@ public sealed class GameUiController
 			_ =>
 				(
 					new Color(
-						0.1f,
-						0.1f,
-						0.1f,
+						0.10f,
+						0.10f,
+						0.10f,
 						1
 					),
 
@@ -1124,40 +1410,22 @@ public sealed class GameUiController
 	}
 
 
-	private static void ApplyGradient(
+	private static void ApplyCardTexture(
 		TextureButton button,
-		Color first,
-		Color second)
+		Texture2D normal,
+		Texture2D hover,
+		Texture2D pressed)
 	{
 		button.TextureNormal =
-			CreateGradientTexture(
-				first,
-				second
-			);
+			normal;
 
 
 		button.TextureHover =
-			CreateGradientTexture(
-				first.Lightened(
-					0.06f
-				),
-
-				second.Lightened(
-					0.06f
-				)
-			);
+			hover;
 
 
 		button.TexturePressed =
-			CreateGradientTexture(
-				first.Darkened(
-					0.06f
-				),
-
-				second.Darkened(
-					0.06f
-				)
-			);
+			pressed;
 	}
 
 
@@ -1211,7 +1479,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// TOP BAR
+	// TOP BAR VALUES
 	// ==================================================
 
 	public void UpdateTopBar()
@@ -1228,6 +1496,10 @@ public sealed class GameUiController
 				.ToString();
 	}
 
+
+	// ==================================================
+	// TOKEN POPUP
+	// ==================================================
 
 	private void ToggleTokenPopup()
 	{
@@ -1248,6 +1520,10 @@ public sealed class GameUiController
 		);
 	}
 
+
+	// ==================================================
+	// LEVEL POPUP
+	// ==================================================
 
 	private void ToggleLevelPopup()
 	{
@@ -1302,6 +1578,7 @@ public sealed class GameUiController
 	private void OpenStats()
 	{
 		ClosePages();
+
 
 		_details?.Close();
 
@@ -1397,10 +1674,9 @@ public sealed class GameUiController
 					machine.MachineName
 					+ ": "
 					+ NumberFormatter.Format(
-						_state.Stats
-							.GetMachineSpending(
-								machine.MachineName
-							)
+						_state.Stats.GetMachineSpending(
+							machine.MachineName
+						)
 					)
 				);
 			}
@@ -1415,10 +1691,9 @@ public sealed class GameUiController
 		lines.Add(
             "BOTS: "
 			+ NumberFormatter.Format(
-				_state.Stats
-					.GetMachineSpending(
-                        "Bots"
-					)
+				_state.Stats.GetMachineSpending(
+                    "Bots"
+				)
 			)
 		);
 
@@ -1433,6 +1708,10 @@ public sealed class GameUiController
 		UpdatePrestigeSection();
 	}
 
+
+	// ==================================================
+	// PRESTIGE
+	// ==================================================
 
 	private void UpdatePrestigeSection()
 	{
@@ -1497,10 +1776,6 @@ public sealed class GameUiController
 	}
 
 
-	// ==================================================
-	// PRESTIGE CONFIRM
-	// ==================================================
-
 	private void OpenPrestigeConfirmation()
 	{
 		long reward =
@@ -1519,8 +1794,7 @@ public sealed class GameUiController
 		double multiplier =
 			1.0
 			+ coresAfter
-			* GameConfig
-				.ProductionBoostPerAiCore;
+			* GameConfig.ProductionBoostPerAiCore;
 
 
 		_prestigeConfirmInfo.Text =
@@ -1562,7 +1836,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// DETAILS EVENT
+	// MACHINE DETAILS EVENT
 	// ==================================================
 
 	private void OnDetailsStateChanged(
@@ -1579,6 +1853,10 @@ public sealed class GameUiController
 		StateChanged?.Invoke();
 	}
 
+
+	// ==================================================
+	// MESSAGE
+	// ==================================================
 
 	public void SetMessage(
 		string message)

@@ -6,7 +6,7 @@ namespace IdleAi;
 
 public partial class Game : Control
 {
-	private const int SaveVersion = 4;
+	private const int SaveVersion = 5;
 
 	private const double AutosaveIntervalSeconds = 10.0;
 

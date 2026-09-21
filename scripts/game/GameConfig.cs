@@ -75,6 +75,18 @@ public static class GameConfig
 		100_000_000.0;
 
 
+	public const double TokensPerResearchPoint =
+		1_000_000.0;
+
+
+	public const int ResearchPointPurchaseAmount =
+		10;
+
+
+	// ==================================================
+	// MACHINE ECONOMY
+	// ==================================================
+
 	public const double LevelCostGrowth =
 		1.22;
 
@@ -82,6 +94,10 @@ public static class GameConfig
 	public const double IncomePerLevel =
 		0.10;
 
+
+	// ==================================================
+	// BOTS
+	// ==================================================
 
 	public const double BotBaseCostMultiplier =
 		20.0;
@@ -102,6 +118,10 @@ public static class GameConfig
 	public const double EpicBotChance =
 		0.10;
 
+
+	// ==================================================
+	// PRESTIGE
+	// ==================================================
 
 	public const double PrestigeTokensPerCore =
 		1_000_000_000_000_000_000.0;

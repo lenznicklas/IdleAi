@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 
 namespace IdleAi;
 
@@ -41,6 +42,24 @@ public sealed class LabController
 		);
 
 
+	private static readonly Texture2D ResearchActiveIcon =
+		GD.Load<Texture2D>(
+			"res://assets/lab/research_active.png"
+		);
+
+
+	private static readonly Texture2D ResearchCompletedIcon =
+		GD.Load<Texture2D>(
+			"res://assets/lab/research_completed.png"
+		);
+
+
+	private static readonly Texture2D ResearchLockedIcon =
+		GD.Load<Texture2D>(
+			"res://assets/lab/research_locked.png"
+		);
+
+
 	private static readonly Texture2D LabBackground =
 		GD.Load<Texture2D>(
 			"res://assets/background/lab_background.png"
@@ -73,6 +92,10 @@ public sealed class LabController
 		null!;
 
 
+	private ScrollContainer _unlockedScroll =
+		null!;
+
+
 	private VBoxContainer _unlockedContent =
 		null!;
 
@@ -85,6 +108,10 @@ public sealed class LabController
 		null!;
 
 
+	private Button _buyResearchPointsButton =
+		null!;
+
+
 	private Label _unlockCostLabel =
 		null!;
 
@@ -93,9 +120,29 @@ public sealed class LabController
 		null!;
 
 
+	private readonly Dictionary<string, ResearchView>
+		_researchViews =
+			[];
+
+
 	public bool Visible =>
 		_page != null
 		&& _page.Visible;
+
+
+	private sealed class ResearchView
+	{
+		public TextureRect StatusIcon { get; init; } =
+			null!;
+
+
+		public Label StatusLabel { get; init; } =
+			null!;
+
+
+		public Button Button { get; init; } =
+			null!;
+	}
 
 
 	public LabController(
@@ -178,21 +225,6 @@ public sealed class LabController
 		);
 
 
-		/*
-		 * Original order:
-		 *
-		 * Map
-		 * Message
-		 * Shop
-		 *
-		 * New order:
-		 *
-		 * Map
-		 * Lab
-		 * Message
-		 * Shop
-		 */
-
 		hbox.MoveChild(
 			_labButton,
 			1
@@ -234,7 +266,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// CREATE PAGE
+	// PAGE
 	// ==================================================
 
 	private void CreateLabPage()
@@ -313,18 +345,15 @@ public sealed class LabController
 			24
 		);
 
-
 		margin.AddThemeConstantOverride(
 			"margin_top",
 			28
 		);
 
-
 		margin.AddThemeConstantOverride(
 			"margin_right",
 			24
 		);
-
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
@@ -350,7 +379,7 @@ public sealed class LabController
 
 		main.AddThemeConstantOverride(
 			"separation",
-			14
+			12
 		);
 
 
@@ -417,11 +446,30 @@ public sealed class LabController
 		);
 
 
+		_unlockedScroll =
+			new ScrollContainer
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
+
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill,
+
+				HorizontalScrollMode =
+					ScrollContainer.ScrollMode.Disabled
+			};
+
+
+		main.AddChild(
+			_unlockedScroll
+		);
+
+
 		_unlockedContent =
 			CreateUnlockedContent();
 
 
-		main.AddChild(
+		_unlockedScroll.AddChild(
 			_unlockedContent
 		);
 	}
@@ -439,7 +487,7 @@ public sealed class LabController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						58
+						62
 					)
 			};
 
@@ -463,12 +511,16 @@ public sealed class LabController
 
 
 		VBoxContainer text =
-			new();
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
 
 
 		Label title =
 			CreateLeftLabel(
-				15
+				14
 			);
 
 
@@ -501,12 +553,56 @@ public sealed class LabController
 		);
 
 
+		_buyResearchPointsButton =
+			new Button
+			{
+				CustomMinimumSize =
+					new Vector2(
+						150,
+						52
+					)
+			};
+
+
+		_buyResearchPointsButton.Pressed +=
+			BuyResearchPoints;
+
+
+		row.AddChild(
+			_buyResearchPointsButton
+		);
+
+
 		return row;
 	}
 
 
+	private void BuyResearchPoints()
+	{
+		LabResult result =
+			_labService.BuyResearchPoints(
+				GameConfig
+					.ResearchPointPurchaseAmount
+			);
+
+
+		MessageRequested?.Invoke(
+			result.Message
+		);
+
+
+		Refresh();
+
+
+		if (result.Changed)
+		{
+			StateChanged?.Invoke();
+		}
+	}
+
+
 	// ==================================================
-	// LOCKED
+	// LOCKED LAB
 	// ==================================================
 
 	private VBoxContainer CreateLockedContent()
@@ -622,8 +718,29 @@ public sealed class LabController
 	}
 
 
+	private void UnlockLab()
+	{
+		LabResult result =
+			_labService.UnlockLab();
+
+
+		MessageRequested?.Invoke(
+			result.Message
+		);
+
+
+		Refresh();
+
+
+		if (result.Changed)
+		{
+			StateChanged?.Invoke();
+		}
+	}
+
+
 	// ==================================================
-	// UNLOCKED
+	// RESEARCH CONTENT
 	// ==================================================
 
 	private VBoxContainer CreateUnlockedContent()
@@ -632,9 +749,6 @@ public sealed class LabController
 			new()
 			{
 				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
-
-				SizeFlagsVertical =
 					Control.SizeFlags.ExpandFill
 			};
 
@@ -645,60 +759,43 @@ public sealed class LabController
 		);
 
 
-		Label heading =
-			CreateLabel(
-				22
-			);
-
-
-		heading.Text =
-			"RESEARCH BRANCHES";
-
-
-		content.AddChild(
-			heading
+		CreateBranch(
+			content,
+			ResearchBranch.Hardware,
+			"HARDWARE",
+			HardwareIcon
 		);
 
 
-		content.AddChild(
-			CreateBranchRow(
-				HardwareIcon,
-				"HARDWARE",
-				"Machine efficiency and production"
-			)
+		CreateBranch(
+			content,
+			ResearchBranch.Robotics,
+			"ROBOTICS",
+			RoboticsIcon
 		);
 
 
-		content.AddChild(
-			CreateBranchRow(
-				RoboticsIcon,
-				"ROBOTICS",
-				"Bots, automation and robotics"
-			)
+		CreateBranch(
+			content,
+			ResearchBranch.Infrastructure,
+			"INFRASTRUCTURE",
+			InfrastructureIcon
 		);
 
 
-		content.AddChild(
-			CreateBranchRow(
-				InfrastructureIcon,
-				"INFRASTRUCTURE",
-				"Economy and offline production"
-			)
-		);
-
-
-		Label info =
-			CreateLabel(
-				15
-			);
-
-
-		info.Text =
-			"Research tree coming next.";
+		Control spacer =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						50
+					)
+			};
 
 
 		content.AddChild(
-			info
+			spacer
 		);
 
 
@@ -706,10 +803,119 @@ public sealed class LabController
 	}
 
 
-	private Control CreateBranchRow(
-		Texture2D texture,
-		string titleText,
-		string descriptionText)
+	private void CreateBranch(
+		VBoxContainer parent,
+		ResearchBranch branch,
+		string title,
+		Texture2D icon)
+	{
+		parent.AddChild(
+			CreateBranchHeader(
+				title,
+				icon
+			)
+		);
+
+
+		bool foundResearch =
+			false;
+
+
+		foreach (
+			ResearchDefinition research
+			in ResearchCatalog.All
+		)
+		{
+			if (research.Branch != branch)
+				continue;
+
+
+			foundResearch =
+				true;
+
+
+			parent.AddChild(
+				CreateResearchCard(
+					research
+				)
+			);
+		}
+
+
+		if (!foundResearch)
+		{
+			Label comingSoon =
+				CreateLeftLabel(
+					14
+				);
+
+
+			comingSoon.Text =
+				"More research coming soon.";
+
+
+			parent.AddChild(
+				comingSoon
+			);
+		}
+
+
+		parent.AddChild(
+			new HSeparator()
+		);
+	}
+
+
+	private Control CreateBranchHeader(
+		string title,
+		Texture2D texture)
+	{
+		HBoxContainer row =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						58
+					)
+			};
+
+
+		row.AddThemeConstantOverride(
+			"separation",
+			12
+		);
+
+
+		row.AddChild(
+			CreateIcon(
+				texture,
+				50
+			)
+		);
+
+
+		Label label =
+			CreateLeftLabel(
+				22
+			);
+
+
+		label.Text =
+			title;
+
+
+		row.AddChild(
+			label
+		);
+
+
+		return row;
+	}
+
+
+	private Control CreateResearchCard(
+		ResearchDefinition research)
 	{
 		PanelContainer panel =
 			new()
@@ -717,7 +923,7 @@ public sealed class LabController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						100
+						145
 					)
 			};
 
@@ -731,18 +937,15 @@ public sealed class LabController
 			12
 		);
 
-
 		margin.AddThemeConstantOverride(
 			"margin_top",
 			10
 		);
 
-
 		margin.AddThemeConstantOverride(
 			"margin_right",
 			12
 		);
-
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
@@ -761,7 +964,7 @@ public sealed class LabController
 
 		row.AddThemeConstantOverride(
 			"separation",
-			14
+			12
 		);
 
 
@@ -770,19 +973,19 @@ public sealed class LabController
 		);
 
 
-		TextureRect icon =
+		TextureRect statusIcon =
 			CreateIcon(
-				texture,
-				76
+				ResearchActiveIcon,
+				62
 			);
 
 
 		row.AddChild(
-			icon
+			statusIcon
 		);
 
 
-		VBoxContainer textBox =
+		VBoxContainer text =
 			new()
 			{
 				SizeFlagsHorizontal =
@@ -792,15 +995,15 @@ public sealed class LabController
 
 		Label title =
 			CreateLeftLabel(
-				20
+				19
 			);
 
 
 		title.Text =
-			titleText;
+			research.Name;
 
 
-		textBox.AddChild(
+		text.AddChild(
 			title
 		);
 
@@ -812,24 +1015,102 @@ public sealed class LabController
 
 
 		description.Text =
-			descriptionText;
+			research.Description;
 
 
 		description.AutowrapMode =
 			TextServer.AutowrapMode.WordSmart;
 
 
-		textBox.AddChild(
+		text.AddChild(
 			description
 		);
 
 
-		row.AddChild(
-			textBox
+		Label status =
+			CreateLeftLabel(
+				13
+			);
+
+
+		text.AddChild(
+			status
 		);
 
 
+		row.AddChild(
+			text
+		);
+
+
+		Button button =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						145,
+						55
+					)
+			};
+
+
+		string id =
+			research.Id;
+
+
+		button.Pressed +=
+			() =>
+				StartResearch(
+					id
+				);
+
+
+		row.AddChild(
+			button
+		);
+
+
+		_researchViews[
+			research.Id
+		] =
+			new ResearchView
+			{
+				StatusIcon =
+					statusIcon,
+
+				StatusLabel =
+					status,
+
+				Button =
+					button
+			};
+
+
 		return panel;
+	}
+
+
+	private void StartResearch(
+		string researchId)
+	{
+		LabResult result =
+			_labService.Research(
+				researchId
+			);
+
+
+		MessageRequested?.Invoke(
+			result.Message
+		);
+
+
+		Refresh();
+
+
+		if (result.Changed)
+		{
+			StateChanged?.Invoke();
+		}
 	}
 
 
@@ -907,32 +1188,6 @@ public sealed class LabController
 
 
 	// ==================================================
-	// UNLOCK
-	// ==================================================
-
-	private void UnlockLab()
-	{
-		LabResult result =
-			_labService.UnlockLab();
-
-
-		MessageRequested?.Invoke(
-			result.Message
-		);
-
-
-		Refresh();
-
-
-		if (!result.Changed)
-			return;
-
-
-		StateChanged?.Invoke();
-	}
-
-
-	// ==================================================
 	// UPDATE
 	// ==================================================
 
@@ -950,7 +1205,7 @@ public sealed class LabController
 			!unlocked;
 
 
-		_unlockedContent.Visible =
+		_unlockedScroll.Visible =
 			unlocked;
 
 
@@ -962,6 +1217,9 @@ public sealed class LabController
 			NumberFormatter.Format(
 				_state.Lab.ResearchPoints
 			);
+
+
+		RefreshResearchPointButton();
 
 
 		_unlockCostLabel.Text =
@@ -982,6 +1240,136 @@ public sealed class LabController
 		_unlockButton.Disabled =
 			_state.Tokens
 			< GameConfig.LabUnlockCost;
+
+
+		RefreshResearchCards();
+	}
+
+
+	private void RefreshResearchPointButton()
+	{
+		int amount =
+			GameConfig.ResearchPointPurchaseAmount;
+
+
+		double cost =
+			_labService
+				.GetResearchPointPurchaseCost(
+					amount
+				);
+
+
+		_buyResearchPointsButton.Text =
+			$"+{amount} RP\n"
+			+ NumberFormatter.Format(
+				cost
+			)
+			+ " T";
+
+
+		_buyResearchPointsButton.Disabled =
+			_state.Tokens < cost;
+	}
+
+
+	private void RefreshResearchCards()
+	{
+		foreach (
+			ResearchDefinition research
+			in ResearchCatalog.All
+		)
+		{
+			if (
+				!_researchViews.TryGetValue(
+					research.Id,
+					out ResearchView? view
+				)
+			)
+			{
+				continue;
+			}
+
+
+			bool completed =
+				_state.Lab.IsResearchCompleted(
+					research.Id
+				);
+
+
+			if (completed)
+			{
+				view.StatusIcon.Texture =
+					ResearchCompletedIcon;
+
+
+				view.StatusLabel.Text =
+					"COMPLETED";
+
+
+				view.Button.Text =
+					"COMPLETED";
+
+
+				view.Button.Disabled =
+					true;
+
+
+				continue;
+			}
+
+
+			bool available =
+				_labService.IsResearchAvailable(
+					research
+				);
+
+
+			if (!available)
+			{
+				view.StatusIcon.Texture =
+					ResearchLockedIcon;
+
+
+				view.StatusLabel.Text =
+					"LOCKED";
+
+
+				view.Button.Text =
+					"LOCKED";
+
+
+				view.Button.Disabled =
+					true;
+
+
+				continue;
+			}
+
+
+			view.StatusIcon.Texture =
+				ResearchActiveIcon;
+
+
+			view.StatusLabel.Text =
+				"Available • "
+				+ NumberFormatter.Format(
+					research.Cost
+				)
+				+ " RP";
+
+
+			view.Button.Text =
+				"RESEARCH\n"
+				+ NumberFormatter.Format(
+					research.Cost
+				)
+				+ " RP";
+
+
+			view.Button.Disabled =
+				_state.Lab.ResearchPoints
+				< research.Cost;
+		}
 	}
 
 
@@ -1014,50 +1402,49 @@ public sealed class LabController
 
 
 	private static Label CreateLabel(
-	int size)
-{
-	Label label =
-		new()
-		{
-			HorizontalAlignment =
-				HorizontalAlignment.Center,
+		int size)
+	{
+		Label label =
+			new()
+			{
+				HorizontalAlignment =
+					HorizontalAlignment.Center,
 
-			VerticalAlignment =
-				VerticalAlignment.Center
-		};
-
-
-	label.AddThemeFontSizeOverride(
-		"font_size",
-		size
-	);
+				VerticalAlignment =
+					VerticalAlignment.Center
+			};
 
 
-	return label;
-}
+		label.AddThemeFontSizeOverride(
+			"font_size",
+			size
+		);
 
 
-private static Label CreateLeftLabel(
-	int size)
-{
-	Label label =
-		new()
-		{
-			HorizontalAlignment =
-				HorizontalAlignment.Left,
-
-			VerticalAlignment =
-				VerticalAlignment.Center
-		};
+		return label;
+	}
 
 
-	label.AddThemeFontSizeOverride(
-		"font_size",
-		size
-	);
+	private static Label CreateLeftLabel(
+		int size)
+	{
+		Label label =
+			new()
+			{
+				HorizontalAlignment =
+					HorizontalAlignment.Left,
+
+				VerticalAlignment =
+					VerticalAlignment.Center
+			};
 
 
-	return label;
-}
-	
+		label.AddThemeFontSizeOverride(
+			"font_size",
+			size
+		);
+
+
+		return label;
+	}
 }

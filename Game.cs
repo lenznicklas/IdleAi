@@ -7,7 +7,7 @@ namespace IdleAi;
 public partial class Game : Control
 {
 	private const int SaveVersion =
-		10;
+		11;
 
 
 	private const double AutosaveIntervalSeconds =
@@ -450,7 +450,7 @@ public partial class Game : Control
 
 
 	// ==================================================
-	// SAVE SYSTEM
+	// SAVE
 	// ==================================================
 
 	private void SetupSaveSystem()
@@ -512,6 +512,10 @@ public partial class Game : Control
 
 				ResearchPoints =
 					_state.Lab.ResearchPoints,
+
+				CompletedResearch =
+					_state.Lab.CompletedResearch
+						.ToList(),
 
 				Rooms =
 					_state.RoomStates
@@ -584,6 +588,11 @@ public partial class Game : Control
 
 		_state.Lab.ResearchPoints =
 			save.ResearchPoints;
+
+
+		_state.Lab.LoadCompletedResearch(
+			save.CompletedResearch
+		);
 
 
 		// ==================================================

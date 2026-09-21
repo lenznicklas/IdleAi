@@ -39,6 +39,14 @@ public sealed class SaveGameData
 	public double ResearchPoints { get; set; }
 
 
+	public List<string> CompletedResearch { get; set; } =
+		[];
+
+
+	// ==================================================
+	// ROOMS
+	// ==================================================
+
 	public List<RoomSaveData> Rooms { get; set; } =
 		[];
 

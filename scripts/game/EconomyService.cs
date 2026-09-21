@@ -139,6 +139,11 @@ public sealed class EconomyService
 				.GetProductionMultiplier();
 
 
+		double researchMultiplier =
+			_state.Lab
+				.GetProductionMultiplier();
+
+
 		double cycleDuration =
 			GetCycleDuration(
 				slot
@@ -150,7 +155,8 @@ public sealed class EconomyService
 			   * levelMultiplier
 			   * milestoneMultiplier
 			   * botMultiplier
-			   * prestigeMultiplier;
+			   * prestigeMultiplier
+			   * researchMultiplier;
 	}
 
 

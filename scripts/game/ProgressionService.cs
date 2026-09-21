@@ -1,3 +1,4 @@
+using System;
 using System.Linq;
 
 namespace IdleAi;
@@ -6,6 +7,14 @@ namespace IdleAi;
 public readonly record struct ProgressionResult(
 	bool Changed,
 	string Message
+);
+
+
+public readonly record struct MachineUpgradeQuote(
+	int Levels,
+	int TargetLevel,
+	double Cost,
+	bool CanAfford
 );
 
 
@@ -80,7 +89,7 @@ public sealed class ProgressionService
 
 
 	// ==================================================
-	// SLOT UNLOCK COST
+	// SLOT UNLOCK
 	// ==================================================
 
 	public double GetSlotUnlockCost(
@@ -88,10 +97,9 @@ public sealed class ProgressionService
 		int slotIndex)
 	{
 		double[] costs =
-			GameConfig
-				.GetSlotUnlockCosts(
-					roomIndex
-				);
+			GameConfig.GetSlotUnlockCosts(
+				roomIndex
+			);
 
 
 		if (
@@ -103,15 +111,11 @@ public sealed class ProgressionService
 		}
 
 
-		double baseCost =
-			costs[
-				slotIndex
-			];
-
-
-		return baseCost
-			* _state.Lab
-				.GetUnlockCostMultiplier();
+		return costs[
+			slotIndex
+		]
+		* _state.Lab
+			.GetUnlockCostMultiplier();
 	}
 
 
@@ -172,7 +176,7 @@ public sealed class ProgressionService
 
 
 	// ==================================================
-	// MACHINE UPGRADE
+	// DEFAULT SINGLE UPGRADE
 	// ==================================================
 
 	private ProgressionResult UpgradeSlot(
@@ -197,11 +201,10 @@ public sealed class ProgressionService
 			< machine.MaxLevel
 		)
 		{
-			return UpgradeMachineLevel(
+			return UpgradeMachineLevels(
 				roomIndex,
-				slot,
-				machine,
-				slotIndex
+				slotIndex,
+				1
 			);
 		}
 
@@ -216,24 +219,191 @@ public sealed class ProgressionService
 
 
 	// ==================================================
-	// LEVEL UPGRADE
+	// UPGRADE QUOTE
 	// ==================================================
 
-	private ProgressionResult UpgradeMachineLevel(
+	public MachineUpgradeQuote GetMachineUpgradeQuote(
 		int roomIndex,
-		SlotData slot,
-		MachineData machine,
-		int slotIndex)
+		int slotIndex,
+		int requestedLevels)
 	{
-		double cost =
-			_economy.GetLevelUpgradeCost(
-				roomIndex,
-				slot,
+		if (
+			roomIndex < 0
+			|| roomIndex >= _state.RoomStates.Count
+		)
+		{
+			return new MachineUpgradeQuote(
+				0,
+				0,
+				0,
+				false
+			);
+		}
+
+
+		RoomState roomState =
+			_state.RoomStates[
+				roomIndex
+			];
+
+
+		if (
+			slotIndex < 0
+			|| slotIndex >= roomState.Slots.Count
+		)
+		{
+			return new MachineUpgradeQuote(
+				0,
+				0,
+				0,
+				false
+			);
+		}
+
+
+		SlotData slot =
+			roomState.Slots[
 				slotIndex
+			];
+
+
+		if (!slot.Unlocked)
+		{
+			return new MachineUpgradeQuote(
+				0,
+				slot.MachineLevel,
+				0,
+				false
+			);
+		}
+
+
+		MachineData machine =
+			_state.Rooms[
+				roomIndex
+			].Machines[
+				slot.MachineTier
+			];
+
+
+		int remainingLevels =
+			Math.Max(
+				0,
+				machine.MaxLevel
+				- slot.MachineLevel
 			);
 
 
-		if (_state.Tokens < cost)
+		if (remainingLevels <= 0)
+		{
+			return new MachineUpgradeQuote(
+				0,
+				slot.MachineLevel,
+				0,
+				false
+			);
+		}
+
+
+		// ==================================================
+		// MAX MODE
+		// requestedLevels <= 0 = buy as many as possible
+		// ==================================================
+
+		if (requestedLevels <= 0)
+		{
+			int affordableLevels =
+				_economy
+					.GetMaximumAffordableLevels(
+						roomIndex,
+						slot,
+						slotIndex,
+						_state.Tokens
+					);
+
+
+			double cost =
+				_economy
+					.GetLevelUpgradeCostForLevels(
+						roomIndex,
+						slot,
+						slotIndex,
+						affordableLevels
+					);
+
+
+			return new MachineUpgradeQuote(
+				affordableLevels,
+				slot.MachineLevel
+				+ affordableLevels,
+				cost,
+				affordableLevels > 0
+			);
+		}
+
+
+		// ==================================================
+		// FIXED MODE
+		// ==================================================
+
+		int levels =
+			Math.Min(
+				requestedLevels,
+				remainingLevels
+			);
+
+
+		double fixedCost =
+			_economy
+				.GetLevelUpgradeCostForLevels(
+					roomIndex,
+					slot,
+					slotIndex,
+					levels
+				);
+
+
+		return new MachineUpgradeQuote(
+			levels,
+			slot.MachineLevel
+				+ levels,
+			fixedCost,
+			levels > 0
+				&& _state.Tokens
+				>= fixedCost
+		);
+	}
+
+
+	// ==================================================
+	// MULTI LEVEL UPGRADE
+	// ==================================================
+
+	public ProgressionResult UpgradeMachineLevels(
+		int roomIndex,
+		int slotIndex,
+		int requestedLevels)
+	{
+		MachineUpgradeQuote quote =
+			GetMachineUpgradeQuote(
+				roomIndex,
+				slotIndex,
+				requestedLevels
+			);
+
+
+		if (quote.Levels <= 0)
+		{
+			return new ProgressionResult(
+				false,
+				requestedLevels <= 0
+					? "Not enough Tokens for another level."
+					: "No levels available."
+			);
+		}
+
+
+		if (!quote.CanAfford)
 		{
 			return new ProgressionResult(
 				false,
@@ -242,53 +412,120 @@ public sealed class ProgressionService
 		}
 
 
-		_state.Tokens -=
-			cost;
+		SlotData slot =
+			_state.RoomStates[
+				roomIndex
+			].Slots[
+				slotIndex
+			];
+
+
+		MachineData machine =
+			_state.Rooms[
+				roomIndex
+			].Machines[
+				slot.MachineTier
+			];
+
+
+		int upgradedLevels =
+			0;
+
+
+		int totalResearchPoints =
+			0;
+
+
+		double totalSpent =
+			0.0;
+
+
+		for (
+			int i = 0;
+			i < quote.Levels;
+			i++
+		)
+		{
+			double cost =
+				_economy
+					.GetLevelUpgradeCost(
+						roomIndex,
+						slot,
+						slotIndex
+					);
+
+
+			if (_state.Tokens < cost)
+				break;
+
+
+			_state.Tokens -=
+				cost;
+
+
+			totalSpent +=
+				cost;
+
+
+			slot.MachineLevel++;
+
+
+			upgradedLevels++;
+
+
+			int researchReward =
+				GetResearchPointMilestoneReward(
+					slot.MachineLevel
+				);
+
+
+			if (
+				researchReward > 0
+				&& _state.Lab.Unlocked
+			)
+			{
+				_state.Lab.ResearchPoints +=
+					researchReward;
+
+
+				totalResearchPoints +=
+					researchReward;
+			}
+		}
+
+
+		if (upgradedLevels <= 0)
+		{
+			return new ProgressionResult(
+				false,
+				"Not enough Tokens."
+			);
+		}
 
 
 		_state.Stats.AddMachineSpending(
 			machine.MachineName,
-			cost
+			totalSpent
 		);
 
 
-		slot.MachineLevel++;
-
-
-		// ==================================================
-		// MILESTONE RESEARCH POINTS
-		// ==================================================
-
-		int researchReward =
-			GetResearchPointMilestoneReward(
-				slot.MachineLevel
-			);
-
-
-		if (
-			researchReward > 0
-			&& _state.Lab.Unlocked
-		)
-		{
-			_state.Lab.ResearchPoints +=
-				researchReward;
-		}
-
-
 		string message =
-			GetUpgradeMessage(
-				machine,
-				slot.MachineLevel
-			);
+			upgradedLevels == 1
+				? GetUpgradeMessage(
+					machine,
+					slot.MachineLevel
+				)
+				: machine.MachineName
+					+ " +"
+					+ upgradedLevels
+					+ " levels → Level "
+					+ slot.MachineLevel;
 
 
-		if (
-			researchReward > 0
-			&& _state.Lab.Unlocked
-		)
+		if (totalResearchPoints > 0)
 		{
 			message +=
-				$" +{researchReward} RP!";
+				$" +{totalResearchPoints} RP!";
 		}
 
 
@@ -381,31 +618,15 @@ public sealed class ProgressionService
 	private static int GetResearchPointMilestoneReward(
 		int level)
 	{
-		return level switch
-		{
-			5 =>
-				1,
-
-			10 =>
-				2,
-
-			15 =>
-				3,
-
-			20 =>
-				5,
-
-			25 =>
-				8,
-
-			_ =>
-				0
-		};
+		return GameConfig
+			.GetMilestoneResearchPoints(
+				level
+			);
 	}
 
 
 	// ==================================================
-	// ROOM UNLOCK COST
+	// ROOM UNLOCK
 	// ==================================================
 
 	public double GetRoomUnlockCost(
@@ -431,10 +652,6 @@ public sealed class ProgressionService
 				.GetUnlockCostMultiplier();
 	}
 
-
-	// ==================================================
-	// ROOM UNLOCK
-	// ==================================================
 
 	public ProgressionResult UnlockRoom(
 		int roomIndex)

@@ -9,6 +9,15 @@ public sealed class MachineDetailsOverlay
 		180;
 
 
+	private enum UpgradeAmount
+	{
+		One,
+		Five,
+		Ten,
+		Max
+	}
+
+
 	public event Action<string>? StateChanged;
 
 
@@ -55,6 +64,26 @@ public sealed class MachineDetailsOverlay
 		null!;
 
 
+	private HBoxContainer _upgradeAmountRow =
+		null!;
+
+
+	private Button _upgrade1Button =
+		null!;
+
+
+	private Button _upgrade5Button =
+		null!;
+
+
+	private Button _upgrade10Button =
+		null!;
+
+
+	private Button _upgradeMaxButton =
+		null!;
+
+
 	private Button _upgradeButton =
 		null!;
 
@@ -93,6 +122,10 @@ public sealed class MachineDetailsOverlay
 
 
 	private ulong _blockOpenUntil;
+
+
+	private UpgradeAmount _upgradeAmount =
+		UpgradeAmount.One;
 
 
 	public bool Visible =>
@@ -138,6 +171,7 @@ public sealed class MachineDetailsOverlay
 
 		CreateSellOverlay();
 
+
 		Close();
 	}
 
@@ -150,14 +184,6 @@ public sealed class MachineDetailsOverlay
 		int roomIndex,
 		int slotIndex)
 	{
-		/*
-		 * Important for Android:
-		 *
-		 * After tapping outside the overlay, prevent
-		 * the underlying MachineSlot from reopening
-		 * this window with the same physical tap.
-		 */
-
 		if (
 			Time.GetTicksMsec()
 			< _blockOpenUntil
@@ -173,6 +199,14 @@ public sealed class MachineDetailsOverlay
 
 		_slotIndex =
 			slotIndex;
+
+
+		/*
+		 * Idle-Miner style:
+		 * every newly opened machine starts at 1x.
+		 */
+		_upgradeAmount =
+			UpgradeAmount.One;
 
 
 		Refresh();
@@ -328,6 +362,73 @@ public sealed class MachineDetailsOverlay
 
 
 	// ==================================================
+	// UPGRADE AMOUNT
+	// ==================================================
+
+	private void SetUpgradeAmount(
+		UpgradeAmount amount)
+	{
+		_upgradeAmount =
+			amount;
+
+
+		UpdateUpgradeAmountButtons();
+
+
+		Refresh();
+	}
+
+
+	private void UpdateUpgradeAmountButtons()
+	{
+		_upgrade1Button.Text =
+			_upgradeAmount == UpgradeAmount.One
+				? "✓ 1x"
+				: "1x";
+
+
+		_upgrade5Button.Text =
+			_upgradeAmount == UpgradeAmount.Five
+				? "✓ 5x"
+				: "5x";
+
+
+		_upgrade10Button.Text =
+			_upgradeAmount == UpgradeAmount.Ten
+				? "✓ 10x"
+				: "10x";
+
+
+		_upgradeMaxButton.Text =
+			_upgradeAmount == UpgradeAmount.Max
+				? "✓ MAX"
+				: "MAX";
+	}
+
+
+	private int GetRequestedUpgradeLevels()
+	{
+		return _upgradeAmount switch
+		{
+			UpgradeAmount.One =>
+				1,
+
+			UpgradeAmount.Five =>
+				5,
+
+			UpgradeAmount.Ten =>
+				10,
+
+			UpgradeAmount.Max =>
+				0,
+
+			_ =>
+				1
+		};
+	}
+
+
+	// ==================================================
 	// MACHINE UPGRADE
 	// ==================================================
 
@@ -336,34 +437,49 @@ public sealed class MachineDetailsOverlay
 		MachineData machine,
 		SlotData slot)
 	{
+		UpdateUpgradeAmountButtons();
+
+
 		if (
 			slot.MachineLevel
 			< machine.MaxLevel
 		)
 		{
-			double cost =
-				_economy.GetLevelUpgradeCost(
-					_roomIndex,
-					slot,
-					_slotIndex
-				);
+			_upgradeAmountRow.Show();
 
 
-			double current =
+			int requested =
+				GetRequestedUpgradeLevels();
+
+
+			MachineUpgradeQuote quote =
+				_progression
+					.GetMachineUpgradeQuote(
+						_roomIndex,
+						_slotIndex,
+						requested
+					);
+
+
+			double currentProduction =
 				_economy.GetCycleReward(
 					_roomIndex,
 					slot
 				);
 
 
-			int original =
+			int originalLevel =
 				slot.MachineLevel;
 
 
-			slot.MachineLevel++;
+			if (quote.Levels > 0)
+			{
+				slot.MachineLevel =
+					quote.TargetLevel;
+			}
 
 
-			double next =
+			double targetProduction =
 				_economy.GetCycleReward(
 					_roomIndex,
 					slot
@@ -371,33 +487,74 @@ public sealed class MachineDetailsOverlay
 
 
 			slot.MachineLevel =
-				original;
+				originalLevel;
+
+
+			if (quote.Levels <= 0)
+			{
+				_upgradeInfo.Text =
+					_upgradeAmount
+					== UpgradeAmount.Max
+						? "Not enough Tokens for another level."
+						: "No levels available.";
+
+
+				_upgradeButton.Text =
+					"UPGRADE";
+
+
+				_upgradeButton.Disabled =
+					true;
+
+
+				return;
+			}
 
 
 			_upgradeInfo.Text =
-				"Next level: "
+				"Level "
+				+ originalLevel
+				+ " → "
+				+ quote.TargetLevel
+				+ "\nProduction: "
 				+ NumberFormatter.Format(
-					current
+					currentProduction
 				)
 				+ " → "
 				+ NumberFormatter.Format(
-					next
+					targetProduction
 				);
 
 
+			string amountText =
+				quote.Levels == 1
+					? "1 LEVEL"
+					: quote.Levels
+						+ " LEVELS";
+
+
 			_upgradeButton.Text =
-				"UPGRADE • "
+				"UPGRADE "
+				+ amountText
+				+ " • "
 				+ NumberFormatter.Format(
-					cost
+					quote.Cost
 				);
 
 
 			_upgradeButton.Disabled =
-				false;
+				!quote.CanAfford;
 
 
 			return;
 		}
+
+
+		/*
+		 * Level multiplier selection is only relevant
+		 * while the current machine can still gain levels.
+		 */
+		_upgradeAmountRow.Hide();
 
 
 		if (
@@ -431,7 +588,8 @@ public sealed class MachineDetailsOverlay
 
 
 			_upgradeButton.Disabled =
-				false;
+				_state.Tokens
+				< cost;
 
 
 			return;
@@ -453,10 +611,54 @@ public sealed class MachineDetailsOverlay
 
 	private void OnUpgradePressed()
 	{
-		ProgressionResult result =
-			_progression.HandleSlotAction(
+		SlotData slot =
+			_state.RoomStates[
+				_roomIndex
+			].Slots[
 				_slotIndex
-			);
+			];
+
+
+		RoomData room =
+			_state.Rooms[
+				_roomIndex
+			];
+
+
+		MachineData machine =
+			room.Machines[
+				slot.MachineTier
+			];
+
+
+		ProgressionResult result;
+
+
+		if (
+			slot.MachineLevel
+			< machine.MaxLevel
+		)
+		{
+			result =
+				_progression
+					.UpgradeMachineLevels(
+						_roomIndex,
+						_slotIndex,
+						GetRequestedUpgradeLevels()
+					);
+		}
+		else
+		{
+			/*
+			 * HandleSlotAction performs the normal
+			 * single tier upgrade once MaxLevel is reached.
+			 */
+			result =
+				_progression
+					.HandleSlotAction(
+						_slotIndex
+					);
+		}
 
 
 		StateChanged?.Invoke(
@@ -502,7 +704,8 @@ public sealed class MachineDetailsOverlay
 
 
 		double researchBonus =
-			_state.Lab.GetBotPowerBonus();
+			_state.Lab
+				.GetBotPowerBonus();
 
 
 		_botImage.Texture =
@@ -642,10 +845,6 @@ public sealed class MachineDetailsOverlay
 			);
 
 
-		double baseMultiplier =
-			bot.ProductionMultiplier;
-
-
 		double effectiveMultiplier =
 			_bots.GetEffectiveMultiplier(
 				slot
@@ -653,12 +852,13 @@ public sealed class MachineDetailsOverlay
 
 
 		double researchBonus =
-			_state.Lab.GetBotPowerBonus();
+			_state.Lab
+				.GetBotPowerBonus();
 
 
 		_sellInfo.Text =
 			$"Sell {bot.Name}?\n\n"
-			+ $"Base power: x{baseMultiplier:F2}\n"
+			+ $"Base power: x{bot.ProductionMultiplier:F2}\n"
 			+ "Research bonus: +"
 			+ FormatPercent(
 				researchBonus
@@ -725,7 +925,7 @@ public sealed class MachineDetailsOverlay
 			CreatePanel(
 				new Vector2(
 					580,
-					900
+					940
 				)
 			);
 
@@ -764,13 +964,13 @@ public sealed class MachineDetailsOverlay
 
 		VBoxContainer vbox =
 			new()
-			{
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
+				{
+					SizeFlagsHorizontal =
+						Control.SizeFlags.ExpandFill,
 
-				SizeFlagsVertical =
-					Control.SizeFlags.ExpandFill
-			};
+					SizeFlagsVertical =
+						Control.SizeFlags.ExpandFill
+				};
 
 
 		vbox.AddThemeConstantOverride(
@@ -797,19 +997,19 @@ public sealed class MachineDetailsOverlay
 
 		_machineImage =
 			new TextureRect
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						170
-					),
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							150
+						),
 
-				ExpandMode =
-					TextureRect.ExpandModeEnum.IgnoreSize,
+					ExpandMode =
+						TextureRect.ExpandModeEnum.IgnoreSize,
 
-				StretchMode =
-					TextureRect.StretchModeEnum.KeepAspectCentered
-			};
+					StretchMode =
+						TextureRect.StretchModeEnum.KeepAspectCentered
+				};
 
 
 		vbox.AddChild(
@@ -866,15 +1066,116 @@ public sealed class MachineDetailsOverlay
 		);
 
 
+		// ==================================================
+		// 1x / 5x / 10x / MAX
+		// ==================================================
+
+		_upgradeAmountRow =
+			new HBoxContainer
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							48
+						),
+
+					SizeFlagsHorizontal =
+						Control.SizeFlags.ExpandFill
+				};
+
+
+		_upgradeAmountRow.AddThemeConstantOverride(
+			"separation",
+			6
+		);
+
+
+		_upgrade1Button =
+			CreateUpgradeAmountButton(
+				"1x"
+			);
+
+
+		_upgrade5Button =
+			CreateUpgradeAmountButton(
+				"5x"
+			);
+
+
+		_upgrade10Button =
+			CreateUpgradeAmountButton(
+				"10x"
+			);
+
+
+		_upgradeMaxButton =
+			CreateUpgradeAmountButton(
+				"MAX"
+			);
+
+
+		_upgrade1Button.Pressed +=
+			() =>
+				SetUpgradeAmount(
+					UpgradeAmount.One
+				);
+
+
+		_upgrade5Button.Pressed +=
+			() =>
+				SetUpgradeAmount(
+					UpgradeAmount.Five
+				);
+
+
+		_upgrade10Button.Pressed +=
+			() =>
+				SetUpgradeAmount(
+					UpgradeAmount.Ten
+				);
+
+
+		_upgradeMaxButton.Pressed +=
+			() =>
+				SetUpgradeAmount(
+					UpgradeAmount.Max
+				);
+
+
+		_upgradeAmountRow.AddChild(
+			_upgrade1Button
+		);
+
+
+		_upgradeAmountRow.AddChild(
+			_upgrade5Button
+		);
+
+
+		_upgradeAmountRow.AddChild(
+			_upgrade10Button
+		);
+
+
+		_upgradeAmountRow.AddChild(
+			_upgradeMaxButton
+		);
+
+
+		vbox.AddChild(
+			_upgradeAmountRow
+		);
+
+
 		_upgradeButton =
 			new Button
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						54
-					)
-			};
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							56
+						)
+				};
 
 
 		_upgradeButton.Pressed +=
@@ -890,6 +1191,10 @@ public sealed class MachineDetailsOverlay
 			new HSeparator()
 		);
 
+
+		// ==================================================
+		// BOT
+		// ==================================================
 
 		Label botTitle =
 			CreateLabel(
@@ -908,19 +1213,19 @@ public sealed class MachineDetailsOverlay
 
 		_botImage =
 			new TextureRect
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						90
-					),
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							80
+						),
 
-				ExpandMode =
-					TextureRect.ExpandModeEnum.IgnoreSize,
+					ExpandMode =
+						TextureRect.ExpandModeEnum.IgnoreSize,
 
-				StretchMode =
-					TextureRect.StretchModeEnum.KeepAspectCentered
-			};
+					StretchMode =
+						TextureRect.StretchModeEnum.KeepAspectCentered
+				};
 
 
 		vbox.AddChild(
@@ -952,13 +1257,13 @@ public sealed class MachineDetailsOverlay
 
 		_buyBotButton =
 			new Button
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						52
-					)
-			};
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							52
+						)
+				};
 
 
 		_buyBotButton.Pressed +=
@@ -972,13 +1277,13 @@ public sealed class MachineDetailsOverlay
 
 		_sellBotButton =
 			new Button
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						52
-					)
-			};
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							52
+						)
+				};
 
 
 		_sellBotButton.Pressed +=
@@ -992,16 +1297,16 @@ public sealed class MachineDetailsOverlay
 
 		Button close =
 			new()
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						50
-					),
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							50
+						),
 
-				Text =
-					"CLOSE"
-			};
+					Text =
+						"CLOSE"
+				};
 
 
 		close.Pressed +=
@@ -1011,6 +1316,29 @@ public sealed class MachineDetailsOverlay
 		vbox.AddChild(
 			close
 		);
+
+
+		UpdateUpgradeAmountButtons();
+	}
+
+
+	private static Button CreateUpgradeAmountButton(
+		string text)
+	{
+		return new Button
+		{
+			Text =
+				text,
+
+			CustomMinimumSize =
+				new Vector2(
+					0,
+					46
+				),
+
+			SizeFlagsHorizontal =
+				Control.SizeFlags.ExpandFill
+		};
 	}
 
 
@@ -1171,7 +1499,7 @@ public sealed class MachineDetailsOverlay
 
 
 	// ==================================================
-	// OVERLAY
+	// FULL SCREEN OVERLAY
 	// ==================================================
 
 	private static Control CreateFullScreenOverlay(
@@ -1246,21 +1574,10 @@ public sealed class MachineDetailsOverlay
 					return;
 
 
-				/*
-				 * First consume the RELEASE while the
-				 * overlay is still visible.
-				 */
-
-				overlay.GetViewport()
+				overlay
+					.GetViewport()
 					.SetInputAsHandled();
 
-
-				/*
-				 * Only after the current input event is
-				 * finished may the overlay disappear.
-				 *
-				 * This is crucial for Android.
-				 */
 
 				Callable
 					.From(
@@ -1287,8 +1604,7 @@ public sealed class MachineDetailsOverlay
 		double value)
 	{
 		return (
-			value
-			* 100
+			value * 100
 		).ToString(
 			"0.#"
 		)

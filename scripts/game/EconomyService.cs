@@ -24,6 +24,21 @@ public sealed class EconomyService
 		SlotData slot,
 		int slotIndex)
 	{
+		return GetLevelUpgradeCostAtLevel(
+			roomIndex,
+			slot,
+			slotIndex,
+			slot.MachineLevel
+		);
+	}
+
+
+	public double GetLevelUpgradeCostAtLevel(
+		int roomIndex,
+		SlotData slot,
+		int slotIndex,
+		int currentLevel)
+	{
 		MachineData machine =
 			GetMachine(
 				roomIndex,
@@ -40,7 +55,7 @@ public sealed class EconomyService
 		double levelMultiplier =
 			Math.Pow(
 				GameConfig.LevelCostGrowth,
-				slot.MachineLevel - 1
+				currentLevel - 1
 			);
 
 
@@ -50,9 +65,144 @@ public sealed class EconomyService
 
 
 		return machine.BaseUpgradeCost
-			   * slotMultiplier
-			   * levelMultiplier
-			   * researchMultiplier;
+			* slotMultiplier
+			* levelMultiplier
+			* researchMultiplier;
+	}
+
+
+	// ==================================================
+	// MULTI LEVEL UPGRADE COST
+	// ==================================================
+
+	public double GetLevelUpgradeCostForLevels(
+		int roomIndex,
+		SlotData slot,
+		int slotIndex,
+		int levelCount)
+	{
+		if (levelCount <= 0)
+			return 0.0;
+
+
+		MachineData machine =
+			GetMachine(
+				roomIndex,
+				slot
+			);
+
+
+		int remaining =
+			Math.Max(
+				0,
+				machine.MaxLevel
+				- slot.MachineLevel
+			);
+
+
+		int actualLevels =
+			Math.Min(
+				levelCount,
+				remaining
+			);
+
+
+		double total =
+			0.0;
+
+
+		for (
+			int i = 0;
+			i < actualLevels;
+			i++
+		)
+		{
+			int level =
+				slot.MachineLevel
+				+ i;
+
+
+			total +=
+				GetLevelUpgradeCostAtLevel(
+					roomIndex,
+					slot,
+					slotIndex,
+					level
+				);
+		}
+
+
+		return total;
+	}
+
+
+	public int GetMaximumAffordableLevels(
+		int roomIndex,
+		SlotData slot,
+		int slotIndex,
+		double availableTokens)
+	{
+		MachineData machine =
+			GetMachine(
+				roomIndex,
+				slot
+			);
+
+
+		int remaining =
+			Math.Max(
+				0,
+				machine.MaxLevel
+				- slot.MachineLevel
+			);
+
+
+		int levels =
+			0;
+
+
+		double total =
+			0.0;
+
+
+		for (
+			int i = 0;
+			i < remaining;
+			i++
+		)
+		{
+			int level =
+				slot.MachineLevel
+				+ i;
+
+
+			double nextCost =
+				GetLevelUpgradeCostAtLevel(
+					roomIndex,
+					slot,
+					slotIndex,
+					level
+				);
+
+
+			if (
+				total + nextCost
+				> availableTokens
+			)
+			{
+				break;
+			}
+
+
+			total +=
+				nextCost;
+
+
+			levels++;
+		}
+
+
+		return levels;
 	}
 
 
@@ -78,10 +228,10 @@ public sealed class EconomyService
 
 
 		return machine.TierUpgradeCost
-			   * GameConfig.SlotUpgradeMultipliers[
-				   slotIndex
-			   ]
-			   * researchMultiplier;
+			* GameConfig.SlotUpgradeMultipliers[
+				slotIndex
+			]
+			* researchMultiplier;
 	}
 
 
@@ -102,10 +252,10 @@ public sealed class EconomyService
 
 
 		return machine.BaseUpgradeCost
-			   * GameConfig.BotBaseCostMultiplier
-			   * GameConfig.SlotUpgradeMultipliers[
-				   slotIndex
-			   ];
+			* GameConfig.BotBaseCostMultiplier
+			* GameConfig.SlotUpgradeMultipliers[
+				slotIndex
+			];
 	}
 
 
@@ -213,12 +363,12 @@ public sealed class EconomyService
 
 
 		return machine.BaseIncome
-			   * baseCycleDuration
-			   * levelMultiplier
-			   * milestoneMultiplier
-			   * botMultiplier
-			   * prestigeMultiplier
-			   * researchProductionMultiplier;
+			* baseCycleDuration
+			* levelMultiplier
+			* milestoneMultiplier
+			* botMultiplier
+			* prestigeMultiplier
+			* researchProductionMultiplier;
 	}
 
 
@@ -237,10 +387,10 @@ public sealed class EconomyService
 
 
 		return GetCycleReward(
-				   roomIndex,
-				   slot
-			   )
-			   / duration;
+			roomIndex,
+			slot
+		)
+		/ duration;
 	}
 
 
@@ -326,17 +476,22 @@ public sealed class EconomyService
 		if (level >= 25)
 			return 8.0;
 
+
 		if (level >= 20)
 			return 5.0;
+
 
 		if (level >= 15)
 			return 3.0;
 
+
 		if (level >= 10)
 			return 2.0;
 
+
 		if (level >= 5)
 			return 1.5;
+
 
 		return 1.0;
 	}
@@ -348,17 +503,22 @@ public sealed class EconomyService
 		if (level >= 25)
 			return "x8 production";
 
+
 		if (level >= 20)
 			return "Level 25: x8";
+
 
 		if (level >= 15)
 			return "Level 20: x5";
 
+
 		if (level >= 10)
 			return "Level 15: x3";
 
+
 		if (level >= 5)
 			return "Level 10: x2";
+
 
 		return "Level 5: x1.5";
 	}

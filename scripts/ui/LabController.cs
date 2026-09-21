@@ -1581,88 +1581,118 @@ public sealed class LabController
 	// ==================================================
 
 	private void CreateBranchTree(
-		ResearchBranch branch)
-	{
-		VBoxContainer tree =
-			new()
-			{
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
-			};
+	ResearchBranch branch)
+{
+	VBoxContainer tree =
+		new()
+		{
+			SizeFlagsHorizontal =
+				Control.SizeFlags.ExpandFill
+		};
 
 
-		tree.AddThemeConstantOverride(
-			"separation",
-			0
-		);
+	tree.AddThemeConstantOverride(
+		"separation",
+		0
+	);
 
 
-		_treeHost.AddChild(
-			tree
-		);
+	_treeHost.AddChild(
+		tree
+	);
 
 
-		_branchTrees[
+	_branchTrees[
+		branch
+	] =
+		tree;
+
+
+	// ==================================================
+	// BRANCH HEADER
+	// ==================================================
+
+	tree.AddChild(
+		CreateBranchHeaderPanel(
 			branch
-		] =
-			tree;
+		)
+	);
 
 
-		tree.AddChild(
-			CreateBranchHeaderPanel(
-				branch
-			)
-		);
+	// ==================================================
+	// EXTRA SPACE AFTER HEADER
+	// ==================================================
+
+	Control headerSpacer =
+		new()
+		{
+			CustomMinimumSize =
+				new Vector2(
+					0,
+					18
+				),
+
+			MouseFilter =
+				Control.MouseFilterEnum.Ignore
+		};
 
 
-		List<ResearchDefinition> branchResearch =
-			[];
+	tree.AddChild(
+		headerSpacer
+	);
 
 
-		foreach (
-			ResearchDefinition research
-			in ResearchCatalog.All
+	// ==================================================
+	// RESEARCH NODES
+	// ==================================================
+
+	List<ResearchDefinition> branchResearch =
+		[];
+
+
+	foreach (
+		ResearchDefinition research
+		in ResearchCatalog.All
+	)
+	{
+		if (
+			research.Branch
+			== branch
 		)
 		{
-			if (
-				research.Branch
-				== branch
-			)
-			{
-				branchResearch.Add(
-					research
-				);
-			}
-		}
-
-
-		for (
-			int i = 0;
-			i < branchResearch.Count;
-			i++
-		)
-		{
-			tree.AddChild(
-				CreateResearchNode(
-					branchResearch[
-						i
-					]
-				)
+			branchResearch.Add(
+				research
 			);
-
-
-			if (
-				i
-				< branchResearch.Count - 1
-			)
-			{
-				tree.AddChild(
-					CreateConnector()
-				);
-			}
 		}
 	}
 
+
+	for (
+		int i = 0;
+		i < branchResearch.Count;
+		i++
+	)
+	{
+		tree.AddChild(
+			CreateResearchNode(
+				branchResearch[
+					i
+				]
+			)
+		);
+
+
+		if (
+			i
+			< branchResearch.Count - 1
+		)
+		{
+			tree.AddChild(
+				CreateConnector()
+			);
+		}
+	}
+}
 
 	private Control CreateBranchHeaderPanel(
 		ResearchBranch branch)

@@ -13,7 +13,8 @@ config_version=5
 config/name="IdleAi"
 run/main_scene="uid://dd8bf7ypr6n3f"
 config/features=PackedStringArray("4.7", "C#", "Mobile")
-config/icon="res://icon.svg"
+boot_splash/image="uid://dbtlmle3xqbnk"
+config/icon="uid://44mag1j18nrj"
 
 [display]
 

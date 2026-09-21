@@ -171,13 +171,12 @@ public sealed class MachineDetailsOverlay
 
 		CreateSellOverlay();
 
-
 		Close();
 	}
 
 
 	// ==================================================
-	// OPEN
+	// OPEN / CLOSE
 	// ==================================================
 
 	public void Open(
@@ -941,27 +940,13 @@ public sealed class MachineDetailsOverlay
 		);
 
 
-		/*
-		 * X icon sits directly in the upper-right
-		 * corner of the machine panel.
-		 */
-		OverlayCloseButton.Add(
-			_panel,
-			Close
-		);
-
-
 		MarginContainer margin =
 			CreateMargin();
 
 
-		/*
-		 * Slightly more space at the top so the title
-		 * never overlaps with the X.
-		 */
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			32
+			36
 		);
 
 
@@ -1296,6 +1281,22 @@ public sealed class MachineDetailsOverlay
 
 
 		UpdateUpgradeAmountButtons();
+
+
+		/*
+		 * IMPORTANT:
+		 *
+		 * Add the X LAST.
+		 *
+		 * The previous version added it before the
+		 * MarginContainer. Because PanelContainer is
+		 * a Container, the later MarginContainer could
+		 * sit above the X and intercept touch input.
+		 */
+		OverlayCloseButton.Add(
+			_panel,
+			Close
+		);
 	}
 
 
@@ -1369,23 +1370,13 @@ public sealed class MachineDetailsOverlay
 		);
 
 
-		/*
-		 * Sell confirmation also gets an X.
-		 */
-		OverlayCloseButton.Add(
-			panel,
-			() =>
-				_sellOverlay.Hide()
-		);
-
-
 		MarginContainer margin =
 			CreateMargin();
 
 
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			34
+			36
 		);
 
 
@@ -1460,6 +1451,17 @@ public sealed class MachineDetailsOverlay
 
 		box.AddChild(
 			confirm
+		);
+
+
+		/*
+		 * Same fix:
+		 * X gets added AFTER all panel content.
+		 */
+		OverlayCloseButton.Add(
+			panel,
+			() =>
+				_sellOverlay.Hide()
 		);
 
 

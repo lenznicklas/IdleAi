@@ -8,21 +8,20 @@ public sealed class MachineDetailsOverlay
 	private const ulong OutsideCloseReopenBlockMs =
 		180;
 
-
 	private const float OpenStartScale =
-		0.88f;
-
+		0.94f;
 
 	private const float OpenOvershootScale =
-		1.035f;
-
+		1.015f;
 
 	private const double OpenGrowDuration =
-		0.16;
-
+		0.22;
 
 	private const double OpenSettleDuration =
-		0.10;
+		0.14;
+
+	private const float OpenStartAlpha =
+		0.82f;
 
 
 	private enum UpgradeAmount
@@ -38,95 +37,71 @@ public sealed class MachineDetailsOverlay
 
 
 	private readonly Game _root;
-
 	private readonly GameState _state;
-
 	private readonly EconomyService _economy;
-
 	private readonly ProgressionService _progression;
-
 	private readonly BotService _bots;
 
 
 	private Control _overlay =
 		null!;
 
-
 	private PanelContainer _panel =
 		null!;
-
 
 	private Label _title =
 		null!;
 
-
 	private TextureRect _machineImage =
 		null!;
-
 
 	private Label _level =
 		null!;
 
-
 	private Label _production =
 		null!;
-
 
 	private Label _cycle =
 		null!;
 
-
 	private Label _upgradeInfo =
 		null!;
-
 
 	private HBoxContainer _upgradeAmountRow =
 		null!;
 
-
 	private Button _upgrade1Button =
 		null!;
-
 
 	private Button _upgrade5Button =
 		null!;
 
-
 	private Button _upgrade10Button =
 		null!;
-
 
 	private Button _upgradeMaxButton =
 		null!;
 
-
 	private Button _upgradeButton =
 		null!;
-
 
 	private TextureRect _botImage =
 		null!;
 
-
 	private Label _botName =
 		null!;
-
 
 	private Label _botMultiplier =
 		null!;
 
-
 	private Button _buyBotButton =
 		null!;
-
 
 	private Button _sellBotButton =
 		null!;
 
-
 	private Control _sellOverlay =
 		null!;
-
 
 	private Label _sellInfo =
 		null!;
@@ -162,18 +137,14 @@ public sealed class MachineDetailsOverlay
 		_root =
 			root;
 
-
 		_state =
 			state;
-
 
 		_economy =
 			economy;
 
-
 		_progression =
 			progression;
-
 
 		_bots =
 			bots;
@@ -214,10 +185,8 @@ public sealed class MachineDetailsOverlay
 		_roomIndex =
 			roomIndex;
 
-
 		_slotIndex =
 			slotIndex;
-
 
 		_upgradeAmount =
 			UpgradeAmount.One;
@@ -239,11 +208,17 @@ public sealed class MachineDetailsOverlay
 	{
 		_openTween?.Kill();
 
+		_openTween =
+			null;
+
 
 		if (_panel != null)
 		{
 			_panel.Scale =
 				Vector2.One;
+
+			_panel.Modulate =
+				Colors.White;
 		}
 
 
@@ -274,8 +249,7 @@ public sealed class MachineDetailsOverlay
 
 
 		/*
-		 * Scale around the exact visual center
-		 * of the machine panel.
+		 * Scale from the center of the panel.
 		 */
 		_panel.PivotOffset =
 			_panel.Size
@@ -289,13 +263,27 @@ public sealed class MachineDetailsOverlay
 			);
 
 
+		_panel.Modulate =
+			new Color(
+				1.0f,
+				1.0f,
+				1.0f,
+				OpenStartAlpha
+			);
+
+
 		_openTween =
 			_root.CreateTween();
 
 
 		/*
-		 * First expand slightly beyond normal size.
+		 * Scale + fade happen together.
 		 */
+		_openTween.SetParallel(
+			true
+		);
+
+
 		_openTween.TweenProperty(
 			_panel,
 			"scale",
@@ -306,21 +294,18 @@ public sealed class MachineDetailsOverlay
 			OpenGrowDuration
 		)
 		.SetTrans(
-			Tween.TransitionType.Back
+			Tween.TransitionType.Cubic
 		)
 		.SetEase(
 			Tween.EaseType.Out
 		);
 
 
-		/*
-		 * Then settle cleanly at normal size.
-		 */
 		_openTween.TweenProperty(
 			_panel,
-			"scale",
-			Vector2.One,
-			OpenSettleDuration
+			"modulate:a",
+			1.0f,
+			OpenGrowDuration
 		)
 		.SetTrans(
 			Tween.TransitionType.Sine
@@ -328,6 +313,26 @@ public sealed class MachineDetailsOverlay
 		.SetEase(
 			Tween.EaseType.Out
 		);
+
+
+		/*
+		 * Softly settle from the tiny overshoot
+		 * back to exactly 1.0.
+		 */
+		_openTween
+			.Chain()
+			.TweenProperty(
+				_panel,
+				"scale",
+				Vector2.One,
+				OpenSettleDuration
+			)
+			.SetTrans(
+				Tween.TransitionType.Sine
+			)
+			.SetEase(
+				Tween.EaseType.Out
+			);
 	}
 
 
@@ -1089,19 +1094,19 @@ public sealed class MachineDetailsOverlay
 
 		_machineImage =
 			new TextureRect
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							150
-						),
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						150
+					),
 
-					ExpandMode =
-						TextureRect.ExpandModeEnum.IgnoreSize,
+				ExpandMode =
+					TextureRect.ExpandModeEnum.IgnoreSize,
 
-					StretchMode =
-						TextureRect.StretchModeEnum.KeepAspectCentered
-				};
+				StretchMode =
+					TextureRect.StretchModeEnum.KeepAspectCentered
+			};
 
 
 		vbox.AddChild(
@@ -1160,16 +1165,16 @@ public sealed class MachineDetailsOverlay
 
 		_upgradeAmountRow =
 			new HBoxContainer
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							48
-						),
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						48
+					),
 
-					SizeFlagsHorizontal =
-						Control.SizeFlags.ExpandFill
-				};
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
 
 
 		_upgradeAmountRow.AddThemeConstantOverride(
@@ -1257,13 +1262,13 @@ public sealed class MachineDetailsOverlay
 
 		_upgradeButton =
 			new Button
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							56
-						)
-				};
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						56
+					)
+			};
 
 
 		_upgradeButton.Pressed +=
@@ -1297,19 +1302,19 @@ public sealed class MachineDetailsOverlay
 
 		_botImage =
 			new TextureRect
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							80
-						),
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						80
+					),
 
-					ExpandMode =
-						TextureRect.ExpandModeEnum.IgnoreSize,
+				ExpandMode =
+					TextureRect.ExpandModeEnum.IgnoreSize,
 
-					StretchMode =
-						TextureRect.StretchModeEnum.KeepAspectCentered
-				};
+				StretchMode =
+					TextureRect.StretchModeEnum.KeepAspectCentered
+			};
 
 
 		vbox.AddChild(
@@ -1341,13 +1346,13 @@ public sealed class MachineDetailsOverlay
 
 		_buyBotButton =
 			new Button
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							52
-						)
-				};
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						52
+					)
+			};
 
 
 		_buyBotButton.Pressed +=
@@ -1361,13 +1366,13 @@ public sealed class MachineDetailsOverlay
 
 		_sellBotButton =
 			new Button
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							52
-						)
-				};
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						52
+					)
+			};
 
 
 		_sellBotButton.Pressed +=
@@ -1382,6 +1387,9 @@ public sealed class MachineDetailsOverlay
 		UpdateUpgradeAmountButtons();
 
 
+		/*
+		 * X button LAST so it stays clickable.
+		 */
 		OverlayCloseButton.Add(
 			_panel,
 			Close
@@ -1522,16 +1530,16 @@ public sealed class MachineDetailsOverlay
 
 		Button confirm =
 			new()
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							58
-						),
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						58
+					),
 
-					Text =
-						"SELL"
-				};
+				Text =
+					"SELL"
+			};
 
 
 		confirm.Pressed +=
@@ -1563,10 +1571,10 @@ public sealed class MachineDetailsOverlay
 	{
 		Control overlay =
 			new()
-				{
-					MouseFilter =
-						Control.MouseFilterEnum.Stop
-				};
+			{
+				MouseFilter =
+					Control.MouseFilterEnum.Stop
+			};
 
 
 		overlay.SetAnchorsAndOffsetsPreset(
@@ -1576,18 +1584,18 @@ public sealed class MachineDetailsOverlay
 
 		ColorRect dim =
 			new()
-				{
-					Color =
-						new Color(
-							0,
-							0,
-							0,
-							0.76f
-						),
+			{
+				Color =
+					new Color(
+						0,
+						0,
+						0,
+						0.76f
+					),
 
-					MouseFilter =
-						Control.MouseFilterEnum.Stop
-				};
+				MouseFilter =
+					Control.MouseFilterEnum.Stop
+			};
 
 
 		dim.SetAnchorsAndOffsetsPreset(
@@ -1662,7 +1670,8 @@ public sealed class MachineDetailsOverlay
 		return (
 			value
 			* 100
-		).ToString(
+		)
+		.ToString(
 			"0.#"
 		)
 		+ "%";
@@ -1674,13 +1683,13 @@ public sealed class MachineDetailsOverlay
 	{
 		PanelContainer panel =
 			new()
-				{
-					CustomMinimumSize =
-						size,
+			{
+				CustomMinimumSize =
+					size,
 
-					MouseFilter =
-						Control.MouseFilterEnum.Stop
-				};
+				MouseFilter =
+					Control.MouseFilterEnum.Stop
+			};
 
 
 		panel.AddThemeStyleboxOverride(
@@ -1732,13 +1741,13 @@ public sealed class MachineDetailsOverlay
 	{
 		Label label =
 			new()
-				{
-					HorizontalAlignment =
-						HorizontalAlignment.Center,
+			{
+				HorizontalAlignment =
+					HorizontalAlignment.Center,
 
-					AutowrapMode =
-						TextServer.AutowrapMode.WordSmart
-				};
+				AutowrapMode =
+					TextServer.AutowrapMode.WordSmart
+			};
 
 
 		label.AddThemeFontSizeOverride(

@@ -7,51 +7,36 @@ namespace IdleAi;
 public sealed class StatsOverlayController
 {
 	private const float OpenStartScale =
-		0.16f;
-
+		0.94f;
 
 	private const float OpenOvershootScale =
-		1.025f;
+		1.015f;
 
-
-	private const double OpenMoveDuration =
-		0.24;
-
+	private const double OpenGrowDuration =
+		0.22;
 
 	private const double OpenSettleDuration =
-		0.09;
-
+		0.14;
 
 	private const float OpenStartAlpha =
-		0.55f;
+		0.82f;
 
 
 	private readonly Game _root;
-
 	private readonly GameState _state;
-
 	private readonly EconomyService _economy;
-
 	private readonly ProgressionService _progression;
-
 	private readonly PrestigeService _prestige;
 
 
 	private Control _overlay =
 		null!;
 
-
 	private PanelContainer _panel =
 		null!;
 
-
-	private TextureButton _statsCard =
-		null!;
-
-
 	private ScrollContainer _scroll =
 		null!;
-
 
 	private MobileScrollController _mobileScroll =
 		null!;
@@ -60,38 +45,29 @@ public sealed class StatsOverlayController
 	private Label _income =
 		null!;
 
-
 	private Label _earned =
 		null!;
-
 
 	private Label _spent =
 		null!;
 
-
 	private Label _slots =
 		null!;
-
 
 	private Label _level =
 		null!;
 
-
 	private Label _unlockSpend =
 		null!;
-
 
 	private Label _machineSpend =
 		null!;
 
-
 	private Label _aiCores =
 		null!;
 
-
 	private Label _prestigeBoost =
 		null!;
-
 
 	private Label _prestigeProgress =
 		null!;
@@ -100,17 +76,11 @@ public sealed class StatsOverlayController
 	private Button _prestigeButton =
 		null!;
 
-
 	private Button _oldCloseButton =
 		null!;
 
 
 	private Tween? _openTween;
-
-
-	private Vector2 _panelNormalGlobalPosition;
-
-	private bool _panelPositionInitialized;
 
 
 	public event Action? PrestigeRequested;
@@ -130,18 +100,14 @@ public sealed class StatsOverlayController
 		_root =
 			root;
 
-
 		_state =
 			state;
-
 
 		_economy =
 			economy;
 
-
 		_progression =
 			progression;
-
 
 		_prestige =
 			prestige;
@@ -163,12 +129,6 @@ public sealed class StatsOverlayController
 		_panel =
 			_root.GetNode<PanelContainer>(
 				"StatsOverlay/StatsPanel"
-			);
-
-
-		_statsCard =
-			_root.GetNode<TextureButton>(
-				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/StatsCard"
 			);
 
 
@@ -386,6 +346,9 @@ public sealed class StatsOverlayController
 	{
 		_openTween?.Kill();
 
+		_openTween =
+			null;
+
 
 		_mobileScroll?.ResetMotion();
 
@@ -401,78 +364,14 @@ public sealed class StatsOverlayController
 	// OPEN ANIMATION
 	// ==================================================
 
-	private async void PlayOpenAnimation()
+	private void PlayOpenAnimation()
 	{
 		_openTween?.Kill();
 
 
-		/*
-		 * Wait one frame so Godot has finished laying
-		 * out StatsPanel after the overlay becomes visible.
-		 */
-		await _root.ToSignal(
-			_root.GetTree(),
-			SceneTree.SignalName.ProcessFrame
-		);
-
-
-		if (!_overlay.Visible)
-			return;
-
-
-		if (!_panelPositionInitialized)
-		{
-			_panelNormalGlobalPosition =
-				_panel.GlobalPosition;
-
-
-			_panelPositionInitialized =
-				true;
-		}
-		else
-		{
-			/*
-			 * Always restore the known final position
-			 * before calculating the animation.
-			 */
-			_panel.GlobalPosition =
-				_panelNormalGlobalPosition;
-		}
-
-
-		Vector2 targetPosition =
-			_panelNormalGlobalPosition;
-
-
-		Vector2 statsCenter =
-			_statsCard.GlobalPosition
-			+ _statsCard.Size
-			/ 2.0f;
-
-
-		/*
-		 * Pivot in the middle of the panel so scaling
-		 * looks natural.
-		 */
 		_panel.PivotOffset =
 			_panel.Size
 			/ 2.0f;
-
-
-		/*
-		 * Place the tiny panel directly over the Stats
-		 * button. Because the panel is heavily scaled
-		 * down, this visually looks like it originates
-		 * from the button itself.
-		 */
-		Vector2 startPosition =
-			statsCenter
-			- _panel.Size
-			/ 2.0f;
-
-
-		_panel.GlobalPosition =
-			startPosition;
 
 
 		_panel.Scale =
@@ -495,20 +394,22 @@ public sealed class StatsOverlayController
 			_root.CreateTween();
 
 
+		/*
+		 * Scale and fade at the same time.
+		 */
 		_openTween.SetParallel(
 			true
 		);
 
 
-		/*
-		 * Flow from Stats button toward the normal
-		 * Stats panel position.
-		 */
 		_openTween.TweenProperty(
 			_panel,
-			"global_position",
-			targetPosition,
-			OpenMoveDuration
+			"scale",
+			new Vector2(
+				OpenOvershootScale,
+				OpenOvershootScale
+			),
+			OpenGrowDuration
 		)
 		.SetTrans(
 			Tween.TransitionType.Cubic
@@ -520,26 +421,9 @@ public sealed class StatsOverlayController
 
 		_openTween.TweenProperty(
 			_panel,
-			"scale",
-			new Vector2(
-				OpenOvershootScale,
-				OpenOvershootScale
-			),
-			OpenMoveDuration
-		)
-		.SetTrans(
-			Tween.TransitionType.Back
-		)
-		.SetEase(
-			Tween.EaseType.Out
-		);
-
-
-		_openTween.TweenProperty(
-			_panel,
 			"modulate:a",
 			1.0f,
-			OpenMoveDuration * 0.75
+			OpenGrowDuration
 		)
 		.SetTrans(
 			Tween.TransitionType.Sine
@@ -549,6 +433,9 @@ public sealed class StatsOverlayController
 		);
 
 
+		/*
+		 * Tiny settle back to normal size.
+		 */
 		_openTween
 			.Chain()
 			.TweenProperty(
@@ -576,13 +463,6 @@ public sealed class StatsOverlayController
 		)
 		{
 			return;
-		}
-
-
-		if (_panelPositionInitialized)
-		{
-			_panel.GlobalPosition =
-				_panelNormalGlobalPosition;
 		}
 
 

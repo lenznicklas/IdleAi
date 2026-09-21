@@ -6,9 +6,27 @@ public sealed class LabData
 {
 	public bool Unlocked { get; set; }
 
-
 	public double ResearchPoints { get; set; }
 
+
+	// ==================================================
+	// ACTIVE RESEARCH
+	// ==================================================
+
+	public string? ActiveResearchId { get; set; }
+
+	public long ActiveResearchEndUnix { get; set; }
+
+
+	public bool HasActiveResearch =>
+		!string.IsNullOrWhiteSpace(
+			ActiveResearchId
+		);
+
+
+	// ==================================================
+	// COMPLETED RESEARCH
+	// ==================================================
 
 	private readonly HashSet<string> _completedResearch =
 		[];
@@ -17,10 +35,6 @@ public sealed class LabData
 	public IReadOnlyCollection<string> CompletedResearch =>
 		_completedResearch;
 
-
-	// ==================================================
-	// STATE
-	// ==================================================
 
 	public bool IsResearchCompleted(
 		string researchId)
@@ -69,6 +83,16 @@ public sealed class LabData
 				researchId
 			);
 		}
+	}
+
+
+	public void ClearActiveResearch()
+	{
+		ActiveResearchId =
+			null;
+
+		ActiveResearchEndUnix =
+			0;
 	}
 
 

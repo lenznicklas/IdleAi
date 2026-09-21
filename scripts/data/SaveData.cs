@@ -43,6 +43,12 @@ public sealed class SaveGameData
 		[];
 
 
+	public string? ActiveResearchId { get; set; }
+
+
+	public long ActiveResearchEndUnix { get; set; }
+
+
 	// ==================================================
 	// ROOMS
 	// ==================================================

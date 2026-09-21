@@ -145,6 +145,91 @@ public sealed class LabService
 
 
 	// ==================================================
+	// ACTIVE RESEARCH
+	// ==================================================
+
+	public bool HasActiveResearch()
+	{
+		return _state.Lab
+			.HasActiveResearch;
+	}
+
+
+	public ResearchDefinition? GetActiveResearch()
+	{
+		if (
+			!_state.Lab
+				.HasActiveResearch
+		)
+		{
+			return null;
+		}
+
+
+		return ResearchCatalog.Get(
+			_state.Lab.ActiveResearchId!
+		);
+	}
+
+
+	public double GetRemainingResearchSeconds()
+	{
+		if (
+			!_state.Lab
+				.HasActiveResearch
+		)
+		{
+			return 0.0;
+		}
+
+
+		long now =
+			GetCurrentUnixTime();
+
+
+		return Math.Max(
+			0.0,
+			_state.Lab.ActiveResearchEndUnix
+			- now
+		);
+	}
+
+
+	public double GetActiveResearchProgress()
+	{
+		ResearchDefinition? research =
+			GetActiveResearch();
+
+
+		if (research == null)
+			return 0.0;
+
+
+		double duration =
+			ResearchCatalog
+				.GetDurationSeconds(
+					research
+				);
+
+
+		if (duration <= 0.0)
+			return 1.0;
+
+
+		double remaining =
+			GetRemainingResearchSeconds();
+
+
+		return Math.Clamp(
+			1.0
+			- remaining / duration,
+			0.0,
+			1.0
+		);
+	}
+
+
+	// ==================================================
 	// AVAILABILITY
 	// ==================================================
 
@@ -153,6 +238,15 @@ public sealed class LabService
 	{
 		if (!_state.Lab.Unlocked)
 			return false;
+
+
+		if (
+			_state.Lab
+				.HasActiveResearch
+		)
+		{
+			return false;
+		}
 
 
 		if (
@@ -181,7 +275,7 @@ public sealed class LabService
 
 
 	// ==================================================
-	// RESEARCH
+	// START RESEARCH
 	// ==================================================
 
 	public LabResult Research(
@@ -192,6 +286,27 @@ public sealed class LabService
 			return new LabResult(
 				false,
 				"Unlock the Laboratory first."
+			);
+		}
+
+
+		if (
+			_state.Lab
+				.HasActiveResearch
+		)
+		{
+			ResearchDefinition? active =
+				GetActiveResearch();
+
+
+			string activeName =
+				active?.Name
+				?? "another research";
+
+
+			return new LabResult(
+				false,
+				$"{activeName} is already being researched."
 			);
 		}
 
@@ -250,8 +365,90 @@ public sealed class LabService
 		}
 
 
+		double duration =
+			ResearchCatalog
+				.GetDurationSeconds(
+					research
+				);
+
+
 		_state.Lab.ResearchPoints -=
 			research.Cost;
+
+
+		_state.Lab.ActiveResearchId =
+			research.Id;
+
+
+		_state.Lab.ActiveResearchEndUnix =
+			GetCurrentUnixTime()
+			+ (long)Math.Ceiling(
+				duration
+			);
+
+
+		return new LabResult(
+			true,
+			$"{research.Name} started!"
+		);
+	}
+
+
+	// ==================================================
+	// UPDATE
+	// ==================================================
+
+	public LabResult Update()
+	{
+		if (
+			!_state.Lab
+				.HasActiveResearch
+		)
+		{
+			return new LabResult(
+				false,
+				""
+			);
+		}
+
+
+		if (
+			GetRemainingResearchSeconds()
+			> 0.0
+		)
+		{
+			return new LabResult(
+				false,
+				""
+			);
+		}
+
+
+		return CompleteActiveResearch();
+	}
+
+
+	// ==================================================
+	// COMPLETE
+	// ==================================================
+
+	private LabResult CompleteActiveResearch()
+	{
+		ResearchDefinition? research =
+			GetActiveResearch();
+
+
+		if (research == null)
+		{
+			_state.Lab
+				.ClearActiveResearch();
+
+
+			return new LabResult(
+				true,
+				"Invalid research was cleared."
+			);
+		}
 
 
 		_state.Lab.CompleteResearch(
@@ -259,12 +456,13 @@ public sealed class LabService
 		);
 
 
+		_state.Lab.ClearActiveResearch();
+
+
 		/*
-		 * If the newly completed research changed
-		 * cycle speed, currently running machines
-		 * should react immediately.
-		 *
-		 * It is safe to call this for every research.
+		 * Important for Overclocking / Cooling.
+		 * Existing machine cycles are immediately
+		 * adjusted when the research completes.
 		 */
 
 		RefreshCycleDurations();
@@ -347,8 +545,16 @@ public sealed class LabService
 
 
 	// ==================================================
-	// EFFECTS
+	// HELPERS
 	// ==================================================
+
+	private static long GetCurrentUnixTime()
+	{
+		return DateTimeOffset
+			.UtcNow
+			.ToUnixTimeSeconds();
+	}
+
 
 	public double GetProductionMultiplier()
 	{

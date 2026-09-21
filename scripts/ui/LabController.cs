@@ -89,7 +89,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// UI
+	// PAGE
 	// ==================================================
 
 	private TextureButton _labButton =
@@ -112,6 +112,10 @@ public sealed class LabController
 		null!;
 
 
+	// ==================================================
+	// RESEARCH POINT UI
+	// ==================================================
+
 	private HBoxContainer _researchPointBar =
 		null!;
 
@@ -129,6 +133,26 @@ public sealed class LabController
 
 
 	private Button _unlockButton =
+		null!;
+
+
+	// ==================================================
+	// ACTIVE RESEARCH UI
+	// ==================================================
+
+	private PanelContainer _activeResearchPanel =
+		null!;
+
+
+	private Label _activeResearchNameLabel =
+		null!;
+
+
+	private Label _activeResearchTimeLabel =
+		null!;
+
+
+	private ProgressBar _activeResearchProgress =
 		null!;
 
 
@@ -169,11 +193,6 @@ public sealed class LabController
 			[];
 
 
-	public bool Visible =>
-		_page != null
-		&& _page.Visible;
-
-
 	private sealed class ResearchView
 	{
 		public TextureRect StatusIcon { get; init; } =
@@ -187,6 +206,11 @@ public sealed class LabController
 		public Button Button { get; init; } =
 			null!;
 	}
+
+
+	public bool Visible =>
+		_page != null
+		&& _page.Visible;
 
 
 	// ==================================================
@@ -314,7 +338,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// PAGE
+	// LAB PAGE
 	// ==================================================
 
 	private void CreateLabPage()
@@ -378,7 +402,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// CONTENT
+	// MAIN CONTENT
 	// ==================================================
 
 	private void CreateContent()
@@ -498,6 +522,10 @@ public sealed class LabController
 		);
 
 
+		// ==================================================
+		// SCROLL AREA
+		// ==================================================
+
 		_unlockedScroll =
 			new ScrollContainer
 			{
@@ -510,8 +538,12 @@ public sealed class LabController
 				HorizontalScrollMode =
 					ScrollContainer.ScrollMode.Disabled,
 
+				/*
+				 * No visible scrollbar.
+				 * Mouse wheel and touch scrolling remain.
+				 */
 				VerticalScrollMode =
-					ScrollContainer.ScrollMode.Auto
+					ScrollContainer.ScrollMode.ShowNever
 			};
 
 
@@ -531,7 +563,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// RESEARCH POINTS
+	// RESEARCH POINT BAR
 	// ==================================================
 
 	private HBoxContainer CreateResearchPointBar()
@@ -810,6 +842,28 @@ public sealed class LabController
 		);
 
 
+		// ==================================================
+		// CURRENT RESEARCH
+		// ==================================================
+
+		_activeResearchPanel =
+			CreateActiveResearchPanel();
+
+
+		content.AddChild(
+			_activeResearchPanel
+		);
+
+
+		content.AddChild(
+			new HSeparator()
+		);
+
+
+		// ==================================================
+		// BONUSES
+		// ==================================================
+
 		content.AddChild(
 			CreateBonusPanel()
 		);
@@ -819,6 +873,10 @@ public sealed class LabController
 			new HSeparator()
 		);
 
+
+		// ==================================================
+		// BRANCHES
+		// ==================================================
 
 		CreateBranch(
 			content,
@@ -861,6 +919,133 @@ public sealed class LabController
 
 
 		return content;
+	}
+
+
+	// ==================================================
+	// CURRENT RESEARCH PANEL
+	// ==================================================
+
+	private PanelContainer CreateActiveResearchPanel()
+	{
+		PanelContainer panel =
+			new();
+
+
+		MarginContainer margin =
+			new();
+
+
+		margin.AddThemeConstantOverride(
+			"margin_left",
+			16
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			14
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_right",
+			16
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_bottom",
+			14
+		);
+
+
+		panel.AddChild(
+			margin
+		);
+
+
+		VBoxContainer box =
+			new();
+
+
+		box.AddThemeConstantOverride(
+			"separation",
+			8
+		);
+
+
+		margin.AddChild(
+			box
+		);
+
+
+		Label title =
+			CreateLabel(
+				18
+			);
+
+
+		title.Text =
+			"CURRENT RESEARCH";
+
+
+		box.AddChild(
+			title
+		);
+
+
+		_activeResearchNameLabel =
+			CreateLabel(
+				17
+			);
+
+
+		box.AddChild(
+			_activeResearchNameLabel
+		);
+
+
+		_activeResearchProgress =
+			new ProgressBar
+			{
+				MinValue =
+					0.0,
+
+				MaxValue =
+					100.0,
+
+				Value =
+					0.0,
+
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						20
+					),
+
+				ShowPercentage =
+					false
+			};
+
+
+		box.AddChild(
+			_activeResearchProgress
+		);
+
+
+		_activeResearchTimeLabel =
+			CreateLabel(
+				14
+			);
+
+
+		box.AddChild(
+			_activeResearchTimeLabel
+		);
+
+
+		panel.Hide();
+
+
+		return panel;
 	}
 
 
@@ -1006,7 +1191,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// BRANCH
+	// BRANCHES
 	// ==================================================
 
 	private void CreateBranch(
@@ -1023,10 +1208,6 @@ public sealed class LabController
 		);
 
 
-		bool foundResearch =
-			false;
-
-
 		foreach (
 			ResearchDefinition research
 			in ResearchCatalog.All
@@ -1041,32 +1222,10 @@ public sealed class LabController
 			}
 
 
-			foundResearch =
-				true;
-
-
 			parent.AddChild(
 				CreateResearchCard(
 					research
 				)
-			);
-		}
-
-
-		if (!foundResearch)
-		{
-			Label comingSoon =
-				CreateLeftLabel(
-					14
-				);
-
-
-			comingSoon.Text =
-				"Research coming soon.";
-
-
-			parent.AddChild(
-				comingSoon
 			);
 		}
 
@@ -1457,14 +1616,19 @@ public sealed class LabController
 			< GameConfig.LabUnlockCost;
 
 
-		RefreshResearchBonuses();
+		if (unlocked)
+		{
+			RefreshActiveResearch();
 
-		RefreshResearchCards();
+			RefreshResearchBonuses();
+
+			RefreshResearchCards();
+		}
 	}
 
 
 	// ==================================================
-	// RP BUTTON
+	// RESEARCH POINT BUTTON
 	// ==================================================
 
 	private void RefreshResearchPointButton()
@@ -1496,7 +1660,66 @@ public sealed class LabController
 
 
 	// ==================================================
-	// BONUS REFRESH
+	// ACTIVE RESEARCH
+	// ==================================================
+
+	private void RefreshActiveResearch()
+	{
+		if (
+			!_state.Lab
+				.HasActiveResearch
+		)
+		{
+			_activeResearchPanel.Hide();
+
+			return;
+		}
+
+
+		ResearchDefinition? research =
+			_labService.GetActiveResearch();
+
+
+		if (research == null)
+		{
+			_activeResearchPanel.Hide();
+
+			return;
+		}
+
+
+		_activeResearchPanel.Show();
+
+
+		double remaining =
+			_labService
+				.GetRemainingResearchSeconds();
+
+
+		double progress =
+			_labService
+				.GetActiveResearchProgress();
+
+
+		_activeResearchNameLabel.Text =
+			research.Name;
+
+
+		_activeResearchProgress.Value =
+			progress
+			* 100.0;
+
+
+		_activeResearchTimeLabel.Text =
+			"Remaining: "
+			+ FormatTime(
+				remaining
+			);
+	}
+
+
+	// ==================================================
+	// BONUS DISPLAY
 	// ==================================================
 
 	private void RefreshResearchBonuses()
@@ -1584,11 +1807,15 @@ public sealed class LabController
 
 
 	// ==================================================
-	// RESEARCH CARD REFRESH
+	// RESEARCH CARDS
 	// ==================================================
 
 	private void RefreshResearchCards()
 	{
+		ResearchDefinition? activeResearch =
+			_labService.GetActiveResearch();
+
+
 		foreach (
 			ResearchDefinition research
 			in ResearchCatalog.All
@@ -1605,13 +1832,15 @@ public sealed class LabController
 			}
 
 
-			bool completed =
+			// ==================================================
+			// COMPLETED
+			// ==================================================
+
+			if (
 				_state.Lab.IsResearchCompleted(
 					research.Id
-				);
-
-
-			if (completed)
+				)
+			)
 			{
 				view.StatusIcon.Texture =
 					ResearchCompletedIcon;
@@ -1633,13 +1862,54 @@ public sealed class LabController
 			}
 
 
-			bool available =
-				_labService.IsResearchAvailable(
-					research
-				);
+			// ==================================================
+			// ACTIVE
+			// ==================================================
+
+			if (
+				activeResearch != null
+				&& activeResearch.Id
+				== research.Id
+			)
+			{
+				double remaining =
+					_labService
+						.GetRemainingResearchSeconds();
 
 
-			if (!available)
+				view.StatusIcon.Texture =
+					ResearchActiveIcon;
+
+
+				view.StatusLabel.Text =
+					"RESEARCHING • "
+					+ FormatTime(
+						remaining
+					);
+
+
+				view.Button.Text =
+					"RESEARCHING";
+
+
+				view.Button.Disabled =
+					true;
+
+
+				continue;
+			}
+
+
+			// ==================================================
+			// PREREQUISITE
+			// ==================================================
+
+			if (
+				research.PrerequisiteId != null
+				&& !_state.Lab.IsResearchCompleted(
+					research.PrerequisiteId
+				)
+			)
 			{
 				view.StatusIcon.Texture =
 					ResearchLockedIcon;
@@ -1663,16 +1933,56 @@ public sealed class LabController
 			}
 
 
+			// ==================================================
+			// LAB BUSY
+			// ==================================================
+
+			if (activeResearch != null)
+			{
+				view.StatusIcon.Texture =
+					ResearchLockedIcon;
+
+
+				view.StatusLabel.Text =
+					"Lab busy • "
+					+ activeResearch.Name;
+
+
+				view.Button.Text =
+					"BUSY";
+
+
+				view.Button.Disabled =
+					true;
+
+
+				continue;
+			}
+
+
+			// ==================================================
+			// AVAILABLE
+			// ==================================================
+
+			double duration =
+				ResearchCatalog
+					.GetDurationSeconds(
+						research
+					);
+
+
 			view.StatusIcon.Texture =
 				ResearchActiveIcon;
 
 
 			view.StatusLabel.Text =
-				"Available • "
-				+ NumberFormatter.Format(
+				NumberFormatter.Format(
 					research.Cost
 				)
-				+ " RP";
+				+ " RP • "
+				+ FormatTime(
+					duration
+				);
 
 
 			view.Button.Text =
@@ -1720,6 +2030,32 @@ public sealed class LabController
 	// ==================================================
 	// HELPERS
 	// ==================================================
+
+	private static string FormatTime(
+		double seconds)
+	{
+		int totalSeconds =
+			Math.Max(
+				0,
+				(int)Math.Ceiling(
+					seconds
+				)
+			);
+
+
+		int minutes =
+			totalSeconds
+			/ 60;
+
+
+		int remainingSeconds =
+			totalSeconds
+			% 60;
+
+
+		return $"{minutes}:{remainingSeconds:00}";
+	}
+
 
 	private static string FormatPercent(
 		double value)

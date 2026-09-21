@@ -594,4 +594,27 @@ public static class ResearchCatalog
 			0.75
 		);
 	}
+	
+	// ==================================================
+// RESEARCH DURATION
+// ==================================================
+
+public static double GetDurationSeconds(
+	ResearchDefinition research)
+{
+	if (research.Cost <= 25.0)
+		return 30.0;
+
+	if (research.Cost <= 60.0)
+		return 60.0;
+
+	if (research.Cost <= 120.0)
+		return 120.0;
+
+	if (research.Cost <= 250.0)
+		return 240.0;
+
+
+	return 480.0;
+}
 }

@@ -7,7 +7,7 @@ namespace IdleAi;
 public partial class Game : Control
 {
 	private const int SaveVersion =
-		11;
+		12;
 
 
 	private const double AutosaveIntervalSeconds =
@@ -35,6 +35,10 @@ public partial class Game : Control
 	private SaveManager _saveManager = null!;
 
 
+	// ==================================================
+	// READY
+	// ==================================================
+
 	public override void _Ready()
 	{
 		CreateGameSystems();
@@ -55,6 +59,15 @@ public partial class Game : Control
 			LoadGame();
 
 
+		/*
+		 * Check immediately whether a research
+		 * completed while the game was closed.
+		 */
+
+		LabResult researchResult =
+			_labService.Update();
+
+
 		_production.PrepareAfterLoad();
 
 
@@ -63,7 +76,13 @@ public partial class Game : Control
 		_labUi.Refresh();
 
 
-		if (offlineEarned > 0.0)
+		if (researchResult.Changed)
+		{
+			_ui.SetMessage(
+				researchResult.Message
+			);
+		}
+		else if (offlineEarned > 0.0)
 		{
 			_ui.SetMessage(
 				"Welcome back! +"
@@ -85,6 +104,10 @@ public partial class Game : Control
 	}
 
 
+	// ==================================================
+	// PROCESS
+	// ==================================================
+
 	public override void _Process(
 		double delta)
 	{
@@ -101,6 +124,34 @@ public partial class Game : Control
 			);
 		}
 
+
+		// ==================================================
+		// RESEARCH
+		// ==================================================
+
+		LabResult researchResult =
+			_labService.Update();
+
+
+		if (researchResult.Changed)
+		{
+			_ui.SetMessage(
+				researchResult.Message
+			);
+
+
+			_ui.UpdateAll();
+
+			_labUi.Refresh();
+
+
+			SaveGame();
+		}
+
+
+		// ==================================================
+		// UI
+		// ==================================================
 
 		_ui.UpdateRuntime();
 
@@ -276,6 +327,9 @@ public partial class Game : Control
 							false,
 
 						CycleRemaining =
+							0,
+
+						RuntimeCycleDuration =
 							0
 					}
 				);
@@ -446,7 +500,7 @@ public partial class Game : Control
 
 
 	// ==================================================
-	// SAVE
+	// SAVE SYSTEM
 	// ==================================================
 
 	private void SetupSaveSystem()
@@ -469,6 +523,10 @@ public partial class Game : Control
 		);
 	}
 
+
+	// ==================================================
+	// SAVE
+	// ==================================================
 
 	private void SaveGame()
 	{
@@ -503,6 +561,11 @@ public partial class Game : Control
 				PrestigeCount =
 					_state.Prestige.PrestigeCount,
 
+
+				// ==================================================
+				// LAB
+				// ==================================================
+
 				LabUnlocked =
 					_state.Lab.Unlocked,
 
@@ -512,6 +575,17 @@ public partial class Game : Control
 				CompletedResearch =
 					_state.Lab.CompletedResearch
 						.ToList(),
+
+				ActiveResearchId =
+					_state.Lab.ActiveResearchId,
+
+				ActiveResearchEndUnix =
+					_state.Lab.ActiveResearchEndUnix,
+
+
+				// ==================================================
+				// ROOMS
+				// ==================================================
 
 				Rooms =
 					_state.RoomStates
@@ -533,6 +607,7 @@ public partial class Game : Control
 						)
 						.ToList(),
 
+
 				Stats =
 					_state.Stats.ToSaveData()
 			};
@@ -543,6 +618,10 @@ public partial class Game : Control
 		);
 	}
 
+
+	// ==================================================
+	// LOAD
+	// ==================================================
 
 	private double LoadGame()
 	{
@@ -589,6 +668,14 @@ public partial class Game : Control
 		_state.Lab.LoadCompletedResearch(
 			save.CompletedResearch
 		);
+
+
+		_state.Lab.ActiveResearchId =
+			save.ActiveResearchId;
+
+
+		_state.Lab.ActiveResearchEndUnix =
+			save.ActiveResearchEndUnix;
 
 
 		// ==================================================
@@ -679,55 +766,59 @@ public partial class Game : Control
 	// ==================================================
 
 	private double ApplyOfflineIncome(
-	long savedTime,
-	double incomePerSecond)
-{
-	long seconds =
-		GetCurrentUnixTime()
-		- savedTime;
-
-
-	if (
-		seconds <= 0
-		|| incomePerSecond <= 0
-	)
+		long savedTime,
+		double incomePerSecond)
 	{
-		return 0;
-	}
+		long seconds =
+			GetCurrentUnixTime()
+			- savedTime;
 
 
-	double offlineFactor =
-		Math.Clamp(
-			GameConfig.BaseOfflineIncomeFactor
-			+ _state.Lab
-				.GetOfflineIncomeBonus(),
-			0.0,
-			1.0
+		if (
+			seconds <= 0
+			|| incomePerSecond <= 0
+		)
+		{
+			return 0;
+		}
+
+
+		double offlineFactor =
+			Math.Clamp(
+				GameConfig.BaseOfflineIncomeFactor
+				+ _state.Lab
+					.GetOfflineIncomeBonus(),
+				0.0,
+				1.0
+			);
+
+
+		double amount =
+			incomePerSecond
+			* seconds
+			* offlineFactor;
+
+
+		_state.Tokens +=
+			amount;
+
+
+		_state.RunEarnedTokens +=
+			amount;
+
+
+		_state.Stats.AddOfflineEarned(
+			amount
 		);
 
 
-	double amount =
-		incomePerSecond
-		* seconds
-		* offlineFactor;
+		return amount;
+	}
 
 
-	_state.Tokens +=
-		amount;
-
-
-	_state.RunEarnedTokens +=
-		amount;
-
-
-	_state.Stats.AddOfflineEarned(
-		amount
-	);
-
-
-	return amount;
-}
-
+	// ==================================================
+	// TIME
+	// ==================================================
 
 	private static long GetCurrentUnixTime()
 	{

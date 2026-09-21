@@ -86,13 +86,31 @@ public sealed class LabData
 	}
 
 
+	// ==================================================
+	// ACTIVE RESEARCH RESET
+	// ==================================================
+
 	public void ClearActiveResearch()
 	{
 		ActiveResearchId =
 			null;
 
+
 		ActiveResearchEndUnix =
 			0;
+	}
+
+
+	// ==================================================
+	// TEST RESET
+	// ==================================================
+
+	public void ResetResearch()
+	{
+		_completedResearch.Clear();
+
+
+		ClearActiveResearch();
 	}
 
 

@@ -240,13 +240,8 @@ public sealed class LabService
 			return false;
 
 
-		if (
-			_state.Lab
-				.HasActiveResearch
-		)
-		{
+		if (_state.Lab.HasActiveResearch)
 			return false;
-		}
 
 
 		if (
@@ -290,23 +285,16 @@ public sealed class LabService
 		}
 
 
-		if (
-			_state.Lab
-				.HasActiveResearch
-		)
+		if (_state.Lab.HasActiveResearch)
 		{
 			ResearchDefinition? active =
 				GetActiveResearch();
 
 
-			string activeName =
-				active?.Name
-				?? "another research";
-
-
 			return new LabResult(
 				false,
-				$"{activeName} is already being researched."
+				(active?.Name ?? "Another research")
+				+ " is already being researched."
 			);
 		}
 
@@ -389,7 +377,8 @@ public sealed class LabService
 
 		return new LabResult(
 			true,
-			$"{research.Name} started!"
+			"Research started: "
+			+ research.Name
 		);
 	}
 
@@ -400,10 +389,7 @@ public sealed class LabService
 
 	public LabResult Update()
 	{
-		if (
-			!_state.Lab
-				.HasActiveResearch
-		)
+		if (!_state.Lab.HasActiveResearch)
 		{
 			return new LabResult(
 				false,
@@ -459,10 +445,39 @@ public sealed class LabService
 		_state.Lab.ClearActiveResearch();
 
 
+		RefreshCycleDurations();
+
+
+		return new LabResult(
+			true,
+			"RESEARCH COMPLETED: "
+			+ research.Name
+		);
+	}
+
+
+	// ==================================================
+	// TEST RESET
+	// ==================================================
+
+	public LabResult ResetResearchForTesting()
+	{
+		_state.Lab.ResetResearch();
+
+
 		/*
-		 * Important for Overclocking / Cooling.
-		 * Existing machine cycles are immediately
-		 * adjusted when the research completes.
+		 * Give enough RP so every branch can immediately
+		 * be tested again.
+		 */
+
+		_state.Lab.ResearchPoints =
+			1_000;
+
+
+		/*
+		 * Research may have modified cycle speeds.
+		 * Reset running machines back to the now-current
+		 * research multiplier.
 		 */
 
 		RefreshCycleDurations();
@@ -470,7 +485,7 @@ public sealed class LabService
 
 		return new LabResult(
 			true,
-			$"{research.Name} completed!"
+			"Research reset. +1000 test RP."
 		);
 	}
 

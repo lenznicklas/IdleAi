@@ -215,6 +215,10 @@ public sealed class ProgressionService
 	}
 
 
+	// ==================================================
+	// LEVEL UPGRADE
+	// ==================================================
+
 	private ProgressionResult UpgradeMachineLevel(
 		int roomIndex,
 		SlotData slot,
@@ -251,15 +255,53 @@ public sealed class ProgressionService
 		slot.MachineLevel++;
 
 
-		return new ProgressionResult(
-			true,
+		// ==================================================
+		// MILESTONE RESEARCH POINTS
+		// ==================================================
+
+		int researchReward =
+			GetResearchPointMilestoneReward(
+				slot.MachineLevel
+			);
+
+
+		if (
+			researchReward > 0
+			&& _state.Lab.Unlocked
+		)
+		{
+			_state.Lab.ResearchPoints +=
+				researchReward;
+		}
+
+
+		string message =
 			GetUpgradeMessage(
 				machine,
 				slot.MachineLevel
-			)
+			);
+
+
+		if (
+			researchReward > 0
+			&& _state.Lab.Unlocked
+		)
+		{
+			message +=
+				$" +{researchReward} RP!";
+		}
+
+
+		return new ProgressionResult(
+			true,
+			message
 		);
 	}
 
+
+	// ==================================================
+	// TIER UPGRADE
+	// ==================================================
 
 	private ProgressionResult UpgradeMachineTier(
 		int roomIndex,
@@ -333,7 +375,37 @@ public sealed class ProgressionService
 
 
 	// ==================================================
-	// ROOM UNLOCK
+	// RESEARCH POINT MILESTONES
+	// ==================================================
+
+	private static int GetResearchPointMilestoneReward(
+		int level)
+	{
+		return level switch
+		{
+			5 =>
+				1,
+
+			10 =>
+				2,
+
+			15 =>
+				3,
+
+			20 =>
+				5,
+
+			25 =>
+				8,
+
+			_ =>
+				0
+		};
+	}
+
+
+	// ==================================================
+	// ROOM UNLOCK COST
 	// ==================================================
 
 	public double GetRoomUnlockCost(
@@ -359,6 +431,10 @@ public sealed class ProgressionService
 				.GetUnlockCostMultiplier();
 	}
 
+
+	// ==================================================
+	// ROOM UNLOCK
+	// ==================================================
 
 	public ProgressionResult UnlockRoom(
 		int roomIndex)

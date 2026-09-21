@@ -266,7 +266,8 @@ public static class ResearchCatalog
 	public static double GetProductionBonus(
 		LabData lab)
 	{
-		double bonus = 0.0;
+		double bonus =
+			0.0;
 
 
 		foreach (
@@ -307,7 +308,8 @@ public static class ResearchCatalog
 	public static double GetCycleTimeReduction(
 		LabData lab)
 	{
-		double reduction = 0.0;
+		double reduction =
+			0.0;
 
 
 		foreach (
@@ -346,13 +348,14 @@ public static class ResearchCatalog
 
 
 	// ==================================================
-	// BOT POWER
+	// BOT
 	// ==================================================
 
 	public static double GetBotPowerBonus(
 		LabData lab)
 	{
-		double bonus = 0.0;
+		double bonus =
+			0.0;
 
 
 		foreach (
@@ -393,7 +396,8 @@ public static class ResearchCatalog
 	public static double GetRareBotChanceBonus(
 		LabData lab)
 	{
-		double bonus = 0.0;
+		double bonus =
+			0.0;
 
 
 		foreach (
@@ -420,7 +424,8 @@ public static class ResearchCatalog
 	public static double GetEpicBotChanceBonus(
 		LabData lab)
 	{
-		double bonus = 0.0;
+		double bonus =
+			0.0;
 
 
 		foreach (
@@ -447,7 +452,8 @@ public static class ResearchCatalog
 	public static double GetLegendaryBotChanceBonus(
 		LabData lab)
 	{
-		double bonus = 0.0;
+		double bonus =
+			0.0;
 
 
 		foreach (
@@ -472,13 +478,14 @@ public static class ResearchCatalog
 
 
 	// ==================================================
-	// MACHINE COST
+	// UPGRADE COST
 	// ==================================================
 
 	public static double GetMachineUpgradeCostReduction(
 		LabData lab)
 	{
-		double reduction = 0.0;
+		double reduction =
+			0.0;
 
 
 		foreach (
@@ -523,7 +530,8 @@ public static class ResearchCatalog
 	public static double GetUnlockCostReduction(
 		LabData lab)
 	{
-		double reduction = 0.0;
+		double reduction =
+			0.0;
 
 
 		foreach (
@@ -568,7 +576,8 @@ public static class ResearchCatalog
 	public static double GetOfflineIncomeBonus(
 		LabData lab)
 	{
-		double bonus = 0.0;
+		double bonus =
+			0.0;
 
 
 		foreach (
@@ -594,27 +603,31 @@ public static class ResearchCatalog
 			0.75
 		);
 	}
-	
+
+
 	// ==================================================
-// RESEARCH DURATION
-// ==================================================
+	// RESEARCH DURATION
+	// ==================================================
 
-public static double GetDurationSeconds(
-	ResearchDefinition research)
-{
-	if (research.Cost <= 25.0)
-		return 30.0;
-
-	if (research.Cost <= 60.0)
-		return 60.0;
-
-	if (research.Cost <= 120.0)
-		return 120.0;
-
-	if (research.Cost <= 250.0)
-		return 240.0;
+	public static double GetDurationSeconds(
+		ResearchDefinition research)
+	{
+		if (research.Cost <= 25.0)
+			return 120.0;
 
 
-	return 480.0;
-}
+		if (research.Cost <= 60.0)
+			return 300.0;
+
+
+		if (research.Cost <= 120.0)
+			return 900.0;
+
+
+		if (research.Cost <= 250.0)
+			return 1_800.0;
+
+
+		return 3_600.0;
+	}
 }

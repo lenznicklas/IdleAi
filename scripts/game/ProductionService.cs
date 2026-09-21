@@ -1,4 +1,7 @@
+using System;
+
 namespace IdleAi;
+
 
 public readonly record struct ManualStartResult(
 	bool Started,
@@ -8,6 +11,32 @@ public readonly record struct ManualStartResult(
 
 public sealed class ProductionService
 {
+	// ==================================================
+	// RESEARCH POINT DROPS
+	// ==================================================
+
+	/*
+	 * 0.0025 = 0.25 %
+	 *
+	 * Every completed production cycle has a
+	 * small chance to generate one Research Point.
+	 *
+	 * Research Points only drop after the
+	 * Laboratory has been unlocked.
+	 */
+
+	private const double ResearchPointDropChance =
+		0.0025;
+
+
+	private const int ResearchPointDropAmount =
+		1;
+
+
+	// ==================================================
+	// SERVICES
+	// ==================================================
+
 	private readonly GameState _state;
 
 	private readonly EconomyService _economy;
@@ -20,10 +49,15 @@ public sealed class ProductionService
 		_state =
 			state;
 
+
 		_economy =
 			economy;
 	}
 
+
+	// ==================================================
+	// UPDATE
+	// ==================================================
 
 	public double Update(
 		double delta)
@@ -57,6 +91,10 @@ public sealed class ProductionService
 					continue;
 
 
+				// ==================================================
+				// AUTO START BOT MACHINES
+				// ==================================================
+
 				if (
 					slot.HasBot
 					&& !slot.IsRunning
@@ -80,6 +118,11 @@ public sealed class ProductionService
 					0;
 
 
+				/*
+				 * More than one cycle may complete in one
+				 * frame, for example after a frame spike.
+				 */
+
 				while (
 					slot.CycleRemaining <= 0.0
 					&& safety < 100
@@ -88,12 +131,27 @@ public sealed class ProductionService
 					safety++;
 
 
+					// ==================================================
+					// TOKEN REWARD
+					// ==================================================
+
 					earned +=
 						_economy.GetCycleReward(
 							roomIndex,
 							slot
 						);
 
+
+					// ==================================================
+					// RESEARCH POINT DROP
+					// ==================================================
+
+					TryAwardResearchPoint();
+
+
+					// ==================================================
+					// NEXT CYCLE
+					// ==================================================
 
 					if (slot.HasBot)
 					{
@@ -127,6 +185,43 @@ public sealed class ProductionService
 	}
 
 
+	// ==================================================
+	// RESEARCH POINT DROP
+	// ==================================================
+
+	private void TryAwardResearchPoint()
+	{
+		/*
+		 * Do not secretly accumulate Research Points
+		 * before the player has unlocked the lab.
+		 */
+
+		if (!_state.Lab.Unlocked)
+			return;
+
+
+		double roll =
+			Random.Shared.NextDouble();
+
+
+		if (
+			roll
+			>= ResearchPointDropChance
+		)
+		{
+			return;
+		}
+
+
+		_state.Lab.ResearchPoints +=
+			ResearchPointDropAmount;
+	}
+
+
+	// ==================================================
+	// MANUAL START
+	// ==================================================
+
 	public ManualStartResult TryStartManual(
 		int roomIndex,
 		int slotIndex)
@@ -138,7 +233,7 @@ public sealed class ProductionService
 		{
 			return new ManualStartResult(
 				false,
-                "Invalid room."
+				"Invalid room."
 			);
 		}
 
@@ -156,7 +251,7 @@ public sealed class ProductionService
 		{
 			return new ManualStartResult(
 				false,
-                "Invalid machine."
+				"Invalid machine."
 			);
 		}
 
@@ -171,7 +266,7 @@ public sealed class ProductionService
 		{
 			return new ManualStartResult(
 				false,
-                "Machine is locked."
+				"Machine is locked."
 			);
 		}
 
@@ -180,7 +275,7 @@ public sealed class ProductionService
 		{
 			return new ManualStartResult(
 				false,
-                "This machine is automated."
+				"This machine is automated."
 			);
 		}
 
@@ -189,7 +284,7 @@ public sealed class ProductionService
 		{
 			return new ManualStartResult(
 				false,
-                "Machine is still running."
+				"Machine is still running."
 			);
 		}
 
@@ -201,10 +296,14 @@ public sealed class ProductionService
 
 		return new ManualStartResult(
 			true,
-            "Machine started."
+			"Machine started."
 		);
 	}
 
+
+	// ==================================================
+	// LOAD
+	// ==================================================
 
 	public void PrepareAfterLoad()
 	{
@@ -239,6 +338,10 @@ public sealed class ProductionService
 		}
 	}
 
+
+	// ==================================================
+	// START CYCLE
+	// ==================================================
 
 	private void StartCycle(
 		SlotData slot)

@@ -84,6 +84,26 @@ public static class GameConfig
 
 
 	// ==================================================
+	// EARNED RESEARCH POINTS
+	// ==================================================
+
+	/*
+	 * 0.001 = 0.1%
+	 *
+	 * With many automated machines RP will slowly
+	 * accumulate without replacing the normal
+	 * Token -> RP conversion.
+	 */
+
+	public const double ResearchPointDropChance =
+		0.001;
+
+
+	public const int ResearchPointDropAmount =
+		1;
+
+
+	// ==================================================
 	// MACHINE ECONOMY
 	// ==================================================
 
@@ -156,6 +176,40 @@ public static class GameConfig
 		};
 	}
 
+
+	// ==================================================
+	// RESEARCH POINT MILESTONES
+	// ==================================================
+
+	public static int GetMilestoneResearchPoints(
+		int level)
+	{
+		return level switch
+		{
+			5 =>
+				1,
+
+			10 =>
+				2,
+
+			15 =>
+				3,
+
+			20 =>
+				5,
+
+			25 =>
+				10,
+
+			_ =>
+				0
+		};
+	}
+
+
+	// ==================================================
+	// SLOT COSTS
+	// ==================================================
 
 	public static double[] GetSlotUnlockCosts(
 		int roomIndex)

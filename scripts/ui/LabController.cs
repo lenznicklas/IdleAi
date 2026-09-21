@@ -1629,7 +1629,7 @@ public sealed class LabController
 			CustomMinimumSize =
 				new Vector2(
 					0,
-					18
+					24
 				),
 
 			MouseFilter =

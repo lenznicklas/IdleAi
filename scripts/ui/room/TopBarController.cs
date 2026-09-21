@@ -5,6 +5,14 @@ namespace IdleAi;
 
 public sealed class TopBarController
 {
+	private const double PopupVisibleSeconds =
+		2.5;
+
+
+	private const double PopupFadeSeconds =
+		1.0;
+
+
 	private readonly Game _root;
 
 	private readonly GameState _state;
@@ -48,6 +56,16 @@ public sealed class TopBarController
 		null!;
 
 
+	private Tween? _tokenFadeTween;
+
+	private Tween? _levelFadeTween;
+
+
+	private int _tokenPopupGeneration;
+
+	private int _levelPopupGeneration;
+
+
 	public event Action? StatsRequested;
 
 
@@ -69,6 +87,10 @@ public sealed class TopBarController
 	}
 
 
+	// ==================================================
+	// INITIALIZE
+	// ==================================================
+
 	public void Initialize()
 	{
 		CacheNodes();
@@ -80,7 +102,11 @@ public sealed class TopBarController
 
 		_statsCard.Pressed +=
 			() =>
+			{
+				HidePopups();
+
 				StatsRequested?.Invoke();
+			};
 
 
 		_levelCard.Pressed +=
@@ -90,6 +116,10 @@ public sealed class TopBarController
 		HidePopups();
 	}
 
+
+	// ==================================================
+	// CACHE
+	// ==================================================
 
 	private void CacheNodes()
 	{
@@ -242,61 +272,295 @@ public sealed class TopBarController
 
 
 	// ==================================================
-	// POPUPS
+	// TOKEN POPUP
 	// ==================================================
 
 	private void ToggleTokenPopup()
 	{
-		_levelPopup.Hide();
+		HideLevelPopup();
 
 
 		if (_tokenPopup.Visible)
 		{
-			_tokenPopup.Hide();
+			HideTokenPopup();
 
 			return;
 		}
 
 
-		PositionPopup(
-			_tokenPopup,
-			_tokenCard
-		);
+		OpenTokenPopup();
 	}
 
 
+	private async void OpenTokenPopup()
+	{
+		_tokenPopupGeneration++;
+
+
+		int generation =
+			_tokenPopupGeneration;
+
+
+		_tokenFadeTween?.Kill();
+
+		_tokenFadeTween =
+			null;
+
+
+		_tokenPopup.Modulate =
+			Colors.White;
+
+
+		await PositionPopup(
+			_tokenPopup,
+			_tokenCard
+		);
+
+
+		if (
+			generation
+			!= _tokenPopupGeneration
+		)
+		{
+			return;
+		}
+
+
+		await _root.ToSignal(
+			_root.GetTree()
+				.CreateTimer(
+					PopupVisibleSeconds
+				),
+
+			SceneTreeTimer.SignalName.Timeout
+		);
+
+
+		if (
+			generation
+			!= _tokenPopupGeneration
+			|| !_tokenPopup.Visible
+		)
+		{
+			return;
+		}
+
+
+		_tokenFadeTween =
+			_root.CreateTween();
+
+
+		_tokenFadeTween.TweenProperty(
+			_tokenPopup,
+			"modulate:a",
+			0.0f,
+			PopupFadeSeconds
+		);
+
+
+		await _root.ToSignal(
+			_tokenFadeTween,
+			Tween.SignalName.Finished
+		);
+
+
+		if (
+			generation
+			!= _tokenPopupGeneration
+		)
+		{
+			return;
+		}
+
+
+		_tokenPopup.Hide();
+
+
+		_tokenPopup.Modulate =
+			Colors.White;
+
+
+		_tokenFadeTween =
+			null;
+	}
+
+
+	private void HideTokenPopup()
+	{
+		_tokenPopupGeneration++;
+
+
+		_tokenFadeTween?.Kill();
+
+		_tokenFadeTween =
+			null;
+
+
+		_tokenPopup.Hide();
+
+
+		_tokenPopup.Modulate =
+			Colors.White;
+	}
+
+
+	// ==================================================
+	// LEVEL POPUP
+	// ==================================================
+
 	private void ToggleLevelPopup()
 	{
-		_tokenPopup.Hide();
+		HideTokenPopup();
 
 
 		if (_levelPopup.Visible)
 		{
-			_levelPopup.Hide();
+			HideLevelPopup();
 
 			return;
 		}
 
 
-		PositionPopup(
+		OpenLevelPopup();
+	}
+
+
+	private async void OpenLevelPopup()
+	{
+		_levelPopupGeneration++;
+
+
+		int generation =
+			_levelPopupGeneration;
+
+
+		_levelFadeTween?.Kill();
+
+		_levelFadeTween =
+			null;
+
+
+		_levelPopup.Modulate =
+			Colors.White;
+
+
+		await PositionPopup(
 			_levelPopup,
 			_levelCard
 		);
+
+
+		if (
+			generation
+			!= _levelPopupGeneration
+		)
+		{
+			return;
+		}
+
+
+		await _root.ToSignal(
+			_root.GetTree()
+				.CreateTimer(
+					PopupVisibleSeconds
+				),
+
+			SceneTreeTimer.SignalName.Timeout
+		);
+
+
+		if (
+			generation
+			!= _levelPopupGeneration
+			|| !_levelPopup.Visible
+		)
+		{
+			return;
+		}
+
+
+		_levelFadeTween =
+			_root.CreateTween();
+
+
+		_levelFadeTween.TweenProperty(
+			_levelPopup,
+			"modulate:a",
+			0.0f,
+			PopupFadeSeconds
+		);
+
+
+		await _root.ToSignal(
+			_levelFadeTween,
+			Tween.SignalName.Finished
+		);
+
+
+		if (
+			generation
+			!= _levelPopupGeneration
+		)
+		{
+			return;
+		}
+
+
+		_levelPopup.Hide();
+
+
+		_levelPopup.Modulate =
+			Colors.White;
+
+
+		_levelFadeTween =
+			null;
 	}
 
+
+	private void HideLevelPopup()
+	{
+		_levelPopupGeneration++;
+
+
+		_levelFadeTween?.Kill();
+
+		_levelFadeTween =
+			null;
+
+
+		_levelPopup.Hide();
+
+
+		_levelPopup.Modulate =
+			Colors.White;
+	}
+
+
+	// ==================================================
+	// ALL POPUPS
+	// ==================================================
 
 	public void HidePopups()
 	{
-		_tokenPopup.Hide();
+		HideTokenPopup();
 
-		_levelPopup.Hide();
+		HideLevelPopup();
 	}
 
 
-	private async void PositionPopup(
+	// ==================================================
+	// POSITION
+	// ==================================================
+
+	private async System.Threading.Tasks.Task PositionPopup(
 		Control popup,
 		Control card)
 	{
+		popup.Modulate =
+			Colors.White;
+
+
 		popup.Show();
 
 
@@ -304,6 +568,10 @@ public sealed class TopBarController
 			_root.GetTree(),
 			SceneTree.SignalName.ProcessFrame
 		);
+
+
+		if (!popup.Visible)
+			return;
 
 
 		popup.GlobalPosition =

@@ -8,36 +8,61 @@ public sealed class GameUiController
 {
 	private static readonly Theme MainTheme =
 		GD.Load<Theme>(
-            "res://assets/themes/main_theme.tres"
+			"res://assets/themes/main_theme.tres"
 		);
 
 
 	private readonly Game _root;
+
 	private readonly GameState _state;
+
 	private readonly EconomyService _economy;
+
 	private readonly ProgressionService _progression;
+
 	private readonly ProductionService _production;
+
 	private readonly BotService _bots;
+
 	private readonly PrestigeService _prestige;
 
 
 	public event Action<int>? SlotActionRequested;
+
 	public event Action<int>? RoomSelectedRequested;
+
 	public event Action? StateChanged;
+
 	public event Action? PrestigeRequested;
 
 
-	private TextureRect _background =
+	// ==================================================
+	// MAIN LAYOUT
+	// ==================================================
+
+	private VBoxContainer _mainLayout =
 		null!;
 
 
-	private Label _messageLabel =
+	private ScrollContainer _roomScroll =
+		null!;
+
+
+	// ==================================================
+	// BACKGROUND
+	// ==================================================
+
+	private TextureRect _background =
 		null!;
 
 
 	private AmbientBackgroundController _ambient =
 		null!;
 
+
+	// ==================================================
+	// TOP BAR
+	// ==================================================
 
 	private TextureRect _topBarBackground =
 		null!;
@@ -67,9 +92,17 @@ public sealed class GameUiController
 		null!;
 
 
+	// ==================================================
+	// SLOT AREA
+	// ==================================================
+
 	private GridContainer _slotGrid =
 		null!;
 
+
+	// ==================================================
+	// POPUPS
+	// ==================================================
 
 	private PanelContainer _tokenPopup =
 		null!;
@@ -78,6 +111,10 @@ public sealed class GameUiController
 	private PanelContainer _levelPopup =
 		null!;
 
+
+	// ==================================================
+	// STATS
+	// ==================================================
 
 	private Control _statsOverlay =
 		null!;
@@ -131,6 +168,10 @@ public sealed class GameUiController
 		null!;
 
 
+	// ==================================================
+	// PRESTIGE CONFIRM
+	// ==================================================
+
 	private Control _prestigeConfirmOverlay =
 		null!;
 
@@ -147,6 +188,10 @@ public sealed class GameUiController
 		null!;
 
 
+	// ==================================================
+	// PAGES
+	// ==================================================
+
 	private Control _mapPage =
 		null!;
 
@@ -156,6 +201,14 @@ public sealed class GameUiController
 
 
 	private Control _shopPage =
+		null!;
+
+
+	// ==================================================
+	// BOTTOM BAR
+	// ==================================================
+
+	private Label _messageLabel =
 		null!;
 
 
@@ -171,6 +224,10 @@ public sealed class GameUiController
 		null!;
 
 
+	// ==================================================
+	// DETAILS
+	// ==================================================
+
 	private MachineDetailsOverlay _details =
 		null!;
 
@@ -178,6 +235,10 @@ public sealed class GameUiController
 	private int _lastThemeRoom =
 		-1;
 
+
+	// ==================================================
+	// CONSTRUCTOR
+	// ==================================================
 
 	public GameUiController(
 		Game root,
@@ -224,6 +285,15 @@ public sealed class GameUiController
 	public void Initialize()
 	{
 		CacheNodes();
+
+
+		/*
+		 * Important:
+		 *
+		 * Removes the unwanted gap between
+		 * TopBar and the room ScrollContainer.
+		 */
+		SetupRoomScrollLayout();
 
 
 		_root.Theme =
@@ -285,115 +355,127 @@ public sealed class GameUiController
 	{
 		_background =
 			_root.GetNode<TextureRect>(
-                "Background"
+				"Background"
+			);
+
+
+		_mainLayout =
+			_root.GetNode<VBoxContainer>(
+				"MarginContainer/VBoxContainer"
+			);
+
+
+		_roomScroll =
+			_root.GetNode<ScrollContainer>(
+				"MarginContainer/VBoxContainer/RoomPanel/RoomVBox/ScrollContainer"
 			);
 
 
 		_topBarBackground =
 			_root.GetNode<TextureRect>(
-                "MarginContainer/VBoxContainer/TopBar/Background"
+				"MarginContainer/VBoxContainer/TopBar/Background"
 			);
 
 
 		_tokenCard =
 			_root.GetNode<TextureButton>(
-                "MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/TokenCard"
+				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/TokenCard"
 			);
 
 
 		_statsCard =
 			_root.GetNode<TextureButton>(
-                "MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/StatsCard"
+				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/StatsCard"
 			);
 
 
 		_levelCard =
 			_root.GetNode<TextureButton>(
-                "MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/LevelCard"
+				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/LevelCard"
 			);
 
 
 		_tokenLabel =
 			_root.GetNode<Label>(
-                "MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/TokenCard/TokenLabel"
+				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/TokenCard/TokenLabel"
 			);
 
 
 		_totalLevelLabel =
 			_root.GetNode<Label>(
-                "MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/LevelCard/TotalLevelLabel"
+				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/LevelCard/TotalLevelLabel"
 			);
 
 
 		_roomInTopBarLabel =
 			_root.GetNode<Label>(
-                "MarginContainer/VBoxContainer/TopBar/Margin/VBox/RoomInTopBarLabel"
+				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/RoomInTopBarLabel"
 			);
 
 
 		_slotGrid =
 			_root.GetNode<GridContainer>(
-                "MarginContainer/VBoxContainer/RoomPanel/RoomVBox/ScrollContainer/SlotGrid"
+				"MarginContainer/VBoxContainer/RoomPanel/RoomVBox/ScrollContainer/SlotGrid"
 			);
 
 
 		_tokenPopup =
 			_root.GetNode<PanelContainer>(
-                "TokenPopup"
+				"TokenPopup"
 			);
 
 
 		_levelPopup =
 			_root.GetNode<PanelContainer>(
-                "LevelPopup"
+				"LevelPopup"
 			);
 
 
 		_messageLabel =
 			_root.GetNode<Label>(
-                "BottomBar/Margin/HBox/MessageLabel"
+				"BottomBar/Margin/HBox/MessageLabel"
 			);
 
 
 		_bottomBackground =
 			_root.GetNode<TextureRect>(
-                "BottomBar/Background"
+				"BottomBar/Background"
 			);
 
 
 		_mapButton =
 			_root.GetNode<TextureButton>(
-                "BottomBar/Margin/HBox/MapButton"
+				"BottomBar/Margin/HBox/MapButton"
 			);
 
 
 		_shopButton =
 			_root.GetNode<TextureButton>(
-                "BottomBar/Margin/HBox/ShopButton"
+				"BottomBar/Margin/HBox/ShopButton"
 			);
 
 
 		_mapPage =
 			_root.GetNode<Control>(
-                "MapPage"
+				"MapPage"
 			);
 
 
 		_mapRoomButtons =
 			_root.GetNode<VBoxContainer>(
-                "MapPage/Margin/VBox/RoomButtons"
+				"MapPage/Margin/VBox/RoomButtons"
 			);
 
 
 		_shopPage =
 			_root.GetNode<Control>(
-                "ShopPage"
+				"ShopPage"
 			);
 
 
 		_statsOverlay =
 			_root.GetNode<Control>(
-                "StatsOverlay"
+				"StatsOverlay"
 			);
 
 
@@ -487,26 +569,62 @@ public sealed class GameUiController
 
 		_prestigeConfirmOverlay =
 			_root.GetNode<Control>(
-                "PrestigeConfirmOverlay"
+				"PrestigeConfirmOverlay"
 			);
 
 
 		_prestigeConfirmInfo =
 			_root.GetNode<Label>(
-                "PrestigeConfirmOverlay/Panel/Margin/VBox/InfoLabel"
+				"PrestigeConfirmOverlay/Panel/Margin/VBox/InfoLabel"
 			);
 
 
 		_prestigeConfirmButton =
 			_root.GetNode<Button>(
-                "PrestigeConfirmOverlay/Panel/Margin/VBox/ConfirmButton"
+				"PrestigeConfirmOverlay/Panel/Margin/VBox/ConfirmButton"
 			);
 
 
 		_prestigeCancelButton =
 			_root.GetNode<Button>(
-                "PrestigeConfirmOverlay/Panel/Margin/VBox/CancelButton"
+				"PrestigeConfirmOverlay/Panel/Margin/VBox/CancelButton"
 			);
+	}
+
+
+	// ==================================================
+	// ROOM SCROLL LAYOUT
+	// ==================================================
+
+	private void SetupRoomScrollLayout()
+	{
+		/*
+		 * game.tscn currently uses a VBox separation
+		 * between TopBar and RoomPanel.
+		 *
+		 * This creates the visible strip when the
+		 * ScrollContainer is completely at the top.
+		 *
+		 * Remove it so the room starts directly
+		 * underneath the TopBar.
+		 */
+
+		_mainLayout.AddThemeConstantOverride(
+			"separation",
+			0
+		);
+
+
+		/*
+		 * Keep scrolling enabled but hide the scrollbar.
+		 */
+
+		_roomScroll.HorizontalScrollMode =
+			ScrollContainer.ScrollMode.Disabled;
+
+
+		_roomScroll.VerticalScrollMode =
+			ScrollContainer.ScrollMode.ShowNever;
 	}
 
 
@@ -603,7 +721,7 @@ public sealed class GameUiController
 
 		ColorRect dim =
 			_root.GetNode<ColorRect>(
-                "StatsOverlay/Dim"
+				"StatsOverlay/Dim"
 			);
 
 
@@ -648,7 +766,7 @@ public sealed class GameUiController
 
 		ColorRect dim =
 			_root.GetNode<ColorRect>(
-                "PrestigeConfirmOverlay/Dim"
+				"PrestigeConfirmOverlay/Dim"
 			);
 
 
@@ -731,69 +849,70 @@ public sealed class GameUiController
 
 
 	private void UpdateMapButtons()
-{
-	int count =
-		Math.Min(
-			_state.Rooms.Count,
-			_mapRoomButtons.GetChildCount()
-		);
-
-
-	for (
-		int i = 0;
-		i < count;
-		i++
-	)
 	{
-		Button button =
-			(Button)
-			_mapRoomButtons.GetChild(
-				i
+		int count =
+			Math.Min(
+				_state.Rooms.Count,
+				_mapRoomButtons.GetChildCount()
 			);
 
 
-		RoomData room =
-			_state.Rooms[
-				i
-			];
-
-
-		bool unlocked =
-			_state.RoomStates[
-				i
-			].Unlocked;
-
-
-		if (
-			i
-			== _state.CurrentRoomIndex
+		for (
+			int i = 0;
+			i < count;
+			i++
 		)
 		{
-			button.Text =
-				$"{room.Name}\nCURRENT";
-		}
-		else if (unlocked)
-		{
-			button.Text =
-				$"{room.Name}\nENTER";
-		}
-		else
-		{
-			double cost =
-				_progression
-					.GetRoomUnlockCost(
-						i
-					);
-
-
-			button.Text =
-				$"{room.Name}\nUNLOCK • "
-				+ NumberFormatter.Format(
-					cost
+			Button button =
+				(Button)
+				_mapRoomButtons.GetChild(
+					i
 				);
+
+
+			RoomData room =
+				_state.Rooms[
+					i
+				];
+
+
+			bool unlocked =
+				_state.RoomStates[
+					i
+				].Unlocked;
+
+
+			if (
+				i
+				== _state.CurrentRoomIndex
+			)
+			{
+				button.Text =
+					$"{room.Name}\nCURRENT";
+			}
+			else if (unlocked)
+			{
+				button.Text =
+					$"{room.Name}\nENTER";
+			}
+			else
+			{
+				double cost =
+					_progression
+						.GetRoomUnlockCost(
+							i
+						);
+
+
+				button.Text =
+					$"{room.Name}\nUNLOCK • "
+					+ NumberFormatter.Format(
+						cost
+					);
+			}
 		}
 	}
-}
+
 
 	private void SelectRoomFromMap(
 		int roomIndex)
@@ -880,7 +999,7 @@ public sealed class GameUiController
 	private void MoveBottomBarToFront()
 	{
 		_root.GetNode<Control>(
-            "BottomBar"
+			"BottomBar"
 		).MoveToFront();
 	}
 
@@ -936,13 +1055,13 @@ public sealed class GameUiController
 
 
 		/*
-		 * Grid has two columns.
+		 * The grid has two columns.
 		 *
-		 * Therefore two spacer controls create one
-		 * complete invisible row below the final slots.
+		 * Keep one invisible row below the final
+		 * machines so the last unlock button can be
+		 * scrolled completely above the BottomBar.
 		 *
-		 * This gives the player enough room to scroll
-		 * the last unlock button fully above the bottom bar.
+		 * This bottom padding is intentional.
 		 */
 
 		for (
@@ -1073,67 +1192,68 @@ public sealed class GameUiController
 
 
 	private void UpdateSlot(
-	int index)
-{
-	SlotData slot =
-		_state.CurrentRoomState
-			.Slots[
-				index
-			];
-
-
-	MachineSlot view =
-		(MachineSlot)
-		_slotGrid.GetChild(
-			index
-		);
-
-
-	if (!slot.Unlocked)
+		int index)
 	{
-		double cost =
-			_progression
-				.GetSlotUnlockCost(
-					_state.CurrentRoomIndex,
+		SlotData slot =
+			_state.CurrentRoomState
+				.Slots[
 					index
-				);
+				];
 
 
-		view.ShowLocked(
-			NumberFormatter.Format(
-				cost
-			),
+		MachineSlot view =
+			(MachineSlot)
+			_slotGrid.GetChild(
+				index
+			);
 
+
+		if (!slot.Unlocked)
+		{
+			double cost =
+				_progression
+					.GetSlotUnlockCost(
+						_state.CurrentRoomIndex,
+						index
+					);
+
+
+			view.ShowLocked(
+				NumberFormatter.Format(
+					cost
+				),
+
+				_state.CurrentRoom
+					.EmptyTexture
+			);
+
+
+			return;
+		}
+
+
+		MachineData machine =
 			_state.CurrentRoom
-				.EmptyTexture
+				.Machines[
+					slot.MachineTier
+				];
+
+
+		BotDefinition? bot =
+			slot.HasBot
+				? BotCatalog.Get(
+					slot.BotRarity!.Value
+				)
+				: null;
+
+
+		view.ShowMachine(
+			machine,
+			slot,
+			bot
 		);
-
-
-		return;
 	}
 
-
-	MachineData machine =
-		_state.CurrentRoom
-			.Machines[
-				slot.MachineTier
-			];
-
-
-	BotDefinition? bot =
-		slot.HasBot
-			? BotCatalog.Get(
-				slot.BotRarity!.Value
-			)
-			: null;
-
-
-	view.ShowMachine(
-		machine,
-		slot,
-		bot
-	);
-}
 
 	public void UpdateRuntime()
 	{
@@ -1590,14 +1710,14 @@ public sealed class GameUiController
 	private void UpdateStatsOverlay()
 	{
 		_statsIncomeLabel.Text =
-            "Automated Tokens / sec: "
+			"Automated Tokens / sec: "
 			+ NumberFormatter.Format(
 				_economy.GetTotalIncome()
 			);
 
 
 		_statsEarnedLabel.Text =
-            "Total earned: "
+			"Total earned: "
 			+ NumberFormatter.Format(
 				_state.Stats.TotalEarned
 			)
@@ -1608,14 +1728,14 @@ public sealed class GameUiController
 
 
 		_statsSpentLabel.Text =
-            "Total spent: "
+			"Total spent: "
 			+ NumberFormatter.Format(
 				_state.Stats.TotalSpent
 			);
 
 
 		_statsSlotsLabel.Text =
-            "Unlocked slots: "
+			"Unlocked slots: "
 			+ _progression.GetUnlockedSlotCount(
 				_state.CurrentRoomIndex
 			)
@@ -1624,12 +1744,12 @@ public sealed class GameUiController
 
 
 		_statsLevelLabel.Text =
-            "Total level: "
+			"Total level: "
 			+ _progression.GetTotalLevel();
 
 
 		_statsUnlockSpendLabel.Text =
-            "Slot unlocks: "
+			"Slot unlocks: "
 			+ NumberFormatter.Format(
 				_state.Stats.SlotUnlockSpent
 			);
@@ -1669,17 +1789,17 @@ public sealed class GameUiController
 
 
 			lines.Add(
-                ""
+				""
 			);
 		}
 
 
 		lines.Add(
-            "BOTS: "
+			"BOTS: "
 			+ NumberFormatter.Format(
 				_state.Stats
 					.GetMachineSpending(
-                        "Bots"
+						"Bots"
 					)
 			)
 		);
@@ -1711,18 +1831,18 @@ public sealed class GameUiController
 
 
 		_prestigeBoostLabel.Text =
-            "Permanent production: x"
+			"Permanent production: x"
 			+ _prestige
 				.GetProductionMultiplier()
 				.ToString(
-                    "F2"
+					"F2"
 				);
 
 
 		if (available > 0)
 		{
 			_prestigeProgressLabel.Text =
-                "Current run: "
+				"Current run: "
 				+ NumberFormatter.Format(
 					_state.RunEarnedTokens
 				)
@@ -1747,7 +1867,7 @@ public sealed class GameUiController
 
 
 			_prestigeProgressLabel.Text =
-                "Next AI Core in: "
+				"Next AI Core in: "
 				+ NumberFormatter.Format(
 					remaining
 				);
@@ -1852,4 +1972,4 @@ public sealed class GameUiController
 		_messageLabel.Text =
 			message;
 	}
-} 
+}

@@ -252,7 +252,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// TECH TREE UI
+	// TECH TREE
 	// ==================================================
 
 	private readonly Dictionary<
@@ -293,11 +293,14 @@ public sealed class LabController
 		public PanelContainer Panel { get; init; } =
 			null!;
 
+
 		public TextureRect StatusIcon { get; init; } =
 			null!;
 
+
 		public Label StatusLabel { get; init; } =
 			null!;
+
 
 		public Button Button { get; init; } =
 			null!;
@@ -516,6 +519,13 @@ public sealed class LabController
 		);
 
 
+		/*
+		 * Horizontal padding remains.
+		 *
+		 * Vertical padding is intentionally zero so the
+		 * scroll area reaches the exact top/bottom bounds.
+		 */
+
 		margin.AddThemeConstantOverride(
 			"margin_left",
 			18
@@ -523,7 +533,7 @@ public sealed class LabController
 
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			16
+			0
 		);
 
 		margin.AddThemeConstantOverride(
@@ -533,7 +543,7 @@ public sealed class LabController
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
-			12
+			0
 		);
 
 
@@ -553,9 +563,12 @@ public sealed class LabController
 			};
 
 
+		/*
+		 * No gap between header and scroll area.
+		 */
 		main.AddThemeConstantOverride(
 			"separation",
-			10
+			0
 		);
 
 
@@ -609,6 +622,10 @@ public sealed class LabController
 		);
 	}
 
+
+	// ==================================================
+	// HEADER
+	// ==================================================
 
 	private Control CreateHeaderPanel()
 	{
@@ -1080,21 +1097,11 @@ public sealed class LabController
 		);
 
 
-		Control spacer =
-			new()
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						40
-					)
-			};
-
-
-		content.AddChild(
-			spacer
-		);
-
+		/*
+		 * No artificial bottom spacer.
+		 * The final research node is now the real
+		 * bottom of the scrollable content.
+		 */
 
 		return content;
 	}
@@ -2203,6 +2210,10 @@ public sealed class LabController
 	}
 
 
+	// ==================================================
+	// RP REFRESH
+	// ==================================================
+
 	private void RefreshResearchPointButton()
 	{
 		int amount =
@@ -2232,7 +2243,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// ACTIVE RESEARCH REFRESH
+	// ACTIVE RESEARCH
 	// ==================================================
 
 	private void RefreshActiveResearch()
@@ -2379,7 +2390,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// RESEARCH VIEW REFRESH
+	// RESEARCH CARDS
 	// ==================================================
 
 	private void RefreshResearchCards()
@@ -2404,10 +2415,6 @@ public sealed class LabController
 			}
 
 
-			// ==================================================
-			// COMPLETED
-			// ==================================================
-
 			if (
 				_state.Lab.IsResearchCompleted(
 					research.Id
@@ -2427,10 +2434,6 @@ public sealed class LabController
 				continue;
 			}
 
-
-			// ==================================================
-			// CURRENTLY RESEARCHING
-			// ==================================================
 
 			if (
 				activeResearch != null
@@ -2460,10 +2463,6 @@ public sealed class LabController
 			}
 
 
-			// ==================================================
-			// PREREQUISITE LOCKED
-			// ==================================================
-
 			if (
 				research.PrerequisiteId != null
 				&& !_state.Lab.IsResearchCompleted(
@@ -2487,10 +2486,6 @@ public sealed class LabController
 			}
 
 
-			// ==================================================
-			// LAB BUSY
-			// ==================================================
-
 			if (activeResearch != null)
 			{
 				ApplyResearchViewState(
@@ -2507,10 +2502,6 @@ public sealed class LabController
 				continue;
 			}
 
-
-			// ==================================================
-			// AVAILABLE
-			// ==================================================
 
 			double duration =
 				ResearchCatalog
@@ -2680,7 +2671,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// BRANCH TEXT
+	// BRANCH INFO
 	// ==================================================
 
 	private static Texture2D GetBranchIcon(

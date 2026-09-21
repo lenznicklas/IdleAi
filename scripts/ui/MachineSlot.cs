@@ -23,40 +23,72 @@ public partial class MachineSlot : Control
 
 	public event Action<int>? DetailsPressed;
 
+	public event Action<int>? EmptyPressed;
+
 
 	private int _slotIndex;
 
 
-	private Label _titleLabel = null!;
+	private bool _isLocked;
 
-	private Control _machineHolder = null!;
 
-	private Control _machineVisual = null!;
+	private Label _titleLabel =
+		null!;
 
-	private TextureButton _machineButton = null!;
 
-	private Label _levelLabel = null!;
+	private Control _machineHolder =
+		null!;
 
-	private Control _actionHolder = null!;
 
-	private TextureButton _startButton = null!;
+	private Control _machineVisual =
+		null!;
 
-	private Control _botVisual = null!;
 
-	private TextureButton _botButton = null!;
+	private TextureButton _machineButton =
+		null!;
 
-	private ProgressBar _progressBar = null!;
 
-	private Label _statusLabel = null!;
+	private Label _levelLabel =
+		null!;
 
-	private Button _unlockButton = null!;
+
+	private Control _actionHolder =
+		null!;
+
+
+	private TextureButton _startButton =
+		null!;
+
+
+	private Control _botVisual =
+		null!;
+
+
+	private TextureButton _botButton =
+		null!;
+
+
+	private ProgressBar _progressBar =
+		null!;
+
+
+	private Label _statusLabel =
+		null!;
+
+
+	private Button _unlockButton =
+		null!;
 
 
 	private Tween? _machineTween;
 
 	private Tween? _machineReturnTween;
 
+	private Tween? _emptyPulseTween;
+
+
 	private bool _machineAnimationRunning;
+
 
 	private Vector2 _machineBasePosition;
 
@@ -65,10 +97,16 @@ public partial class MachineSlot : Control
 
 	private Tween? _botReturnTween;
 
+
 	private bool _botAnimationRunning;
+
 
 	private Vector2 _botBasePosition;
 
+
+	// ==================================================
+	// SETUP
+	// ==================================================
 
 	public void Setup(
 		int index)
@@ -96,6 +134,10 @@ public partial class MachineSlot : Control
 	}
 
 
+	// ==================================================
+	// UI
+	// ==================================================
+
 	private void CreateUi()
 	{
 		MarginContainer margin =
@@ -112,15 +154,18 @@ public partial class MachineSlot : Control
 			12
 		);
 
+
 		margin.AddThemeConstantOverride(
 			"margin_top",
 			10
 		);
 
+
 		margin.AddThemeConstantOverride(
 			"margin_right",
 			12
 		);
+
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
@@ -160,21 +205,26 @@ public partial class MachineSlot : Control
 			vbox
 		);
 
+
 		CreateMachineArea(
 			vbox
 		);
+
 
 		CreateInfoRow(
 			vbox
 		);
 
+
 		CreateProgressArea(
 			vbox
 		);
 
+
 		CreateUnlockButton(
 			vbox
 		);
+
 
 		CreateBorder();
 	}
@@ -267,7 +317,8 @@ public partial class MachineSlot : Control
 					true,
 
 				StretchMode =
-					TextureButton.StretchModeEnum.KeepAspectCentered
+					TextureButton.StretchModeEnum
+						.KeepAspectCentered
 			};
 
 
@@ -277,10 +328,7 @@ public partial class MachineSlot : Control
 
 
 		_machineButton.Pressed +=
-			() =>
-				DetailsPressed?.Invoke(
-					_slotIndex
-				);
+			OnMachinePressed;
 
 
 		_machineVisual.AddChild(
@@ -290,6 +338,129 @@ public partial class MachineSlot : Control
 
 		_machineBasePosition =
 			Vector2.Zero;
+	}
+
+
+	private void OnMachinePressed()
+	{
+		if (_isLocked)
+		{
+			EmptyPressed?.Invoke(
+				_slotIndex
+			);
+
+			return;
+		}
+
+
+		DetailsPressed?.Invoke(
+			_slotIndex
+		);
+	}
+
+
+	// ==================================================
+	// EMPTY SLOT PULSE
+	// ==================================================
+
+	public void PlayEmptyPulse()
+	{
+		if (!_isLocked)
+			return;
+
+
+		_emptyPulseTween?.Kill();
+
+
+		_machineVisual.PivotOffset =
+			_machineVisual.Size
+			/ 2.0f;
+
+
+		_machineVisual.Scale =
+			Vector2.One;
+
+
+		_emptyPulseTween =
+			CreateTween();
+
+
+		/*
+		 * Small "heartbeat":
+		 *
+		 * 1.00
+		 *  ↓
+		 * 1.10
+		 *  ↓
+		 * 0.97
+		 *  ↓
+		 * 1.05
+		 *  ↓
+		 * 1.00
+		 */
+		_emptyPulseTween.TweenProperty(
+			_machineVisual,
+			"scale",
+			new Vector2(
+				1.10f,
+				1.10f
+			),
+			0.08
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.Out
+		);
+
+
+		_emptyPulseTween.TweenProperty(
+			_machineVisual,
+			"scale",
+			new Vector2(
+				0.97f,
+				0.97f
+			),
+			0.09
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.InOut
+		);
+
+
+		_emptyPulseTween.TweenProperty(
+			_machineVisual,
+			"scale",
+			new Vector2(
+				1.05f,
+				1.05f
+			),
+			0.08
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.InOut
+		);
+
+
+		_emptyPulseTween.TweenProperty(
+			_machineVisual,
+			"scale",
+			Vector2.One,
+			0.11
+		)
+		.SetTrans(
+			Tween.TransitionType.Back
+		)
+		.SetEase(
+			Tween.EaseType.Out
+		);
 	}
 
 
@@ -371,7 +542,8 @@ public partial class MachineSlot : Control
 					true,
 
 				StretchMode =
-					TextureButton.StretchModeEnum.KeepAspectCentered
+					TextureButton.StretchModeEnum
+						.KeepAspectCentered
 			};
 
 
@@ -413,18 +585,22 @@ public partial class MachineSlot : Control
 					true,
 
 				StretchMode =
-					TextureButton.StretchModeEnum.KeepAspectCentered
+					TextureButton.StretchModeEnum
+						.KeepAspectCentered
 			};
 
 
 		_botButton.AnchorLeft =
 			0.08f;
 
+
 		_botButton.AnchorTop =
 			0.08f;
 
+
 		_botButton.AnchorRight =
 			0.92f;
+
 
 		_botButton.AnchorBottom =
 			0.92f;
@@ -561,6 +737,17 @@ public partial class MachineSlot : Control
 		StopBotAnimation();
 
 
+		_emptyPulseTween?.Kill();
+
+
+		_machineVisual.Scale =
+			Vector2.One;
+
+
+		_isLocked =
+			true;
+
+
 		_titleLabel.Text =
 			$"Slot {_slotIndex + 1}";
 
@@ -569,8 +756,14 @@ public partial class MachineSlot : Control
 			emptyTexture;
 
 
+		/*
+		 * IMPORTANT:
+		 *
+		 * The empty icon must remain clickable so
+		 * it can play the pulse animation.
+		 */
 		_machineButton.Disabled =
-			true;
+			false;
 
 
 		_levelLabel.Text =
@@ -597,6 +790,17 @@ public partial class MachineSlot : Control
 		SlotData slot,
 		BotDefinition? bot)
 	{
+		_emptyPulseTween?.Kill();
+
+
+		_machineVisual.Scale =
+			Vector2.One;
+
+
+		_isLocked =
+			false;
+
+
 		_unlockButton.Hide();
 
 		_actionHolder.Show();
@@ -663,15 +867,6 @@ public partial class MachineSlot : Control
 		if (!slot.Unlocked)
 			return;
 
-
-		/*
-		 * IMPORTANT:
-		 *
-		 * Use actual runtime duration after Research.
-		 *
-		 * Fall back to base duration only before
-		 * the first cycle has been initialized.
-		 */
 
 		double cycleDuration =
 			slot.RuntimeCycleDuration > 0.0
@@ -1119,11 +1314,14 @@ public partial class MachineSlot : Control
 		border.PatchMarginLeft =
 			20;
 
+
 		border.PatchMarginTop =
 			20;
 
+
 		border.PatchMarginRight =
 			20;
+
 
 		border.PatchMarginBottom =
 			20;
@@ -1138,11 +1336,17 @@ public partial class MachineSlot : Control
 	}
 
 
+	// ==================================================
+	// EXIT
+	// ==================================================
+
 	public override void _ExitTree()
 	{
 		_machineTween?.Kill();
 
 		_machineReturnTween?.Kill();
+
+		_emptyPulseTween?.Kill();
 
 		_botTween?.Kill();
 

@@ -9,6 +9,17 @@ public sealed class RoomUiController
 		36.0f;
 
 
+	/*
+	 * Very short/light haptic feedback.
+	 */
+	private const int MachineHapticDurationMs =
+		18;
+
+
+	private const float MachineHapticStrength =
+		0.18f;
+
+
 	private readonly Game _root;
 
 	private readonly GameState _state;
@@ -252,6 +263,10 @@ public sealed class RoomUiController
 				OnDetailsPressed;
 
 
+			slot.EmptyPressed +=
+				OnEmptyPressed;
+
+
 			_slotGrid.AddChild(
 				slot
 			);
@@ -272,16 +287,16 @@ public sealed class RoomUiController
 		{
 			Control spacer =
 				new()
-					{
-						CustomMinimumSize =
-							new Vector2(
-								0,
-								TopSlotPadding
-							),
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							TopSlotPadding
+						),
 
-						MouseFilter =
-							Control.MouseFilterEnum.Ignore
-					};
+					MouseFilter =
+						Control.MouseFilterEnum.Ignore
+				};
 
 
 			_slotGrid.AddChild(
@@ -301,16 +316,16 @@ public sealed class RoomUiController
 		{
 			Control spacer =
 				new()
-					{
-						CustomMinimumSize =
-							new Vector2(
-								0,
-								70
-							),
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							70
+						),
 
-						MouseFilter =
-							Control.MouseFilterEnum.Ignore
-					};
+					MouseFilter =
+						Control.MouseFilterEnum.Ignore
+				};
 
 
 			_slotGrid.AddChild(
@@ -319,6 +334,10 @@ public sealed class RoomUiController
 		}
 	}
 
+
+	// ==================================================
+	// SLOT ACTIONS
+	// ==================================================
 
 	private void OnUnlockPressed(
 		int slotIndex)
@@ -333,18 +352,31 @@ public sealed class RoomUiController
 	}
 
 
+	private void OnEmptyPressed(
+		int slotIndex)
+	{
+		if (SlotActionBlocked())
+			return;
+
+
+		MachineSlot view =
+			GetMachineSlot(
+				slotIndex
+			);
+
+
+		view.PlayEmptyPulse();
+	}
+
+
 	private void OnDetailsPressed(
 		int slotIndex)
 	{
-		/*
-		 * This is the important part for the laptop.
-		 *
-		 * If the finger moved enough to trigger scrolling,
-		 * ignore the TextureButton.Pressed event which
-		 * Godot may emit when the finger is released.
-		 */
 		if (SlotActionBlocked())
 			return;
+
+
+		PlayMachineHaptic();
 
 
 		DetailsRequested?.Invoke(
@@ -370,6 +402,36 @@ public sealed class RoomUiController
 		MessageRequested?.Invoke(
 			result.Message
 		);
+	}
+
+
+	// ==================================================
+	// HAPTICS
+	// ==================================================
+
+	private static void PlayMachineHaptic()
+	{
+		Input.VibrateHandheld(
+			MachineHapticDurationMs,
+			MachineHapticStrength
+		);
+	}
+
+
+	// ==================================================
+	// SLOT ACCESS
+	// ==================================================
+
+	private MachineSlot GetMachineSlot(
+		int slotIndex)
+	{
+		/*
+		 * Child 0 + 1 are the top padding row.
+		 */
+		return (MachineSlot)
+			_slotGrid.GetChild(
+				slotIndex + 2
+			);
 	}
 
 
@@ -419,9 +481,8 @@ public sealed class RoomUiController
 
 
 		MachineSlot view =
-			(MachineSlot)
-			_slotGrid.GetChild(
-				index + 2
+			GetMachineSlot(
+				index
 			);
 
 
@@ -499,9 +560,8 @@ public sealed class RoomUiController
 
 
 			MachineSlot view =
-				(MachineSlot)
-				_slotGrid.GetChild(
-					i + 2
+				GetMachineSlot(
+					i
 				);
 
 

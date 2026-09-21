@@ -4,10 +4,30 @@ namespace IdleAi;
 
 public sealed class AmbientBackgroundController
 {
+	private const int ParticleAmount =
+		80;
+
+
+	private const double ParticleLifetime =
+		20;
+
+
+	private const float ParticleOpacity =
+		0.65f;
+
+
+	private const float MinimumEmissionWidth =
+		200.0f;
+
+
 	private readonly Game _root;
 
 
 	private GpuParticles2D _particles =
+		null!;
+
+
+	private TextureRect _background =
 		null!;
 
 
@@ -33,6 +53,10 @@ public sealed class AmbientBackgroundController
 
 	public void Initialize()
 	{
+		CacheBackground();
+
+		ConfigureLayering();
+
 		CreateParticles();
 
 
@@ -50,6 +74,46 @@ public sealed class AmbientBackgroundController
 
 
 	// ==================================================
+	// BACKGROUND
+	// ==================================================
+
+	private void CacheBackground()
+	{
+		_background =
+			_root.GetNode<TextureRect>(
+				"Background"
+			);
+	}
+
+
+	private void ConfigureLayering()
+	{
+		/*
+		 * IMPORTANT:
+		 *
+		 * Background:
+		 *     Z = -10
+		 *
+		 * Particles:
+		 *     Z = -5
+		 *
+		 * Normal UI:
+		 *     Z = 0
+		 *
+		 * This means:
+		 *
+		 * Background
+		 *      ↓
+		 * Particles
+		 *      ↓
+		 * Slots / TopBar / BottomBar
+		 */
+		_background.ZIndex =
+			-10;
+	}
+
+
+	// ==================================================
 	// PARTICLES
 	// ==================================================
 
@@ -62,23 +126,23 @@ public sealed class AmbientBackgroundController
 					"AmbientParticles",
 
 				Amount =
-					45,
+					ParticleAmount,
 
 				Lifetime =
-					7.0,
+					ParticleLifetime,
 
 				Preprocess =
-					7.0,
+					ParticleLifetime,
 
 				Randomness =
 					0.45f,
 
 				VisibilityRect =
 					new Rect2(
-						-500,
-						-1800,
-						1000,
-						2000
+						-1000,
+						-2200,
+						2000,
+						2600
 					),
 
 				ZIndex =
@@ -95,21 +159,17 @@ public sealed class AmbientBackgroundController
 
 
 		/*
-		 * Background is usually the first child.
-		 *
-		 * Put particles directly above the background
-		 * but underneath the actual game UI.
+		 * Keep the particles immediately after
+		 * the Background node in the scene tree.
 		 */
-		if (
-			_root.GetChildCount()
-			> 1
-		)
-		{
-			_root.MoveChild(
-				_particles,
-				1
-			);
-		}
+		int backgroundIndex =
+			_background.GetIndex();
+
+
+		_root.MoveChild(
+			_particles,
+			backgroundIndex + 1
+		);
 
 
 		CreateParticleMaterial();
@@ -126,48 +186,48 @@ public sealed class AmbientBackgroundController
 	{
 		ParticleProcessMaterial material =
 			new()
-				{
-					EmissionShape =
-						ParticleProcessMaterial
-							.EmissionShapeEnum
-							.Box,
+			{
+				EmissionShape =
+					ParticleProcessMaterial
+						.EmissionShapeEnum
+						.Box,
 
-					EmissionBoxExtents =
-						new Vector3(
-							350,
-							12,
-							1
-						),
+				EmissionBoxExtents =
+					new Vector3(
+						350.0f,
+						14.0f,
+						1.0f
+					),
 
-					Direction =
-						new Vector3(
-							0,
-							-1,
-							0
-						),
+				Direction =
+					new Vector3(
+						0.0f,
+						-1.0f,
+						0.0f
+					),
 
-					Spread =
-						24.0f,
+				Spread =
+					28.0f,
 
-					InitialVelocityMin =
-						22.0f,
+				InitialVelocityMin =
+					28.0f,
 
-					InitialVelocityMax =
-						48.0f,
+				InitialVelocityMax =
+					60.0f,
 
-					Gravity =
-						new Vector3(
-							0,
-							-4,
-							0
-						),
+				Gravity =
+					new Vector3(
+						0.0f,
+						-3.0f,
+						0.0f
+					),
 
-					ScaleMin =
-						0.35f,
+				ScaleMin =
+					0.15f,
 
-					ScaleMax =
-						1.15f
-				};
+				ScaleMax =
+					0.25f
+			};
 
 
 		_particles.ProcessMaterial =
@@ -188,32 +248,43 @@ public sealed class AmbientBackgroundController
 		gradient.SetColor(
 			0,
 			new Color(
-				1,
-				1,
-				1,
+				1.0f,
+				1.0f,
+				1.0f,
 				0.0f
 			)
 		);
 
 
 		gradient.AddPoint(
-			0.15f,
+			0.18f,
 			new Color(
-				1,
-				1,
-				1,
-				0.8f
+				1.0f,
+				1.0f,
+				1.0f,
+				1.0f
 			)
 		);
 
 
 		gradient.AddPoint(
-			0.65f,
+			0.58f,
 			new Color(
-				1,
-				1,
-				1,
-				0.45f
+				1.0f,
+				1.0f,
+				1.0f,
+				0.75f
+			)
+		);
+
+
+		gradient.AddPoint(
+			0.82f,
+			new Color(
+				1.0f,
+				1.0f,
+				1.0f,
+				0.25f
 			)
 		);
 
@@ -221,9 +292,9 @@ public sealed class AmbientBackgroundController
 		gradient.SetColor(
 			1,
 			new Color(
-				1,
-				1,
-				1,
+				1.0f,
+				1.0f,
+				1.0f,
 				0.0f
 			)
 		);
@@ -231,33 +302,33 @@ public sealed class AmbientBackgroundController
 
 		GradientTexture2D texture =
 			new()
-				{
-					Gradient =
-						gradient,
+			{
+				Gradient =
+					gradient,
 
-					Width =
-						32,
+				Width =
+					40,
 
-					Height =
-						32,
+				Height =
+					40,
 
-					Fill =
-						GradientTexture2D
-							.FillEnum
-							.Radial,
+				Fill =
+					GradientTexture2D
+						.FillEnum
+						.Radial,
 
-					FillFrom =
-						new Vector2(
-							0.5f,
-							0.5f
-						),
+				FillFrom =
+					new Vector2(
+						0.5f,
+						0.5f
+					),
 
-					FillTo =
-						new Vector2(
-							1.0f,
-							0.5f
-						)
-				};
+				FillTo =
+					new Vector2(
+						1.0f,
+						0.5f
+					)
+			};
 
 
 		_particles.Texture =
@@ -283,8 +354,8 @@ public sealed class AmbientBackgroundController
 
 
 		/*
-		 * Emit particles just underneath the visible
-		 * screen so they float upwards through the UI.
+		 * Emit slightly below the bottom of the screen.
+		 * Particles then float upward through the room.
 		 */
 		_particles.Position =
 			new Vector2(
@@ -292,30 +363,28 @@ public sealed class AmbientBackgroundController
 					/ 2.0f,
 
 				_root.Size.Y
-					+ 25.0f
+					+ 30.0f
 			);
 
 
-		/*
-		 * Adjust the horizontal emission area to the
-		 * current phone / viewport width.
-		 */
 		if (
 			_particles.ProcessMaterial
 			is ParticleProcessMaterial material
 		)
 		{
+			float width =
+				Mathf.Max(
+					MinimumEmissionWidth,
+					_root.Size.X
+						* 0.58f
+				);
+
+
 			material.EmissionBoxExtents =
 				new Vector3(
-					Mathf.Max(
-						200.0f,
-						_root.Size.X
-							* 0.55f
-					),
-
-					12,
-
-					1
+					width,
+					14.0f,
+					1.0f
 				);
 		}
 	}
@@ -350,10 +419,18 @@ public sealed class AmbientBackgroundController
 		}
 
 
-		material.Color =
+		Color roomColor =
 			GetRoomColor(
 				roomIndex
 			);
+
+
+		roomColor.A *=
+			ParticleOpacity;
+
+
+		material.Color =
+			roomColor;
 
 
 		_particles.Emitting =
@@ -373,44 +450,48 @@ public sealed class AmbientBackgroundController
 	{
 		return roomIndex switch
 		{
+			// Garage - Blue
 			0 =>
 				new Color(
-					0.10f,
-					0.65f,
+					0.12f,
+					0.68f,
 					1.00f,
-					0.52f
+					0.90f
 				),
 
+			// Server Room - Red
 			1 =>
 				new Color(
 					1.00f,
 					0.18f,
 					0.20f,
-					0.50f
+					0.88f
 				),
 
+			// Data Center - Green
 			2 =>
 				new Color(
 					0.15f,
 					1.00f,
 					0.45f,
-					0.50f
+					0.88f
 				),
 
+			// Quantum Lab - Purple
 			3 =>
 				new Color(
 					0.72f,
 					0.30f,
 					1.00f,
-					0.55f
+					0.92f
 				),
 
 			_ =>
 				new Color(
-					1,
-					1,
-					1,
-					0.40f
+					1.0f,
+					1.0f,
+					1.0f,
+					0.75f
 				)
 		};
 	}

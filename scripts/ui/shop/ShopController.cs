@@ -351,8 +351,11 @@ public sealed class ShopController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						72
-					)
+						76
+					),
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
 			};
 
 
@@ -367,21 +370,60 @@ public sealed class ShopController
 		);
 
 
+		MarginContainer shardMargin =
+			new();
+
+
+		shardMargin.AddThemeConstantOverride(
+			"margin_left",
+			16
+		);
+
+
+		shardMargin.AddThemeConstantOverride(
+			"margin_right",
+			16
+		);
+
+
+		shardMargin.AddThemeConstantOverride(
+			"margin_top",
+			8
+		);
+
+
+		shardMargin.AddThemeConstantOverride(
+			"margin_bottom",
+			8
+		);
+
+
+		shardPanel.AddChild(
+			shardMargin
+		);
+
+
 		HBoxContainer row =
 			new()
 			{
 				Alignment =
-					BoxContainer.AlignmentMode.Center
+					BoxContainer.AlignmentMode.Center,
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
+
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill
 			};
 
 
 		row.AddThemeConstantOverride(
 			"separation",
-			10
+			12
 		);
 
 
-		shardPanel.AddChild(
+		shardMargin.AddChild(
 			row
 		);
 
@@ -400,8 +442,47 @@ public sealed class ShopController
 
 		_shardLabel =
 			ShopUi.CreateLabel(
-				24
+				22
 			);
+
+
+		/*
+		 * IMPORTANT:
+		 *
+		 * Data Shards must always stay on one line.
+		 * ShopUi.CreateLabel() normally enables
+		 * WordSmart wrapping, which caused the text
+		 * to be displayed vertically on narrow layouts.
+		 */
+		_shardLabel.AutowrapMode =
+			TextServer.AutowrapMode.Off;
+
+
+		_shardLabel.CustomMinimumSize =
+			new Vector2(
+				260,
+				52
+			);
+
+
+		_shardLabel.SizeFlagsHorizontal =
+			Control.SizeFlags.ShrinkCenter;
+
+
+		_shardLabel.SizeFlagsVertical =
+			Control.SizeFlags.ShrinkCenter;
+
+
+		_shardLabel.HorizontalAlignment =
+			HorizontalAlignment.Left;
+
+
+		_shardLabel.VerticalAlignment =
+			VerticalAlignment.Center;
+
+
+		_shardLabel.ClipText =
+			false;
 
 
 		row.AddChild(

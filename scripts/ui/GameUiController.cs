@@ -27,10 +27,6 @@ public sealed class GameUiController
 	public event Action? PrestigeRequested;
 
 
-	// ==================================================
-	// GENERAL
-	// ==================================================
-
 	private TextureRect _background =
 		null!;
 
@@ -39,17 +35,9 @@ public sealed class GameUiController
 		null!;
 
 
-	// ==================================================
-	// AMBIENT BACKGROUND
-	// ==================================================
-
 	private AmbientBackgroundController _ambient =
 		null!;
 
-
-	// ==================================================
-	// TOP BAR
-	// ==================================================
 
 	private TextureRect _topBarBackground =
 		null!;
@@ -79,17 +67,9 @@ public sealed class GameUiController
 		null!;
 
 
-	// ==================================================
-	// MACHINE GRID
-	// ==================================================
-
 	private GridContainer _slotGrid =
 		null!;
 
-
-	// ==================================================
-	// SMALL POPUPS
-	// ==================================================
 
 	private PanelContainer _tokenPopup =
 		null!;
@@ -98,10 +78,6 @@ public sealed class GameUiController
 	private PanelContainer _levelPopup =
 		null!;
 
-
-	// ==================================================
-	// STATS
-	// ==================================================
 
 	private Control _statsOverlay =
 		null!;
@@ -155,10 +131,6 @@ public sealed class GameUiController
 		null!;
 
 
-	// ==================================================
-	// PRESTIGE CONFIRMATION
-	// ==================================================
-
 	private Control _prestigeConfirmOverlay =
 		null!;
 
@@ -175,10 +147,6 @@ public sealed class GameUiController
 		null!;
 
 
-	// ==================================================
-	// MAP
-	// ==================================================
-
 	private Control _mapPage =
 		null!;
 
@@ -187,17 +155,9 @@ public sealed class GameUiController
 		null!;
 
 
-	// ==================================================
-	// SHOP
-	// ==================================================
-
 	private Control _shopPage =
 		null!;
 
-
-	// ==================================================
-	// BOTTOM BAR
-	// ==================================================
 
 	private TextureRect _bottomBackground =
 		null!;
@@ -211,25 +171,13 @@ public sealed class GameUiController
 		null!;
 
 
-	// ==================================================
-	// MACHINE DETAILS
-	// ==================================================
-
 	private MachineDetailsOverlay _details =
 		null!;
 
 
-	// ==================================================
-	// ROOM THEME CACHE
-	// ==================================================
-
 	private int _lastThemeRoom =
 		-1;
 
-
-	// ==================================================
-	// CONSTRUCTOR
-	// ==================================================
 
 	public GameUiController(
 		Game root,
@@ -455,73 +403,85 @@ public sealed class GameUiController
 
 		_statsIncomeLabel =
 			_root.GetNode<Label>(
-				stats + "IncomeLabel"
+				stats
+				+ "IncomeLabel"
 			);
 
 
 		_statsEarnedLabel =
 			_root.GetNode<Label>(
-				stats + "EarnedLabel"
+				stats
+				+ "EarnedLabel"
 			);
 
 
 		_statsSpentLabel =
 			_root.GetNode<Label>(
-				stats + "SpentLabel"
+				stats
+				+ "SpentLabel"
 			);
 
 
 		_statsSlotsLabel =
 			_root.GetNode<Label>(
-				stats + "SlotsLabel"
+				stats
+				+ "SlotsLabel"
 			);
 
 
 		_statsLevelLabel =
 			_root.GetNode<Label>(
-				stats + "LevelLabel"
+				stats
+				+ "LevelLabel"
 			);
 
 
 		_statsUnlockSpendLabel =
 			_root.GetNode<Label>(
-				stats + "UnlockSpendLabel"
+				stats
+				+ "UnlockSpendLabel"
 			);
 
 
 		_statsMachineSpendLabel =
 			_root.GetNode<Label>(
-				stats + "MachineSpendLabel"
+				stats
+				+ "MachineSpendLabel"
 			);
 
 
 		_aiCoresLabel =
 			_root.GetNode<Label>(
-				stats + "AiCoresLabel"
+				stats
+				+ "AiCoresLabel"
 			);
 
 
 		_prestigeBoostLabel =
 			_root.GetNode<Label>(
-				stats + "PrestigeBoostLabel"
+				stats
+				+ "PrestigeBoostLabel"
 			);
 
 
 		_prestigeProgressLabel =
 			_root.GetNode<Label>(
-				stats + "PrestigeProgressLabel"
+				stats
+				+ "PrestigeProgressLabel"
 			);
 
 
 		_prestigeButton =
 			_root.GetNode<Button>(
-				stats + "PrestigeButton"
+				stats
+				+ "PrestigeButton"
 			);
 
 
 		_statsCloseButton =
 			_root.GetNode<Button>(
-				stats + "CloseButton"
+				stats
+				+ "CloseButton"
 			);
 
 
@@ -568,10 +528,6 @@ public sealed class GameUiController
 			Control.MouseFilterEnum.Ignore;
 	}
 
-
-	// ==================================================
-	// AMBIENT BACKGROUND
-	// ==================================================
 
 	private void SetupAmbientBackground()
 	{
@@ -620,7 +576,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// FULL PAGES
+	// PAGES
 	// ==================================================
 
 	private void SetupPages()
@@ -677,7 +633,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// PRESTIGE CONFIRMATION
+	// PRESTIGE CONFIRM
 	// ==================================================
 
 	private void SetupPrestigeConfirmation()
@@ -742,7 +698,7 @@ public sealed class GameUiController
 			roomIndex++
 		)
 		{
-			int targetRoom =
+			int target =
 				roomIndex;
 
 
@@ -760,7 +716,7 @@ public sealed class GameUiController
 			button.Pressed +=
 				() =>
 					SelectRoomFromMap(
-						targetRoom
+						target
 					);
 
 
@@ -932,7 +888,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// MACHINE SLOTS
+	// SLOT VIEWS
 	// ==================================================
 
 	private void CreateSlotViews()
@@ -969,6 +925,42 @@ public sealed class GameUiController
 
 			_slotGrid.AddChild(
 				slot
+			);
+		}
+
+
+		/*
+		 * Grid has two columns.
+		 *
+		 * Therefore two spacer controls create one
+		 * complete invisible row below the final slots.
+		 *
+		 * This gives the player enough room to scroll
+		 * the last unlock button fully above the bottom bar.
+		 */
+
+		for (
+			int i = 0;
+			i < 2;
+			i++
+		)
+		{
+			Control spacer =
+				new()
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							70
+						),
+
+					MouseFilter =
+						Control.MouseFilterEnum.Ignore
+				};
+
+
+			_slotGrid.AddChild(
+				spacer
 			);
 		}
 	}
@@ -1012,7 +1004,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// UPDATE ALL
+	// UPDATE
 	// ==================================================
 
 	public void UpdateAll()
@@ -1041,7 +1033,7 @@ public sealed class GameUiController
 
 		int count =
 			Math.Min(
-				_slotGrid.GetChildCount(),
+				8,
 				_state.CurrentRoomState.Slots.Count
 			);
 
@@ -1073,10 +1065,6 @@ public sealed class GameUiController
 		}
 	}
 
-
-	// ==================================================
-	// UPDATE SLOT
-	// ==================================================
 
 	private void UpdateSlot(
 		int index)
@@ -1143,10 +1131,6 @@ public sealed class GameUiController
 	}
 
 
-	// ==================================================
-	// RUNTIME UPDATE
-	// ==================================================
-
 	public void UpdateRuntime()
 	{
 		UpdateTopBar();
@@ -1154,7 +1138,7 @@ public sealed class GameUiController
 
 		int count =
 			Math.Min(
-				_slotGrid.GetChildCount(),
+				8,
 				_state.CurrentRoomState.Slots.Count
 			);
 
@@ -1176,14 +1160,14 @@ public sealed class GameUiController
 				continue;
 
 
-			MachineSlot slotView =
+			MachineSlot view =
 				(MachineSlot)
 				_slotGrid.GetChild(
 					i
 				);
 
 
-			slotView.UpdateRuntime(
+			view.UpdateRuntime(
 				slot
 			);
 		}
@@ -1498,7 +1482,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// TOKEN POPUP
+	// SMALL POPUPS
 	// ==================================================
 
 	private void ToggleTokenPopup()
@@ -1520,10 +1504,6 @@ public sealed class GameUiController
 		);
 	}
 
-
-	// ==================================================
-	// LEVEL POPUP
-	// ==================================================
 
 	private void ToggleLevelPopup()
 	{
@@ -1661,7 +1641,8 @@ public sealed class GameUiController
 		)
 		{
 			lines.Add(
-				room.Name.ToUpperInvariant()
+				room.Name
+					.ToUpperInvariant()
 			);
 
 
@@ -1674,9 +1655,10 @@ public sealed class GameUiController
 					machine.MachineName
 					+ ": "
 					+ NumberFormatter.Format(
-						_state.Stats.GetMachineSpending(
-							machine.MachineName
-						)
+						_state.Stats
+							.GetMachineSpending(
+								machine.MachineName
+							)
 					)
 				);
 			}
@@ -1691,9 +1673,10 @@ public sealed class GameUiController
 		lines.Add(
             "BOTS: "
 			+ NumberFormatter.Format(
-				_state.Stats.GetMachineSpending(
-                    "Bots"
-				)
+				_state.Stats
+					.GetMachineSpending(
+                        "Bots"
+					)
 			)
 		);
 
@@ -1794,7 +1777,8 @@ public sealed class GameUiController
 		double multiplier =
 			1.0
 			+ coresAfter
-			* GameConfig.ProductionBoostPerAiCore;
+			* GameConfig
+				.ProductionBoostPerAiCore;
 
 
 		_prestigeConfirmInfo.Text =
@@ -1836,7 +1820,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// MACHINE DETAILS EVENT
+	// DETAILS EVENT
 	// ==================================================
 
 	private void OnDetailsStateChanged(
@@ -1864,4 +1848,4 @@ public sealed class GameUiController
 		_messageLabel.Text =
 			message;
 	}
-}
+} 

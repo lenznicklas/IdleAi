@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="IdleAi"
-run/main_scene="uid://hw3acgqp3mmv"
+run/main_scene="uid://dd8bf7ypr6n3f"
 config/features=PackedStringArray("4.7", "C#", "Mobile")
 config/icon="res://icon.svg"
 

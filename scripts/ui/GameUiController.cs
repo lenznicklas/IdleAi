@@ -1,15 +1,15 @@
 using Godot;
 using System;
-using System.Collections.Generic;
 
 namespace IdleAi;
 
-public sealed class GameUiController
+public sealed class MachineDetailsOverlay
 {
-	private static readonly Theme MainTheme =
-		GD.Load<Theme>(
-			"res://assets/themes/main_theme.tres"
-		);
+	private const ulong OutsideCloseReopenBlockMs =
+		180;
+
+
+	public event Action<string>? StateChanged;
 
 
 	private readonly Game _root;
@@ -20,234 +20,92 @@ public sealed class GameUiController
 
 	private readonly ProgressionService _progression;
 
-	private readonly ProductionService _production;
-
 	private readonly BotService _bots;
 
-	private readonly PrestigeService _prestige;
 
-
-	public event Action<int>? SlotActionRequested;
-
-	public event Action<int>? RoomSelectedRequested;
-
-	public event Action? StateChanged;
-
-	public event Action? PrestigeRequested;
-
-
-	// ==================================================
-	// MAIN LAYOUT
-	// ==================================================
-
-	private VBoxContainer _mainLayout =
+	private Control _overlay =
 		null!;
 
 
-	private ScrollContainer _roomScroll =
+	private PanelContainer _panel =
 		null!;
 
 
-	// ==================================================
-	// BACKGROUND
-	// ==================================================
-
-	private TextureRect _background =
+	private Label _title =
 		null!;
 
 
-	private AmbientBackgroundController _ambient =
+	private TextureRect _machineImage =
 		null!;
 
 
-	// ==================================================
-	// TOP BAR
-	// ==================================================
-
-	private TextureRect _topBarBackground =
+	private Label _level =
 		null!;
 
 
-	private TextureButton _tokenCard =
+	private Label _production =
 		null!;
 
 
-	private TextureButton _statsCard =
+	private Label _cycle =
 		null!;
 
 
-	private TextureButton _levelCard =
+	private Label _upgradeInfo =
 		null!;
 
 
-	private Label _tokenLabel =
+	private Button _upgradeButton =
 		null!;
 
 
-	private Label _totalLevelLabel =
+	private TextureRect _botImage =
 		null!;
 
 
-	private Label _roomInTopBarLabel =
+	private Label _botName =
 		null!;
 
 
-	// ==================================================
-	// SLOT AREA
-	// ==================================================
-
-	private GridContainer _slotGrid =
+	private Label _botMultiplier =
 		null!;
 
 
-	// ==================================================
-	// POPUPS
-	// ==================================================
-
-	private PanelContainer _tokenPopup =
+	private Button _buyBotButton =
 		null!;
 
 
-	private PanelContainer _levelPopup =
+	private Button _sellBotButton =
 		null!;
 
 
-	// ==================================================
-	// STATS
-	// ==================================================
-
-	private Control _statsOverlay =
+	private Control _sellOverlay =
 		null!;
 
 
-	private Label _statsIncomeLabel =
+	private Label _sellInfo =
 		null!;
 
 
-	private Label _statsEarnedLabel =
-		null!;
+	private int _roomIndex;
+
+	private int _slotIndex;
 
 
-	private Label _statsSpentLabel =
-		null!;
+	private ulong _blockOpenUntil;
 
 
-	private Label _statsSlotsLabel =
-		null!;
+	public bool Visible =>
+		_overlay != null
+		&& _overlay.Visible;
 
 
-	private Label _statsLevelLabel =
-		null!;
-
-
-	private Label _statsUnlockSpendLabel =
-		null!;
-
-
-	private Label _statsMachineSpendLabel =
-		null!;
-
-
-	private Label _aiCoresLabel =
-		null!;
-
-
-	private Label _prestigeBoostLabel =
-		null!;
-
-
-	private Label _prestigeProgressLabel =
-		null!;
-
-
-	private Button _prestigeButton =
-		null!;
-
-
-	private Button _statsCloseButton =
-		null!;
-
-
-	// ==================================================
-	// PRESTIGE CONFIRM
-	// ==================================================
-
-	private Control _prestigeConfirmOverlay =
-		null!;
-
-
-	private Label _prestigeConfirmInfo =
-		null!;
-
-
-	private Button _prestigeConfirmButton =
-		null!;
-
-
-	private Button _prestigeCancelButton =
-		null!;
-
-
-	// ==================================================
-	// PAGES
-	// ==================================================
-
-	private Control _mapPage =
-		null!;
-
-
-	private VBoxContainer _mapRoomButtons =
-		null!;
-
-
-	private Control _shopPage =
-		null!;
-
-
-	// ==================================================
-	// BOTTOM BAR
-	// ==================================================
-
-	private Label _messageLabel =
-		null!;
-
-
-	private TextureRect _bottomBackground =
-		null!;
-
-
-	private TextureButton _mapButton =
-		null!;
-
-
-	private TextureButton _shopButton =
-		null!;
-
-
-	// ==================================================
-	// DETAILS
-	// ==================================================
-
-	private MachineDetailsOverlay _details =
-		null!;
-
-
-	private int _lastThemeRoom =
-		-1;
-
-
-	// ==================================================
-	// CONSTRUCTOR
-	// ==================================================
-
-	public GameUiController(
+	public MachineDetailsOverlay(
 		Game root,
 		GameState state,
 		EconomyService economy,
 		ProgressionService progression,
-		ProductionService production,
-		BotService bots,
-		PrestigeService prestige)
+		BotService bots)
 	{
 		_root =
 			root;
@@ -265,16 +123,8 @@ public sealed class GameUiController
 			progression;
 
 
-		_production =
-			production;
-
-
 		_bots =
 			bots;
-
-
-		_prestige =
-			prestige;
 	}
 
 
@@ -284,1692 +134,1293 @@ public sealed class GameUiController
 
 	public void Initialize()
 	{
-		CacheNodes();
+		CreateUi();
 
+		CreateSellOverlay();
 
-		/*
-		 * Important:
-		 *
-		 * Removes the unwanted gap between
-		 * TopBar and the room ScrollContainer.
-		 */
-		SetupRoomScrollLayout();
-
-
-		_root.Theme =
-			MainTheme;
-
-
-		SetupBackground();
-
-		SetupAmbientBackground();
-
-		SetupTopbar();
-
-		SetupBottomBar();
-
-		SetupStats();
-
-		SetupPrestigeConfirmation();
-
-		SetupPages();
-
-		CreateSlotViews();
-
-		CreateMapButtons();
-
-
-		_details =
-			new MachineDetailsOverlay(
-				_root,
-				_state,
-				_economy,
-				_progression,
-				_bots
-			);
-
-
-		_details.Initialize();
-
-
-		_details.StateChanged +=
-			OnDetailsStateChanged;
-
-
-		ApplyRoomTheme(
-			true
-		);
-
-
-		_ambient.SetRoom(
-			_state.CurrentRoomIndex
-		);
+		Close();
 	}
 
 
 	// ==================================================
-	// CACHE NODES
+	// OPEN
 	// ==================================================
 
-	private void CacheNodes()
-	{
-		_background =
-			_root.GetNode<TextureRect>(
-				"Background"
-			);
-
-
-		_mainLayout =
-			_root.GetNode<VBoxContainer>(
-				"MarginContainer/VBoxContainer"
-			);
-
-
-		_roomScroll =
-			_root.GetNode<ScrollContainer>(
-				"MarginContainer/VBoxContainer/RoomPanel/RoomVBox/ScrollContainer"
-			);
-
-
-		_topBarBackground =
-			_root.GetNode<TextureRect>(
-				"MarginContainer/VBoxContainer/TopBar/Background"
-			);
-
-
-		_tokenCard =
-			_root.GetNode<TextureButton>(
-				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/TokenCard"
-			);
-
-
-		_statsCard =
-			_root.GetNode<TextureButton>(
-				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/StatsCard"
-			);
-
-
-		_levelCard =
-			_root.GetNode<TextureButton>(
-				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/LevelCard"
-			);
-
-
-		_tokenLabel =
-			_root.GetNode<Label>(
-				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/TokenCard/TokenLabel"
-			);
-
-
-		_totalLevelLabel =
-			_root.GetNode<Label>(
-				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/LevelCard/TotalLevelLabel"
-			);
-
-
-		_roomInTopBarLabel =
-			_root.GetNode<Label>(
-				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/RoomInTopBarLabel"
-			);
-
-
-		_slotGrid =
-			_root.GetNode<GridContainer>(
-				"MarginContainer/VBoxContainer/RoomPanel/RoomVBox/ScrollContainer/SlotGrid"
-			);
-
-
-		_tokenPopup =
-			_root.GetNode<PanelContainer>(
-				"TokenPopup"
-			);
-
-
-		_levelPopup =
-			_root.GetNode<PanelContainer>(
-				"LevelPopup"
-			);
-
-
-		_messageLabel =
-			_root.GetNode<Label>(
-				"BottomBar/Margin/HBox/MessageLabel"
-			);
-
-
-		_bottomBackground =
-			_root.GetNode<TextureRect>(
-				"BottomBar/Background"
-			);
-
-
-		_mapButton =
-			_root.GetNode<TextureButton>(
-				"BottomBar/Margin/HBox/MapButton"
-			);
-
-
-		_shopButton =
-			_root.GetNode<TextureButton>(
-				"BottomBar/Margin/HBox/ShopButton"
-			);
-
-
-		_mapPage =
-			_root.GetNode<Control>(
-				"MapPage"
-			);
-
-
-		_mapRoomButtons =
-			_root.GetNode<VBoxContainer>(
-				"MapPage/Margin/VBox/RoomButtons"
-			);
-
-
-		_shopPage =
-			_root.GetNode<Control>(
-				"ShopPage"
-			);
-
-
-		_statsOverlay =
-			_root.GetNode<Control>(
-				"StatsOverlay"
-			);
-
-
-		const string stats =
-			"StatsOverlay/StatsPanel/Margin/Scroll/VBox/";
-
-
-		_statsIncomeLabel =
-			_root.GetNode<Label>(
-				stats
-				+ "IncomeLabel"
-			);
-
-
-		_statsEarnedLabel =
-			_root.GetNode<Label>(
-				stats
-				+ "EarnedLabel"
-			);
-
-
-		_statsSpentLabel =
-			_root.GetNode<Label>(
-				stats
-				+ "SpentLabel"
-			);
-
-
-		_statsSlotsLabel =
-			_root.GetNode<Label>(
-				stats
-				+ "SlotsLabel"
-			);
-
-
-		_statsLevelLabel =
-			_root.GetNode<Label>(
-				stats
-				+ "LevelLabel"
-			);
-
-
-		_statsUnlockSpendLabel =
-			_root.GetNode<Label>(
-				stats
-				+ "UnlockSpendLabel"
-			);
-
-
-		_statsMachineSpendLabel =
-			_root.GetNode<Label>(
-				stats
-				+ "MachineSpendLabel"
-			);
-
-
-		_aiCoresLabel =
-			_root.GetNode<Label>(
-				stats
-				+ "AiCoresLabel"
-			);
-
-
-		_prestigeBoostLabel =
-			_root.GetNode<Label>(
-				stats
-				+ "PrestigeBoostLabel"
-			);
-
-
-		_prestigeProgressLabel =
-			_root.GetNode<Label>(
-				stats
-				+ "PrestigeProgressLabel"
-			);
-
-
-		_prestigeButton =
-			_root.GetNode<Button>(
-				stats
-				+ "PrestigeButton"
-			);
-
-
-		_statsCloseButton =
-			_root.GetNode<Button>(
-				stats
-				+ "CloseButton"
-			);
-
-
-		_prestigeConfirmOverlay =
-			_root.GetNode<Control>(
-				"PrestigeConfirmOverlay"
-			);
-
-
-		_prestigeConfirmInfo =
-			_root.GetNode<Label>(
-				"PrestigeConfirmOverlay/Panel/Margin/VBox/InfoLabel"
-			);
-
-
-		_prestigeConfirmButton =
-			_root.GetNode<Button>(
-				"PrestigeConfirmOverlay/Panel/Margin/VBox/ConfirmButton"
-			);
-
-
-		_prestigeCancelButton =
-			_root.GetNode<Button>(
-				"PrestigeConfirmOverlay/Panel/Margin/VBox/CancelButton"
-			);
-	}
-
-
-	// ==================================================
-	// ROOM SCROLL LAYOUT
-	// ==================================================
-
-	private void SetupRoomScrollLayout()
-	{
-		/*
-		 * game.tscn currently uses a VBox separation
-		 * between TopBar and RoomPanel.
-		 *
-		 * This creates the visible strip when the
-		 * ScrollContainer is completely at the top.
-		 *
-		 * Remove it so the room starts directly
-		 * underneath the TopBar.
-		 */
-
-		_mainLayout.AddThemeConstantOverride(
-			"separation",
-			0
-		);
-
-
-		/*
-		 * Keep scrolling enabled but hide the scrollbar.
-		 */
-
-		_roomScroll.HorizontalScrollMode =
-			ScrollContainer.ScrollMode.Disabled;
-
-
-		_roomScroll.VerticalScrollMode =
-			ScrollContainer.ScrollMode.ShowNever;
-	}
-
-
-	// ==================================================
-	// BACKGROUND
-	// ==================================================
-
-	private void SetupBackground()
-	{
-		_background.ExpandMode =
-			TextureRect.ExpandModeEnum.IgnoreSize;
-
-
-		_background.StretchMode =
-			TextureRect.StretchModeEnum.KeepAspectCovered;
-
-
-		_background.MouseFilter =
-			Control.MouseFilterEnum.Ignore;
-	}
-
-
-	private void SetupAmbientBackground()
-	{
-		_ambient =
-			new AmbientBackgroundController(
-				_root
-			);
-
-
-		_ambient.Initialize();
-	}
-
-
-	// ==================================================
-	// TOP BAR
-	// ==================================================
-
-	private void SetupTopbar()
-	{
-		_tokenCard.Pressed +=
-			ToggleTokenPopup;
-
-
-		_statsCard.Pressed +=
-			OpenStats;
-
-
-		_levelCard.Pressed +=
-			ToggleLevelPopup;
-	}
-
-
-	// ==================================================
-	// BOTTOM BAR
-	// ==================================================
-
-	private void SetupBottomBar()
-	{
-		_mapButton.Pressed +=
-			ToggleMapPage;
-
-
-		_shopButton.Pressed +=
-			ToggleShopPage;
-	}
-
-
-	// ==================================================
-	// PAGES
-	// ==================================================
-
-	private void SetupPages()
-	{
-		_mapPage.Hide();
-
-		_shopPage.Hide();
-	}
-
-
-	// ==================================================
-	// STATS
-	// ==================================================
-
-	private void SetupStats()
-	{
-		_statsCloseButton.Pressed +=
-			CloseStats;
-
-
-		_prestigeButton.Pressed +=
-			OpenPrestigeConfirmation;
-
-
-		ColorRect dim =
-			_root.GetNode<ColorRect>(
-				"StatsOverlay/Dim"
-			);
-
-
-		dim.GuiInput +=
-			@event =>
-			{
-				if (
-					@event is InputEventMouseButton mouse
-					&& mouse.Pressed
-					&& mouse.ButtonIndex
-					== MouseButton.Left
-				)
-				{
-					CloseStats();
-				}
-
-
-				if (
-					@event is InputEventScreenTouch touch
-					&& touch.Pressed
-				)
-				{
-					CloseStats();
-				}
-			};
-	}
-
-
-	// ==================================================
-	// PRESTIGE CONFIRM
-	// ==================================================
-
-	private void SetupPrestigeConfirmation()
-	{
-		_prestigeConfirmButton.Pressed +=
-			ConfirmPrestige;
-
-
-		_prestigeCancelButton.Pressed +=
-			ClosePrestigeConfirmation;
-
-
-		ColorRect dim =
-			_root.GetNode<ColorRect>(
-				"PrestigeConfirmOverlay/Dim"
-			);
-
-
-		dim.GuiInput +=
-			@event =>
-			{
-				if (
-					@event is InputEventMouseButton mouse
-					&& mouse.Pressed
-					&& mouse.ButtonIndex
-					== MouseButton.Left
-				)
-				{
-					ClosePrestigeConfirmation();
-				}
-
-
-				if (
-					@event is InputEventScreenTouch touch
-					&& touch.Pressed
-				)
-				{
-					ClosePrestigeConfirmation();
-				}
-			};
-	}
-
-
-	// ==================================================
-	// MAP
-	// ==================================================
-
-	private void CreateMapButtons()
-	{
-		foreach (
-			Node child
-			in _mapRoomButtons.GetChildren()
-		)
-		{
-			child.QueueFree();
-		}
-
-
-		for (
-			int roomIndex = 0;
-			roomIndex < _state.Rooms.Count;
-			roomIndex++
-		)
-		{
-			int target =
-				roomIndex;
-
-
-			Button button =
-				new()
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							82
-						)
-				};
-
-
-			button.Pressed +=
-				() =>
-					SelectRoomFromMap(
-						target
-					);
-
-
-			_mapRoomButtons.AddChild(
-				button
-			);
-		}
-
-
-		UpdateMapButtons();
-	}
-
-
-	private void UpdateMapButtons()
-	{
-		int count =
-			Math.Min(
-				_state.Rooms.Count,
-				_mapRoomButtons.GetChildCount()
-			);
-
-
-		for (
-			int i = 0;
-			i < count;
-			i++
-		)
-		{
-			Button button =
-				(Button)
-				_mapRoomButtons.GetChild(
-					i
-				);
-
-
-			RoomData room =
-				_state.Rooms[
-					i
-				];
-
-
-			bool unlocked =
-				_state.RoomStates[
-					i
-				].Unlocked;
-
-
-			if (
-				i
-				== _state.CurrentRoomIndex
-			)
-			{
-				button.Text =
-					$"{room.Name}\nCURRENT";
-			}
-			else if (unlocked)
-			{
-				button.Text =
-					$"{room.Name}\nENTER";
-			}
-			else
-			{
-				double cost =
-					_progression
-						.GetRoomUnlockCost(
-							i
-						);
-
-
-				button.Text =
-					$"{room.Name}\nUNLOCK • "
-					+ NumberFormatter.Format(
-						cost
-					);
-			}
-		}
-	}
-
-
-	private void SelectRoomFromMap(
-		int roomIndex)
-	{
-		RoomSelectedRequested?.Invoke(
-			roomIndex
-		);
-	}
-
-
-	private void ToggleMapPage()
-	{
-		_shopPage.Hide();
-
-
-		if (_mapPage.Visible)
-		{
-			_mapPage.Hide();
-
-			return;
-		}
-
-
-		_details?.Close();
-
-		_statsOverlay.Hide();
-
-		_prestigeConfirmOverlay.Hide();
-
-		_tokenPopup.Hide();
-
-		_levelPopup.Hide();
-
-
-		UpdateMapButtons();
-
-
-		_mapPage.Show();
-
-		_mapPage.MoveToFront();
-
-
-		MoveBottomBarToFront();
-	}
-
-
-	// ==================================================
-	// SHOP
-	// ==================================================
-
-	private void ToggleShopPage()
-	{
-		_mapPage.Hide();
-
-
-		if (_shopPage.Visible)
-		{
-			_shopPage.Hide();
-
-			return;
-		}
-
-
-		_details?.Close();
-
-		_statsOverlay.Hide();
-
-		_prestigeConfirmOverlay.Hide();
-
-		_tokenPopup.Hide();
-
-		_levelPopup.Hide();
-
-
-		_shopPage.Show();
-
-		_shopPage.MoveToFront();
-
-
-		MoveBottomBarToFront();
-	}
-
-
-	private void MoveBottomBarToFront()
-	{
-		_root.GetNode<Control>(
-			"BottomBar"
-		).MoveToFront();
-	}
-
-
-	public void ClosePages()
-	{
-		_mapPage.Hide();
-
-		_shopPage.Hide();
-	}
-
-
-	// ==================================================
-	// SLOT VIEWS
-	// ==================================================
-
-	private void CreateSlotViews()
-	{
-		for (
-			int i = 0;
-			i < 8;
-			i++
-		)
-		{
-			MachineSlot slot =
-				new();
-
-
-			slot.Setup(
-				i
-			);
-
-
-			slot.UnlockPressed +=
-				index =>
-					SlotActionRequested?.Invoke(
-						index
-					);
-
-
-			slot.ManualStartPressed +=
-				OnManualStart;
-
-
-			slot.DetailsPressed +=
-				OpenMachineDetails;
-
-
-			_slotGrid.AddChild(
-				slot
-			);
-		}
-
-
-		/*
-		 * The grid has two columns.
-		 *
-		 * Keep one invisible row below the final
-		 * machines so the last unlock button can be
-		 * scrolled completely above the BottomBar.
-		 *
-		 * This bottom padding is intentional.
-		 */
-
-		for (
-			int i = 0;
-			i < 2;
-			i++
-		)
-		{
-			Control spacer =
-				new()
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							70
-						),
-
-					MouseFilter =
-						Control.MouseFilterEnum.Ignore
-				};
-
-
-			_slotGrid.AddChild(
-				spacer
-			);
-		}
-	}
-
-
-	private void OnManualStart(
+	public void Open(
+		int roomIndex,
 		int slotIndex)
 	{
-		ManualStartResult result =
-			_production.TryStartManual(
-				_state.CurrentRoomIndex,
-				slotIndex
-			);
+		/*
+		 * Important for Android:
+		 *
+		 * After tapping outside the overlay, prevent
+		 * the underlying MachineSlot from reopening
+		 * this window with the same physical tap.
+		 */
 
-
-		SetMessage(
-			result.Message
-		);
-	}
-
-
-	private void OpenMachineDetails(
-		int slotIndex)
-	{
-		SlotData slot =
-			_state.CurrentRoomState
-				.Slots[
-					slotIndex
-				];
-
-
-		if (!slot.Unlocked)
-			return;
-
-
-		_details.Open(
-			_state.CurrentRoomIndex,
-			slotIndex
-		);
-	}
-
-
-	// ==================================================
-	// UPDATE
-	// ==================================================
-
-	public void UpdateAll()
-	{
-		_background.Texture =
-			_state.CurrentRoom.Background;
-
-
-		_roomInTopBarLabel.Text =
-			_state.CurrentRoom.Name;
-
-
-		UpdateTopBar();
-
-
-		ApplyRoomTheme();
-
-
-		_ambient.SetRoom(
-			_state.CurrentRoomIndex
-		);
-
-
-		UpdateMapButtons();
-
-
-		int count =
-			Math.Min(
-				8,
-				_state.CurrentRoomState.Slots.Count
-			);
-
-
-		for (
-			int i = 0;
-			i < count;
-			i++
+		if (
+			Time.GetTicksMsec()
+			< _blockOpenUntil
 		)
 		{
-			UpdateSlot(
-				i
-			);
+			return;
 		}
 
 
-		if (_statsOverlay.Visible)
+		_roomIndex =
+			roomIndex;
+
+
+		_slotIndex =
+			slotIndex;
+
+
+		Refresh();
+
+
+		_overlay.Show();
+
+		_overlay.MoveToFront();
+	}
+
+
+	public void Close()
+	{
+		_sellOverlay?.Hide();
+
+		_overlay?.Hide();
+	}
+
+
+	private void CloseFromOutside()
+	{
+		_blockOpenUntil =
+			Time.GetTicksMsec()
+			+ OutsideCloseReopenBlockMs;
+
+
+		Close();
+	}
+
+
+	// ==================================================
+	// REFRESH
+	// ==================================================
+
+	public void Refresh()
+	{
+		if (
+			_roomIndex < 0
+			|| _roomIndex >= _state.Rooms.Count
+		)
 		{
-			UpdateStatsOverlay();
+			return;
 		}
+
+
+		RoomState roomState =
+			_state.RoomStates[
+				_roomIndex
+			];
 
 
 		if (
-			_details != null
-			&& _details.Visible
+			_slotIndex < 0
+			|| _slotIndex >= roomState.Slots.Count
 		)
 		{
-			_details.Refresh();
+			return;
 		}
-	}
 
 
-	private void UpdateSlot(
-		int index)
-	{
 		SlotData slot =
-			_state.CurrentRoomState
-				.Slots[
-					index
-				];
-
-
-		MachineSlot view =
-			(MachineSlot)
-			_slotGrid.GetChild(
-				index
-			);
+			roomState.Slots[
+				_slotIndex
+			];
 
 
 		if (!slot.Unlocked)
 		{
-			double cost =
-				_progression
-					.GetSlotUnlockCost(
-						_state.CurrentRoomIndex,
-						index
-					);
-
-
-			view.ShowLocked(
-				NumberFormatter.Format(
-					cost
-				),
-
-				_state.CurrentRoom
-					.EmptyTexture
-			);
-
+			Close();
 
 			return;
 		}
+
+
+		RoomData room =
+			_state.Rooms[
+				_roomIndex
+			];
 
 
 		MachineData machine =
-			_state.CurrentRoom
-				.Machines[
-					slot.MachineTier
-				];
+			room.Machines[
+				slot.MachineTier
+			];
 
 
-		BotDefinition? bot =
-			slot.HasBot
-				? BotCatalog.Get(
-					slot.BotRarity!.Value
-				)
-				: null;
-
-
-		view.ShowMachine(
-			machine,
-			slot,
-			bot
-		);
-	}
-
-
-	public void UpdateRuntime()
-	{
-		UpdateTopBar();
-
-
-		int count =
-			Math.Min(
-				8,
-				_state.CurrentRoomState.Slots.Count
-			);
-
-
-		for (
-			int i = 0;
-			i < count;
-			i++
-		)
-		{
-			SlotData slot =
-				_state.CurrentRoomState
-					.Slots[
-						i
-					];
-
-
-			if (!slot.Unlocked)
-				continue;
-
-
-			MachineSlot view =
-				(MachineSlot)
-				_slotGrid.GetChild(
-					i
-				);
-
-
-			view.UpdateRuntime(
+		double cycleDuration =
+			_economy.GetCycleDuration(
 				slot
 			);
-		}
 
 
-		if (
-			_details != null
-			&& _details.Visible
-		)
-		{
-			_details.Refresh();
-		}
-
-
-		if (_statsOverlay.Visible)
-		{
-			UpdatePrestigeSection();
-		}
-	}
-
-
-	// ==================================================
-	// ROOM THEME
-	// ==================================================
-
-	private void ApplyRoomTheme(
-		bool force = false)
-	{
-		int room =
-			_state.CurrentRoomIndex;
-
-
-		if (
-			!force
-			&& room == _lastThemeRoom
-		)
-		{
-			return;
-		}
-
-
-		_lastThemeRoom =
-			room;
-
-
-		(
-			Color main,
-			Color secondary
-		) =
-			GetRoomColors(
-				room
+		double cycleReward =
+			_economy.GetCycleReward(
+				_roomIndex,
+				slot
 			);
 
 
-		Texture2D barTexture =
-			CreateGradientTexture(
-				main,
-				secondary
-			);
+		double perSecond =
+			cycleReward
+			/ cycleDuration;
 
 
-		Texture2D cardTexture =
-			CreateGradientTexture(
-				main.Darkened(
-					0.18f
-				),
+		_title.Text =
+			machine.MachineName;
 
-				secondary.Darkened(
-					0.18f
-				)
-			);
 
+		_machineImage.Texture =
+			machine.Texture;
 
-		Texture2D cardHoverTexture =
-			CreateGradientTexture(
-				main.Darkened(
-					0.10f
-				),
 
-				secondary.Darkened(
-					0.10f
-				)
-			);
+		_level.Text =
+			$"Level {slot.MachineLevel} / {machine.MaxLevel}";
 
 
-		Texture2D cardPressedTexture =
-			CreateGradientTexture(
-				main.Darkened(
-					0.28f
-				),
-
-				secondary.Darkened(
-					0.28f
-				)
-			);
-
-
-		_topBarBackground.Texture =
-			barTexture;
-
-
-		_bottomBackground.Texture =
-			barTexture;
-
-
-		ApplyCardTexture(
-			_tokenCard,
-			cardTexture,
-			cardHoverTexture,
-			cardPressedTexture
-		);
-
-
-		ApplyCardTexture(
-			_statsCard,
-			cardTexture,
-			cardHoverTexture,
-			cardPressedTexture
-		);
-
-
-		ApplyCardTexture(
-			_levelCard,
-			cardTexture,
-			cardHoverTexture,
-			cardPressedTexture
-		);
-	}
-
-
-	private static (
-		Color Main,
-		Color Secondary
-	) GetRoomColors(
-		int room)
-	{
-		return room switch
-		{
-			0 =>
-				(
-					new Color(
-						0.015f,
-						0.27f,
-						0.52f,
-						1
-					),
-
-					new Color(
-						0.01f,
-						0.22f,
-						0.44f,
-						1
-					)
-				),
-
-			1 =>
-				(
-					new Color(
-						0.50f,
-						0.07f,
-						0.10f,
-						1
-					),
-
-					new Color(
-						0.41f,
-						0.05f,
-						0.08f,
-						1
-					)
-				),
-
-			2 =>
-				(
-					new Color(
-						0.04f,
-						0.39f,
-						0.20f,
-						1
-					),
-
-					new Color(
-						0.03f,
-						0.32f,
-						0.16f,
-						1
-					)
-				),
-
-			3 =>
-				(
-					new Color(
-						0.33f,
-						0.10f,
-						0.52f,
-						1
-					),
-
-					new Color(
-						0.27f,
-						0.08f,
-						0.44f,
-						1
-					)
-				),
-
-			_ =>
-				(
-					new Color(
-						0.10f,
-						0.10f,
-						0.10f,
-						1
-					),
-
-					new Color(
-						0.08f,
-						0.08f,
-						0.08f,
-						1
-					)
-				)
-		};
-	}
-
-
-	private static void ApplyCardTexture(
-		TextureButton button,
-		Texture2D normal,
-		Texture2D hover,
-		Texture2D pressed)
-	{
-		button.TextureNormal =
-			normal;
-
-
-		button.TextureHover =
-			hover;
-
-
-		button.TexturePressed =
-			pressed;
-	}
-
-
-	private static GradientTexture2D CreateGradientTexture(
-		Color first,
-		Color second)
-	{
-		Gradient gradient =
-			new();
-
-
-		gradient.SetColor(
-			0,
-			first
-		);
-
-
-		gradient.SetColor(
-			1,
-			second
-		);
-
-
-		return new GradientTexture2D
-		{
-			Gradient =
-				gradient,
-
-			Width =
-				512,
-
-			Height =
-				96,
-
-			Fill =
-				GradientTexture2D.FillEnum.Linear,
-
-			FillFrom =
-				new Vector2(
-					0,
-					0.5f
-				),
-
-			FillTo =
-				new Vector2(
-					1,
-					0.5f
-				)
-		};
-	}
-
-
-	// ==================================================
-	// TOP BAR VALUES
-	// ==================================================
-
-	public void UpdateTopBar()
-	{
-		_tokenLabel.Text =
-			NumberFormatter.Format(
-				_state.Tokens
-			);
-
-
-		_totalLevelLabel.Text =
-			_progression
-				.GetTotalLevel()
-				.ToString();
-	}
-
-
-	// ==================================================
-	// SMALL POPUPS
-	// ==================================================
-
-	private void ToggleTokenPopup()
-	{
-		_levelPopup.Hide();
-
-
-		if (_tokenPopup.Visible)
-		{
-			_tokenPopup.Hide();
-
-			return;
-		}
-
-
-		PositionPopup(
-			_tokenPopup,
-			_tokenCard
-		);
-	}
-
-
-	private void ToggleLevelPopup()
-	{
-		_tokenPopup.Hide();
-
-
-		if (_levelPopup.Visible)
-		{
-			_levelPopup.Hide();
-
-			return;
-		}
-
-
-		PositionPopup(
-			_levelPopup,
-			_levelCard
-		);
-	}
-
-
-	private async void PositionPopup(
-		Control popup,
-		Control card)
-	{
-		popup.Show();
-
-
-		await _root.ToSignal(
-			_root.GetTree(),
-			SceneTree.SignalName.ProcessFrame
-		);
-
-
-		popup.GlobalPosition =
-			new Vector2(
-				card.GlobalPosition.X
-				+ card.Size.X / 2
-				- popup.Size.X / 2,
-
-				card.GlobalPosition.Y
-				+ card.Size.Y
-				+ 6
-			);
-	}
-
-
-	// ==================================================
-	// STATS
-	// ==================================================
-
-	private void OpenStats()
-	{
-		ClosePages();
-
-
-		_details?.Close();
-
-
-		_tokenPopup.Hide();
-
-		_levelPopup.Hide();
-
-
-		UpdateStatsOverlay();
-
-
-		_statsOverlay.Show();
-
-		_statsOverlay.MoveToFront();
-	}
-
-
-	private void CloseStats()
-	{
-		_statsOverlay.Hide();
-	}
-
-
-	private void UpdateStatsOverlay()
-	{
-		_statsIncomeLabel.Text =
-			"Automated Tokens / sec: "
+		_production.Text =
+			"Production: "
 			+ NumberFormatter.Format(
-				_economy.GetTotalIncome()
-			);
-
-
-		_statsEarnedLabel.Text =
-			"Total earned: "
-			+ NumberFormatter.Format(
-				_state.Stats.TotalEarned
+				cycleReward
 			)
-			+ "\nOffline earned: "
+			+ " Tokens / cycle"
+			+ "\nAverage: "
 			+ NumberFormatter.Format(
-				_state.Stats.OfflineEarned
-			);
-
-
-		_statsSpentLabel.Text =
-			"Total spent: "
-			+ NumberFormatter.Format(
-				_state.Stats.TotalSpent
-			);
-
-
-		_statsSlotsLabel.Text =
-			"Unlocked slots: "
-			+ _progression.GetUnlockedSlotCount(
-				_state.CurrentRoomIndex
+				perSecond
 			)
-			+ " / "
-			+ _state.CurrentRoomState.Slots.Count;
+			+ " Tokens/s";
 
 
-		_statsLevelLabel.Text =
-			"Total level: "
-			+ _progression.GetTotalLevel();
-
-
-		_statsUnlockSpendLabel.Text =
-			"Slot unlocks: "
-			+ NumberFormatter.Format(
-				_state.Stats.SlotUnlockSpent
-			);
-
-
-		List<string> lines =
-			[];
-
-
-		foreach (
-			RoomData room
-			in _state.Rooms
-		)
+		if (slot.IsRunning)
 		{
-			lines.Add(
-				room.Name
-					.ToUpperInvariant()
-			);
-
-
-			foreach (
-				MachineData machine
-				in room.Machines
-			)
-			{
-				lines.Add(
-					machine.MachineName
-					+ ": "
-					+ NumberFormatter.Format(
-						_state.Stats
-							.GetMachineSpending(
-								machine.MachineName
-							)
-					)
-				);
-			}
-
-
-			lines.Add(
-				""
-			);
-		}
-
-
-		lines.Add(
-			"BOTS: "
-			+ NumberFormatter.Format(
-				_state.Stats
-					.GetMachineSpending(
-						"Bots"
-					)
-			)
-		);
-
-
-		_statsMachineSpendLabel.Text =
-			string.Join(
-				"\n",
-				lines
-			);
-
-
-		UpdatePrestigeSection();
-	}
-
-
-	// ==================================================
-	// PRESTIGE
-	// ==================================================
-
-	private void UpdatePrestigeSection()
-	{
-		long available =
-			_prestige.GetAvailableAiCores();
-
-
-		_aiCoresLabel.Text =
-			$"AI Cores: {_state.Prestige.AiCores}";
-
-
-		_prestigeBoostLabel.Text =
-			"Permanent production: x"
-			+ _prestige
-				.GetProductionMultiplier()
-				.ToString(
-					"F2"
-				);
-
-
-		if (available > 0)
-		{
-			_prestigeProgressLabel.Text =
-				"Current run: "
-				+ NumberFormatter.Format(
-					_state.RunEarnedTokens
-				)
-				+ $"\nReward: +{available} AI Cores";
-
-
-			_prestigeButton.Text =
-				$"PRESTIGE +{available}";
-
-
-			_prestigeButton.Disabled =
-				false;
+			_cycle.Text =
+				$"Cycle: {slot.CycleRemaining:F1}s / {cycleDuration:F1}s";
 		}
 		else
 		{
-			double remaining =
-				Math.Max(
-					0,
-					GameConfig.PrestigeTokensPerCore
-					- _state.RunEarnedTokens
-				);
-
-
-			_prestigeProgressLabel.Text =
-				"Next AI Core in: "
-				+ NumberFormatter.Format(
-					remaining
-				);
-
-
-			_prestigeButton.Text =
-				"PRESTIGE";
-
-
-			_prestigeButton.Disabled =
-				true;
+			_cycle.Text =
+				$"Cycle time: {cycleDuration:F1}s";
 		}
-	}
 
 
-	private void OpenPrestigeConfirmation()
-	{
-		long reward =
-			_prestige.GetAvailableAiCores();
-
-
-		if (reward <= 0)
-			return;
-
-
-		long coresAfter =
-			_state.Prestige.AiCores
-			+ reward;
-
-
-		double multiplier =
-			1.0
-			+ coresAfter
-			* GameConfig
-				.ProductionBoostPerAiCore;
-
-
-		_prestigeConfirmInfo.Text =
-			$"You gain +{reward} AI Cores.\n\n"
-			+ $"AI Cores after prestige: {coresAfter}\n"
-			+ $"Production after prestige: x{multiplier:F2}";
-
-
-		_statsOverlay.Hide();
-
-
-		_prestigeConfirmOverlay.Show();
-
-		_prestigeConfirmOverlay.MoveToFront();
-	}
-
-
-	private void ClosePrestigeConfirmation()
-	{
-		_prestigeConfirmOverlay.Hide();
-
-
-		UpdateStatsOverlay();
-
-
-		_statsOverlay.Show();
-
-		_statsOverlay.MoveToFront();
-	}
-
-
-	private void ConfirmPrestige()
-	{
-		_prestigeConfirmOverlay.Hide();
-
-
-		PrestigeRequested?.Invoke();
-	}
-
-
-	// ==================================================
-	// DETAILS EVENT
-	// ==================================================
-
-	private void OnDetailsStateChanged(
-		string message)
-	{
-		SetMessage(
-			message
+		UpdateUpgradeSection(
+			room,
+			machine,
+			slot
 		);
 
 
-		UpdateAll();
-
-
-		StateChanged?.Invoke();
+		UpdateBotSection(
+			slot
+		);
 	}
 
 
 	// ==================================================
-	// MESSAGE
+	// MACHINE UPGRADE
 	// ==================================================
 
-	public void SetMessage(
-		string message)
+	private void UpdateUpgradeSection(
+		RoomData room,
+		MachineData machine,
+		SlotData slot)
 	{
-		_messageLabel.Text =
-			message;
+		if (
+			slot.MachineLevel
+			< machine.MaxLevel
+		)
+		{
+			double cost =
+				_economy.GetLevelUpgradeCost(
+					_roomIndex,
+					slot,
+					_slotIndex
+				);
+
+
+			double current =
+				_economy.GetCycleReward(
+					_roomIndex,
+					slot
+				);
+
+
+			int original =
+				slot.MachineLevel;
+
+
+			slot.MachineLevel++;
+
+
+			double next =
+				_economy.GetCycleReward(
+					_roomIndex,
+					slot
+				);
+
+
+			slot.MachineLevel =
+				original;
+
+
+			_upgradeInfo.Text =
+				"Next level: "
+				+ NumberFormatter.Format(
+					current
+				)
+				+ " → "
+				+ NumberFormatter.Format(
+					next
+				);
+
+
+			_upgradeButton.Text =
+				"UPGRADE • "
+				+ NumberFormatter.Format(
+					cost
+				);
+
+
+			_upgradeButton.Disabled =
+				false;
+
+
+			return;
+		}
+
+
+		if (
+			slot.MachineTier
+			< room.Machines.Count - 1
+		)
+		{
+			MachineData nextMachine =
+				room.Machines[
+					slot.MachineTier + 1
+				];
+
+
+			double cost =
+				_economy.GetTierUpgradeCost(
+					_roomIndex,
+					slot,
+					_slotIndex
+				);
+
+
+			_upgradeInfo.Text =
+				$"Next machine: {nextMachine.MachineName}";
+
+
+			_upgradeButton.Text =
+				"UPGRADE MACHINE • "
+				+ NumberFormatter.Format(
+					cost
+				);
+
+
+			_upgradeButton.Disabled =
+				false;
+
+
+			return;
+		}
+
+
+		_upgradeInfo.Text =
+			"Maximum machine reached";
+
+
+		_upgradeButton.Text =
+			"MAX";
+
+
+		_upgradeButton.Disabled =
+			true;
+	}
+
+
+	private void OnUpgradePressed()
+	{
+		ProgressionResult result =
+			_progression.HandleSlotAction(
+				_slotIndex
+			);
+
+
+		StateChanged?.Invoke(
+			result.Message
+		);
+
+
+		Refresh();
+	}
+
+
+	// ==================================================
+	// BOT
+	// ==================================================
+
+	private void UpdateBotSection(
+		SlotData slot)
+	{
+		if (!slot.HasBot)
+		{
+			UpdateNoBotSection(
+				slot
+			);
+
+			return;
+		}
+
+
+		BotDefinition bot =
+			BotCatalog.Get(
+				slot.BotRarity!.Value
+			);
+
+
+		double baseMultiplier =
+			bot.ProductionMultiplier;
+
+
+		double effectiveMultiplier =
+			_bots.GetEffectiveMultiplier(
+				slot
+			);
+
+
+		double researchBonus =
+			_state.Lab.GetBotPowerBonus();
+
+
+		_botImage.Texture =
+			bot.Texture;
+
+
+		_botName.Text =
+			bot.Name.ToUpperInvariant();
+
+
+		_botMultiplier.Text =
+			"Base Power: x"
+			+ baseMultiplier.ToString(
+				"F2"
+			)
+			+ "\nResearch: +"
+			+ FormatPercent(
+				researchBonus
+			)
+			+ "\nEffective Power: x"
+			+ effectiveMultiplier.ToString(
+				"F2"
+			);
+
+
+		_buyBotButton.Hide();
+
+		_sellBotButton.Show();
+
+
+		_sellBotButton.Text =
+			"SELL BOT • "
+			+ NumberFormatter.Format(
+				_bots.GetSellPrice(
+					slot
+				)
+			);
+	}
+
+
+	private void UpdateNoBotSection(
+		SlotData slot)
+	{
+		_botImage.Texture =
+			null;
+
+
+		_botName.Text =
+			"NO BOT";
+
+
+		(
+			double common,
+			double rare,
+			double epic,
+			double legendary
+		) =
+			_bots.GetRarityChances();
+
+
+		_botMultiplier.Text =
+			"Manual production"
+			+ "\n\nBot chances:"
+			+ "\nCommon: "
+			+ FormatPercent(
+				common
+			)
+			+ "\nRare: "
+			+ FormatPercent(
+				rare
+			)
+			+ "\nEpic: "
+			+ FormatPercent(
+				epic
+			)
+			+ "\nLegendary: "
+			+ FormatPercent(
+				legendary
+			);
+
+
+		_buyBotButton.Text =
+			"BUY RANDOM BOT • "
+			+ NumberFormatter.Format(
+				_bots.GetBotPrice(
+					_roomIndex,
+					_slotIndex
+				)
+			);
+
+
+		_buyBotButton.Show();
+
+		_sellBotButton.Hide();
+	}
+
+
+	// ==================================================
+	// BOT ACTIONS
+	// ==================================================
+
+	private void BuyBot()
+	{
+		BotActionResult result =
+			_bots.BuyBot(
+				_roomIndex,
+				_slotIndex
+			);
+
+
+		StateChanged?.Invoke(
+			result.Message
+		);
+
+
+		Refresh();
+	}
+
+
+	private void OpenSellConfirmation()
+	{
+		SlotData slot =
+			_state.RoomStates[
+				_roomIndex
+			].Slots[
+				_slotIndex
+			];
+
+
+		if (!slot.HasBot)
+			return;
+
+
+		BotDefinition bot =
+			BotCatalog.Get(
+				slot.BotRarity!.Value
+			);
+
+
+		double baseMultiplier =
+			bot.ProductionMultiplier;
+
+
+		double effectiveMultiplier =
+			_bots.GetEffectiveMultiplier(
+				slot
+			);
+
+
+		double researchBonus =
+			_state.Lab.GetBotPowerBonus();
+
+
+		_sellInfo.Text =
+			$"Sell {bot.Name}?\n\n"
+			+ $"Base power: x{baseMultiplier:F2}\n"
+			+ "Research bonus: +"
+			+ FormatPercent(
+				researchBonus
+			)
+			+ "\nEffective power: x"
+			+ effectiveMultiplier.ToString(
+				"F2"
+			)
+			+ "\nRefund: "
+			+ NumberFormatter.Format(
+				_bots.GetSellPrice(
+					slot
+				)
+			)
+			+ " Tokens\n\n"
+			+ "You receive one third of the original purchase price.";
+
+
+		_sellOverlay.Show();
+
+		_sellOverlay.MoveToFront();
+	}
+
+
+	private void ConfirmSell()
+	{
+		_sellOverlay.Hide();
+
+
+		BotActionResult result =
+			_bots.SellBot(
+				_roomIndex,
+				_slotIndex
+			);
+
+
+		StateChanged?.Invoke(
+			result.Message
+		);
+
+
+		Refresh();
+	}
+
+
+	// ==================================================
+	// MAIN UI
+	// ==================================================
+
+	private void CreateUi()
+	{
+		_overlay =
+			CreateFullScreenOverlay(
+				CloseFromOutside
+			);
+
+
+		_root.AddChild(
+			_overlay
+		);
+
+
+		_panel =
+			CreatePanel(
+				new Vector2(
+					580,
+					900
+				)
+			);
+
+
+		CenterContainer center =
+			new();
+
+
+		center.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+
+		center.MouseFilter =
+			Control.MouseFilterEnum.Ignore;
+
+
+		_overlay.AddChild(
+			center
+		);
+
+
+		center.AddChild(
+			_panel
+		);
+
+
+		MarginContainer margin =
+			CreateMargin();
+
+
+		_panel.AddChild(
+			margin
+		);
+
+
+		VBoxContainer vbox =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
+
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		vbox.AddThemeConstantOverride(
+			"separation",
+			8
+		);
+
+
+		margin.AddChild(
+			vbox
+		);
+
+
+		_title =
+			CreateLabel(
+				27
+			);
+
+
+		vbox.AddChild(
+			_title
+		);
+
+
+		_machineImage =
+			new TextureRect
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						170
+					),
+
+				ExpandMode =
+					TextureRect.ExpandModeEnum.IgnoreSize,
+
+				StretchMode =
+					TextureRect.StretchModeEnum.KeepAspectCentered
+			};
+
+
+		vbox.AddChild(
+			_machineImage
+		);
+
+
+		_level =
+			CreateLabel(
+				17
+			);
+
+
+		vbox.AddChild(
+			_level
+		);
+
+
+		_production =
+			CreateLabel(
+				14
+			);
+
+
+		vbox.AddChild(
+			_production
+		);
+
+
+		_cycle =
+			CreateLabel(
+				14
+			);
+
+
+		vbox.AddChild(
+			_cycle
+		);
+
+
+		vbox.AddChild(
+			new HSeparator()
+		);
+
+
+		_upgradeInfo =
+			CreateLabel(
+				14
+			);
+
+
+		vbox.AddChild(
+			_upgradeInfo
+		);
+
+
+		_upgradeButton =
+			new Button
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						54
+					)
+			};
+
+
+		_upgradeButton.Pressed +=
+			OnUpgradePressed;
+
+
+		vbox.AddChild(
+			_upgradeButton
+		);
+
+
+		vbox.AddChild(
+			new HSeparator()
+		);
+
+
+		Label botTitle =
+			CreateLabel(
+				19
+			);
+
+
+		botTitle.Text =
+			"BOT";
+
+
+		vbox.AddChild(
+			botTitle
+		);
+
+
+		_botImage =
+			new TextureRect
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						90
+					),
+
+				ExpandMode =
+					TextureRect.ExpandModeEnum.IgnoreSize,
+
+				StretchMode =
+					TextureRect.StretchModeEnum.KeepAspectCentered
+			};
+
+
+		vbox.AddChild(
+			_botImage
+		);
+
+
+		_botName =
+			CreateLabel(
+				16
+			);
+
+
+		vbox.AddChild(
+			_botName
+		);
+
+
+		_botMultiplier =
+			CreateLabel(
+				13
+			);
+
+
+		vbox.AddChild(
+			_botMultiplier
+		);
+
+
+		_buyBotButton =
+			new Button
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						52
+					)
+			};
+
+
+		_buyBotButton.Pressed +=
+			BuyBot;
+
+
+		vbox.AddChild(
+			_buyBotButton
+		);
+
+
+		_sellBotButton =
+			new Button
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						52
+					)
+			};
+
+
+		_sellBotButton.Pressed +=
+			OpenSellConfirmation;
+
+
+		vbox.AddChild(
+			_sellBotButton
+		);
+
+
+		Button close =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						50
+					),
+
+				Text =
+					"CLOSE"
+			};
+
+
+		close.Pressed +=
+			Close;
+
+
+		vbox.AddChild(
+			close
+		);
+	}
+
+
+	// ==================================================
+	// SELL UI
+	// ==================================================
+
+	private void CreateSellOverlay()
+	{
+		_sellOverlay =
+			CreateFullScreenOverlay(
+				() =>
+					_sellOverlay.Hide()
+			);
+
+
+		_root.AddChild(
+			_sellOverlay
+		);
+
+
+		CenterContainer center =
+			new();
+
+
+		center.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+
+		center.MouseFilter =
+			Control.MouseFilterEnum.Ignore;
+
+
+		_sellOverlay.AddChild(
+			center
+		);
+
+
+		PanelContainer panel =
+			CreatePanel(
+				new Vector2(
+					540,
+					450
+				)
+			);
+
+
+		center.AddChild(
+			panel
+		);
+
+
+		MarginContainer margin =
+			CreateMargin();
+
+
+		panel.AddChild(
+			margin
+		);
+
+
+		VBoxContainer box =
+			new();
+
+
+		box.AddThemeConstantOverride(
+			"separation",
+			16
+		);
+
+
+		margin.AddChild(
+			box
+		);
+
+
+		Label title =
+			CreateLabel(
+				26
+			);
+
+
+		title.Text =
+			"SELL BOT";
+
+
+		box.AddChild(
+			title
+		);
+
+
+		box.AddChild(
+			new HSeparator()
+		);
+
+
+		_sellInfo =
+			CreateLabel(
+				15
+			);
+
+
+		box.AddChild(
+			_sellInfo
+		);
+
+
+		Button confirm =
+			new()
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							58
+						),
+
+					Text =
+						"SELL"
+				};
+
+
+		confirm.Pressed +=
+			ConfirmSell;
+
+
+		box.AddChild(
+			confirm
+		);
+
+
+		Button cancel =
+			new()
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							54
+						),
+
+					Text =
+						"CANCEL"
+				};
+
+
+		cancel.Pressed +=
+			() =>
+				_sellOverlay.Hide();
+
+
+		box.AddChild(
+			cancel
+		);
+
+
+		_sellOverlay.Hide();
+	}
+
+
+	// ==================================================
+	// OVERLAY
+	// ==================================================
+
+	private static Control CreateFullScreenOverlay(
+		Action outsideReleased)
+	{
+		Control overlay =
+			new()
+				{
+					MouseFilter =
+						Control.MouseFilterEnum.Stop
+				};
+
+
+		overlay.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+
+		ColorRect dim =
+			new()
+				{
+					Color =
+						new Color(
+							0,
+							0,
+							0,
+							0.76f
+						),
+
+					MouseFilter =
+						Control.MouseFilterEnum.Stop
+				};
+
+
+		dim.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+
+		dim.GuiInput +=
+			@event =>
+			{
+				bool released =
+					false;
+
+
+				if (
+					@event
+						is InputEventScreenTouch touch
+					&& !touch.Pressed
+				)
+				{
+					released =
+						true;
+				}
+
+
+				if (
+					@event
+						is InputEventMouseButton mouse
+					&& !mouse.Pressed
+					&& mouse.ButtonIndex
+						== MouseButton.Left
+				)
+				{
+					released =
+						true;
+				}
+
+
+				if (!released)
+					return;
+
+
+				/*
+				 * First consume the RELEASE while the
+				 * overlay is still visible.
+				 */
+
+				overlay.GetViewport()
+					.SetInputAsHandled();
+
+
+				/*
+				 * Only after the current input event is
+				 * finished may the overlay disappear.
+				 *
+				 * This is crucial for Android.
+				 */
+
+				Callable
+					.From(
+						outsideReleased
+					)
+					.CallDeferred();
+			};
+
+
+		overlay.AddChild(
+			dim
+		);
+
+
+		return overlay;
+	}
+
+
+	// ==================================================
+	// HELPERS
+	// ==================================================
+
+	private static string FormatPercent(
+		double value)
+	{
+		return (
+			value
+			* 100
+		).ToString(
+			"0.#"
+		)
+		+ "%";
+	}
+
+
+	private static PanelContainer CreatePanel(
+		Vector2 size)
+	{
+		PanelContainer panel =
+			new()
+				{
+					CustomMinimumSize =
+						size,
+
+					MouseFilter =
+						Control.MouseFilterEnum.Stop
+				};
+
+
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			CreatePanelStyle()
+		);
+
+
+		return panel;
+	}
+
+
+	private static MarginContainer CreateMargin()
+	{
+		MarginContainer margin =
+			new();
+
+
+		margin.AddThemeConstantOverride(
+			"margin_left",
+			28
+		);
+
+
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			24
+		);
+
+
+		margin.AddThemeConstantOverride(
+			"margin_right",
+			28
+		);
+
+
+		margin.AddThemeConstantOverride(
+			"margin_bottom",
+			24
+		);
+
+
+		return margin;
+	}
+
+
+	private static Label CreateLabel(
+		int fontSize)
+	{
+		Label label =
+			new()
+				{
+					HorizontalAlignment =
+						HorizontalAlignment.Center,
+
+					AutowrapMode =
+						TextServer.AutowrapMode.WordSmart
+				};
+
+
+		label.AddThemeFontSizeOverride(
+			"font_size",
+			fontSize
+		);
+
+
+		return label;
+	}
+
+
+	private static StyleBoxFlat CreatePanelStyle()
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				new Color(
+					0.02f,
+					0.035f,
+					0.06f,
+					0.98f
+				),
+
+			BorderWidthLeft =
+				2,
+
+			BorderWidthTop =
+				2,
+
+			BorderWidthRight =
+				2,
+
+			BorderWidthBottom =
+				2,
+
+			BorderColor =
+				new Color(
+					0,
+					0.65f,
+					1,
+					0.8f
+				),
+
+			CornerRadiusTopLeft =
+				14,
+
+			CornerRadiusTopRight =
+				14,
+
+			CornerRadiusBottomLeft =
+				14,
+
+			CornerRadiusBottomRight =
+				14
+		};
 	}
 }

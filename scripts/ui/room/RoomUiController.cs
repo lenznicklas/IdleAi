@@ -193,6 +193,13 @@ public sealed class RoomUiController
 	}
 
 
+	private bool SlotActionBlocked()
+	{
+		return _mobileScroll != null
+			&& _mobileScroll.ShouldSuppressTap;
+	}
+
+
 	// ==================================================
 	// AMBIENT
 	// ==================================================
@@ -234,10 +241,7 @@ public sealed class RoomUiController
 
 
 			slot.UnlockPressed +=
-				index =>
-					SlotActionRequested?.Invoke(
-						index
-					);
+				OnUnlockPressed;
 
 
 			slot.ManualStartPressed +=
@@ -245,10 +249,7 @@ public sealed class RoomUiController
 
 
 			slot.DetailsPressed +=
-				index =>
-					DetailsRequested?.Invoke(
-						index
-					);
+				OnDetailsPressed;
 
 
 			_slotGrid.AddChild(
@@ -263,12 +264,6 @@ public sealed class RoomUiController
 
 	private void CreateTopPadding()
 	{
-		/*
-		 * SlotGrid has 2 columns.
-		 *
-		 * Therefore we need 2 spacer controls so the
-		 * padding fills one complete invisible row.
-		 */
 		for (
 			int i = 0;
 			i < 2;
@@ -298,10 +293,6 @@ public sealed class RoomUiController
 
 	private void CreateBottomPadding()
 	{
-		/*
-		 * Extra bottom room so the final machine
-		 * can comfortably move above the bottom bar.
-		 */
 		for (
 			int i = 0;
 			i < 2;
@@ -329,9 +320,46 @@ public sealed class RoomUiController
 	}
 
 
+	private void OnUnlockPressed(
+		int slotIndex)
+	{
+		if (SlotActionBlocked())
+			return;
+
+
+		SlotActionRequested?.Invoke(
+			slotIndex
+		);
+	}
+
+
+	private void OnDetailsPressed(
+		int slotIndex)
+	{
+		/*
+		 * This is the important part for the laptop.
+		 *
+		 * If the finger moved enough to trigger scrolling,
+		 * ignore the TextureButton.Pressed event which
+		 * Godot may emit when the finger is released.
+		 */
+		if (SlotActionBlocked())
+			return;
+
+
+		DetailsRequested?.Invoke(
+			slotIndex
+		);
+	}
+
+
 	private void OnManualStart(
 		int slotIndex)
 	{
+		if (SlotActionBlocked())
+			return;
+
+
 		ManualStartResult result =
 			_production.TryStartManual(
 				_state.CurrentRoomIndex,
@@ -390,10 +418,6 @@ public sealed class RoomUiController
 				];
 
 
-		/*
-		 * Child 0 and 1 are the two top-padding spacers.
-		 * Therefore machine slots start at child index 2.
-		 */
 		MachineSlot view =
 			(MachineSlot)
 			_slotGrid.GetChild(
@@ -474,9 +498,6 @@ public sealed class RoomUiController
 				continue;
 
 
-			/*
-			 * +2 because of the top padding row.
-			 */
 			MachineSlot view =
 				(MachineSlot)
 				_slotGrid.GetChild(

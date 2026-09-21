@@ -33,6 +33,17 @@ public partial class MobileScrollController : Node
 		8.0;
 
 
+	/*
+	 * After finishing a swipe, Godot may still emit
+	 * Button.Pressed for the control where the finger
+	 * originally started.
+	 *
+	 * During this short time slot actions are ignored.
+	 */
+	private const ulong TapBlockAfterDragMs =
+		180;
+
+
 	private ScrollContainer _scroll =
 		null!;
 
@@ -57,20 +68,25 @@ public partial class MobileScrollController : Node
 
 	private ulong _lastInputTime;
 
+	private ulong _suppressTapUntil;
+
 
 	private double _velocity;
 
 	private double _overscroll;
 
 
-	/*
-	 * How much visual bounce is currently applied
-	 * to the ScrollContainer child.
-	 *
-	 * This is important because ScrollContainer itself
-	 * changes the child's position while scrolling.
-	 */
 	private double _appliedOverscroll;
+
+
+	// ==================================================
+	// PUBLIC STATE
+	// ==================================================
+
+	public bool ShouldSuppressTap =>
+		_dragging
+		|| Time.GetTicksMsec()
+			< _suppressTapUntil;
 
 
 	// ==================================================
@@ -235,6 +251,17 @@ public partial class MobileScrollController : Node
 
 		if (_dragging)
 		{
+			/*
+			 * IMPORTANT:
+			 *
+			 * Keep slot buttons blocked briefly after
+			 * releasing the finger.
+			 */
+			_suppressTapUntil =
+				Time.GetTicksMsec()
+				+ TapBlockAfterDragMs;
+
+
 			GetViewport()
 				.SetInputAsHandled();
 		}
@@ -287,8 +314,16 @@ public partial class MobileScrollController : Node
 			}
 
 
+			/*
+			 * From this point on this gesture is a
+			 * SCROLL and no longer a TAP.
+			 */
 			_dragging =
 				true;
+
+
+			_suppressTapUntil =
+				ulong.MaxValue;
 		}
 
 
@@ -379,12 +414,6 @@ public partial class MobileScrollController : Node
 		}
 
 
-		/*
-		 * First remove the bounce from the previous frame.
-		 *
-		 * What remains is the real position calculated
-		 * by Godot's ScrollContainer.
-		 */
 		RemoveAppliedOverscroll();
 
 
@@ -540,10 +569,6 @@ public partial class MobileScrollController : Node
 				-requested;
 
 
-			/*
-			 * Positive overscroll moves the content
-			 * downward when pulling past the top.
-			 */
 			_overscroll +=
 				excess
 				* OverscrollResistance;
@@ -582,10 +607,6 @@ public partial class MobileScrollController : Node
 				- max;
 
 
-			/*
-			 * Negative overscroll moves content upward
-			 * when pulling beyond the bottom.
-			 */
 			_overscroll -=
 				excess
 				* OverscrollResistance;
@@ -608,7 +629,7 @@ public partial class MobileScrollController : Node
 
 
 		// ==================================================
-		// NORMAL AREA
+		// NORMAL
 		// ==================================================
 
 		_scroll.ScrollVertical =
@@ -664,12 +685,6 @@ public partial class MobileScrollController : Node
 		}
 
 
-		/*
-		 * Remove ONLY the offset that we added.
-		 *
-		 * Do not restore a saved base position.
-		 * ScrollContainer owns the actual content position.
-		 */
 		_content.Position -=
 			new Vector2(
 				0,
@@ -750,6 +765,10 @@ public partial class MobileScrollController : Node
 			0.0;
 
 
+		_suppressTapUntil =
+			0;
+
+
 		_scroll.ScrollVertical =
 			0;
 	}
@@ -757,6 +776,10 @@ public partial class MobileScrollController : Node
 
 	public void ResetMotion()
 	{
+		bool wasDragging =
+			_dragging;
+
+
 		if (
 			_content != null
 			&& GodotObject.IsInstanceValid(
@@ -790,5 +813,13 @@ public partial class MobileScrollController : Node
 
 		_appliedOverscroll =
 			0.0;
+
+
+		if (wasDragging)
+		{
+			_suppressTapUntil =
+				Time.GetTicksMsec()
+				+ TapBlockAfterDragMs;
+		}
 	}
 }

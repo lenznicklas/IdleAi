@@ -6,6 +6,10 @@ namespace IdleAi;
 
 public sealed class LabController
 {
+	// ==================================================
+	// TEXTURES
+	// ==================================================
+
 	private static readonly Texture2D LabIcon =
 		GD.Load<Texture2D>(
 			"res://assets/lab/lab.png"
@@ -66,6 +70,10 @@ public sealed class LabController
 		);
 
 
+	// ==================================================
+	// SERVICES
+	// ==================================================
+
 	private readonly Game _root;
 
 	private readonly GameState _state;
@@ -79,6 +87,10 @@ public sealed class LabController
 
 	public event Action? OpenRequested;
 
+
+	// ==================================================
+	// UI
+	// ==================================================
 
 	private TextureButton _labButton =
 		null!;
@@ -120,6 +132,26 @@ public sealed class LabController
 		null!;
 
 
+	// ==================================================
+	// BONUS UI
+	// ==================================================
+
+	private Label _productionBonusLabel =
+		null!;
+
+
+	private Label _cycleBonusLabel =
+		null!;
+
+
+	private Label _botBonusLabel =
+		null!;
+
+
+	private Label _offlineBonusLabel =
+		null!;
+
+
 	private readonly Dictionary<string, ResearchView>
 		_researchViews =
 			[];
@@ -144,6 +176,10 @@ public sealed class LabController
 			null!;
 	}
 
+
+	// ==================================================
+	// CONSTRUCTOR
+	// ==================================================
 
 	public LabController(
 		Game root,
@@ -347,7 +383,7 @@ public sealed class LabController
 
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			28
+			24
 		);
 
 		margin.AddThemeConstantOverride(
@@ -357,7 +393,7 @@ public sealed class LabController
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
-			24
+			18
 		);
 
 
@@ -379,7 +415,7 @@ public sealed class LabController
 
 		main.AddThemeConstantOverride(
 			"separation",
-			12
+			10
 		);
 
 
@@ -390,7 +426,7 @@ public sealed class LabController
 
 		Label title =
 			CreateLabel(
-				32
+				30
 			);
 
 
@@ -405,12 +441,12 @@ public sealed class LabController
 
 		Label subtitle =
 			CreateLabel(
-				16
+				15
 			);
 
 
 		subtitle.Text =
-			"Develop permanent technologies";
+			"Permanent technological progression";
 
 
 		main.AddChild(
@@ -456,7 +492,10 @@ public sealed class LabController
 					Control.SizeFlags.ExpandFill,
 
 				HorizontalScrollMode =
-					ScrollContainer.ScrollMode.Disabled
+					ScrollContainer.ScrollMode.Disabled,
+
+				VerticalScrollMode =
+					ScrollContainer.ScrollMode.Auto
 			};
 
 
@@ -539,10 +578,6 @@ public sealed class LabController
 			);
 
 
-		_researchPointsLabel.Text =
-			"0";
-
-
 		text.AddChild(
 			_researchPointsLabel
 		);
@@ -558,7 +593,7 @@ public sealed class LabController
 			{
 				CustomMinimumSize =
 					new Vector2(
-						150,
+						155,
 						52
 					)
 			};
@@ -740,7 +775,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// RESEARCH CONTENT
+	// UNLOCKED CONTENT
 	// ==================================================
 
 	private VBoxContainer CreateUnlockedContent()
@@ -759,6 +794,24 @@ public sealed class LabController
 		);
 
 
+		// ------------------------------
+		// ACTIVE BONUSES
+		// ------------------------------
+
+		content.AddChild(
+			CreateBonusPanel()
+		);
+
+
+		content.AddChild(
+			new HSeparator()
+		);
+
+
+		// ------------------------------
+		// HARDWARE
+		// ------------------------------
+
 		CreateBranch(
 			content,
 			ResearchBranch.Hardware,
@@ -767,6 +820,10 @@ public sealed class LabController
 		);
 
 
+		// ------------------------------
+		// ROBOTICS
+		// ------------------------------
+
 		CreateBranch(
 			content,
 			ResearchBranch.Robotics,
@@ -774,6 +831,10 @@ public sealed class LabController
 			RoboticsIcon
 		);
 
+
+		// ------------------------------
+		// INFRASTRUCTURE
+		// ------------------------------
 
 		CreateBranch(
 			content,
@@ -789,7 +850,7 @@ public sealed class LabController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						50
+						60
 					)
 			};
 
@@ -802,6 +863,137 @@ public sealed class LabController
 		return content;
 	}
 
+
+	// ==================================================
+	// ACTIVE BONUSES
+	// ==================================================
+
+	private Control CreateBonusPanel()
+	{
+		PanelContainer panel =
+			new();
+
+
+		MarginContainer margin =
+			new();
+
+
+		margin.AddThemeConstantOverride(
+			"margin_left",
+			16
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			14
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_right",
+			16
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_bottom",
+			14
+		);
+
+
+		panel.AddChild(
+			margin
+		);
+
+
+		VBoxContainer box =
+			new();
+
+
+		box.AddThemeConstantOverride(
+			"separation",
+			7
+		);
+
+
+		margin.AddChild(
+			box
+		);
+
+
+		Label title =
+			CreateLabel(
+				20
+			);
+
+
+		title.Text =
+			"ACTIVE RESEARCH BONUSES";
+
+
+		box.AddChild(
+			title
+		);
+
+
+		box.AddChild(
+			new HSeparator()
+		);
+
+
+		_productionBonusLabel =
+			CreateBonusLabel();
+
+
+		box.AddChild(
+			_productionBonusLabel
+		);
+
+
+		_cycleBonusLabel =
+			CreateBonusLabel();
+
+
+		box.AddChild(
+			_cycleBonusLabel
+		);
+
+
+		_botBonusLabel =
+			CreateBonusLabel();
+
+
+		box.AddChild(
+			_botBonusLabel
+		);
+
+
+		_offlineBonusLabel =
+			CreateBonusLabel();
+
+
+		box.AddChild(
+			_offlineBonusLabel
+		);
+
+
+		return panel;
+	}
+
+
+	private static Label CreateBonusLabel()
+	{
+		Label label =
+			CreateLeftLabel(
+				15
+			);
+
+
+		return label;
+	}
+
+
+	// ==================================================
+	// BRANCHES
+	// ==================================================
 
 	private void CreateBranch(
 		VBoxContainer parent,
@@ -851,7 +1043,7 @@ public sealed class LabController
 
 
 			comingSoon.Text =
-				"More research coming soon.";
+				"Research coming soon.";
 
 
 			parent.AddChild(
@@ -876,7 +1068,7 @@ public sealed class LabController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						58
+						62
 					)
 			};
 
@@ -890,14 +1082,14 @@ public sealed class LabController
 		row.AddChild(
 			CreateIcon(
 				texture,
-				50
+				52
 			)
 		);
 
 
 		Label label =
 			CreateLeftLabel(
-				22
+				23
 			);
 
 
@@ -914,6 +1106,10 @@ public sealed class LabController
 	}
 
 
+	// ==================================================
+	// RESEARCH CARD
+	// ==================================================
+
 	private Control CreateResearchCard(
 		ResearchDefinition research)
 	{
@@ -923,7 +1119,7 @@ public sealed class LabController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						145
+						140
 					)
 			};
 
@@ -976,7 +1172,7 @@ public sealed class LabController
 		TextureRect statusIcon =
 			CreateIcon(
 				ResearchActiveIcon,
-				62
+				60
 			);
 
 
@@ -995,7 +1191,7 @@ public sealed class LabController
 
 		Label title =
 			CreateLeftLabel(
-				19
+				18
 			);
 
 
@@ -1049,7 +1245,7 @@ public sealed class LabController
 				CustomMinimumSize =
 					new Vector2(
 						145,
-						55
+						58
 					)
 			};
 
@@ -1188,7 +1384,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// UPDATE
+	// REFRESH
 	// ==================================================
 
 	public void Refresh()
@@ -1242,14 +1438,21 @@ public sealed class LabController
 			< GameConfig.LabUnlockCost;
 
 
+		RefreshResearchBonuses();
+
 		RefreshResearchCards();
 	}
 
 
+	// ==================================================
+	// RP BUTTON
+	// ==================================================
+
 	private void RefreshResearchPointButton()
 	{
 		int amount =
-			GameConfig.ResearchPointPurchaseAmount;
+			GameConfig
+				.ResearchPointPurchaseAmount;
 
 
 		double cost =
@@ -1268,9 +1471,69 @@ public sealed class LabController
 
 
 		_buyResearchPointsButton.Disabled =
-			_state.Tokens < cost;
+			_state.Tokens
+			< cost;
 	}
 
+
+	// ==================================================
+	// BONUS DISPLAY
+	// ==================================================
+
+	private void RefreshResearchBonuses()
+	{
+		double productionBonus =
+			_state.Lab
+				.GetProductionBonus();
+
+
+		double cycleReduction =
+			_state.Lab
+				.GetCycleTimeReduction();
+
+
+		double botBonus =
+			_state.Lab
+				.GetBotPowerBonus();
+
+
+		double offlineBonus =
+			_state.Lab
+				.GetOfflineIncomeBonus();
+
+
+		_productionBonusLabel.Text =
+			"Production: +"
+			+ FormatPercent(
+				productionBonus
+			);
+
+
+		_cycleBonusLabel.Text =
+			"Cycle Time: -"
+			+ FormatPercent(
+				cycleReduction
+			);
+
+
+		_botBonusLabel.Text =
+			"Bot Power: +"
+			+ FormatPercent(
+				botBonus
+			);
+
+
+		_offlineBonusLabel.Text =
+			"Offline Income: +"
+			+ FormatPercent(
+				offlineBonus
+			);
+	}
+
+
+	// ==================================================
+	// RESEARCH CARDS
+	// ==================================================
 
 	private void RefreshResearchCards()
 	{
@@ -1331,7 +1594,9 @@ public sealed class LabController
 
 
 				view.StatusLabel.Text =
-					"LOCKED";
+					GetLockedText(
+						research
+					);
 
 
 				view.Button.Text =
@@ -1373,9 +1638,44 @@ public sealed class LabController
 	}
 
 
+	private static string GetLockedText(
+		ResearchDefinition research)
+	{
+		if (research.PrerequisiteId == null)
+			return "LOCKED";
+
+
+		ResearchDefinition? prerequisite =
+			ResearchCatalog.Get(
+				research.PrerequisiteId
+			);
+
+
+		if (prerequisite == null)
+			return "LOCKED";
+
+
+		return "Requires "
+			+ prerequisite.Name;
+	}
+
+
 	// ==================================================
 	// HELPERS
 	// ==================================================
+
+	private static string FormatPercent(
+		double value)
+	{
+		return (
+			value
+			* 100.0
+		).ToString(
+			"0.#"
+		)
+		+ "%";
+	}
+
 
 	private static TextureRect CreateIcon(
 		Texture2D texture,

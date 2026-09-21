@@ -18,6 +18,10 @@ public sealed class LabData
 		_completedResearch;
 
 
+	// ==================================================
+	// RESEARCH STATE
+	// ==================================================
+
 	public bool IsResearchCompleted(
 		string researchId)
 	{
@@ -68,10 +72,59 @@ public sealed class LabData
 	}
 
 
+	// ==================================================
+	// RESEARCH EFFECTS
+	// ==================================================
+
+	public double GetProductionBonus()
+	{
+		return ResearchCatalog
+			.GetProductionBonus(
+				this
+			);
+	}
+
+
 	public double GetProductionMultiplier()
 	{
 		return ResearchCatalog
 			.GetProductionMultiplier(
+				this
+			);
+	}
+
+
+	public double GetCycleTimeReduction()
+	{
+		return ResearchCatalog
+			.GetCycleTimeReduction(
+				this
+			);
+	}
+
+
+	public double GetCycleTimeMultiplier()
+	{
+		return ResearchCatalog
+			.GetCycleTimeMultiplier(
+				this
+			);
+	}
+
+
+	public double GetBotPowerBonus()
+	{
+		return ResearchCatalog
+			.GetBotPowerBonus(
+				this
+			);
+	}
+
+
+	public double GetOfflineIncomeBonus()
+	{
+		return ResearchCatalog
+			.GetOfflineIncomeBonus(
 				this
 			);
 	}

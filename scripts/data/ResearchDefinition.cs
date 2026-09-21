@@ -15,5 +15,8 @@ public sealed record ResearchDefinition(
 	ResearchBranch Branch,
 	double Cost,
 	double ProductionBonus = 0.0,
+	double CycleTimeReduction = 0.0,
+	double BotPowerBonus = 0.0,
+	double OfflineIncomeBonus = 0.0,
 	string? PrerequisiteId = null
 );

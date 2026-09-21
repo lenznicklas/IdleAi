@@ -15,6 +15,10 @@ public sealed class EconomyService
 	}
 
 
+	// ==================================================
+	// UPGRADE COSTS
+	// ==================================================
+
 	public double GetLevelUpgradeCost(
 		int roomIndex,
 		SlotData slot,
@@ -89,7 +93,7 @@ public sealed class EconomyService
 	// CYCLE
 	// ==================================================
 
-	public double GetCycleDuration(
+	public double GetBaseCycleDuration(
 		SlotData slot)
 	{
 		return GameConfig
@@ -98,6 +102,32 @@ public sealed class EconomyService
 			);
 	}
 
+
+	public double GetCycleDuration(
+		SlotData slot)
+	{
+		double baseDuration =
+			GetBaseCycleDuration(
+				slot
+			);
+
+
+		double researchMultiplier =
+			_state.Lab
+				.GetCycleTimeMultiplier();
+
+
+		return Math.Max(
+			0.25,
+			baseDuration
+			* researchMultiplier
+		);
+	}
+
+
+	// ==================================================
+	// REWARD
+	// ==================================================
 
 	public double GetCycleReward(
 		int roomIndex,
@@ -139,24 +169,41 @@ public sealed class EconomyService
 				.GetProductionMultiplier();
 
 
-		double researchMultiplier =
+		double researchProductionMultiplier =
 			_state.Lab
 				.GetProductionMultiplier();
 
 
-		double cycleDuration =
-			GetCycleDuration(
+		/*
+		 * IMPORTANT:
+		 *
+		 * Reward uses the ORIGINAL cycle duration.
+		 *
+		 * Example:
+		 *
+		 * Base:
+		 * 100 Tokens every 4 seconds
+		 *
+		 * After -10% cycle time:
+		 * 100 Tokens every 3.6 seconds
+		 *
+		 * Therefore cycle-speed research actually
+		 * increases production per second.
+		 */
+
+		double baseCycleDuration =
+			GetBaseCycleDuration(
 				slot
 			);
 
 
 		return machine.BaseIncome
-			   * cycleDuration
+			   * baseCycleDuration
 			   * levelMultiplier
 			   * milestoneMultiplier
 			   * botMultiplier
 			   * prestigeMultiplier
-			   * researchMultiplier;
+			   * researchProductionMultiplier;
 	}
 
 
@@ -301,6 +348,10 @@ public sealed class EconomyService
 		return "Level 5: x1.5";
 	}
 
+
+	// ==================================================
+	// HELPERS
+	// ==================================================
 
 	private MachineData GetMachine(
 		int roomIndex,

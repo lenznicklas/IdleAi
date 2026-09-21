@@ -207,9 +207,15 @@ public sealed class ShopController
 			};
 
 
+		/*
+		 * Important:
+		 *
+		 * No gap between the Data Shard header
+		 * and the ScrollContainer.
+		 */
 		main.AddThemeConstantOverride(
 			"separation",
-			8
+			0
 		);
 
 

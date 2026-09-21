@@ -485,13 +485,10 @@ public partial class MobileUiAdapter : Node
 
 
 		/*
-		 * IMPORTANT:
+		 * Shop page itself fills the WHOLE viewport.
 		 *
-		 * Shop background fills the COMPLETE screen.
-		 * The BottomBar is drawn above it.
-		 *
-		 * This removes the visible empty strip that
-		 * previously existed above the BottomBar.
+		 * This means the background continues behind
+		 * both the top area and the BottomBar.
 		 */
 		page.AnchorLeft =
 			0.0f;
@@ -535,12 +532,6 @@ public partial class MobileUiAdapter : Node
 			return;
 
 
-		/*
-		 * The actual SHOP CONTENT ends exactly where
-		 * the BottomBar begins.
-		 *
-		 * Background continues behind the BottomBar.
-		 */
 		margin.AnchorLeft =
 			0.0f;
 
@@ -569,6 +560,10 @@ public partial class MobileUiAdapter : Node
 			0.0f;
 
 
+		/*
+		 * Shop content ends directly at the
+		 * beginning of the BottomBar.
+		 */
 		margin.OffsetBottom =
 			-(
 				BottomBarHeight
@@ -586,14 +581,16 @@ public partial class MobileUiAdapter : Node
 
 
 		/*
-		 * No artificial top gap.
-		 * Only the actual device safe-area remains.
+		 * IMPORTANT:
+		 *
+		 * No safe.Top padding here.
+		 *
+		 * Previously this produced the remaining
+		 * empty strip at the top of the Shop.
 		 */
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			Ceil(
-				safe.Top
-			)
+			0
 		);
 
 

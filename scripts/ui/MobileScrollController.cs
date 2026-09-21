@@ -37,6 +37,10 @@ public partial class MobileScrollController : Node
 		null!;
 
 
+	private Control _content =
+		null!;
+
+
 	private int _touchIndex =
 		-1;
 
@@ -59,10 +63,19 @@ public partial class MobileScrollController : Node
 	private double _overscroll;
 
 
-	private Vector2 _basePosition;
+	/*
+	 * How much visual bounce is currently applied
+	 * to the ScrollContainer child.
+	 *
+	 * This is important because ScrollContainer itself
+	 * changes the child's position while scrolling.
+	 */
+	private double _appliedOverscroll;
 
-	private bool _basePositionInitialized;
 
+	// ==================================================
+	// SETUP
+	// ==================================================
 
 	public void Setup(
 		ScrollContainer scroll)
@@ -71,13 +84,6 @@ public partial class MobileScrollController : Node
 			scroll;
 
 
-		/*
-		 * We handle touch scrolling ourselves.
-		 *
-		 * Setting this very high prevents Godot's
-		 * built-in mobile drag from fighting with
-		 * our inertia/bounce implementation.
-		 */
 		_scroll.ScrollDeadzone =
 			100_000;
 
@@ -92,6 +98,25 @@ public partial class MobileScrollController : Node
 
 		_scroll.ClipContents =
 			true;
+
+
+		if (
+			_scroll.GetChildCount()
+			<= 0
+		)
+		{
+			GD.PushError(
+				"MobileScrollController: ScrollContainer has no content child."
+			);
+
+			return;
+		}
+
+
+		_content =
+			_scroll.GetChild<Control>(
+				0
+			);
 
 
 		SetProcess(
@@ -336,6 +361,10 @@ public partial class MobileScrollController : Node
 			|| !GodotObject.IsInstanceValid(
 				_scroll
 			)
+			|| _content == null
+			|| !GodotObject.IsInstanceValid(
+				_content
+			)
 		)
 		{
 			return;
@@ -350,32 +379,13 @@ public partial class MobileScrollController : Node
 		}
 
 
-		if (!_basePositionInitialized)
-		{
-			_basePosition =
-				_scroll.Position;
-
-
-			_basePositionInitialized =
-				true;
-		}
-
-
 		/*
-		 * If there is no bounce happening, accept layout
-		 * changes from Godot/containers as the new base.
+		 * First remove the bounce from the previous frame.
+		 *
+		 * What remains is the real position calculated
+		 * by Godot's ScrollContainer.
 		 */
-		if (
-			!_dragging
-			&& Math.Abs(
-				_overscroll
-			)
-			< 0.01
-		)
-		{
-			_basePosition =
-				_scroll.Position;
-		}
+		RemoveAppliedOverscroll();
 
 
 		if (!_dragging)
@@ -447,7 +457,7 @@ public partial class MobileScrollController : Node
 
 
 	// ==================================================
-	// BOUNCE
+	// SPRING
 	// ==================================================
 
 	private void UpdateSpring(
@@ -516,6 +526,10 @@ public partial class MobileScrollController : Node
 			+ delta;
 
 
+		// ==================================================
+		// TOP
+		// ==================================================
+
 		if (requested < 0.0)
 		{
 			_scroll.ScrollVertical =
@@ -526,6 +540,10 @@ public partial class MobileScrollController : Node
 				-requested;
 
 
+			/*
+			 * Positive overscroll moves the content
+			 * downward when pulling past the top.
+			 */
 			_overscroll +=
 				excess
 				* OverscrollResistance;
@@ -547,6 +565,10 @@ public partial class MobileScrollController : Node
 		}
 
 
+		// ==================================================
+		// BOTTOM
+		// ==================================================
+
 		if (requested > max)
 		{
 			_scroll.ScrollVertical =
@@ -560,6 +582,10 @@ public partial class MobileScrollController : Node
 				- max;
 
 
+			/*
+			 * Negative overscroll moves content upward
+			 * when pulling beyond the bottom.
+			 */
 			_overscroll -=
 				excess
 				* OverscrollResistance;
@@ -581,16 +607,16 @@ public partial class MobileScrollController : Node
 		}
 
 
+		// ==================================================
+		// NORMAL AREA
+		// ==================================================
+
 		_scroll.ScrollVertical =
 			Mathf.RoundToInt(
 				(float)requested
 			);
 
 
-		/*
-		 * When scrolling back into the valid area,
-		 * gently remove any existing edge stretch.
-		 */
 		if (
 			Math.Abs(
 				_overscroll
@@ -619,47 +645,91 @@ public partial class MobileScrollController : Node
 
 
 	// ==================================================
-	// VISUAL OFFSET
+	// VISUAL BOUNCE
 	// ==================================================
+
+	private void RemoveAppliedOverscroll()
+	{
+		if (
+			Math.Abs(
+				_appliedOverscroll
+			)
+			< 0.001
+		)
+		{
+			_appliedOverscroll =
+				0.0;
+
+			return;
+		}
+
+
+		/*
+		 * Remove ONLY the offset that we added.
+		 *
+		 * Do not restore a saved base position.
+		 * ScrollContainer owns the actual content position.
+		 */
+		_content.Position -=
+			new Vector2(
+				0,
+				(float)_appliedOverscroll
+			);
+
+
+		_appliedOverscroll =
+			0.0;
+	}
+
 
 	private void ApplyVisualOffset()
 	{
-		if (!_basePositionInitialized)
+		if (
+			_content == null
+			|| !GodotObject.IsInstanceValid(
+				_content
+			)
+		)
+		{
 			return;
+		}
 
 
-		_scroll.Position =
-			_basePosition
-			+ new Vector2(
+		if (
+			Math.Abs(
+				_overscroll
+			)
+			< 0.001
+		)
+		{
+			_appliedOverscroll =
+				0.0;
+
+			return;
+		}
+
+
+		_content.Position +=
+			new Vector2(
 				0,
 				(float)_overscroll
 			);
+
+
+		_appliedOverscroll =
+			_overscroll;
 	}
 
 
 	// ==================================================
-	// PUBLIC CONTROL
+	// PUBLIC
 	// ==================================================
 
 	public void ScrollToTop()
 	{
-		ResetMotion();
+		RemoveAppliedOverscroll();
 
 
-		_scroll.ScrollVertical =
-			0;
-
-
-		_overscroll =
-			0.0;
-
-
-		ApplyVisualOffset();
-	}
-
-
-	public void ResetMotion()
-	{
 		_tracking =
 			false;
 
@@ -680,16 +750,45 @@ public partial class MobileScrollController : Node
 			0.0;
 
 
+		_scroll.ScrollVertical =
+			0;
+	}
+
+
+	public void ResetMotion()
+	{
 		if (
-			_scroll != null
+			_content != null
 			&& GodotObject.IsInstanceValid(
-				_scroll
+				_content
 			)
-			&& _basePositionInitialized
 		)
 		{
-			_scroll.Position =
-				_basePosition;
+			RemoveAppliedOverscroll();
 		}
+
+
+		_tracking =
+			false;
+
+
+		_dragging =
+			false;
+
+
+		_touchIndex =
+			-1;
+
+
+		_velocity =
+			0.0;
+
+
+		_overscroll =
+			0.0;
+
+
+		_appliedOverscroll =
+			0.0;
 	}
 }

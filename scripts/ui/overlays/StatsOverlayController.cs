@@ -21,6 +21,10 @@ public sealed class StatsOverlayController
 		null!;
 
 
+	private PanelContainer _panel =
+		null!;
+
+
 	private Label _income =
 		null!;
 
@@ -65,7 +69,7 @@ public sealed class StatsOverlayController
 		null!;
 
 
-	private Button _closeButton =
+	private Button _oldCloseButton =
 		null!;
 
 
@@ -104,11 +108,21 @@ public sealed class StatsOverlayController
 	}
 
 
+	// ==================================================
+	// INITIALIZE
+	// ==================================================
+
 	public void Initialize()
 	{
 		_overlay =
 			_root.GetNode<Control>(
 				"StatsOverlay"
+			);
+
+
+		_panel =
+			_root.GetNode<PanelContainer>(
+				"StatsOverlay/StatsPanel"
 			);
 
 
@@ -193,15 +207,30 @@ public sealed class StatsOverlayController
 			);
 
 
-		_closeButton =
+		_oldCloseButton =
 			_root.GetNode<Button>(
 				path
 				+ "CloseButton"
 			);
 
 
-		_closeButton.Pressed +=
-			Hide;
+		/*
+		 * Remove the old large CLOSE button visually.
+		 *
+		 * We keep the scene node for now so game.tscn
+		 * does not need to be changed immediately.
+		 */
+		_oldCloseButton.Hide();
+
+
+		_oldCloseButton.MouseFilter =
+			Control.MouseFilterEnum.Ignore;
+
+
+		OverlayCloseButton.Add(
+			_panel,
+			Hide
+		);
 
 
 		_prestigeButton.Pressed +=
@@ -215,6 +244,10 @@ public sealed class StatsOverlayController
 		Hide();
 	}
 
+
+	// ==================================================
+	// OUTSIDE CLOSE
+	// ==================================================
 
 	private void ConfigureOutsideClose()
 	{
@@ -258,6 +291,10 @@ public sealed class StatsOverlayController
 	}
 
 
+	// ==================================================
+	// OPEN / CLOSE
+	// ==================================================
+
 	public void Open()
 	{
 		Refresh();
@@ -274,6 +311,10 @@ public sealed class StatsOverlayController
 		_overlay.Hide();
 	}
 
+
+	// ==================================================
+	// REFRESH
+	// ==================================================
 
 	public void Refresh()
 	{
@@ -328,6 +369,10 @@ public sealed class StatsOverlayController
 		RefreshPrestige();
 	}
 
+
+	// ==================================================
+	// MACHINE SPENDING
+	// ==================================================
 
 	private void RefreshMachineSpending()
 	{
@@ -389,11 +434,19 @@ public sealed class StatsOverlayController
 	}
 
 
+	// ==================================================
+	// RUNTIME
+	// ==================================================
+
 	public void RefreshRuntime()
 	{
 		RefreshPrestige();
 	}
 
+
+	// ==================================================
+	// PRESTIGE
+	// ==================================================
 
 	private void RefreshPrestige()
 	{

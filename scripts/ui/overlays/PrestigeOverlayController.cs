@@ -16,6 +16,10 @@ public sealed class PrestigeOverlayController
 		null!;
 
 
+	private PanelContainer _panel =
+		null!;
+
+
 	private Label _info =
 		null!;
 
@@ -24,7 +28,7 @@ public sealed class PrestigeOverlayController
 		null!;
 
 
-	private Button _cancel =
+	private Button _oldCancel =
 		null!;
 
 
@@ -55,11 +59,21 @@ public sealed class PrestigeOverlayController
 	}
 
 
+	// ==================================================
+	// INITIALIZE
+	// ==================================================
+
 	public void Initialize()
 	{
 		_overlay =
 			_root.GetNode<Control>(
 				"PrestigeConfirmOverlay"
+			);
+
+
+		_panel =
+			_root.GetNode<PanelContainer>(
+				"PrestigeConfirmOverlay/Panel"
 			);
 
 
@@ -75,7 +89,7 @@ public sealed class PrestigeOverlayController
 			);
 
 
-		_cancel =
+		_oldCancel =
 			_root.GetNode<Button>(
 				"PrestigeConfirmOverlay/Panel/Margin/VBox/CancelButton"
 			);
@@ -85,8 +99,23 @@ public sealed class PrestigeOverlayController
 			Confirm;
 
 
-		_cancel.Pressed +=
-			Cancel;
+		/*
+		 * Remove old bottom CANCEL button.
+		 */
+		_oldCancel.Hide();
+
+
+		_oldCancel.MouseFilter =
+			Control.MouseFilterEnum.Ignore;
+
+
+		/*
+		 * New X icon in top-right corner.
+		 */
+		OverlayCloseButton.Add(
+			_panel,
+			Cancel
+		);
 
 
 		ConfigureOutsideClose();
@@ -95,6 +124,10 @@ public sealed class PrestigeOverlayController
 		Hide();
 	}
 
+
+	// ==================================================
+	// OUTSIDE CLOSE
+	// ==================================================
 
 	private void ConfigureOutsideClose()
 	{
@@ -138,6 +171,10 @@ public sealed class PrestigeOverlayController
 	}
 
 
+	// ==================================================
+	// OPEN
+	// ==================================================
+
 	public bool Open()
 	{
 		long reward =
@@ -174,6 +211,10 @@ public sealed class PrestigeOverlayController
 		return true;
 	}
 
+
+	// ==================================================
+	// CLOSE
+	// ==================================================
 
 	public void Hide()
 	{

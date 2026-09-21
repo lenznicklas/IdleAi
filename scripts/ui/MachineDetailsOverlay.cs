@@ -201,10 +201,6 @@ public sealed class MachineDetailsOverlay
 			slotIndex;
 
 
-		/*
-		 * Idle-Miner style:
-		 * every newly opened machine starts at 1x.
-		 */
 		_upgradeAmount =
 			UpgradeAmount.One;
 
@@ -382,25 +378,29 @@ public sealed class MachineDetailsOverlay
 	private void UpdateUpgradeAmountButtons()
 	{
 		_upgrade1Button.Text =
-			_upgradeAmount == UpgradeAmount.One
+			_upgradeAmount
+				== UpgradeAmount.One
 				? "✓ 1x"
 				: "1x";
 
 
 		_upgrade5Button.Text =
-			_upgradeAmount == UpgradeAmount.Five
+			_upgradeAmount
+				== UpgradeAmount.Five
 				? "✓ 5x"
 				: "5x";
 
 
 		_upgrade10Button.Text =
-			_upgradeAmount == UpgradeAmount.Ten
+			_upgradeAmount
+				== UpgradeAmount.Ten
 				? "✓ 10x"
 				: "10x";
 
 
 		_upgradeMaxButton.Text =
-			_upgradeAmount == UpgradeAmount.Max
+			_upgradeAmount
+				== UpgradeAmount.Max
 				? "✓ MAX"
 				: "MAX";
 	}
@@ -494,7 +494,7 @@ public sealed class MachineDetailsOverlay
 			{
 				_upgradeInfo.Text =
 					_upgradeAmount
-					== UpgradeAmount.Max
+						== UpgradeAmount.Max
 						? "Not enough Tokens for another level."
 						: "No levels available.";
 
@@ -550,10 +550,6 @@ public sealed class MachineDetailsOverlay
 		}
 
 
-		/*
-		 * Level multiplier selection is only relevant
-		 * while the current machine can still gain levels.
-		 */
 		_upgradeAmountRow.Hide();
 
 
@@ -649,10 +645,6 @@ public sealed class MachineDetailsOverlay
 		}
 		else
 		{
-			/*
-			 * HandleSlotAction performs the normal
-			 * single tier upgrade once MaxLevel is reached.
-			 */
 			result =
 				_progression
 					.HandleSlotAction(
@@ -693,10 +685,6 @@ public sealed class MachineDetailsOverlay
 			);
 
 
-		double baseMultiplier =
-			bot.ProductionMultiplier;
-
-
 		double effectiveMultiplier =
 			_bots.GetEffectiveMultiplier(
 				slot
@@ -718,7 +706,7 @@ public sealed class MachineDetailsOverlay
 
 		_botMultiplier.Text =
 			"Base Power: x"
-			+ baseMultiplier.ToString(
+			+ bot.ProductionMultiplier.ToString(
 				"F2"
 			)
 			+ "\nResearch: +"
@@ -925,7 +913,7 @@ public sealed class MachineDetailsOverlay
 			CreatePanel(
 				new Vector2(
 					580,
-					940
+					900
 				)
 			);
 
@@ -953,8 +941,28 @@ public sealed class MachineDetailsOverlay
 		);
 
 
+		/*
+		 * X icon sits directly in the upper-right
+		 * corner of the machine panel.
+		 */
+		OverlayCloseButton.Add(
+			_panel,
+			Close
+		);
+
+
 		MarginContainer margin =
 			CreateMargin();
+
+
+		/*
+		 * Slightly more space at the top so the title
+		 * never overlaps with the X.
+		 */
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			32
+		);
 
 
 		_panel.AddChild(
@@ -1065,10 +1073,6 @@ public sealed class MachineDetailsOverlay
 			_upgradeInfo
 		);
 
-
-		// ==================================================
-		// 1x / 5x / 10x / MAX
-		// ==================================================
 
 		_upgradeAmountRow =
 			new HBoxContainer
@@ -1192,10 +1196,6 @@ public sealed class MachineDetailsOverlay
 		);
 
 
-		// ==================================================
-		// BOT
-		// ==================================================
-
 		Label botTitle =
 			CreateLabel(
 				19
@@ -1295,29 +1295,6 @@ public sealed class MachineDetailsOverlay
 		);
 
 
-		Button close =
-			new()
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							50
-						),
-
-					Text =
-						"CLOSE"
-				};
-
-
-		close.Pressed +=
-			Close;
-
-
-		vbox.AddChild(
-			close
-		);
-
-
 		UpdateUpgradeAmountButtons();
 	}
 
@@ -1392,8 +1369,24 @@ public sealed class MachineDetailsOverlay
 		);
 
 
+		/*
+		 * Sell confirmation also gets an X.
+		 */
+		OverlayCloseButton.Add(
+			panel,
+			() =>
+				_sellOverlay.Hide()
+		);
+
+
 		MarginContainer margin =
 			CreateMargin();
+
+
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			34
+		);
 
 
 		panel.AddChild(
@@ -1467,30 +1460,6 @@ public sealed class MachineDetailsOverlay
 
 		box.AddChild(
 			confirm
-		);
-
-
-		Button cancel =
-			new()
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							54
-						),
-
-					Text =
-						"CANCEL"
-				};
-
-
-		cancel.Pressed +=
-			() =>
-				_sellOverlay.Hide();
-
-
-		box.AddChild(
-			cancel
 		);
 
 
@@ -1604,7 +1573,8 @@ public sealed class MachineDetailsOverlay
 		double value)
 	{
 		return (
-			value * 100
+			value
+			* 100
 		).ToString(
 			"0.#"
 		)

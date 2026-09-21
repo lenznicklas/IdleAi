@@ -45,6 +45,10 @@ public partial class MobileUiAdapter : Node
 		18;
 
 
+	private const int ShopExtraTopPadding =
+		6;
+
+
 	private Game _root =
 		null!;
 
@@ -485,10 +489,11 @@ public partial class MobileUiAdapter : Node
 
 
 		/*
-		 * Shop page itself fills the WHOLE viewport.
+		 * Background remains FULLSCREEN.
 		 *
-		 * This means the background continues behind
-		 * both the top area and the BottomBar.
+		 * This is important:
+		 * the background may continue behind the notch,
+		 * but the actual shop content must not.
 		 */
 		page.AnchorLeft =
 			0.0f;
@@ -561,8 +566,7 @@ public partial class MobileUiAdapter : Node
 
 
 		/*
-		 * Shop content ends directly at the
-		 * beginning of the BottomBar.
+		 * Content ends exactly above the BottomBar.
 		 */
 		margin.OffsetBottom =
 			-(
@@ -581,16 +585,22 @@ public partial class MobileUiAdapter : Node
 
 
 		/*
-		 * IMPORTANT:
+		 * THIS IS THE FIX:
 		 *
-		 * No safe.Top padding here.
+		 * SHOP and the Data-Shard bar are moved below
+		 * the phone's notch / status area.
 		 *
-		 * Previously this produced the remaining
-		 * empty strip at the top of the Shop.
+		 * Only the real safe area + a tiny 6 px visual
+		 * padding is used.
+		 *
+		 * The background itself still starts at y = 0.
 		 */
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			0
+			Ceil(
+				safe.Top
+			)
+			+ ShopExtraTopPadding
 		);
 
 
@@ -908,6 +918,10 @@ public partial class MobileUiAdapter : Node
 			* scaleY;
 
 
+		/*
+		 * Minimum fallback for Android phones where
+		 * the reported safe area is slightly too small.
+		 */
 		top =
 			MathF.Max(
 				top,

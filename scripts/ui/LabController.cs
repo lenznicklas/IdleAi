@@ -71,6 +71,73 @@ public sealed class LabController
 
 
 	// ==================================================
+	// COLORS
+	// ==================================================
+
+	private static readonly Color LockedColor =
+		new(
+			0.32f,
+			0.35f,
+			0.40f,
+			1.0f
+		);
+
+
+	private static readonly Color AvailableColor =
+		new(
+			0.08f,
+			0.72f,
+			1.0f,
+			1.0f
+		);
+
+
+	private static readonly Color ResearchingColor =
+		new(
+			1.0f,
+			0.66f,
+			0.14f,
+			1.0f
+		);
+
+
+	private static readonly Color CompletedColor =
+		new(
+			0.20f,
+			0.88f,
+			0.45f,
+			1.0f
+		);
+
+
+	private static readonly Color DarkPanelColor =
+		new(
+			0.03f,
+			0.05f,
+			0.09f,
+			0.94f
+		);
+
+
+	private static readonly Color SelectedTabColor =
+		new(
+			0.09f,
+			0.28f,
+			0.45f,
+			0.98f
+		);
+
+
+	private static readonly Color UnselectedTabColor =
+		new(
+			0.05f,
+			0.07f,
+			0.12f,
+			0.96f
+		);
+
+
+	// ==================================================
 	// SERVICES
 	// ==================================================
 
@@ -100,7 +167,7 @@ public sealed class LabController
 		null!;
 
 
-	private VBoxContainer _lockedContent =
+	private Control _lockedContent =
 		null!;
 
 
@@ -185,28 +252,61 @@ public sealed class LabController
 
 
 	// ==================================================
+	// TECH TREE UI
+	// ==================================================
+
+	private readonly Dictionary<
+		ResearchBranch,
+		Button
+	> _branchButtons =
+		[];
+
+
+	private readonly Dictionary<
+		ResearchBranch,
+		VBoxContainer
+	> _branchTrees =
+		[];
+
+
+	private VBoxContainer _treeHost =
+		null!;
+
+
+	private ResearchBranch _selectedBranch =
+		ResearchBranch.Hardware;
+
+
+	// ==================================================
 	// RESEARCH VIEWS
 	// ==================================================
 
-	private readonly Dictionary<string, ResearchView>
-		_researchViews =
-			[];
+	private readonly Dictionary<
+		string,
+		ResearchView
+	> _researchViews =
+		[];
 
 
 	private sealed class ResearchView
 	{
+		public PanelContainer Panel { get; init; } =
+			null!;
+
 		public TextureRect StatusIcon { get; init; } =
 			null!;
 
-
 		public Label StatusLabel { get; init; } =
 			null!;
-
 
 		public Button Button { get; init; } =
 			null!;
 	}
 
+
+	// ==================================================
+	// STATE
+	// ==================================================
 
 	public bool Visible =>
 		_page != null
@@ -338,7 +438,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// LAB PAGE
+	// PAGE
 	// ==================================================
 
 	private void CreateLabPage()
@@ -418,22 +518,22 @@ public sealed class LabController
 
 		margin.AddThemeConstantOverride(
 			"margin_left",
-			24
+			18
 		);
 
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			24
+			16
 		);
 
 		margin.AddThemeConstantOverride(
 			"margin_right",
-			24
+			18
 		);
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
-			18
+			12
 		);
 
 
@@ -464,52 +564,8 @@ public sealed class LabController
 		);
 
 
-		Label title =
-			CreateLabel(
-				30
-			);
-
-
-		title.Text =
-			"AI RESEARCH LAB";
-
-
 		main.AddChild(
-			title
-		);
-
-
-		Label subtitle =
-			CreateLabel(
-				15
-			);
-
-
-		subtitle.Text =
-			"Permanent technological progression";
-
-
-		main.AddChild(
-			subtitle
-		);
-
-
-		main.AddChild(
-			new HSeparator()
-		);
-
-
-		_researchPointBar =
-			CreateResearchPointBar();
-
-
-		main.AddChild(
-			_researchPointBar
-		);
-
-
-		main.AddChild(
-			new HSeparator()
+			CreateHeaderPanel()
 		);
 
 
@@ -521,10 +577,6 @@ public sealed class LabController
 			_lockedContent
 		);
 
-
-		// ==================================================
-		// SCROLL AREA
-		// ==================================================
 
 		_unlockedScroll =
 			new ScrollContainer
@@ -538,10 +590,6 @@ public sealed class LabController
 				HorizontalScrollMode =
 					ScrollContainer.ScrollMode.Disabled,
 
-				/*
-				 * No visible scrollbar.
-				 * Mouse wheel and touch scrolling remain.
-				 */
 				VerticalScrollMode =
 					ScrollContainer.ScrollMode.ShowNever
 			};
@@ -562,6 +610,99 @@ public sealed class LabController
 	}
 
 
+	private Control CreateHeaderPanel()
+	{
+		PanelContainer panel =
+			new();
+
+
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			CreateSectionStyle(
+				AvailableColor,
+				0.14f
+			)
+		);
+
+
+		MarginContainer margin =
+			CreatePanelMargin(
+				14
+			);
+
+
+		panel.AddChild(
+			margin
+		);
+
+
+		VBoxContainer box =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		box.AddThemeConstantOverride(
+			"separation",
+			8
+		);
+
+
+		margin.AddChild(
+			box
+		);
+
+
+		Label title =
+			CreateLabel(
+				27
+			);
+
+
+		title.Text =
+			"AI RESEARCH LAB";
+
+
+		box.AddChild(
+			title
+		);
+
+
+		Label subtitle =
+			CreateLabel(
+				13
+			);
+
+
+		subtitle.Text =
+			"Permanent technology upgrades";
+
+
+		box.AddChild(
+			subtitle
+		);
+
+
+		box.AddChild(
+			new HSeparator()
+		);
+
+
+		_researchPointBar =
+			CreateResearchPointBar();
+
+
+		box.AddChild(
+			_researchPointBar
+		);
+
+
+		return panel;
+	}
+
+
 	// ==================================================
 	// RESEARCH POINT BAR
 	// ==================================================
@@ -574,8 +715,11 @@ public sealed class LabController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						62
-					)
+						58
+					),
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
 			};
 
 
@@ -588,7 +732,7 @@ public sealed class LabController
 		TextureRect icon =
 			CreateIcon(
 				ResearchPointsIcon,
-				48
+				44
 			);
 
 
@@ -607,7 +751,7 @@ public sealed class LabController
 
 		Label title =
 			CreateLeftLabel(
-				14
+				12
 			);
 
 
@@ -622,7 +766,7 @@ public sealed class LabController
 
 		_researchPointsLabel =
 			CreateLeftLabel(
-				22
+				21
 			);
 
 
@@ -641,8 +785,8 @@ public sealed class LabController
 			{
 				CustomMinimumSize =
 					new Vector2(
-						155,
-						52
+						150,
+						50
 					)
 			};
 
@@ -688,8 +832,39 @@ public sealed class LabController
 	// LOCKED LAB
 	// ==================================================
 
-	private VBoxContainer CreateLockedContent()
+	private Control CreateLockedContent()
 	{
+		PanelContainer panel =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
+
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			CreateSectionStyle(
+				LockedColor,
+				0.12f
+			)
+		);
+
+
+		MarginContainer margin =
+			CreatePanelMargin(
+				18
+			);
+
+
+		panel.AddChild(
+			margin
+		);
+
+
 		VBoxContainer content =
 			new()
 			{
@@ -707,6 +882,11 @@ public sealed class LabController
 		);
 
 
+		margin.AddChild(
+			content
+		);
+
+
 		TextureRect lockedImage =
 			new()
 			{
@@ -716,7 +896,7 @@ public sealed class LabController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						210
+						200
 					),
 
 				ExpandMode =
@@ -734,7 +914,7 @@ public sealed class LabController
 
 		Label lockedTitle =
 			CreateLabel(
-				26
+				24
 			);
 
 
@@ -749,7 +929,7 @@ public sealed class LabController
 
 		Label description =
 			CreateLabel(
-				16
+				15
 			);
 
 
@@ -768,7 +948,7 @@ public sealed class LabController
 
 		_unlockCostLabel =
 			CreateLabel(
-				20
+				18
 			);
 
 
@@ -783,7 +963,7 @@ public sealed class LabController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						64
+						60
 					)
 			};
 
@@ -797,7 +977,7 @@ public sealed class LabController
 		);
 
 
-		return content;
+		return panel;
 	}
 
 
@@ -838,13 +1018,9 @@ public sealed class LabController
 
 		content.AddThemeConstantOverride(
 			"separation",
-			16
+			12
 		);
 
-
-		// ==================================================
-		// CURRENT RESEARCH
-		// ==================================================
 
 		_activeResearchPanel =
 			CreateActiveResearchPanel();
@@ -856,49 +1032,51 @@ public sealed class LabController
 
 
 		content.AddChild(
-			new HSeparator()
-		);
-
-
-		// ==================================================
-		// BONUSES
-		// ==================================================
-
-		content.AddChild(
 			CreateBonusPanel()
 		);
 
 
 		content.AddChild(
-			new HSeparator()
+			CreateBranchTabsPanel()
 		);
 
 
-		// ==================================================
-		// BRANCHES
-		// ==================================================
+		_treeHost =
+			new VBoxContainer
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
 
-		CreateBranch(
-			content,
-			ResearchBranch.Hardware,
-			"HARDWARE",
-			HardwareIcon
+
+		_treeHost.AddThemeConstantOverride(
+			"separation",
+			0
 		);
 
 
-		CreateBranch(
-			content,
-			ResearchBranch.Robotics,
-			"ROBOTICS",
-			RoboticsIcon
+		content.AddChild(
+			_treeHost
 		);
 
 
-		CreateBranch(
-			content,
-			ResearchBranch.Infrastructure,
-			"INFRASTRUCTURE",
-			InfrastructureIcon
+		CreateBranchTree(
+			ResearchBranch.Hardware
+		);
+
+
+		CreateBranchTree(
+			ResearchBranch.Robotics
+		);
+
+
+		CreateBranchTree(
+			ResearchBranch.Infrastructure
+		);
+
+
+		ShowBranch(
+			_selectedBranch
 		);
 
 
@@ -908,7 +1086,7 @@ public sealed class LabController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						60
+						40
 					)
 			};
 
@@ -923,7 +1101,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// CURRENT RESEARCH PANEL
+	// ACTIVE RESEARCH
 	// ==================================================
 
 	private PanelContainer CreateActiveResearchPanel()
@@ -932,156 +1110,19 @@ public sealed class LabController
 			new();
 
 
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			CreateSectionStyle(
+				ResearchingColor,
+				0.20f
+			)
+		);
+
+
 		MarginContainer margin =
-			new();
-
-
-		margin.AddThemeConstantOverride(
-			"margin_left",
-			16
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_top",
-			14
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_right",
-			16
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_bottom",
-			14
-		);
-
-
-		panel.AddChild(
-			margin
-		);
-
-
-		VBoxContainer box =
-			new();
-
-
-		box.AddThemeConstantOverride(
-			"separation",
-			8
-		);
-
-
-		margin.AddChild(
-			box
-		);
-
-
-		Label title =
-			CreateLabel(
-				18
-			);
-
-
-		title.Text =
-			"CURRENT RESEARCH";
-
-
-		box.AddChild(
-			title
-		);
-
-
-		_activeResearchNameLabel =
-			CreateLabel(
-				17
-			);
-
-
-		box.AddChild(
-			_activeResearchNameLabel
-		);
-
-
-		_activeResearchProgress =
-			new ProgressBar
-			{
-				MinValue =
-					0.0,
-
-				MaxValue =
-					100.0,
-
-				Value =
-					0.0,
-
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						20
-					),
-
-				ShowPercentage =
-					false
-			};
-
-
-		box.AddChild(
-			_activeResearchProgress
-		);
-
-
-		_activeResearchTimeLabel =
-			CreateLabel(
+			CreatePanelMargin(
 				14
 			);
-
-
-		box.AddChild(
-			_activeResearchTimeLabel
-		);
-
-
-		panel.Hide();
-
-
-		return panel;
-	}
-
-
-	// ==================================================
-	// BONUS PANEL
-	// ==================================================
-
-	private Control CreateBonusPanel()
-	{
-		PanelContainer panel =
-			new();
-
-
-		MarginContainer margin =
-			new();
-
-
-		margin.AddThemeConstantOverride(
-			"margin_left",
-			16
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_top",
-			14
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_right",
-			16
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_bottom",
-			14
-		);
 
 
 		panel.AddChild(
@@ -1106,12 +1147,129 @@ public sealed class LabController
 
 		Label title =
 			CreateLabel(
-				20
+				15
 			);
 
 
 		title.Text =
-			"ACTIVE RESEARCH BONUSES";
+			"CURRENT RESEARCH";
+
+
+		box.AddChild(
+			title
+		);
+
+
+		_activeResearchNameLabel =
+			CreateLabel(
+				19
+			);
+
+
+		box.AddChild(
+			_activeResearchNameLabel
+		);
+
+
+		_activeResearchProgress =
+			new ProgressBar
+			{
+				MinValue =
+					0.0,
+
+				MaxValue =
+					100.0,
+
+				Value =
+					0.0,
+
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						18
+					),
+
+				ShowPercentage =
+					false
+			};
+
+
+		box.AddChild(
+			_activeResearchProgress
+		);
+
+
+		_activeResearchTimeLabel =
+			CreateLabel(
+				13
+			);
+
+
+		box.AddChild(
+			_activeResearchTimeLabel
+		);
+
+
+		panel.Hide();
+
+
+		return panel;
+	}
+
+
+	// ==================================================
+	// BONUS PANEL
+	// ==================================================
+
+	private PanelContainer CreateBonusPanel()
+	{
+		PanelContainer panel =
+			new();
+
+
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			CreateSectionStyle(
+				AvailableColor,
+				0.10f
+			)
+		);
+
+
+		MarginContainer margin =
+			CreatePanelMargin(
+				12
+			);
+
+
+		panel.AddChild(
+			margin
+		);
+
+
+		VBoxContainer box =
+			new();
+
+
+		box.AddThemeConstantOverride(
+			"separation",
+			6
+		);
+
+
+		margin.AddChild(
+			box
+		);
+
+
+		Label title =
+			CreateLabel(
+				16
+			);
+
+
+		title.Text =
+			"ACTIVE BONUSES";
 
 
 		box.AddChild(
@@ -1124,11 +1282,37 @@ public sealed class LabController
 		);
 
 
-		_productionBonusLabel =
-			CreateBonusLabel();
+		GridContainer grid =
+			new()
+			{
+				Columns =
+					2,
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		grid.AddThemeConstantOverride(
+			"h_separation",
+			14
+		);
+
+		grid.AddThemeConstantOverride(
+			"v_separation",
+			6
+		);
 
 
 		box.AddChild(
+			grid
+		);
+
+
+		_productionBonusLabel =
+			CreateBonusLabel();
+
+		grid.AddChild(
 			_productionBonusLabel
 		);
 
@@ -1136,8 +1320,7 @@ public sealed class LabController
 		_cycleBonusLabel =
 			CreateBonusLabel();
 
-
-		box.AddChild(
+		grid.AddChild(
 			_cycleBonusLabel
 		);
 
@@ -1145,8 +1328,7 @@ public sealed class LabController
 		_botBonusLabel =
 			CreateBonusLabel();
 
-
-		box.AddChild(
+		grid.AddChild(
 			_botBonusLabel
 		);
 
@@ -1154,8 +1336,7 @@ public sealed class LabController
 		_machineUpgradeCostBonusLabel =
 			CreateBonusLabel();
 
-
-		box.AddChild(
+		grid.AddChild(
 			_machineUpgradeCostBonusLabel
 		);
 
@@ -1163,8 +1344,7 @@ public sealed class LabController
 		_unlockCostBonusLabel =
 			CreateBonusLabel();
 
-
-		box.AddChild(
+		grid.AddChild(
 			_unlockCostBonusLabel
 		);
 
@@ -1172,8 +1352,7 @@ public sealed class LabController
 		_offlineBonusLabel =
 			CreateBonusLabel();
 
-
-		box.AddChild(
+		grid.AddChild(
 			_offlineBonusLabel
 		);
 
@@ -1184,28 +1363,253 @@ public sealed class LabController
 
 	private static Label CreateBonusLabel()
 	{
-		return CreateLeftLabel(
-			15
-		);
+		Label label =
+			CreateLeftLabel(
+				12
+			);
+
+
+		label.SizeFlagsHorizontal =
+			Control.SizeFlags.ExpandFill;
+
+
+		return label;
 	}
 
 
 	// ==================================================
-	// BRANCHES
+	// TABS
 	// ==================================================
 
-	private void CreateBranch(
-		VBoxContainer parent,
+	private PanelContainer CreateBranchTabsPanel()
+	{
+		PanelContainer panel =
+			new();
+
+
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			CreateSectionStyle(
+				AvailableColor,
+				0.10f
+			)
+		);
+
+
+		MarginContainer margin =
+			CreatePanelMargin(
+				10
+			);
+
+
+		panel.AddChild(
+			margin
+		);
+
+
+		HBoxContainer row =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						58
+					),
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		row.AddThemeConstantOverride(
+			"separation",
+			6
+		);
+
+
+		margin.AddChild(
+			row
+		);
+
+
+		CreateBranchTab(
+			row,
+			ResearchBranch.Hardware,
+			"HARDWARE",
+			HardwareIcon
+		);
+
+
+		CreateBranchTab(
+			row,
+			ResearchBranch.Robotics,
+			"ROBOTICS",
+			RoboticsIcon
+		);
+
+
+		CreateBranchTab(
+			row,
+			ResearchBranch.Infrastructure,
+			"INFRA",
+			InfrastructureIcon
+		);
+
+
+		return panel;
+	}
+
+
+	private void CreateBranchTab(
+		HBoxContainer parent,
 		ResearchBranch branch,
 		string title,
 		Texture2D icon)
 	{
+		Button button =
+			new()
+			{
+				Text =
+					title,
+
+				Icon =
+					icon,
+
+				ExpandIcon =
+					true,
+
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						54
+					),
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		button.AddThemeFontSizeOverride(
+			"font_size",
+			11
+		);
+
+
+		button.Pressed +=
+			() =>
+				ShowBranch(
+					branch
+				);
+
+
 		parent.AddChild(
-			CreateBranchHeader(
-				title,
-				icon
+			button
+		);
+
+
+		_branchButtons[
+			branch
+		] =
+			button;
+	}
+
+
+	private void ShowBranch(
+		ResearchBranch branch)
+	{
+		_selectedBranch =
+			branch;
+
+
+		foreach (
+			KeyValuePair<
+				ResearchBranch,
+				VBoxContainer
+			> entry
+			in _branchTrees
+		)
+		{
+			entry.Value.Visible =
+				entry.Key
+				== branch;
+		}
+
+
+		RefreshBranchTabs();
+
+
+		if (_unlockedScroll != null)
+		{
+			_unlockedScroll.ScrollVertical =
+				0;
+		}
+	}
+
+
+	private void RefreshBranchTabs()
+	{
+		foreach (
+			KeyValuePair<
+				ResearchBranch,
+				Button
+			> entry
+			in _branchButtons
+		)
+		{
+			bool selected =
+				entry.Key
+				== _selectedBranch;
+
+
+			ApplyTabButtonStyle(
+				entry.Value,
+				selected
+			);
+		}
+	}
+
+
+	// ==================================================
+	// TREES
+	// ==================================================
+
+	private void CreateBranchTree(
+		ResearchBranch branch)
+	{
+		VBoxContainer tree =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		tree.AddThemeConstantOverride(
+			"separation",
+			0
+		);
+
+
+		_treeHost.AddChild(
+			tree
+		);
+
+
+		_branchTrees[
+			branch
+		] =
+			tree;
+
+
+		tree.AddChild(
+			CreateBranchHeaderPanel(
+				branch
 			)
 		);
+
+
+		List<ResearchDefinition> branchResearch =
+			[];
 
 
 		foreach (
@@ -1215,116 +1619,64 @@ public sealed class LabController
 		{
 			if (
 				research.Branch
-				!= branch
+				== branch
 			)
 			{
-				continue;
-			}
-
-
-			parent.AddChild(
-				CreateResearchCard(
+				branchResearch.Add(
 					research
-				)
-			);
+				);
+			}
 		}
 
 
-		parent.AddChild(
-			new HSeparator()
-		);
+		for (
+			int i = 0;
+			i < branchResearch.Count;
+			i++
+		)
+		{
+			tree.AddChild(
+				CreateResearchNode(
+					branchResearch[
+						i
+					]
+				)
+			);
+
+
+			if (
+				i
+				< branchResearch.Count - 1
+			)
+			{
+				tree.AddChild(
+					CreateConnector()
+				);
+			}
+		}
 	}
 
 
-	private Control CreateBranchHeader(
-		string title,
-		Texture2D texture)
+	private Control CreateBranchHeaderPanel(
+		ResearchBranch branch)
 	{
-		HBoxContainer row =
-			new()
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						62
-					)
-			};
+		PanelContainer panel =
+			new();
 
 
-		row.AddThemeConstantOverride(
-			"separation",
-			12
-		);
-
-
-		row.AddChild(
-			CreateIcon(
-				texture,
-				52
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			CreateSectionStyle(
+				AvailableColor,
+				0.10f
 			)
 		);
 
 
-		Label label =
-			CreateLeftLabel(
-				23
-			);
-
-
-		label.Text =
-			title;
-
-
-		row.AddChild(
-			label
-		);
-
-
-		return row;
-	}
-
-
-	// ==================================================
-	// RESEARCH CARD
-	// ==================================================
-
-	private Control CreateResearchCard(
-		ResearchDefinition research)
-	{
-		PanelContainer panel =
-			new()
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						140
-					)
-			};
-
-
 		MarginContainer margin =
-			new();
-
-
-		margin.AddThemeConstantOverride(
-			"margin_left",
-			12
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_top",
-			10
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_right",
-			12
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_bottom",
-			10
-		);
+			CreatePanelMargin(
+				12
+			);
 
 
 		panel.AddChild(
@@ -1333,7 +1685,14 @@ public sealed class LabController
 
 
 		HBoxContainer row =
-			new();
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						70
+					)
+			};
 
 
 		row.AddThemeConstantOverride(
@@ -1347,10 +1706,158 @@ public sealed class LabController
 		);
 
 
+		row.AddChild(
+			CreateIcon(
+				GetBranchIcon(
+					branch
+				),
+				50
+			)
+		);
+
+
+		VBoxContainer text =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		Label title =
+			CreateLeftLabel(
+				22
+			);
+
+
+		title.Text =
+			GetBranchName(
+				branch
+			);
+
+
+		text.AddChild(
+			title
+		);
+
+
+		Label description =
+			CreateLeftLabel(
+				12
+			);
+
+
+		description.Text =
+			GetBranchDescription(
+				branch
+			);
+
+
+		description.AutowrapMode =
+			TextServer.AutowrapMode.WordSmart;
+
+
+		text.AddChild(
+			description
+		);
+
+
+		row.AddChild(
+			text
+		);
+
+
+		return panel;
+	}
+
+
+	// ==================================================
+	// RESEARCH NODE
+	// ==================================================
+
+	private Control CreateResearchNode(
+		ResearchDefinition research)
+	{
+		MarginContainer outer =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		outer.AddThemeConstantOverride(
+			"margin_left",
+			22
+		);
+
+		outer.AddThemeConstantOverride(
+			"margin_right",
+			22
+		);
+
+
+		PanelContainer panel =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						118
+					),
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			CreateResearchNodeStyle(
+				LockedColor
+			)
+		);
+
+
+		outer.AddChild(
+			panel
+		);
+
+
+		MarginContainer margin =
+			CreatePanelMargin(
+				11
+			);
+
+
+		panel.AddChild(
+			margin
+		);
+
+
+		HBoxContainer row =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		row.AddThemeConstantOverride(
+			"separation",
+			10
+		);
+
+
+		margin.AddChild(
+			row
+		);
+
+
 		TextureRect statusIcon =
 			CreateIcon(
-				ResearchActiveIcon,
-				60
+				ResearchLockedIcon,
+				50
 			);
 
 
@@ -1367,24 +1874,30 @@ public sealed class LabController
 			};
 
 
-		Label title =
+		text.AddThemeConstantOverride(
+			"separation",
+			2
+		);
+
+
+		Label name =
 			CreateLeftLabel(
-				18
+				17
 			);
 
 
-		title.Text =
+		name.Text =
 			research.Name;
 
 
 		text.AddChild(
-			title
+			name
 		);
 
 
 		Label description =
 			CreateLeftLabel(
-				14
+				12
 			);
 
 
@@ -1403,7 +1916,7 @@ public sealed class LabController
 
 		Label status =
 			CreateLeftLabel(
-				13
+				11
 			);
 
 
@@ -1422,10 +1935,16 @@ public sealed class LabController
 			{
 				CustomMinimumSize =
 					new Vector2(
-						145,
-						58
+						126,
+						54
 					)
 			};
+
+
+		button.AddThemeFontSizeOverride(
+			"font_size",
+			11
+		);
 
 
 		string id =
@@ -1449,6 +1968,9 @@ public sealed class LabController
 		] =
 			new ResearchView
 			{
+				Panel =
+					panel,
+
 				StatusIcon =
 					statusIcon,
 
@@ -1460,9 +1982,60 @@ public sealed class LabController
 			};
 
 
-		return panel;
+		return outer;
 	}
 
+
+	private Control CreateConnector()
+	{
+		CenterContainer holder =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						30
+					),
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		ColorRect line =
+			new()
+			{
+				Color =
+					new Color(
+						0.18f,
+						0.70f,
+						0.95f,
+						0.7f
+					),
+
+				CustomMinimumSize =
+					new Vector2(
+						4,
+						30
+					),
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+
+		holder.AddChild(
+			line
+		);
+
+
+		return holder;
+	}
+
+
+	// ==================================================
+	// RESEARCH ACTION
+	// ==================================================
 
 	private void StartResearch(
 		string researchId)
@@ -1616,20 +2189,19 @@ public sealed class LabController
 			< GameConfig.LabUnlockCost;
 
 
-		if (unlocked)
-		{
-			RefreshActiveResearch();
+		if (!unlocked)
+			return;
 
-			RefreshResearchBonuses();
 
-			RefreshResearchCards();
-		}
+		RefreshActiveResearch();
+
+		RefreshResearchBonuses();
+
+		RefreshResearchCards();
+
+		RefreshBranchTabs();
 	}
 
-
-	// ==================================================
-	// RESEARCH POINT BUTTON
-	// ==================================================
 
 	private void RefreshResearchPointButton()
 	{
@@ -1660,7 +2232,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// ACTIVE RESEARCH
+	// ACTIVE RESEARCH REFRESH
 	// ==================================================
 
 	private void RefreshActiveResearch()
@@ -1711,7 +2283,7 @@ public sealed class LabController
 
 
 		_activeResearchTimeLabel.Text =
-			"Remaining: "
+			"Remaining "
 			+ FormatTime(
 				remaining
 			);
@@ -1719,7 +2291,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// BONUS DISPLAY
+	// BONUSES
 	// ==================================================
 
 	private void RefreshResearchBonuses()
@@ -1764,42 +2336,42 @@ public sealed class LabController
 
 
 		_productionBonusLabel.Text =
-			"Production: +"
+			"Production +"
 			+ FormatPercent(
 				productionBonus
 			);
 
 
 		_cycleBonusLabel.Text =
-			"Cycle Time: -"
+			"Cycle -"
 			+ FormatPercent(
 				cycleReduction
 			);
 
 
 		_botBonusLabel.Text =
-			"Bot Power: +"
+			"Bot Power +"
 			+ FormatPercent(
 				botBonus
 			);
 
 
 		_machineUpgradeCostBonusLabel.Text =
-			"Machine Upgrade Costs: -"
+			"Upgrade Cost -"
 			+ FormatPercent(
 				machineUpgradeReduction
 			);
 
 
 		_unlockCostBonusLabel.Text =
-			"Expansion Costs: -"
+			"Unlock Cost -"
 			+ FormatPercent(
 				unlockReduction
 			);
 
 
 		_offlineBonusLabel.Text =
-			"Offline Income: "
+			"Offline "
 			+ FormatPercent(
 				offlineIncome
 			);
@@ -1807,7 +2379,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// RESEARCH CARDS
+	// RESEARCH VIEW REFRESH
 	// ==================================================
 
 	private void RefreshResearchCards()
@@ -1824,7 +2396,7 @@ public sealed class LabController
 			if (
 				!_researchViews.TryGetValue(
 					research.Id,
-					out ResearchView? view
+					out ResearchView view
 				)
 			)
 			{
@@ -1842,20 +2414,14 @@ public sealed class LabController
 				)
 			)
 			{
-				view.StatusIcon.Texture =
-					ResearchCompletedIcon;
-
-
-				view.StatusLabel.Text =
-					"COMPLETED";
-
-
-				view.Button.Text =
-					"COMPLETED";
-
-
-				view.Button.Disabled =
-					true;
+				ApplyResearchViewState(
+					view,
+					ResearchCompletedIcon,
+					CompletedColor,
+					"COMPLETED",
+					"COMPLETED",
+					true
+				);
 
 
 				continue;
@@ -1863,7 +2429,7 @@ public sealed class LabController
 
 
 			// ==================================================
-			// ACTIVE
+			// CURRENTLY RESEARCHING
 			// ==================================================
 
 			if (
@@ -1877,23 +2443,17 @@ public sealed class LabController
 						.GetRemainingResearchSeconds();
 
 
-				view.StatusIcon.Texture =
-					ResearchActiveIcon;
-
-
-				view.StatusLabel.Text =
+				ApplyResearchViewState(
+					view,
+					ResearchActiveIcon,
+					ResearchingColor,
 					"RESEARCHING • "
 					+ FormatTime(
 						remaining
-					);
-
-
-				view.Button.Text =
-					"RESEARCHING";
-
-
-				view.Button.Disabled =
-					true;
+					),
+					"IN PROGRESS",
+					true
+				);
 
 
 				continue;
@@ -1901,7 +2461,7 @@ public sealed class LabController
 
 
 			// ==================================================
-			// PREREQUISITE
+			// PREREQUISITE LOCKED
 			// ==================================================
 
 			if (
@@ -1911,22 +2471,16 @@ public sealed class LabController
 				)
 			)
 			{
-				view.StatusIcon.Texture =
-					ResearchLockedIcon;
-
-
-				view.StatusLabel.Text =
+				ApplyResearchViewState(
+					view,
+					ResearchLockedIcon,
+					LockedColor,
 					GetLockedText(
 						research
-					);
-
-
-				view.Button.Text =
-					"LOCKED";
-
-
-				view.Button.Disabled =
-					true;
+					),
+					"LOCKED",
+					true
+				);
 
 
 				continue;
@@ -1939,21 +2493,15 @@ public sealed class LabController
 
 			if (activeResearch != null)
 			{
-				view.StatusIcon.Texture =
-					ResearchLockedIcon;
-
-
-				view.StatusLabel.Text =
+				ApplyResearchViewState(
+					view,
+					ResearchLockedIcon,
+					LockedColor,
 					"Lab busy • "
-					+ activeResearch.Name;
-
-
-				view.Button.Text =
-					"BUSY";
-
-
-				view.Button.Disabled =
-					true;
+					+ activeResearch.Name,
+					"BUSY",
+					true
+				);
 
 
 				continue;
@@ -1971,11 +2519,12 @@ public sealed class LabController
 					);
 
 
-			view.StatusIcon.Texture =
-				ResearchActiveIcon;
+			bool canAfford =
+				_state.Lab.ResearchPoints
+				>= research.Cost;
 
 
-			view.StatusLabel.Text =
+			string status =
 				NumberFormatter.Format(
 					research.Cost
 				)
@@ -1985,18 +2534,212 @@ public sealed class LabController
 				);
 
 
-			view.Button.Text =
+			ApplyResearchViewState(
+				view,
+				ResearchActiveIcon,
+				AvailableColor,
+				status,
 				"RESEARCH\n"
 				+ NumberFormatter.Format(
 					research.Cost
 				)
-				+ " RP";
-
-
-			view.Button.Disabled =
-				_state.Lab.ResearchPoints
-				< research.Cost;
+				+ " RP",
+				!canAfford
+			);
 		}
+	}
+
+
+	private static void ApplyResearchViewState(
+		ResearchView view,
+		Texture2D icon,
+		Color borderColor,
+		string status,
+		string buttonText,
+		bool disabled)
+	{
+		view.StatusIcon.Texture =
+			icon;
+
+
+		view.StatusLabel.Text =
+			status;
+
+
+		view.StatusLabel.AddThemeColorOverride(
+			"font_color",
+			borderColor
+		);
+
+
+		view.Button.Text =
+			buttonText;
+
+
+		view.Button.Disabled =
+			disabled;
+
+
+		view.Panel.AddThemeStyleboxOverride(
+			"panel",
+			CreateResearchNodeStyle(
+				borderColor
+			)
+		);
+	}
+
+
+	// ==================================================
+	// TAB STYLE
+	// ==================================================
+
+	private static void ApplyTabButtonStyle(
+		Button button,
+		bool selected)
+	{
+		StyleBoxFlat style =
+			new()
+			{
+				BgColor =
+					selected
+						? SelectedTabColor
+						: UnselectedTabColor,
+
+				BorderColor =
+					selected
+						? AvailableColor
+						: new Color(
+							0.18f,
+							0.24f,
+							0.32f,
+							1.0f
+						),
+
+				BorderWidthLeft =
+					2,
+
+				BorderWidthTop =
+					2,
+
+				BorderWidthRight =
+					2,
+
+				BorderWidthBottom =
+					2,
+
+				CornerRadiusTopLeft =
+					10,
+
+				CornerRadiusTopRight =
+					10,
+
+				CornerRadiusBottomLeft =
+					10,
+
+				CornerRadiusBottomRight =
+					10
+			};
+
+
+		button.AddThemeStyleboxOverride(
+			"normal",
+			style
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"hover",
+			style
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"pressed",
+			style
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"focus",
+			style
+		);
+
+
+		button.AddThemeColorOverride(
+			"font_color",
+			selected
+				? Colors.White
+				: new Color(
+					0.82f,
+					0.88f,
+					0.94f,
+					1.0f
+				)
+		);
+	}
+
+
+	// ==================================================
+	// BRANCH TEXT
+	// ==================================================
+
+	private static Texture2D GetBranchIcon(
+		ResearchBranch branch)
+	{
+		return branch switch
+		{
+			ResearchBranch.Hardware =>
+				HardwareIcon,
+
+			ResearchBranch.Robotics =>
+				RoboticsIcon,
+
+			ResearchBranch.Infrastructure =>
+				InfrastructureIcon,
+
+			_ =>
+				HardwareIcon
+		};
+	}
+
+
+	private static string GetBranchName(
+		ResearchBranch branch)
+	{
+		return branch switch
+		{
+			ResearchBranch.Hardware =>
+				"HARDWARE",
+
+			ResearchBranch.Robotics =>
+				"ROBOTICS",
+
+			ResearchBranch.Infrastructure =>
+				"INFRASTRUCTURE",
+
+			_ =>
+				"RESEARCH"
+		};
+	}
+
+
+	private static string GetBranchDescription(
+		ResearchBranch branch)
+	{
+		return branch switch
+		{
+			ResearchBranch.Hardware =>
+				"Improve production speed and machine performance.",
+
+			ResearchBranch.Robotics =>
+				"Improve bot power and unlock better bot rarities.",
+
+			ResearchBranch.Infrastructure =>
+				"Reduce costs and improve offline production.",
+
+			_ =>
+				"Permanent research upgrades."
+		};
 	}
 
 
@@ -2028,7 +2771,128 @@ public sealed class LabController
 
 
 	// ==================================================
-	// HELPERS
+	// STYLES
+	// ==================================================
+
+	private static StyleBoxFlat CreateResearchNodeStyle(
+		Color borderColor)
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				DarkPanelColor,
+
+			BorderColor =
+				borderColor,
+
+			BorderWidthLeft =
+				2,
+
+			BorderWidthTop =
+				2,
+
+			BorderWidthRight =
+				2,
+
+			BorderWidthBottom =
+				2,
+
+			CornerRadiusTopLeft =
+				16,
+
+			CornerRadiusTopRight =
+				16,
+
+			CornerRadiusBottomLeft =
+				16,
+
+			CornerRadiusBottomRight =
+				16
+		};
+	}
+
+
+	private static StyleBoxFlat CreateSectionStyle(
+		Color borderColor,
+		float borderAlpha)
+	{
+		Color tinted =
+			borderColor;
+
+
+		tinted.A =
+			borderAlpha;
+
+
+		return new StyleBoxFlat
+		{
+			BgColor =
+				DarkPanelColor,
+
+			BorderColor =
+				tinted,
+
+			BorderWidthLeft =
+				2,
+
+			BorderWidthTop =
+				2,
+
+			BorderWidthRight =
+				2,
+
+			BorderWidthBottom =
+				2,
+
+			CornerRadiusTopLeft =
+				14,
+
+			CornerRadiusTopRight =
+				14,
+
+			CornerRadiusBottomLeft =
+				14,
+
+			CornerRadiusBottomRight =
+				14
+		};
+	}
+
+
+	private static MarginContainer CreatePanelMargin(
+		int amount)
+	{
+		MarginContainer margin =
+			new();
+
+
+		margin.AddThemeConstantOverride(
+			"margin_left",
+			amount
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			amount
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_right",
+			amount
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_bottom",
+			amount
+		);
+
+
+		return margin;
+	}
+
+
+	// ==================================================
+	// FORMAT
 	// ==================================================
 
 	private static string FormatTime(
@@ -2069,6 +2933,10 @@ public sealed class LabController
 		+ "%";
 	}
 
+
+	// ==================================================
+	// BASIC CONTROLS
+	// ==================================================
 
 	private static TextureRect CreateIcon(
 		Texture2D texture,

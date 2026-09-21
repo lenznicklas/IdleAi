@@ -1,0 +1,98 @@
+[gd_scene load_steps=5 format=3]
+
+[ext_resource type="Script" path="res://scripts/ui/loading/LoadingScreen.cs" id="1_loading"]
+[ext_resource type="Texture2D" path="res://assets/ui/loading_screen.png" id="2_background"]
+
+[sub_resource type="StyleBoxFlat" id="ProgressBackground"]
+bg_color = Color(0.015, 0.025, 0.055, 0.88)
+border_width_left = 2
+border_width_top = 2
+border_width_right = 2
+border_width_bottom = 2
+border_color = Color(0.15, 0.55, 0.95, 0.8)
+corner_radius_top_left = 14
+corner_radius_top_right = 14
+corner_radius_bottom_right = 14
+corner_radius_bottom_left = 14
+
+[sub_resource type="StyleBoxFlat" id="ProgressFill"]
+bg_color = Color(0.08, 0.72, 1, 1)
+corner_radius_top_left = 12
+corner_radius_top_right = 12
+corner_radius_bottom_right = 12
+corner_radius_bottom_left = 12
+shadow_color = Color(0.05, 0.55, 1, 0.4)
+shadow_size = 8
+
+[node name="LoadingScreen" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_loading")
+
+[node name="Background" type="TextureRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+texture = ExtResource("2_background")
+expand_mode = 1
+stretch_mode = 6
+
+[node name="BottomFade" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_top = -260.0
+grow_horizontal = 2
+grow_vertical = 0
+mouse_filter = 2
+color = Color(0.005, 0.01, 0.03, 0.38)
+
+[node name="LoadingUi" type="VBoxContainer" parent="."]
+layout_mode = 1
+anchors_preset = 12
+anchor_right = 1.0
+anchor_bottom = 1.0
+offset_left = 58.0
+offset_top = -220.0
+offset_right = -58.0
+offset_bottom = -70.0
+grow_horizontal = 2
+grow_vertical = 0
+theme_override_constants/separation = 10
+
+[node name="StatusLabel" type="Label" parent="LoadingUi"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.82, 0.93, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0.15, 0.35, 0.8)
+theme_override_constants/shadow_offset_x = 2
+theme_override_constants/shadow_offset_y = 2
+theme_override_font_sizes/font_size = 20
+text = "INITIALIZING AI..."
+horizontal_alignment = 1
+
+[node name="ProgressBar" type="ProgressBar" parent="LoadingUi"]
+custom_minimum_size = Vector2(0, 30)
+layout_mode = 2
+theme_override_styles/background = SubResource("ProgressBackground")
+theme_override_styles/fill = SubResource("ProgressFill")
+value = 0.0
+show_percentage = false
+
+[node name="PercentLabel" type="Label" parent="LoadingUi"]
+layout_mode = 2
+theme_override_colors/font_color = Color(0.55, 0.8, 1, 1)
+theme_override_colors/font_shadow_color = Color(0, 0, 0, 0.8)
+theme_override_constants/shadow_offset_x = 1
+theme_override_constants/shadow_offset_y = 1
+theme_override_font_sizes/font_size = 16
+text = "0%"
+horizontal_alignment = 1

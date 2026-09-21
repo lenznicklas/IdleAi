@@ -5,6 +5,9 @@ namespace IdleAi;
 
 public sealed class MachineDetailsOverlay
 {
+	public event Action<string>? StateChanged;
+
+
 	private readonly Game _root;
 
 	private readonly GameState _state;
@@ -16,42 +19,81 @@ public sealed class MachineDetailsOverlay
 	private readonly BotService _bots;
 
 
-	public event Action<string>? StateChanged;
+	// ==================================================
+	// UI
+	// ==================================================
+
+	private Control _overlay =
+		null!;
 
 
-	private Control _overlay = null!;
-
-	private PanelContainer _panel = null!;
-
-	private Label _title = null!;
-
-	private TextureRect _machineImage = null!;
-
-	private Label _level = null!;
-
-	private Label _production = null!;
-
-	private Label _cycle = null!;
-
-	private Label _upgradeInfo = null!;
-
-	private Button _upgradeButton = null!;
-
-	private TextureRect _botImage = null!;
-
-	private Label _botName = null!;
-
-	private Label _botMultiplier = null!;
-
-	private Button _buyBotButton = null!;
-
-	private Button _sellBotButton = null!;
+	private PanelContainer _panel =
+		null!;
 
 
-	private Control _sellOverlay = null!;
+	private Label _title =
+		null!;
 
-	private Label _sellInfo = null!;
 
+	private TextureRect _machineImage =
+		null!;
+
+
+	private Label _level =
+		null!;
+
+
+	private Label _production =
+		null!;
+
+
+	private Label _cycle =
+		null!;
+
+
+	private Label _upgradeInfo =
+		null!;
+
+
+	private Button _upgradeButton =
+		null!;
+
+
+	private TextureRect _botImage =
+		null!;
+
+
+	private Label _botName =
+		null!;
+
+
+	private Label _botMultiplier =
+		null!;
+
+
+	private Button _buyBotButton =
+		null!;
+
+
+	private Button _sellBotButton =
+		null!;
+
+
+	// ==================================================
+	// SELL
+	// ==================================================
+
+	private Control _sellOverlay =
+		null!;
+
+
+	private Label _sellInfo =
+		null!;
+
+
+	// ==================================================
+	// CURRENT MACHINE
+	// ==================================================
 
 	private int _roomIndex;
 
@@ -62,6 +104,10 @@ public sealed class MachineDetailsOverlay
 		_overlay != null
 		&& _overlay.Visible;
 
+
+	// ==================================================
+	// CONSTRUCTOR
+	// ==================================================
 
 	public MachineDetailsOverlay(
 		Game root,
@@ -1137,11 +1183,19 @@ public sealed class MachineDetailsOverlay
 	}
 
 
+	// ==================================================
+	// FULL SCREEN OVERLAY
+	// ==================================================
+
 	private static Control CreateFullScreenOverlay(
 		Action outsidePressed)
 	{
 		Control overlay =
-			new();
+			new()
+			{
+				MouseFilter =
+					Control.MouseFilterEnum.Stop
+			};
 
 
 		overlay.SetAnchorsAndOffsetsPreset(
@@ -1173,24 +1227,69 @@ public sealed class MachineDetailsOverlay
 		dim.GuiInput +=
 			@event =>
 			{
+				bool shouldClose =
+					false;
+
+
 				if (
-					@event is InputEventMouseButton mouse
+					@event
+						is InputEventMouseButton mouse
 					&& mouse.Pressed
 					&& mouse.ButtonIndex
-					== MouseButton.Left
+						== MouseButton.Left
 				)
 				{
-					outsidePressed();
+					shouldClose =
+						true;
 				}
 
 
 				if (
-					@event is InputEventScreenTouch touch
+					@event
+						is InputEventScreenTouch touch
 					&& touch.Pressed
 				)
 				{
-					outsidePressed();
+					shouldClose =
+						true;
 				}
+
+
+				if (!shouldClose)
+					return;
+
+
+				/*
+				 * Close the overlay first.
+				 */
+				outsidePressed();
+
+
+				/*
+				 * VERY IMPORTANT:
+				 *
+				 * Consume this exact input event.
+				 *
+				 * Without this, Android can forward the
+				 * same touch to the MachineSlot that has
+				 * just become visible underneath.
+				 *
+				 * Result before:
+				 *
+				 * tap outside
+				 * -> details closes
+				 * -> underlying machine receives tap
+				 * -> new details immediately opens
+				 *
+				 * Result now:
+				 *
+				 * tap outside
+				 * -> details closes
+				 * -> event ends here
+				 */
+				overlay
+					.GetViewport()
+					.SetInputAsHandled();
 			};
 
 
@@ -1238,15 +1337,18 @@ public sealed class MachineDetailsOverlay
 			28
 		);
 
+
 		margin.AddThemeConstantOverride(
 			"margin_top",
 			24
 		);
 
+
 		margin.AddThemeConstantOverride(
 			"margin_right",
 			28
 		);
+
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",

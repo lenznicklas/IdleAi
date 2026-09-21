@@ -14,25 +14,44 @@ public partial class Game : Control
 		10.0;
 
 
-	private GameState _state = null!;
+	private GameState _state =
+		null!;
 
-	private EconomyService _economy = null!;
 
-	private ProgressionService _progression = null!;
+	private EconomyService _economy =
+		null!;
 
-	private ProductionService _production = null!;
 
-	private BotService _bots = null!;
+	private ProgressionService _progression =
+		null!;
 
-	private PrestigeService _prestige = null!;
 
-	private LabService _labService = null!;
+	private ProductionService _production =
+		null!;
 
-	private LabController _labUi = null!;
 
-	private GameUiController _ui = null!;
+	private BotService _bots =
+		null!;
 
-	private SaveManager _saveManager = null!;
+
+	private PrestigeService _prestige =
+		null!;
+
+
+	private LabService _labService =
+		null!;
+
+
+	private LabController _labUi =
+		null!;
+
+
+	private GameUiController _ui =
+		null!;
+
+
+	private SaveManager _saveManager =
+		null!;
 
 
 	// ==================================================
@@ -52,17 +71,19 @@ public partial class Game : Control
 		CreateLabUi();
 
 
+		/*
+		 * Lab button exists only after LabController
+		 * has been initialized.
+		 */
+		SetupMobileNavigationLayout();
+
+
 		SetupSaveSystem();
 
 
 		double offlineEarned =
 			LoadGame();
 
-
-		/*
-		 * Check immediately whether a research
-		 * completed while the game was closed.
-		 */
 
 		LabResult researchResult =
 			_labService.Update();
@@ -252,6 +273,10 @@ public partial class Game : Control
 	}
 
 
+	// ==================================================
+	// LAB UI
+	// ==================================================
+
 	private void CreateLabUi()
 	{
 		_labUi =
@@ -275,6 +300,242 @@ public partial class Game : Control
 
 
 		_labUi.Initialize();
+	}
+
+
+	// ==================================================
+	// MOBILE NAVIGATION LAYOUT
+	// ==================================================
+
+	private void SetupMobileNavigationLayout()
+	{
+		HBoxContainer? bottomHBox =
+			GetNodeOrNull<HBoxContainer>(
+				"BottomBar/Margin/HBox"
+			);
+
+
+		if (bottomHBox != null)
+		{
+			bottomHBox.AddThemeConstantOverride(
+				"separation",
+				8
+			);
+		}
+
+
+		// ==================================================
+		// MAP BUTTON
+		// ==================================================
+
+		TextureButton? mapButton =
+			GetNodeOrNull<TextureButton>(
+				"BottomBar/Margin/HBox/MapButton"
+			);
+
+
+		if (mapButton != null)
+		{
+			ConfigureBottomNavigationButton(
+				mapButton
+			);
+		}
+
+
+		// ==================================================
+		// LAB BUTTON
+		// ==================================================
+
+		TextureButton? labButton =
+			GetNodeOrNull<TextureButton>(
+				"BottomBar/Margin/HBox/LabButton"
+			);
+
+
+		if (labButton != null)
+		{
+			ConfigureBottomNavigationButton(
+				labButton
+			);
+		}
+
+
+		// ==================================================
+		// SHOP BUTTON
+		// ==================================================
+
+		TextureButton? shopButton =
+			GetNodeOrNull<TextureButton>(
+				"BottomBar/Margin/HBox/ShopButton"
+			);
+
+
+		if (shopButton != null)
+		{
+			ConfigureBottomNavigationButton(
+				shopButton
+			);
+		}
+
+
+		// ==================================================
+		// BOTTOM BAR
+		// ==================================================
+
+		MarginContainer? bottomMargin =
+			GetNodeOrNull<MarginContainer>(
+				"BottomBar/Margin"
+			);
+
+
+		if (bottomMargin != null)
+		{
+			/*
+			 * Less space above, more below:
+			 * buttons visually move upward.
+			 */
+			bottomMargin.AddThemeConstantOverride(
+				"margin_top",
+				2
+			);
+
+
+			bottomMargin.AddThemeConstantOverride(
+				"margin_bottom",
+				14
+			);
+
+
+			bottomMargin.AddThemeConstantOverride(
+				"margin_left",
+				10
+			);
+
+
+			bottomMargin.AddThemeConstantOverride(
+				"margin_right",
+				10
+			);
+		}
+
+
+		// ==================================================
+		// MAP PAGE
+		// ==================================================
+
+		MarginContainer? mapMargin =
+			GetNodeOrNull<MarginContainer>(
+				"MapPage/Margin"
+			);
+
+
+		if (mapMargin != null)
+		{
+			mapMargin.AddThemeConstantOverride(
+				"margin_top",
+				26
+			);
+
+
+			mapMargin.AddThemeConstantOverride(
+				"margin_bottom",
+				35
+			);
+		}
+
+
+		// ==================================================
+		// SHOP PAGE
+		// ==================================================
+
+		Control? shopCenter =
+			GetNodeOrNull<Control>(
+				"ShopPage/Center"
+			);
+
+
+		if (shopCenter != null)
+		{
+			/*
+			 * Shift shop content upward.
+			 */
+			shopCenter.OffsetTop =
+				-50;
+
+
+			shopCenter.OffsetBottom =
+				-50;
+		}
+
+
+		// ==================================================
+		// PRESTIGE CONFIRMATION
+		// ==================================================
+
+		PanelContainer? prestigePanel =
+			GetNodeOrNull<PanelContainer>(
+				"PrestigeConfirmOverlay/Panel"
+			);
+
+
+		if (prestigePanel != null)
+		{
+			/*
+			 * Original:
+			 *
+			 * top    = -260
+			 * bottom =  260
+			 *
+			 * New:
+			 *
+			 * top    = -315
+			 * bottom =  205
+			 *
+			 * Same height, but 55 px higher.
+			 */
+
+			prestigePanel.OffsetTop =
+				-315;
+
+
+			prestigePanel.OffsetBottom =
+				205;
+		}
+	}
+
+
+	private static void ConfigureBottomNavigationButton(
+		TextureButton button)
+	{
+		/*
+		 * Previously roughly 72 px wide.
+		 * Make the navigation symbols clearly larger.
+		 */
+
+		button.CustomMinimumSize =
+			new Vector2(
+				88,
+				72
+			);
+
+
+		button.IgnoreTextureSize =
+			true;
+
+
+		button.StretchMode =
+			TextureButton.StretchModeEnum.KeepAspectCentered;
+
+
+		/*
+		 * Move the visual button slightly upwards.
+		 */
+
+		button.Position =
+			new Vector2(
+				button.Position.X,
+				-5
+			);
 	}
 
 

@@ -285,6 +285,7 @@ public sealed class EconomyService
 		double duration =
 			Math.Max(
 				0.25,
+
 				baseDuration
 				* _state.Lab
 					.GetCycleTimeMultiplier()
@@ -321,7 +322,8 @@ public sealed class EconomyService
 		double levelMultiplier =
 			1.0
 			+ (
-				slot.MachineLevel - 1
+				slot.MachineLevel
+				- 1
 			)
 			* GameConfig.IncomePerLevel;
 
@@ -356,6 +358,11 @@ public sealed class EconomyService
 				.GetProductionMultiplier();
 
 
+		double shopProductionMultiplier =
+			_state.Shop
+				.GetProductionMultiplier();
+
+
 		double baseCycleDuration =
 			GetBaseCycleDuration(
 				slot
@@ -368,7 +375,8 @@ public sealed class EconomyService
 			* milestoneMultiplier
 			* botMultiplier
 			* prestigeMultiplier
-			* researchProductionMultiplier;
+			* researchProductionMultiplier
+			* shopProductionMultiplier;
 	}
 
 

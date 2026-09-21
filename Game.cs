@@ -7,7 +7,7 @@ namespace IdleAi;
 public partial class Game : Control
 {
 	private const int SaveVersion =
-		12;
+		13;
 
 
 	private const double AutosaveIntervalSeconds =
@@ -42,6 +42,10 @@ public partial class Game : Control
 		null!;
 
 
+	private ShopService _shopService =
+		null!;
+
+
 	private LabController _labUi =
 		null!;
 
@@ -57,10 +61,6 @@ public partial class Game : Control
 	private SaveManager _saveManager =
 		null!;
 
-
-	// ==================================================
-	// READY
-	// ==================================================
 
 	public override void _Ready()
 	{
@@ -124,10 +124,6 @@ public partial class Game : Control
 		SaveGame();
 	}
 
-
-	// ==================================================
-	// PROCESS
-	// ==================================================
 
 	public override void _Process(
 		double delta)
@@ -236,6 +232,13 @@ public partial class Game : Control
 			);
 
 
+		_shopService =
+			new ShopService(
+				_state,
+				_economy
+			);
+
+
 		_ui =
 			new GameUiController(
 				this,
@@ -244,7 +247,8 @@ public partial class Game : Control
 				_progression,
 				_production,
 				_bots,
-				_prestige
+				_prestige,
+				_shopService
 			);
 
 
@@ -264,10 +268,6 @@ public partial class Game : Control
 			OnPrestigeRequested;
 	}
 
-
-	// ==================================================
-	// LAB UI
-	// ==================================================
 
 	private void CreateLabUi()
 	{
@@ -294,10 +294,6 @@ public partial class Game : Control
 		_labUi.Initialize();
 	}
 
-
-	// ==================================================
-	// MOBILE UI
-	// ==================================================
 
 	private void CreateMobileUi()
 	{
@@ -381,10 +377,6 @@ public partial class Game : Control
 	}
 
 
-	// ==================================================
-	// SLOT
-	// ==================================================
-
 	private void OnSlotActionRequested(
 		int slotIndex)
 	{
@@ -411,10 +403,6 @@ public partial class Game : Control
 		SaveGame();
 	}
 
-
-	// ==================================================
-	// ROOM
-	// ==================================================
 
 	private void OnRoomSelectedRequested(
 		int targetRoom)
@@ -463,17 +451,12 @@ public partial class Game : Control
 
 		_ui.ClosePages();
 
-
 		_ui.UpdateAll();
 
 
 		SaveGame();
 	}
 
-
-	// ==================================================
-	// LAB
-	// ==================================================
 
 	private void OnLabStateChanged()
 	{
@@ -484,10 +467,6 @@ public partial class Game : Control
 		SaveGame();
 	}
 
-
-	// ==================================================
-	// PRESTIGE
-	// ==================================================
 
 	private void OnPrestigeRequested()
 	{
@@ -511,10 +490,6 @@ public partial class Game : Control
 		}
 	}
 
-
-	// ==================================================
-	// TOKENS
-	// ==================================================
 
 	private void AddEarnedTokens(
 		double amount)
@@ -611,6 +586,21 @@ public partial class Game : Control
 				ActiveResearchEndUnix =
 					_state.Lab.ActiveResearchEndUnix,
 
+				DataShards =
+					_state.Shop.DataShards,
+
+				ShopProductionBoostEndUnix =
+					_state.Shop.ProductionBoostEndUnix,
+
+				ShopBotLuckBoostEndUnix =
+					_state.Shop.BotLuckBoostEndUnix,
+
+				ShopProductionUpgradeLevel =
+					_state.Shop.ProductionUpgradeLevel,
+
+				ShopOfflineUpgradeLevel =
+					_state.Shop.OfflineUpgradeLevel,
+
 				Rooms =
 					_state.RoomStates
 						.Select(
@@ -695,6 +685,32 @@ public partial class Game : Control
 
 		_state.Lab.ActiveResearchEndUnix =
 			save.ActiveResearchEndUnix;
+
+
+		/*
+		 * Existing Version-12 saves get the temporary
+		 * test balance once.
+		 */
+		_state.Shop.DataShards =
+			save.SaveVersion < 13
+				? GameConfig.InitialDataShards
+				: save.DataShards;
+
+
+		_state.Shop.ProductionBoostEndUnix =
+			save.ShopProductionBoostEndUnix;
+
+
+		_state.Shop.BotLuckBoostEndUnix =
+			save.ShopBotLuckBoostEndUnix;
+
+
+		_state.Shop.ProductionUpgradeLevel =
+			save.ShopProductionUpgradeLevel;
+
+
+		_state.Shop.OfflineUpgradeLevel =
+			save.ShopOfflineUpgradeLevel;
 
 
 		for (
@@ -802,7 +818,10 @@ public partial class Game : Control
 			Math.Clamp(
 				GameConfig.BaseOfflineIncomeFactor
 				+ _state.Lab
+					.GetOfflineIncomeBonus()
+				+ _state.Shop
 					.GetOfflineIncomeBonus(),
+
 				0,
 				1
 			);
@@ -830,10 +849,6 @@ public partial class Game : Control
 		return amount;
 	}
 
-
-	// ==================================================
-	// TIME
-	// ==================================================
 
 	private static long GetCurrentUnixTime()
 	{

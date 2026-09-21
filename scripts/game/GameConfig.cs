@@ -83,24 +83,86 @@ public static class GameConfig
 		10;
 
 
-	// ==================================================
-	// EARNED RESEARCH POINTS
-	// ==================================================
-
-	/*
-	 * 0.001 = 0.1%
-	 *
-	 * With many automated machines RP will slowly
-	 * accumulate without replacing the normal
-	 * Token -> RP conversion.
-	 */
-
 	public const double ResearchPointDropChance =
 		0.001;
 
 
 	public const int ResearchPointDropAmount =
 		1;
+
+
+	// ==================================================
+	// SHOP
+	// ==================================================
+
+	/*
+	 * Temporary test balance.
+	 *
+	 * This gives new saves enough Data Shards to test
+	 * the shop without adding monetization/rewards yet.
+	 */
+	public const double InitialDataShards =
+		250.0;
+
+
+	public const double ShopProductionBoostCost =
+		25.0;
+
+
+	public const int ShopProductionBoostMinutes =
+		15;
+
+
+	public const double ShopTemporaryProductionMultiplier =
+		2.0;
+
+
+	public const double ShopBotLuckCost =
+		20.0;
+
+
+	public const int ShopBotLuckMinutes =
+		10;
+
+
+	public const double ShopBotLuckMultiplier =
+		1.35;
+
+
+	public const double ShopInstantProductionCost =
+		10.0;
+
+
+	public const double ShopProductionUpgradeBaseCost =
+		40.0;
+
+
+	public const double ShopProductionUpgradeCostGrowth =
+		1.55;
+
+
+	public const double ShopProductionUpgradeBonus =
+		0.02;
+
+
+	public const int ShopProductionUpgradeMaxLevel =
+		20;
+
+
+	public const double ShopOfflineUpgradeBaseCost =
+		35.0;
+
+
+	public const double ShopOfflineUpgradeCostGrowth =
+		1.60;
+
+
+	public const double ShopOfflineUpgradeBonus =
+		0.05;
+
+
+	public const int ShopOfflineUpgradeMaxLevel =
+		15;
 
 
 	// ==================================================
@@ -168,11 +230,20 @@ public static class GameConfig
 	{
 		return machineTier switch
 		{
-			0 => 4.0,
-			1 => 4.5,
-			2 => 5.0,
-			3 => 5.5,
-			_ => 5.5
+			0 =>
+				4.0,
+
+			1 =>
+				4.5,
+
+			2 =>
+				5.0,
+
+			3 =>
+				5.5,
+
+			_ =>
+				5.5
 		};
 	}
 

@@ -50,6 +50,25 @@ public sealed class SaveGameData
 
 
 	// ==================================================
+	// SHOP
+	// ==================================================
+
+	public double DataShards { get; set; }
+
+
+	public long ShopProductionBoostEndUnix { get; set; }
+
+
+	public long ShopBotLuckBoostEndUnix { get; set; }
+
+
+	public int ShopProductionUpgradeLevel { get; set; }
+
+
+	public int ShopOfflineUpgradeLevel { get; set; }
+
+
+	// ==================================================
 	// ROOMS
 	// ==================================================
 

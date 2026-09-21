@@ -25,58 +25,37 @@ public sealed class GameUiController
 
 	private readonly PrestigeService _prestigeService;
 
+	private readonly ShopService _shopService;
 
-	// ==================================================
-	// SUB CONTROLLERS
-	// ==================================================
 
 	private RoomUiController _room =
 		null!;
 
-
 	private TopBarController _topBar =
 		null!;
-
 
 	private BottomBarController _bottomBar =
 		null!;
 
-
 	private MapController _map =
 		null!;
-
 
 	private StatsOverlayController _stats =
 		null!;
 
-
 	private PrestigeOverlayController _prestige =
 		null!;
-
 
 	private MachineDetailsOverlay _details =
 		null!;
 
-
-	// ==================================================
-	// SHOP
-	// ==================================================
-
-	private Control _shopPage =
+	private ShopController _shop =
 		null!;
 
-
-	// ==================================================
-	// THEME
-	// ==================================================
 
 	private int _lastThemeRoom =
 		-1;
 
-
-	// ==================================================
-	// EVENTS
-	// ==================================================
 
 	public event Action<int>? SlotActionRequested;
 
@@ -87,10 +66,6 @@ public sealed class GameUiController
 	public event Action? PrestigeRequested;
 
 
-	// ==================================================
-	// CONSTRUCTOR
-	// ==================================================
-
 	public GameUiController(
 		Game root,
 		GameState state,
@@ -98,40 +73,34 @@ public sealed class GameUiController
 		ProgressionService progression,
 		ProductionService production,
 		BotService bots,
-		PrestigeService prestige)
+		PrestigeService prestige,
+		ShopService shopService)
 	{
 		_root =
 			root;
 
-
 		_state =
 			state;
-
 
 		_economy =
 			economy;
 
-
 		_progression =
 			progression;
-
 
 		_production =
 			production;
 
-
 		_bots =
 			bots;
 
-
 		_prestigeService =
 			prestige;
+
+		_shopService =
+			shopService;
 	}
 
-
-	// ==================================================
-	// INITIALIZE
-	// ==================================================
 
 	public void Initialize()
 	{
@@ -165,10 +134,6 @@ public sealed class GameUiController
 	}
 
 
-	// ==================================================
-	// ROOM CONTROLLER
-	// ==================================================
-
 	private void CreateRoomController()
 	{
 		_room =
@@ -199,10 +164,6 @@ public sealed class GameUiController
 	}
 
 
-	// ==================================================
-	// TOP BAR CONTROLLER
-	// ==================================================
-
 	private void CreateTopBarController()
 	{
 		_topBar =
@@ -220,10 +181,6 @@ public sealed class GameUiController
 		_topBar.Initialize();
 	}
 
-
-	// ==================================================
-	// BOTTOM BAR CONTROLLER
-	// ==================================================
 
 	private void CreateBottomBarController()
 	{
@@ -244,10 +201,6 @@ public sealed class GameUiController
 		_bottomBar.Initialize();
 	}
 
-
-	// ==================================================
-	// MAP CONTROLLER
-	// ==================================================
 
 	private void CreateMapController()
 	{
@@ -270,10 +223,6 @@ public sealed class GameUiController
 	}
 
 
-	// ==================================================
-	// STATS CONTROLLER
-	// ==================================================
-
 	private void CreateStatsController()
 	{
 		_stats =
@@ -294,10 +243,6 @@ public sealed class GameUiController
 	}
 
 
-	// ==================================================
-	// PRESTIGE CONTROLLER
-	// ==================================================
-
 	private void CreatePrestigeController()
 	{
 		_prestige =
@@ -310,16 +255,12 @@ public sealed class GameUiController
 
 		_prestige.Confirmed +=
 			() =>
-			{
 				PrestigeRequested?.Invoke();
-			};
 
 
 		_prestige.Cancelled +=
 			() =>
-			{
 				_stats.Open();
-			};
 
 
 		_prestige.Initialize();
@@ -332,13 +273,28 @@ public sealed class GameUiController
 
 	private void CreateShopController()
 	{
-		_shopPage =
-			_root.GetNode<Control>(
-				"ShopPage"
+		_shop =
+			new ShopController(
+				_root,
+				_state,
+				_shopService
 			);
 
 
-		_shopPage.Hide();
+		_shop.MessageRequested +=
+			SetMessage;
+
+
+		_shop.StateChanged +=
+			() =>
+			{
+				UpdateAll();
+
+				StateChanged?.Invoke();
+			};
+
+
+		_shop.Initialize();
 	}
 
 
@@ -413,12 +369,12 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// MAP PAGE
+	// MAP
 	// ==================================================
 
 	private void ToggleMapPage()
 	{
-		_shopPage.Hide();
+		_shop.Hide();
 
 
 		if (_map.Visible)
@@ -440,7 +396,7 @@ public sealed class GameUiController
 
 
 	// ==================================================
-	// SHOP PAGE
+	// SHOP
 	// ==================================================
 
 	private void ToggleShopPage()
@@ -448,9 +404,9 @@ public sealed class GameUiController
 		_map.Hide();
 
 
-		if (_shopPage.Visible)
+		if (_shop.Visible)
 		{
-			_shopPage.Hide();
+			_shop.Hide();
 
 			return;
 		}
@@ -459,9 +415,7 @@ public sealed class GameUiController
 		CloseTransientOverlays();
 
 
-		_shopPage.Show();
-
-		_shopPage.MoveToFront();
+		_shop.Open();
 
 
 		_bottomBar.MoveToFront();
@@ -488,10 +442,6 @@ public sealed class GameUiController
 	}
 
 
-	// ==================================================
-	// PRESTIGE
-	// ==================================================
-
 	private void OpenPrestigeConfirmation()
 	{
 		if (
@@ -506,10 +456,6 @@ public sealed class GameUiController
 	}
 
 
-	// ==================================================
-	// TRANSIENT OVERLAYS
-	// ==================================================
-
 	private void CloseTransientOverlays()
 	{
 		_details.Close();
@@ -522,20 +468,16 @@ public sealed class GameUiController
 	}
 
 
-	// ==================================================
-	// PAGE CONTROL
-	// ==================================================
-
 	public void ClosePages()
 	{
 		_map.Hide();
 
-		_shopPage.Hide();
+		_shop.Hide();
 	}
 
 
 	// ==================================================
-	// FULL UPDATE
+	// UPDATE
 	// ==================================================
 
 	public void UpdateAll()
@@ -554,6 +496,9 @@ public sealed class GameUiController
 		_map.Refresh();
 
 
+		_shop.Refresh();
+
+
 		ApplyRoomTheme();
 
 
@@ -570,16 +515,18 @@ public sealed class GameUiController
 	}
 
 
-	// ==================================================
-	// RUNTIME UPDATE
-	// ==================================================
-
 	public void UpdateRuntime()
 	{
 		_topBar.UpdateValues();
 
 
 		_room.UpdateRuntime();
+
+
+		if (_shop.Visible)
+		{
+			_shop.Refresh();
+		}
 
 
 		if (_details.Visible)
@@ -594,10 +541,6 @@ public sealed class GameUiController
 		}
 	}
 
-
-	// ==================================================
-	// ROOM THEME
-	// ==================================================
 
 	private void ApplyRoomTheme(
 		bool force = false)
@@ -636,10 +579,6 @@ public sealed class GameUiController
 		);
 	}
 
-
-	// ==================================================
-	// MESSAGE
-	// ==================================================
 
 	public void SetMessage(
 		string message)

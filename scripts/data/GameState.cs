@@ -7,7 +7,6 @@ public sealed class GameState
 	public double Tokens { get; set; }
 
 
-	// Tokens earned since the last prestige.
 	public double RunEarnedTokens { get; set; }
 
 
@@ -30,6 +29,10 @@ public sealed class GameState
 
 
 	public LabData Lab { get; } =
+		new();
+
+
+	public ShopData Shop { get; } =
 		new();
 
 

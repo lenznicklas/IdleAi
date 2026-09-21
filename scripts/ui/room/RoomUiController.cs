@@ -34,6 +34,10 @@ public sealed class RoomUiController
 		null!;
 
 
+	private MobileScrollController _mobileScroll =
+		null!;
+
+
 	public event Action<int>? SlotActionRequested;
 
 	public event Action<int>? DetailsRequested;
@@ -64,6 +68,10 @@ public sealed class RoomUiController
 	}
 
 
+	// ==================================================
+	// INITIALIZE
+	// ==================================================
+
 	public void Initialize()
 	{
 		CacheNodes();
@@ -75,6 +83,8 @@ public sealed class RoomUiController
 		CreateAmbientBackground();
 
 		CreateSlotViews();
+
+		CreateMobileScrolling();
 
 
 		_ambient.SetRoom(
@@ -134,10 +144,6 @@ public sealed class RoomUiController
 			ScrollContainer.ScrollMode.ShowNever;
 
 
-		_scroll.ScrollDeadzone =
-			12;
-
-
 		_scroll.ClipContents =
 			true;
 	}
@@ -157,6 +163,35 @@ public sealed class RoomUiController
 			Control.MouseFilterEnum.Ignore;
 	}
 
+
+	// ==================================================
+	// MOBILE SCROLL
+	// ==================================================
+
+	private void CreateMobileScrolling()
+	{
+		_mobileScroll =
+			new MobileScrollController
+			{
+				Name =
+					"RoomMobileScroll"
+			};
+
+
+		_root.AddChild(
+			_mobileScroll
+		);
+
+
+		_mobileScroll.Setup(
+			_scroll
+		);
+	}
+
+
+	// ==================================================
+	// AMBIENT
+	// ==================================================
 
 	private void CreateAmbientBackground()
 	{
@@ -216,8 +251,8 @@ public sealed class RoomUiController
 
 
 		/*
-		 * Bottom padding so the final slot can be
-		 * scrolled completely above the navigation bar.
+		 * Extra bottom room so the final machine
+		 * can comfortably move above the bottom bar.
 		 */
 		for (
 			int i = 0;
@@ -227,16 +262,16 @@ public sealed class RoomUiController
 		{
 			Control spacer =
 				new()
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							70
-						),
+					{
+						CustomMinimumSize =
+							new Vector2(
+								0,
+								70
+							),
 
-					MouseFilter =
-						Control.MouseFilterEnum.Ignore
-				};
+						MouseFilter =
+							Control.MouseFilterEnum.Ignore
+					};
 
 
 			_slotGrid.AddChild(

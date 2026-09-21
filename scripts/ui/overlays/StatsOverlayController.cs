@@ -25,6 +25,14 @@ public sealed class StatsOverlayController
 		null!;
 
 
+	private ScrollContainer _scroll =
+		null!;
+
+
+	private MobileScrollController _mobileScroll =
+		null!;
+
+
 	private Label _income =
 		null!;
 
@@ -126,6 +134,12 @@ public sealed class StatsOverlayController
 			);
 
 
+		_scroll =
+			_root.GetNode<ScrollContainer>(
+				"StatsOverlay/StatsPanel/Margin/Scroll"
+			);
+
+
 		const string path =
 			"StatsOverlay/StatsPanel/Margin/Scroll/VBox/";
 
@@ -214,12 +228,6 @@ public sealed class StatsOverlayController
 			);
 
 
-		/*
-		 * Remove the old large CLOSE button visually.
-		 *
-		 * We keep the scene node for now so game.tscn
-		 * does not need to be changed immediately.
-		 */
 		_oldCloseButton.Hide();
 
 
@@ -240,8 +248,31 @@ public sealed class StatsOverlayController
 
 		ConfigureOutsideClose();
 
+		CreateMobileScrolling();
+
 
 		Hide();
+	}
+
+
+	private void CreateMobileScrolling()
+	{
+		_mobileScroll =
+			new MobileScrollController
+				{
+					Name =
+						"StatsMobileScroll"
+				};
+
+
+		_overlay.AddChild(
+			_mobileScroll
+		);
+
+
+		_mobileScroll.Setup(
+			_scroll
+		);
 	}
 
 
@@ -308,6 +339,9 @@ public sealed class StatsOverlayController
 
 	public void Hide()
 	{
+		_mobileScroll?.ResetMotion();
+
+
 		_overlay.Hide();
 	}
 
@@ -433,10 +467,6 @@ public sealed class StatsOverlayController
 			);
 	}
 
-
-	// ==================================================
-	// RUNTIME
-	// ==================================================
 
 	public void RefreshRuntime()
 	{

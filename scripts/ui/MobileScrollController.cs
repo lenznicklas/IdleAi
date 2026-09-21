@@ -1,0 +1,695 @@
+using Godot;
+using System;
+
+namespace IdleAi;
+
+public partial class MobileScrollController : Node
+{
+	private const float DragThreshold =
+		8.0f;
+
+
+	private const float MaxOverscroll =
+		400.0f;
+
+
+	private const float OverscrollResistance =
+		0.60f;
+
+
+	private const double VelocitySmoothing =
+		0.35;
+
+
+	private const double Friction =
+		7.0;
+
+
+	private const double SpringSpeed =
+		9.0;
+
+
+	private const double MinimumVelocity =
+		8.0;
+
+
+	private ScrollContainer _scroll =
+		null!;
+
+
+	private int _touchIndex =
+		-1;
+
+
+	private bool _tracking;
+
+	private bool _dragging;
+
+
+	private Vector2 _startPosition;
+
+	private Vector2 _lastPosition;
+
+
+	private ulong _lastInputTime;
+
+
+	private double _velocity;
+
+	private double _overscroll;
+
+
+	private Vector2 _basePosition;
+
+	private bool _basePositionInitialized;
+
+
+	public void Setup(
+		ScrollContainer scroll)
+	{
+		_scroll =
+			scroll;
+
+
+		/*
+		 * We handle touch scrolling ourselves.
+		 *
+		 * Setting this very high prevents Godot's
+		 * built-in mobile drag from fighting with
+		 * our inertia/bounce implementation.
+		 */
+		_scroll.ScrollDeadzone =
+			100_000;
+
+
+		_scroll.HorizontalScrollMode =
+			ScrollContainer.ScrollMode.Disabled;
+
+
+		_scroll.VerticalScrollMode =
+			ScrollContainer.ScrollMode.ShowNever;
+
+
+		_scroll.ClipContents =
+			true;
+
+
+		SetProcess(
+			true
+		);
+
+
+		SetProcessInput(
+			true
+		);
+	}
+
+
+	// ==================================================
+	// INPUT
+	// ==================================================
+
+	public override void _Input(
+		InputEvent @event)
+	{
+		if (
+			_scroll == null
+			|| !GodotObject.IsInstanceValid(
+				_scroll
+			)
+			|| !_scroll.IsVisibleInTree()
+		)
+		{
+			return;
+		}
+
+
+		if (
+			@event
+			is InputEventScreenTouch touch
+		)
+		{
+			HandleTouch(
+				touch
+			);
+
+			return;
+		}
+
+
+		if (
+			@event
+			is InputEventScreenDrag drag
+		)
+		{
+			HandleDrag(
+				drag
+			);
+		}
+	}
+
+
+	private void HandleTouch(
+		InputEventScreenTouch touch)
+	{
+		if (touch.Pressed)
+		{
+			if (
+				!_scroll
+					.GetGlobalRect()
+					.HasPoint(
+						touch.Position
+					)
+			)
+			{
+				return;
+			}
+
+
+			_touchIndex =
+				touch.Index;
+
+
+			_tracking =
+				true;
+
+
+			_dragging =
+				false;
+
+
+			_startPosition =
+				touch.Position;
+
+
+			_lastPosition =
+				touch.Position;
+
+
+			_lastInputTime =
+				Time.GetTicksMsec();
+
+
+			_velocity =
+				0.0;
+
+
+			return;
+		}
+
+
+		if (
+			!_tracking
+			|| touch.Index
+			!= _touchIndex
+		)
+		{
+			return;
+		}
+
+
+		if (_dragging)
+		{
+			GetViewport()
+				.SetInputAsHandled();
+		}
+
+
+		_tracking =
+			false;
+
+
+		_dragging =
+			false;
+
+
+		_touchIndex =
+			-1;
+	}
+
+
+	private void HandleDrag(
+		InputEventScreenDrag drag)
+	{
+		if (
+			!_tracking
+			|| drag.Index
+			!= _touchIndex
+		)
+		{
+			return;
+		}
+
+
+		Vector2 totalMovement =
+			drag.Position
+			- _startPosition;
+
+
+		if (!_dragging)
+		{
+			if (
+				Math.Abs(
+					totalMovement.Y
+				)
+				< DragThreshold
+			)
+			{
+				_lastPosition =
+					drag.Position;
+
+				return;
+			}
+
+
+			_dragging =
+				true;
+		}
+
+
+		float fingerDelta =
+			drag.Position.Y
+			- _lastPosition.Y;
+
+
+		double scrollDelta =
+			-fingerDelta;
+
+
+		ulong now =
+			Time.GetTicksMsec();
+
+
+		double deltaTime =
+			Math.Max(
+				0.001,
+				(
+					now
+					- _lastInputTime
+				)
+				/ 1000.0
+			);
+
+
+		double instantaneousVelocity =
+			scrollDelta
+			/ deltaTime;
+
+
+		_velocity =
+			_velocity
+			* (
+				1.0
+				- VelocitySmoothing
+			)
+			+ instantaneousVelocity
+			* VelocitySmoothing;
+
+
+		ApplyScrollDelta(
+			scrollDelta
+		);
+
+
+		_lastPosition =
+			drag.Position;
+
+
+		_lastInputTime =
+			now;
+
+
+		GetViewport()
+			.SetInputAsHandled();
+	}
+
+
+	// ==================================================
+	// PROCESS
+	// ==================================================
+
+	public override void _Process(
+		double delta)
+	{
+		if (
+			_scroll == null
+			|| !GodotObject.IsInstanceValid(
+				_scroll
+			)
+		)
+		{
+			return;
+		}
+
+
+		if (!_scroll.IsVisibleInTree())
+		{
+			ResetMotion();
+
+			return;
+		}
+
+
+		if (!_basePositionInitialized)
+		{
+			_basePosition =
+				_scroll.Position;
+
+
+			_basePositionInitialized =
+				true;
+		}
+
+
+		/*
+		 * If there is no bounce happening, accept layout
+		 * changes from Godot/containers as the new base.
+		 */
+		if (
+			!_dragging
+			&& Math.Abs(
+				_overscroll
+			)
+			< 0.01
+		)
+		{
+			_basePosition =
+				_scroll.Position;
+		}
+
+
+		if (!_dragging)
+		{
+			UpdateInertia(
+				delta
+			);
+
+
+			UpdateSpring(
+				delta
+			);
+		}
+
+
+		ApplyVisualOffset();
+	}
+
+
+	// ==================================================
+	// INERTIA
+	// ==================================================
+
+	private void UpdateInertia(
+		double delta)
+	{
+		if (
+			Math.Abs(
+				_velocity
+			)
+			< MinimumVelocity
+		)
+		{
+			_velocity =
+				0.0;
+
+			return;
+		}
+
+
+		double movement =
+			_velocity
+			* delta;
+
+
+		ApplyScrollDelta(
+			movement
+		);
+
+
+		_velocity *=
+			Math.Exp(
+				-Friction
+				* delta
+			);
+
+
+		if (
+			Math.Abs(
+				_velocity
+			)
+			< MinimumVelocity
+		)
+		{
+			_velocity =
+				0.0;
+		}
+	}
+
+
+	// ==================================================
+	// BOUNCE
+	// ==================================================
+
+	private void UpdateSpring(
+		double delta)
+	{
+		if (
+			Math.Abs(
+				_overscroll
+			)
+			< 0.05
+		)
+		{
+			_overscroll =
+				0.0;
+
+			return;
+		}
+
+
+		double factor =
+			1.0
+			- Math.Exp(
+				-SpringSpeed
+				* delta
+			);
+
+
+		_overscroll +=
+			(
+				0.0
+				- _overscroll
+			)
+			* factor;
+
+
+		if (
+			Math.Abs(
+				_overscroll
+			)
+			< 0.05
+		)
+		{
+			_overscroll =
+				0.0;
+		}
+	}
+
+
+	// ==================================================
+	// SCROLL
+	// ==================================================
+
+	private void ApplyScrollDelta(
+		double delta)
+	{
+		double current =
+			_scroll.ScrollVertical;
+
+
+		double max =
+			GetMaximumScroll();
+
+
+		double requested =
+			current
+			+ delta;
+
+
+		if (requested < 0.0)
+		{
+			_scroll.ScrollVertical =
+				0;
+
+
+			double excess =
+				-requested;
+
+
+			_overscroll +=
+				excess
+				* OverscrollResistance;
+
+
+			_overscroll =
+				Math.Clamp(
+					_overscroll,
+					-MaxOverscroll,
+					MaxOverscroll
+				);
+
+
+			_velocity *=
+				0.42;
+
+
+			return;
+		}
+
+
+		if (requested > max)
+		{
+			_scroll.ScrollVertical =
+				Mathf.RoundToInt(
+					(float)max
+				);
+
+
+			double excess =
+				requested
+				- max;
+
+
+			_overscroll -=
+				excess
+				* OverscrollResistance;
+
+
+			_overscroll =
+				Math.Clamp(
+					_overscroll,
+					-MaxOverscroll,
+					MaxOverscroll
+				);
+
+
+			_velocity *=
+				0.42;
+
+
+			return;
+		}
+
+
+		_scroll.ScrollVertical =
+			Mathf.RoundToInt(
+				(float)requested
+			);
+
+
+		/*
+		 * When scrolling back into the valid area,
+		 * gently remove any existing edge stretch.
+		 */
+		if (
+			Math.Abs(
+				_overscroll
+			)
+			> 0.01
+		)
+		{
+			_overscroll *=
+				0.72;
+		}
+	}
+
+
+	private double GetMaximumScroll()
+	{
+		VScrollBar bar =
+			_scroll.GetVScrollBar();
+
+
+		return Math.Max(
+			0.0,
+			bar.MaxValue
+			- bar.Page
+		);
+	}
+
+
+	// ==================================================
+	// VISUAL OFFSET
+	// ==================================================
+
+	private void ApplyVisualOffset()
+	{
+		if (!_basePositionInitialized)
+			return;
+
+
+		_scroll.Position =
+			_basePosition
+			+ new Vector2(
+				0,
+				(float)_overscroll
+			);
+	}
+
+
+	// ==================================================
+	// PUBLIC CONTROL
+	// ==================================================
+
+	public void ScrollToTop()
+	{
+		ResetMotion();
+
+
+		_scroll.ScrollVertical =
+			0;
+
+
+		_overscroll =
+			0.0;
+
+
+		ApplyVisualOffset();
+	}
+
+
+	public void ResetMotion()
+	{
+		_tracking =
+			false;
+
+
+		_dragging =
+			false;
+
+
+		_touchIndex =
+			-1;
+
+
+		_velocity =
+			0.0;
+
+
+		_overscroll =
+			0.0;
+
+
+		if (
+			_scroll != null
+			&& GodotObject.IsInstanceValid(
+				_scroll
+			)
+			&& _basePositionInitialized
+		)
+		{
+			_scroll.Position =
+				_basePosition;
+		}
+	}
+}

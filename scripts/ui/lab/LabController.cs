@@ -28,6 +28,10 @@ public sealed class LabController
 		null!;
 
 
+	private MobileScrollController _mobileScroll =
+		null!;
+
+
 	private Label _unlockCost =
 		null!;
 
@@ -128,7 +132,8 @@ public sealed class LabController
 						true,
 
 					StretchMode =
-						TextureButton.StretchModeEnum.KeepAspectCentered
+						TextureButton.StretchModeEnum
+							.KeepAspectCentered
 				};
 
 
@@ -344,8 +349,8 @@ public sealed class LabController
 					VerticalScrollMode =
 						ScrollContainer.ScrollMode.ShowNever,
 
-					ScrollDeadzone =
-						12
+					ClipContents =
+						true
 				};
 
 
@@ -356,6 +361,30 @@ public sealed class LabController
 
 		_scroll.AddChild(
 			CreateUnlockedContent()
+		);
+
+
+		CreateMobileScrolling();
+	}
+
+
+	private void CreateMobileScrolling()
+	{
+		_mobileScroll =
+			new MobileScrollController
+				{
+					Name =
+						"LabMobileScroll"
+				};
+
+
+		_page.AddChild(
+			_mobileScroll
+		);
+
+
+		_mobileScroll.Setup(
+			_scroll
 		);
 	}
 
@@ -396,6 +425,18 @@ public sealed class LabController
 
 				() =>
 				{
+					if (
+						_mobileScroll
+						!= null
+					)
+					{
+						_mobileScroll
+							.ScrollToTop();
+
+						return;
+					}
+
+
 					if (_scroll != null)
 					{
 						_scroll.ScrollVertical =
@@ -700,6 +741,9 @@ public sealed class LabController
 
 	public void Hide()
 	{
+		_mobileScroll?.ResetMotion();
+
+
 		_page?.Hide();
 	}
 

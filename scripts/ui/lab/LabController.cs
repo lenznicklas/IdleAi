@@ -335,6 +335,10 @@ public sealed class LabController
 			};
 
 
+		/*
+		 * Header and scroll area touch directly.
+		 * No artificial gap.
+		 */
 		main.AddThemeConstantOverride(
 			"separation",
 			0
@@ -345,6 +349,10 @@ public sealed class LabController
 			main
 		);
 
+
+		// ==================================================
+		// FIXED HEADER
+		// ==================================================
 
 		_header =
 			new LabHeaderView();
@@ -359,6 +367,10 @@ public sealed class LabController
 		);
 
 
+		// ==================================================
+		// LOCKED CONTENT
+		// ==================================================
+
 		_lockedContent =
 			CreateLockedContent();
 
@@ -367,6 +379,10 @@ public sealed class LabController
 			_lockedContent
 		);
 
+
+		// ==================================================
+		// SCROLL CONTENT
+		// ==================================================
 
 		_scroll =
 			new ScrollContainer
@@ -402,6 +418,10 @@ public sealed class LabController
 	}
 
 
+	// ==================================================
+	// MOBILE SCROLLING
+	// ==================================================
+
 	private void CreateMobileScrolling()
 	{
 		_mobileScroll =
@@ -417,8 +437,23 @@ public sealed class LabController
 		);
 
 
+		/*
+		 * IMPORTANT:
+		 *
+		 * The Lab has a fixed header directly above
+		 * the ScrollContainer.
+		 *
+		 * Therefore TOP overscroll is disabled.
+		 * Otherwise pulling past the top would create
+		 * an empty strip between the Lab header and
+		 * the scrolling content.
+		 *
+		 * Bottom rubber-band remains enabled.
+		 */
 		_mobileScroll.Setup(
-			_scroll
+			_scroll,
+			allowTopOverscroll: false,
+			allowBottomOverscroll: true
 		);
 	}
 
@@ -466,6 +501,7 @@ public sealed class LabController
 					{
 						_mobileScroll
 							.ScrollToTop();
+
 
 						return;
 					}
@@ -715,6 +751,7 @@ public sealed class LabController
 		if (_page.Visible)
 		{
 			Hide();
+
 
 			return;
 		}

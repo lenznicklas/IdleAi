@@ -10,31 +10,22 @@ public partial class MobileScrollController : Node
 
 
 	/*
-	 * Maximum VISUAL stretch.
+	 * Maximum visual rubber-band distance.
 	 *
-	 * Unlike the old MaxOverscroll this is NOT
-	 * a hard clamp.
-	 *
-	 * The rubber-band curve approaches this value
-	 * smoothly and therefore becomes slower and
-	 * slower the further the user pulls.
+	 * This is not a hard stop.
+	 * The tanh curve approaches this value smoothly.
 	 */
 	private const double RubberBandVisualLimit =
 		360.0;
 
 
-	/*
-	 * How much raw finger movement contributes
-	 * to the rubber-band pull.
-	 */
 	private const double RubberBandPullStrength =
 		0.82;
 
 
 	/*
-	 * Safety limit only for the invisible/raw pull.
-	 * The user never hits this visually because
-	 * the tanh curve is already almost flat there.
+	 * Internal safety limit only.
+	 * This limit is never reached visually.
 	 */
 	private const double RawPullSafetyLimit =
 		5000.0;
@@ -68,6 +59,14 @@ public partial class MobileScrollController : Node
 		null!;
 
 
+	private bool _allowTopOverscroll =
+		true;
+
+
+	private bool _allowBottomOverscroll =
+		true;
+
+
 	private int _touchIndex =
 		-1;
 
@@ -91,17 +90,14 @@ public partial class MobileScrollController : Node
 
 
 	/*
-	 * Raw physical pull.
-	 *
-	 * This can grow much larger than the visual
-	 * offset and is transformed through tanh().
+	 * Raw pull distance outside the normal
+	 * ScrollContainer range.
 	 */
 	private double _overscrollPull;
 
 
 	/*
-	 * Actual visual offset after applying
-	 * the rubber-band curve.
+	 * Actual visible rubber-band offset.
 	 */
 	private double _overscroll;
 
@@ -124,15 +120,27 @@ public partial class MobileScrollController : Node
 	// ==================================================
 
 	public void Setup(
-		ScrollContainer scroll)
+		ScrollContainer scroll,
+		bool allowTopOverscroll = true,
+		bool allowBottomOverscroll = true)
 	{
 		_scroll =
 			scroll;
 
 
+		_allowTopOverscroll =
+			allowTopOverscroll;
+
+
+		_allowBottomOverscroll =
+			allowBottomOverscroll;
+
+
 		/*
 		 * Disable Godot's own touch scrolling.
-		 * This controller handles everything itself.
+		 *
+		 * All touch scrolling is handled by this
+		 * controller.
 		 */
 		_scroll.ScrollDeadzone =
 			100_000;
@@ -158,6 +166,7 @@ public partial class MobileScrollController : Node
 			GD.PushError(
 				"MobileScrollController: ScrollContainer has no content child."
 			);
+
 
 			return;
 		}
@@ -207,6 +216,7 @@ public partial class MobileScrollController : Node
 			HandleTouch(
 				touch
 			);
+
 
 			return;
 		}
@@ -270,8 +280,8 @@ public partial class MobileScrollController : Node
 
 
 			/*
-			 * Stop old inertia as soon as
-			 * the user touches the list.
+			 * Stop old inertia immediately when
+			 * the user puts a finger on the list.
 			 */
 			_velocity =
 				0.0;
@@ -354,6 +364,7 @@ public partial class MobileScrollController : Node
 				_lastPosition =
 					drag.Position;
 
+
 				return;
 			}
 
@@ -362,11 +373,6 @@ public partial class MobileScrollController : Node
 				true;
 
 
-			/*
-			 * Until the finger is released,
-			 * buttons must never interpret this
-			 * gesture as a tap.
-			 */
 			_suppressTapUntil =
 				ulong.MaxValue;
 		}
@@ -455,15 +461,14 @@ public partial class MobileScrollController : Node
 		{
 			ResetMotion();
 
+
 			return;
 		}
 
 
 		/*
-		 * Containers may reposition their children.
-		 *
-		 * Always remove our old temporary visual
-		 * offset before calculating the next frame.
+		 * Remove the visual transform from the
+		 * previous frame before calculating the new one.
 		 */
 		RemoveAppliedOverscroll();
 
@@ -504,6 +509,7 @@ public partial class MobileScrollController : Node
 			_velocity =
 				0.0;
 
+
 			return;
 		}
 
@@ -526,11 +532,8 @@ public partial class MobileScrollController : Node
 
 
 		/*
-		 * Inertia becomes increasingly weaker
-		 * while outside the normal scroll range.
-		 *
-		 * This prevents a fling from throwing the
-		 * content deeply into the rubber band.
+		 * Increase friction while the content is
+		 * inside the rubber-band area.
 		 */
 		if (
 			Math.Abs(
@@ -594,6 +597,7 @@ public partial class MobileScrollController : Node
 			_overscroll =
 				0.0;
 
+
 			return;
 		}
 
@@ -641,11 +645,10 @@ public partial class MobileScrollController : Node
 			GetMaximumScroll();
 
 
-		/*
-		 * If we are currently stretched at the TOP
-		 * and the user moves back toward the content,
-		 * remove the stretch first.
-		 */
+		// ==================================================
+		// RETURN FROM TOP OVERSCROLL
+		// ==================================================
+
 		if (
 			_overscrollPull > 0.0
 			&& delta > 0.0
@@ -682,14 +685,16 @@ public partial class MobileScrollController : Node
 
 				UpdateRubberBandVisual();
 
+
 				return;
 			}
 		}
 
 
-		/*
-		 * Same behaviour at the BOTTOM.
-		 */
+		// ==================================================
+		// RETURN FROM BOTTOM OVERSCROLL
+		// ==================================================
+
 		if (
 			_overscrollPull < 0.0
 			&& delta < 0.0
@@ -730,6 +735,7 @@ public partial class MobileScrollController : Node
 
 				UpdateRubberBandVisual();
 
+
 				return;
 			}
 		}
@@ -745,13 +751,48 @@ public partial class MobileScrollController : Node
 
 
 		// ==================================================
-		// TOP RUBBER BAND
+		// TOP
 		// ==================================================
 
 		if (requested < 0.0)
 		{
 			_scroll.ScrollVertical =
 				0;
+
+
+			/*
+			 * Some pages, such as the Lab, have
+			 * a fixed header directly above their
+			 * ScrollContainer.
+			 *
+			 * Moving the content down there would
+			 * expose an empty strip between header
+			 * and content.
+			 */
+			if (!_allowTopOverscroll)
+			{
+				_overscrollPull =
+					0.0;
+
+
+				_overscroll =
+					0.0;
+
+
+				/*
+				 * Stop outward inertia immediately,
+				 * otherwise it keeps trying to move
+				 * past the top edge.
+				 */
+				if (_velocity < 0.0)
+				{
+					_velocity =
+						0.0;
+				}
+
+
+				return;
+			}
 
 
 			double excess =
@@ -773,12 +814,13 @@ public partial class MobileScrollController : Node
 
 			UpdateRubberBandVisual();
 
+
 			return;
 		}
 
 
 		// ==================================================
-		// BOTTOM RUBBER BAND
+		// BOTTOM
 		// ==================================================
 
 		if (requested > max)
@@ -787,6 +829,27 @@ public partial class MobileScrollController : Node
 				Mathf.RoundToInt(
 					(float)max
 				);
+
+
+			if (!_allowBottomOverscroll)
+			{
+				_overscrollPull =
+					0.0;
+
+
+				_overscroll =
+					0.0;
+
+
+				if (_velocity > 0.0)
+				{
+					_velocity =
+						0.0;
+				}
+
+
+				return;
+			}
 
 
 			double excess =
@@ -809,12 +872,13 @@ public partial class MobileScrollController : Node
 
 			UpdateRubberBandVisual();
 
+
 			return;
 		}
 
 
 		// ==================================================
-		// NORMAL SCROLL
+		// NORMAL
 		// ==================================================
 
 		_scroll.ScrollVertical =
@@ -870,23 +934,11 @@ public partial class MobileScrollController : Node
 			_overscroll =
 				0.0;
 
+
 			return;
 		}
 
 
-		/*
-		 * tanh() gives us exactly the behaviour we want:
-		 *
-		 * small pull:
-		 *     almost 1:1 movement
-		 *
-		 * bigger pull:
-		 *     increasingly more resistance
-		 *
-		 * extreme pull:
-		 *     movement approaches the visual limit
-		 *     without ever hitting a hard wall.
-		 */
 		double normalized =
 			_overscrollPull
 			/ RubberBandVisualLimit;
@@ -901,7 +953,7 @@ public partial class MobileScrollController : Node
 
 
 	// ==================================================
-	// VISUAL BOUNCE
+	// VISUAL OFFSET
 	// ==================================================
 
 	private void RemoveAppliedOverscroll()
@@ -915,6 +967,7 @@ public partial class MobileScrollController : Node
 		{
 			_appliedOverscroll =
 				0.0;
+
 
 			return;
 		}
@@ -954,6 +1007,7 @@ public partial class MobileScrollController : Node
 		{
 			_appliedOverscroll =
 				0.0;
+
 
 			return;
 		}

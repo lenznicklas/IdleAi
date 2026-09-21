@@ -1,477 +1,484 @@
 using Godot;
-using System;
 
 namespace IdleAi;
 
-public readonly record struct BotActionResult(
-	bool Changed,
-	string Message
-);
-
-
-public sealed class BotService
+public sealed class AmbientBackgroundController
 {
-	private readonly GameState _state;
-
-	private readonly EconomyService _economy;
-
-
-	private readonly RandomNumberGenerator _random =
-		new();
+	private const int ParticleAmount =
+		80;
 
 
-	public BotService(
-		GameState state,
-		EconomyService economy)
+	private const double ParticleLifetime =
+		20;
+
+
+	private const float ParticleOpacity =
+		0.65f;
+
+
+	private const float MinimumEmissionWidth =
+		200.0f;
+
+
+	private readonly Game _root;
+
+
+	private GpuParticles2D _particles =
+		null!;
+
+
+	private TextureRect _background =
+		null!;
+
+
+	private int _currentRoom =
+		-1;
+
+
+	// ==================================================
+	// CONSTRUCTOR
+	// ==================================================
+
+	public AmbientBackgroundController(
+		Game root)
 	{
-		_state =
-			state;
-
-
-		_economy =
-			economy;
-
-
-		_random.Randomize();
+		_root =
+			root;
 	}
 
 
 	// ==================================================
-	// BUY
+	// INITIALIZE
 	// ==================================================
 
-	public BotActionResult BuyBot(
-		int roomIndex,
-		int slotIndex)
+	public void Initialize()
 	{
-		SlotData? slot =
-			GetSlot(
-				roomIndex,
-				slotIndex
+		CacheBackground();
+
+		ConfigureLayering();
+
+		CreateParticles();
+
+
+		_root.Resized +=
+			UpdateParticlePosition;
+
+
+		UpdateParticlePosition();
+
+
+		SetRoom(
+			0
+		);
+	}
+
+
+	// ==================================================
+	// BACKGROUND
+	// ==================================================
+
+	private void CacheBackground()
+	{
+		_background =
+			_root.GetNode<TextureRect>(
+				"Background"
 			);
+	}
 
 
-		if (slot == null)
+	private void ConfigureLayering()
+	{
+		/*
+		 * Background:
+		 * Z = -10
+		 *
+		 * Particles:
+		 * Z = -5
+		 *
+		 * Normal UI:
+		 * Z = 0
+		 */
+
+		_background.ZIndex =
+			-10;
+	}
+
+
+	// ==================================================
+	// PARTICLES
+	// ==================================================
+
+	private void CreateParticles()
+	{
+		_particles =
+			new GpuParticles2D
+			{
+				Name =
+					"AmbientParticles",
+
+				Amount =
+					ParticleAmount,
+
+				Lifetime =
+					ParticleLifetime,
+
+				Preprocess =
+					ParticleLifetime,
+
+				Randomness =
+					0.45f,
+
+				VisibilityRect =
+					new Rect2(
+						-1000,
+						-2200,
+						2000,
+						2600
+					),
+
+				ZIndex =
+					-5,
+
+				Emitting =
+					true
+			};
+
+
+		_root.AddChild(
+			_particles
+		);
+
+
+		int backgroundIndex =
+			_background.GetIndex();
+
+
+		_root.MoveChild(
+			_particles,
+			backgroundIndex + 1
+		);
+
+
+		CreateParticleMaterial();
+
+		CreateParticleTexture();
+	}
+
+
+	// ==================================================
+	// PROCESS MATERIAL
+	// ==================================================
+
+	private void CreateParticleMaterial()
+	{
+		ParticleProcessMaterial material =
+			new()
+			{
+				EmissionShape =
+					ParticleProcessMaterial
+						.EmissionShapeEnum
+						.Box,
+
+				EmissionBoxExtents =
+					new Vector3(
+						350.0f,
+						14.0f,
+						1.0f
+					),
+
+				Direction =
+					new Vector3(
+						0.0f,
+						-1.0f,
+						0.0f
+					),
+
+				Spread =
+					28.0f,
+
+				InitialVelocityMin =
+					28.0f,
+
+				InitialVelocityMax =
+					60.0f,
+
+				Gravity =
+					new Vector3(
+						0.0f,
+						-3.0f,
+						0.0f
+					),
+
+				ScaleMin =
+					0.15f,
+
+				ScaleMax =
+					0.25f
+			};
+
+
+		_particles.ProcessMaterial =
+			material;
+	}
+
+
+	// ==================================================
+	// PARTICLE TEXTURE
+	// ==================================================
+
+	private void CreateParticleTexture()
+	{
+		Gradient gradient =
+			new();
+
+
+		gradient.SetColor(
+			0,
+			new Color(
+				1.0f,
+				1.0f,
+				1.0f,
+				0.0f
+			)
+		);
+
+
+		gradient.AddPoint(
+			0.18f,
+			new Color(
+				1.0f,
+				1.0f,
+				1.0f,
+				1.0f
+			)
+		);
+
+
+		gradient.AddPoint(
+			0.58f,
+			new Color(
+				1.0f,
+				1.0f,
+				1.0f,
+				0.75f
+			)
+		);
+
+
+		gradient.AddPoint(
+			0.82f,
+			new Color(
+				1.0f,
+				1.0f,
+				1.0f,
+				0.25f
+			)
+		);
+
+
+		gradient.SetColor(
+			1,
+			new Color(
+				1.0f,
+				1.0f,
+				1.0f,
+				0.0f
+			)
+		);
+
+
+		GradientTexture2D texture =
+			new()
+			{
+				Gradient =
+					gradient,
+
+				Width =
+					40,
+
+				Height =
+					40,
+
+				Fill =
+					GradientTexture2D
+						.FillEnum
+						.Radial,
+
+				FillFrom =
+					new Vector2(
+						0.5f,
+						0.5f
+					),
+
+				FillTo =
+					new Vector2(
+						1.0f,
+						0.5f
+					)
+			};
+
+
+		_particles.Texture =
+			texture;
+	}
+
+
+	// ==================================================
+	// POSITION
+	// ==================================================
+
+	private void UpdateParticlePosition()
+	{
+		if (
+			_particles == null
+			|| !GodotObject.IsInstanceValid(
+				_particles
+			)
+		)
 		{
-			return new BotActionResult(
-				false,
-				"Invalid machine."
-			);
+			return;
 		}
 
 
-		if (!slot.Unlocked)
-		{
-			return new BotActionResult(
-				false,
-				"Machine is locked."
-			);
-		}
+		/*
+		 * Emit slightly below the bottom of the screen.
+		 */
+		_particles.Position =
+			new Vector2(
+				_root.Size.X
+					/ 2.0f,
 
-
-		if (slot.HasBot)
-		{
-			return new BotActionResult(
-				false,
-				"This machine already has a bot."
-			);
-		}
-
-
-		double cost =
-			_economy.GetBotCost(
-				roomIndex,
-				slot,
-				slotIndex
+				_root.Size.Y
+					+ 30.0f
 			);
 
 
-		if (_state.Tokens < cost)
+		if (
+			_particles.ProcessMaterial
+			is ParticleProcessMaterial material
+		)
 		{
-			return new BotActionResult(
-				false,
-				"Not enough Tokens."
-			);
-		}
+			float width =
+				Mathf.Max(
+					MinimumEmissionWidth,
+					_root.Size.X
+						* 0.58f
+				);
 
 
-		_state.Tokens -=
-			cost;
-
-
-		BotRarity rarity =
-			RollRarity();
-
-
-		slot.BotRarity =
-			rarity;
-
-
-		slot.BotPurchasePrice =
-			cost;
-
-
-		if (!slot.IsRunning)
-		{
-			slot.IsRunning =
-				true;
-
-
-			slot.CycleRemaining =
-				_economy.GetCycleDuration(
-					slot
+			material.EmissionBoxExtents =
+				new Vector3(
+					width,
+					14.0f,
+					1.0f
 				);
 		}
-
-
-		_state.Stats.AddMachineSpending(
-			"Bots",
-			cost
-		);
-
-
-		BotDefinition bot =
-			BotCatalog.Get(
-				rarity
-			);
-
-
-		double effectiveMultiplier =
-			bot.ProductionMultiplier
-			* _state.Lab
-				.GetBotPowerMultiplier();
-
-
-		return new BotActionResult(
-			true,
-			$"You got a {bot.Name}! "
-			+ $"x{effectiveMultiplier:F2}"
-		);
 	}
 
 
 	// ==================================================
-	// SELL
+	// ROOM
 	// ==================================================
 
-	public BotActionResult SellBot(
-		int roomIndex,
-		int slotIndex)
+	public void SetRoom(
+		int roomIndex)
 	{
-		SlotData? slot =
-			GetSlot(
-				roomIndex,
-				slotIndex
-			);
+		if (
+			roomIndex
+			== _currentRoom
+		)
+		{
+			return;
+		}
+
+
+		_currentRoom =
+			roomIndex;
 
 
 		if (
-			slot == null
-			|| !slot.HasBot
+			_particles.ProcessMaterial
+			is not ParticleProcessMaterial material
 		)
 		{
-			return new BotActionResult(
-				false,
-				"No bot to sell."
-			);
+			return;
 		}
 
 
-		double refund =
-			slot.BotPurchasePrice
-			* GameConfig.BotSellRefundFactor;
-
-
-		BotDefinition bot =
-			BotCatalog.Get(
-				slot.BotRarity!.Value
-			);
-
-
-		_state.Tokens +=
-			refund;
-
-
-		slot.BotRarity =
-			null;
-
-
-		slot.BotPurchasePrice =
-			0.0;
-
-
-		slot.IsRunning =
-			false;
-
-
-		slot.CycleRemaining =
-			0.0;
-
-
-		slot.RuntimeCycleDuration =
-			0.0;
-
-
-		return new BotActionResult(
-			true,
-			$"{bot.Name} sold for "
-			+ $"{NumberFormatter.Format(refund)} Tokens."
-		);
-	}
-
-
-	// ==================================================
-	// PRICE
-	// ==================================================
-
-	public double GetBotPrice(
-		int roomIndex,
-		int slotIndex)
-	{
-		SlotData? slot =
-			GetSlot(
-				roomIndex,
-				slotIndex
-			);
-
-
-		if (slot == null)
-			return 0.0;
-
-
-		return _economy.GetBotCost(
-			roomIndex,
-			slot,
-			slotIndex
-		);
-	}
-
-
-	public double GetSellPrice(
-		SlotData slot)
-	{
-		if (!slot.HasBot)
-			return 0.0;
-
-
-		return slot.BotPurchasePrice
-			* GameConfig.BotSellRefundFactor;
-	}
-
-
-	// ==================================================
-	// EFFECTIVE BOT POWER
-	// ==================================================
-
-	public double GetEffectiveMultiplier(
-		SlotData slot)
-	{
-		if (!slot.HasBot)
-			return 1.0;
-
-
-		double baseMultiplier =
-			BotCatalog.GetMultiplier(
-				slot.BotRarity
-			);
-
-
-		return baseMultiplier
-			* _state.Lab
-				.GetBotPowerMultiplier();
-	}
-
-
-	// ==================================================
-	// RARITY CHANCES
-	// ==================================================
-
-	public (
-		double Common,
-		double Rare,
-		double Epic,
-		double Legendary
-	) GetRarityChances()
-	{
-		double rare =
-			GameConfig.RareBotChance
-			+ _state.Lab
-				.GetRareBotChanceBonus();
-
-
-		double epic =
-			GameConfig.EpicBotChance
-			+ _state.Lab
-				.GetEpicBotChanceBonus();
-
-
-		double baseLegendary =
-			1.0
-			- GameConfig.CommonBotChance
-			- GameConfig.RareBotChance
-			- GameConfig.EpicBotChance;
-
-
-		double legendary =
-			baseLegendary
-			+ _state.Lab
-				.GetLegendaryBotChanceBonus();
-
-
-		double luck =
-			_state.Shop
-				.GetBotLuckMultiplier();
-
-
-		rare *=
-			luck;
-
-
-		epic *=
-			luck;
-
-
-		legendary *=
-			luck;
-
-
-		rare =
-			Math.Max(
-				0.0,
-				rare
-			);
-
-
-		epic =
-			Math.Max(
-				0.0,
-				epic
-			);
-
-
-		legendary =
-			Math.Max(
-				0.0,
-				legendary
-			);
-
-
-		double specialTotal =
-			rare
-			+ epic
-			+ legendary;
-
-
-		if (specialTotal > 1.0)
-		{
-			rare /=
-				specialTotal;
-
-
-			epic /=
-				specialTotal;
-
-
-			legendary /=
-				specialTotal;
-
-
-			return (
-				0.0,
-				rare,
-				epic,
-				legendary
-			);
-		}
-
-
-		double common =
-			1.0
-			- specialTotal;
-
-
-		return (
-			common,
-			rare,
-			epic,
-			legendary
-		);
-	}
-
-
-	private BotRarity RollRarity()
-	{
-		(
-			double common,
-			double rare,
-			double epic,
-			double legendary
-		) =
-			GetRarityChances();
-
-
-		double roll =
-			_random.Randf();
-
-
-		if (roll < common)
-			return BotRarity.Common;
-
-
-		roll -=
-			common;
-
-
-		if (roll < rare)
-			return BotRarity.Rare;
-
-
-		roll -=
-			rare;
-
-
-		if (roll < epic)
-			return BotRarity.Epic;
-
-
-		return BotRarity.Legendary;
-	}
-
-
-	// ==================================================
-	// SLOT
-	// ==================================================
-
-	private SlotData? GetSlot(
-		int roomIndex,
-		int slotIndex)
-	{
-		if (
-			roomIndex < 0
-			|| roomIndex >= _state.RoomStates.Count
-		)
-		{
-			return null;
-		}
-
-
-		RoomState room =
-			_state.RoomStates[
+		Color roomColor =
+			GetRoomColor(
 				roomIndex
-			];
+			);
 
 
-		if (
-			slotIndex < 0
-			|| slotIndex >= room.Slots.Count
-		)
+		roomColor.A *=
+			ParticleOpacity;
+
+
+		material.Color =
+			roomColor;
+
+
+		_particles.Emitting =
+			true;
+
+
+		_particles.Restart();
+	}
+
+
+	// ==================================================
+	// ROOM COLORS
+	// ==================================================
+
+	private static Color GetRoomColor(
+		int roomIndex)
+	{
+		return roomIndex switch
 		{
-			return null;
-		}
+			// Garage - Blue
+			0 =>
+				new Color(
+					0.12f,
+					0.68f,
+					1.00f,
+					0.90f
+				),
 
+			// Server Room - Red
+			1 =>
+				new Color(
+					1.00f,
+					0.18f,
+					0.20f,
+					0.88f
+				),
 
-		return room.Slots[
-			slotIndex
-		];
+			// Data Center - Green
+			2 =>
+				new Color(
+					0.15f,
+					1.00f,
+					0.45f,
+					0.88f
+				),
+
+			// Quantum Lab - Purple
+			3 =>
+				new Color(
+					0.72f,
+					0.30f,
+					1.00f,
+					0.92f
+				),
+
+			_ =>
+				new Color(
+					1.0f,
+					1.0f,
+					1.0f,
+					0.75f
+				)
+		};
 	}
 }

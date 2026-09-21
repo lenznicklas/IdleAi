@@ -50,6 +50,10 @@ public partial class Game : Control
 		null!;
 
 
+	private MobileUiAdapter _mobileUi =
+		null!;
+
+
 	private SaveManager _saveManager =
 		null!;
 
@@ -71,11 +75,7 @@ public partial class Game : Control
 		CreateLabUi();
 
 
-		/*
-		 * Lab button exists only after LabController
-		 * has been initialized.
-		 */
-		SetupMobileNavigationLayout();
+		CreateMobileUi();
 
 
 		SetupSaveSystem();
@@ -146,10 +146,6 @@ public partial class Game : Control
 		}
 
 
-		// ==================================================
-		// RESEARCH
-		// ==================================================
-
 		LabResult researchResult =
 			_labService.Update();
 
@@ -169,10 +165,6 @@ public partial class Game : Control
 			SaveGame();
 		}
 
-
-		// ==================================================
-		// UI
-		// ==================================================
 
 		_ui.UpdateRuntime();
 
@@ -304,238 +296,23 @@ public partial class Game : Control
 
 
 	// ==================================================
-	// MOBILE NAVIGATION LAYOUT
+	// MOBILE UI
 	// ==================================================
 
-	private void SetupMobileNavigationLayout()
+	private void CreateMobileUi()
 	{
-		HBoxContainer? bottomHBox =
-			GetNodeOrNull<HBoxContainer>(
-				"BottomBar/Margin/HBox"
-			);
+		_mobileUi =
+			new MobileUiAdapter();
 
 
-		if (bottomHBox != null)
-		{
-			bottomHBox.AddThemeConstantOverride(
-				"separation",
-				8
-			);
-		}
+		_mobileUi.Setup(
+			this
+		);
 
 
-		// ==================================================
-		// MAP BUTTON
-		// ==================================================
-
-		TextureButton? mapButton =
-			GetNodeOrNull<TextureButton>(
-				"BottomBar/Margin/HBox/MapButton"
-			);
-
-
-		if (mapButton != null)
-		{
-			ConfigureBottomNavigationButton(
-				mapButton
-			);
-		}
-
-
-		// ==================================================
-		// LAB BUTTON
-		// ==================================================
-
-		TextureButton? labButton =
-			GetNodeOrNull<TextureButton>(
-				"BottomBar/Margin/HBox/LabButton"
-			);
-
-
-		if (labButton != null)
-		{
-			ConfigureBottomNavigationButton(
-				labButton
-			);
-		}
-
-
-		// ==================================================
-		// SHOP BUTTON
-		// ==================================================
-
-		TextureButton? shopButton =
-			GetNodeOrNull<TextureButton>(
-				"BottomBar/Margin/HBox/ShopButton"
-			);
-
-
-		if (shopButton != null)
-		{
-			ConfigureBottomNavigationButton(
-				shopButton
-			);
-		}
-
-
-		// ==================================================
-		// BOTTOM BAR
-		// ==================================================
-
-		MarginContainer? bottomMargin =
-			GetNodeOrNull<MarginContainer>(
-				"BottomBar/Margin"
-			);
-
-
-		if (bottomMargin != null)
-		{
-			/*
-			 * Less space above, more below:
-			 * buttons visually move upward.
-			 */
-			bottomMargin.AddThemeConstantOverride(
-				"margin_top",
-				2
-			);
-
-
-			bottomMargin.AddThemeConstantOverride(
-				"margin_bottom",
-				14
-			);
-
-
-			bottomMargin.AddThemeConstantOverride(
-				"margin_left",
-				10
-			);
-
-
-			bottomMargin.AddThemeConstantOverride(
-				"margin_right",
-				10
-			);
-		}
-
-
-		// ==================================================
-		// MAP PAGE
-		// ==================================================
-
-		MarginContainer? mapMargin =
-			GetNodeOrNull<MarginContainer>(
-				"MapPage/Margin"
-			);
-
-
-		if (mapMargin != null)
-		{
-			mapMargin.AddThemeConstantOverride(
-				"margin_top",
-				26
-			);
-
-
-			mapMargin.AddThemeConstantOverride(
-				"margin_bottom",
-				35
-			);
-		}
-
-
-		// ==================================================
-		// SHOP PAGE
-		// ==================================================
-
-		Control? shopCenter =
-			GetNodeOrNull<Control>(
-				"ShopPage/Center"
-			);
-
-
-		if (shopCenter != null)
-		{
-			/*
-			 * Shift shop content upward.
-			 */
-			shopCenter.OffsetTop =
-				-50;
-
-
-			shopCenter.OffsetBottom =
-				-50;
-		}
-
-
-		// ==================================================
-		// PRESTIGE CONFIRMATION
-		// ==================================================
-
-		PanelContainer? prestigePanel =
-			GetNodeOrNull<PanelContainer>(
-				"PrestigeConfirmOverlay/Panel"
-			);
-
-
-		if (prestigePanel != null)
-		{
-			/*
-			 * Original:
-			 *
-			 * top    = -260
-			 * bottom =  260
-			 *
-			 * New:
-			 *
-			 * top    = -315
-			 * bottom =  205
-			 *
-			 * Same height, but 55 px higher.
-			 */
-
-			prestigePanel.OffsetTop =
-				-315;
-
-
-			prestigePanel.OffsetBottom =
-				205;
-		}
-	}
-
-
-	private static void ConfigureBottomNavigationButton(
-		TextureButton button)
-	{
-		/*
-		 * Previously roughly 72 px wide.
-		 * Make the navigation symbols clearly larger.
-		 */
-
-		button.CustomMinimumSize =
-			new Vector2(
-				88,
-				72
-			);
-
-
-		button.IgnoreTextureSize =
-			true;
-
-
-		button.StretchMode =
-			TextureButton.StretchModeEnum.KeepAspectCentered;
-
-
-		/*
-		 * Move the visual button slightly upwards.
-		 */
-
-		button.Position =
-			new Vector2(
-				button.Position.X,
-				-5
-			);
+		AddChild(
+			_mobileUi
+		);
 	}
 
 
@@ -605,7 +382,7 @@ public partial class Game : Control
 
 
 	// ==================================================
-	// SLOT ACTION
+	// SLOT
 	// ==================================================
 
 	private void OnSlotActionRequested(
@@ -636,7 +413,7 @@ public partial class Game : Control
 
 
 	// ==================================================
-	// MAP ROOM SELECTION
+	// ROOM
 	// ==================================================
 
 	private void OnRoomSelectedRequested(
@@ -761,7 +538,7 @@ public partial class Game : Control
 
 
 	// ==================================================
-	// SAVE SYSTEM
+	// SAVE
 	// ==================================================
 
 	private void SetupSaveSystem()
@@ -784,10 +561,6 @@ public partial class Game : Control
 		);
 	}
 
-
-	// ==================================================
-	// SAVE
-	// ==================================================
 
 	private void SaveGame()
 	{
@@ -822,11 +595,6 @@ public partial class Game : Control
 				PrestigeCount =
 					_state.Prestige.PrestigeCount,
 
-
-				// ==================================================
-				// LAB
-				// ==================================================
-
 				LabUnlocked =
 					_state.Lab.Unlocked,
 
@@ -842,11 +610,6 @@ public partial class Game : Control
 
 				ActiveResearchEndUnix =
 					_state.Lab.ActiveResearchEndUnix,
-
-
-				// ==================================================
-				// ROOMS
-				// ==================================================
 
 				Rooms =
 					_state.RoomStates
@@ -867,7 +630,6 @@ public partial class Game : Control
 								}
 						)
 						.ToList(),
-
 
 				Stats =
 					_state.Stats.ToSaveData()
@@ -914,10 +676,6 @@ public partial class Game : Control
 			save.PrestigeCount;
 
 
-		// ==================================================
-		// LAB
-		// ==================================================
-
 		_state.Lab.Unlocked =
 			save.LabUnlocked;
 
@@ -938,10 +696,6 @@ public partial class Game : Control
 		_state.Lab.ActiveResearchEndUnix =
 			save.ActiveResearchEndUnix;
 
-
-		// ==================================================
-		// ROOMS
-		// ==================================================
 
 		for (
 			int roomIndex = 0;
@@ -1023,7 +777,7 @@ public partial class Game : Control
 
 
 	// ==================================================
-	// OFFLINE INCOME
+	// OFFLINE
 	// ==================================================
 
 	private double ApplyOfflineIncome(
@@ -1049,8 +803,8 @@ public partial class Game : Control
 				GameConfig.BaseOfflineIncomeFactor
 				+ _state.Lab
 					.GetOfflineIncomeBonus(),
-				0.0,
-				1.0
+				0,
+				1
 			);
 
 

@@ -5,48 +5,48 @@ namespace IdleAi;
 
 public partial class MobileUiAdapter : Node
 {
-	// ==================================================
-	// CONSTANTS
-	// ==================================================
-
-	private const float BottomBarBaseHeight =
-		88.0f;
+	private const float BottomBarHeight =
+		116.0f;
 
 
-	private const int MainSidePadding =
+	private const int MainHorizontalPadding =
 		16;
 
 
-	private const int MainTopPadding =
+	private const int MainExtraTopPadding =
 		10;
 
 
-	private const int BottomSidePadding =
-		16;
+	private const int BottomHorizontalPadding =
+		26;
 
 
-	private const int BottomInnerPadding =
-		6;
+	private const int BottomTopPadding =
+		4;
+
+
+	private const int BottomExtraBottomPadding =
+		18;
+
+
+	private const float NavigationButtonWidth =
+		92.0f;
+
+
+	private const float NavigationButtonHeight =
+		78.0f;
 
 
 	private const int OverlayPadding =
 		22;
 
 
-	private const int ScrollDeadzone =
-		12;
-
-
-	// ==================================================
-	// ROOT
-	// ==================================================
-
 	private Game _root =
 		null!;
 
 
 	// ==================================================
-	// SAFE AREA
+	// SAFE INSETS
 	// ==================================================
 
 	private readonly record struct SafeInsets(
@@ -71,14 +71,14 @@ public partial class MobileUiAdapter : Node
 
 	public override void _Ready()
 	{
-		ApplyEverything();
+		ApplyLayout();
 
 
 		_root.GetViewport().SizeChanged +=
 			OnViewportSizeChanged;
 
 
-		RefreshNextFrame();
+		ApplyAgainNextFrame();
 	}
 
 
@@ -98,10 +98,10 @@ public partial class MobileUiAdapter : Node
 
 
 	// ==================================================
-	// NEXT FRAME
+	// DELAYED REFRESH
 	// ==================================================
 
-	private async void RefreshNextFrame()
+	private async void ApplyAgainNextFrame()
 	{
 		await ToSignal(
 			GetTree(),
@@ -120,71 +120,61 @@ public partial class MobileUiAdapter : Node
 		}
 
 
-		ApplyEverything();
+		ApplyLayout();
 	}
 
-
-	// ==================================================
-	// RESIZE
-	// ==================================================
 
 	private void OnViewportSizeChanged()
 	{
-		ApplyEverything();
+		ApplyLayout();
 	}
 
 
 	// ==================================================
-	// APPLY
+	// MAIN
 	// ==================================================
 
-	private void ApplyEverything()
+	private void ApplyLayout()
 	{
-		if (_root == null)
-			return;
-
-
 		SafeInsets safe =
 			GetSafeInsets();
 
 
-		ApplyMainGameSafeArea(
+		ApplyMainLayout(
 			safe
 		);
 
 
-		ApplyBottomBarSafeArea(
+		ApplyBottomBar(
 			safe
 		);
 
 
-		ApplyStatsSafeArea(
+		ApplyNavigationButtons();
+
+
+		ApplyMapPage(
 			safe
 		);
 
 
-		ApplyPrestigeSafeArea(
+		ApplyShopPage(
 			safe
 		);
 
 
-		ApplyMapSafeArea(
+		ApplyLabPage(
 			safe
 		);
 
 
-		ApplyShopSafeArea(
+		ApplyStatsOverlay(
 			safe
 		);
 
 
-		ApplyLabSafeArea(
+		ApplyPrestigeOverlay(
 			safe
-		);
-
-
-		ConfigureAllScrollContainers(
-			_root
 		);
 	}
 
@@ -193,61 +183,55 @@ public partial class MobileUiAdapter : Node
 	// MAIN GAME
 	// ==================================================
 
-	private void ApplyMainGameSafeArea(
+	private void ApplyMainLayout(
 		SafeInsets safe)
 	{
-		MarginContainer? margin =
+		MarginContainer? main =
 			_root.GetNodeOrNull<MarginContainer>(
 				"MarginContainer"
 			);
 
 
-		if (margin == null)
+		if (main == null)
 			return;
 
 
-		margin.AddThemeConstantOverride(
+		main.AddThemeConstantOverride(
 			"margin_left",
-			MainSidePadding
-			+ RoundUp(
+			MainHorizontalPadding
+			+ Ceil(
 				safe.Left
 			)
 		);
 
 
-		margin.AddThemeConstantOverride(
+		main.AddThemeConstantOverride(
 			"margin_top",
-			MainTopPadding
-			+ RoundUp(
+			MainExtraTopPadding
+			+ Ceil(
 				safe.Top
 			)
 		);
 
 
-		margin.AddThemeConstantOverride(
+		main.AddThemeConstantOverride(
 			"margin_right",
-			MainSidePadding
-			+ RoundUp(
+			MainHorizontalPadding
+			+ Ceil(
 				safe.Right
 			)
 		);
 
 
-		/*
-		 * Bottom is handled by OffsetBottom because
-		 * the BottomBar itself gets taller on devices
-		 * with a navigation/gesture safe area.
-		 */
-
-		margin.AddThemeConstantOverride(
+		main.AddThemeConstantOverride(
 			"margin_bottom",
 			0
 		);
 
 
-		margin.OffsetBottom =
+		main.OffsetBottom =
 			-(
-				BottomBarBaseHeight
+				BottomBarHeight
 				+ safe.Bottom
 			);
 
@@ -260,10 +244,6 @@ public partial class MobileUiAdapter : Node
 
 		if (layout != null)
 		{
-			/*
-			 * No unwanted strip between TopBar
-			 * and the room ScrollContainer.
-			 */
 			layout.AddThemeConstantOverride(
 				"separation",
 				0
@@ -276,35 +256,32 @@ public partial class MobileUiAdapter : Node
 	// BOTTOM BAR
 	// ==================================================
 
-	private void ApplyBottomBarSafeArea(
+	private void ApplyBottomBar(
 		SafeInsets safe)
 	{
-		Control? bottomBar =
+		Control? bar =
 			_root.GetNodeOrNull<Control>(
 				"BottomBar"
 			);
 
 
-		if (bottomBar == null)
+		if (bar == null)
 			return;
 
 
 		/*
-		 * The background extends all the way to the
-		 * physical bottom of the screen.
-		 *
-		 * The actual buttons are pushed above the
-		 * unsafe gesture/navigation area.
+		 * Background may extend to the physical edge,
+		 * but usable content sits above the unsafe area.
 		 */
 
-		bottomBar.OffsetTop =
+		bar.OffsetTop =
 			-(
-				BottomBarBaseHeight
+				BottomBarHeight
 				+ safe.Bottom
 			);
 
 
-		bottomBar.OffsetBottom =
+		bar.OffsetBottom =
 			0;
 
 
@@ -320,8 +297,8 @@ public partial class MobileUiAdapter : Node
 
 		margin.AddThemeConstantOverride(
 			"margin_left",
-			BottomSidePadding
-			+ RoundUp(
+			BottomHorizontalPadding
+			+ Ceil(
 				safe.Left
 			)
 		);
@@ -329,8 +306,8 @@ public partial class MobileUiAdapter : Node
 
 		margin.AddThemeConstantOverride(
 			"margin_right",
-			BottomSidePadding
-			+ RoundUp(
+			BottomHorizontalPadding
+			+ Ceil(
 				safe.Right
 			)
 		);
@@ -338,167 +315,87 @@ public partial class MobileUiAdapter : Node
 
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			BottomInnerPadding
+			BottomTopPadding
 		);
 
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
-			BottomInnerPadding
-			+ RoundUp(
+			BottomExtraBottomPadding
+			+ Ceil(
 				safe.Bottom
 			)
 		);
-	}
 
 
-	// ==================================================
-	// STATS
-	// ==================================================
-
-	private void ApplyStatsSafeArea(
-		SafeInsets safe)
-	{
-		PanelContainer? panel =
-			_root.GetNodeOrNull<PanelContainer>(
-				"StatsOverlay/StatsPanel"
+		HBoxContainer? hbox =
+			_root.GetNodeOrNull<HBoxContainer>(
+				"BottomBar/Margin/HBox"
 			);
 
 
-		if (panel == null)
-			return;
-
-
-		/*
-		 * The old scene used a fixed 600x1000 centered
-		 * panel. That can extend into a camera cutout,
-		 * rounded corner or system bar.
-		 *
-		 * The Stats panel now fills the safe area with
-		 * a small additional padding.
-		 */
-
-		panel.AnchorLeft =
-			0.0f;
-
-		panel.AnchorTop =
-			0.0f;
-
-		panel.AnchorRight =
-			1.0f;
-
-		panel.AnchorBottom =
-			1.0f;
-
-
-		panel.OffsetLeft =
-			safe.Left
-			+ OverlayPadding;
-
-
-		panel.OffsetTop =
-			safe.Top
-			+ OverlayPadding;
-
-
-		panel.OffsetRight =
-			-(
-				safe.Right
-				+ OverlayPadding
-			);
-
-
-		panel.OffsetBottom =
-			-(
-				safe.Bottom
-				+ OverlayPadding
-			);
-
-
-		ScrollContainer? scroll =
-			_root.GetNodeOrNull<ScrollContainer>(
-				"StatsOverlay/StatsPanel/Margin/Scroll"
-			);
-
-
-		if (scroll != null)
+		if (hbox != null)
 		{
-			ConfigureScrollContainer(
-				scroll
+			hbox.AddThemeConstantOverride(
+				"separation",
+				10
 			);
 		}
 	}
 
 
 	// ==================================================
-	// PRESTIGE
+	// NAVIGATION BUTTONS
 	// ==================================================
 
-	private void ApplyPrestigeSafeArea(
-		SafeInsets safe)
+	private void ApplyNavigationButtons()
 	{
-		PanelContainer? panel =
-			_root.GetNodeOrNull<PanelContainer>(
-				"PrestigeConfirmOverlay/Panel"
-			);
+		ConfigureNavigationButton(
+			_root.GetNodeOrNull<TextureButton>(
+				"BottomBar/Margin/HBox/MapButton"
+			)
+		);
 
 
-		if (panel == null)
+		ConfigureNavigationButton(
+			_root.GetNodeOrNull<TextureButton>(
+				"BottomBar/Margin/HBox/LabButton"
+			)
+		);
+
+
+		ConfigureNavigationButton(
+			_root.GetNodeOrNull<TextureButton>(
+				"BottomBar/Margin/HBox/ShopButton"
+			)
+		);
+	}
+
+
+	private static void ConfigureNavigationButton(
+		TextureButton? button)
+	{
+		if (button == null)
 			return;
 
 
-		/*
-		 * Slightly larger side padding than Stats,
-		 * while still guaranteeing that the panel
-		 * stays inside the safe display area.
-		 */
-
-		float sidePadding =
-			36.0f;
-
-
-		float verticalPadding =
-			MathF.Max(
-				60.0f,
-				safe.Top
+		button.CustomMinimumSize =
+			new Vector2(
+				NavigationButtonWidth,
+				NavigationButtonHeight
 			);
 
 
-		panel.AnchorLeft =
-			0.0f;
-
-		panel.AnchorTop =
-			0.0f;
-
-		panel.AnchorRight =
-			1.0f;
-
-		panel.AnchorBottom =
-			1.0f;
+		button.IgnoreTextureSize =
+			true;
 
 
-		panel.OffsetLeft =
-			safe.Left
-			+ sidePadding;
+		button.StretchMode =
+			TextureButton.StretchModeEnum.KeepAspectCentered;
 
 
-		panel.OffsetTop =
-			safe.Top
-			+ verticalPadding;
-
-
-		panel.OffsetRight =
-			-(
-				safe.Right
-				+ sidePadding
-			);
-
-
-		panel.OffsetBottom =
-			-(
-				safe.Bottom
-				+ verticalPadding
-			);
+		button.SizeFlagsVertical =
+			Control.SizeFlags.ShrinkCenter;
 	}
 
 
@@ -506,23 +403,24 @@ public partial class MobileUiAdapter : Node
 	// MAP
 	// ==================================================
 
-	private void ApplyMapSafeArea(
+	private void ApplyMapPage(
 		SafeInsets safe)
 	{
-		Control? mapPage =
+		Control? page =
 			_root.GetNodeOrNull<Control>(
 				"MapPage"
 			);
 
 
-		if (mapPage != null)
-		{
-			mapPage.OffsetBottom =
-				-(
-					BottomBarBaseHeight
-						+ safe.Bottom
-				);
-		}
+		if (page == null)
+			return;
+
+
+		page.OffsetBottom =
+			-(
+				BottomBarHeight
+				+ safe.Bottom
+			);
 
 
 		MarginContainer? margin =
@@ -537,8 +435,8 @@ public partial class MobileUiAdapter : Node
 
 		margin.AddThemeConstantOverride(
 			"margin_left",
-			24
-			+ RoundUp(
+			28
+			+ Ceil(
 				safe.Left
 			)
 		);
@@ -546,8 +444,8 @@ public partial class MobileUiAdapter : Node
 
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			24
-			+ RoundUp(
+			20
+			+ Ceil(
 				safe.Top
 			)
 		);
@@ -555,8 +453,8 @@ public partial class MobileUiAdapter : Node
 
 		margin.AddThemeConstantOverride(
 			"margin_right",
-			24
-			+ RoundUp(
+			28
+			+ Ceil(
 				safe.Right
 			)
 		);
@@ -564,7 +462,7 @@ public partial class MobileUiAdapter : Node
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
-			16
+			18
 		);
 	}
 
@@ -573,23 +471,24 @@ public partial class MobileUiAdapter : Node
 	// SHOP
 	// ==================================================
 
-	private void ApplyShopSafeArea(
+	private void ApplyShopPage(
 		SafeInsets safe)
 	{
-		Control? shopPage =
+		Control? page =
 			_root.GetNodeOrNull<Control>(
 				"ShopPage"
 			);
 
 
-		if (shopPage != null)
-		{
-			shopPage.OffsetBottom =
-				-(
-					BottomBarBaseHeight
-						+ safe.Bottom
-				);
-		}
+		if (page == null)
+			return;
+
+
+		page.OffsetBottom =
+			-(
+				BottomBarHeight
+				+ safe.Bottom
+			);
 
 
 		Control? center =
@@ -605,14 +504,19 @@ public partial class MobileUiAdapter : Node
 		center.OffsetLeft =
 			safe.Left;
 
+
 		center.OffsetTop =
-			safe.Top;
+			safe.Top
+			- 35.0f;
+
 
 		center.OffsetRight =
 			-safe.Right;
 
+
 		center.OffsetBottom =
-			-safe.Bottom;
+			-safe.Bottom
+			- 35.0f;
 	}
 
 
@@ -620,47 +524,41 @@ public partial class MobileUiAdapter : Node
 	// LAB
 	// ==================================================
 
-	private void ApplyLabSafeArea(
+	private void ApplyLabPage(
 		SafeInsets safe)
 	{
-		Control? labPage =
+		Control? lab =
 			_root.GetNodeOrNull<Control>(
 				"LabPage"
 			);
 
 
-		if (labPage == null)
+		if (lab == null)
 			return;
 
 
-		labPage.OffsetBottom =
+		lab.OffsetBottom =
 			-(
-				BottomBarBaseHeight
-					+ safe.Bottom
+				BottomBarHeight
+				+ safe.Bottom
 			);
 
 
-		/*
-		 * LabController builds this MarginContainer
-		 * dynamically, so it does not have a fixed
-		 * NodePath. Find the direct MarginContainer
-		 * child instead.
-		 */
-
-		MarginContainer? labMargin =
+		MarginContainer? margin =
 			null;
 
 
 		foreach (
 			Node child
-			in labPage.GetChildren()
+			in lab.GetChildren()
 		)
 		{
 			if (
-				child is MarginContainer found
+				child
+				is MarginContainer found
 			)
 			{
-				labMargin =
+				margin =
 					found;
 
 				break;
@@ -668,37 +566,37 @@ public partial class MobileUiAdapter : Node
 		}
 
 
-		if (labMargin == null)
+		if (margin == null)
 			return;
 
 
-		labMargin.AddThemeConstantOverride(
+		margin.AddThemeConstantOverride(
 			"margin_left",
 			18
-			+ RoundUp(
+			+ Ceil(
 				safe.Left
 			)
 		);
 
 
-		labMargin.AddThemeConstantOverride(
+		margin.AddThemeConstantOverride(
 			"margin_top",
-			RoundUp(
+			Ceil(
 				safe.Top
 			)
 		);
 
 
-		labMargin.AddThemeConstantOverride(
+		margin.AddThemeConstantOverride(
 			"margin_right",
 			18
-			+ RoundUp(
+			+ Ceil(
 				safe.Right
 			)
 		);
 
 
-		labMargin.AddThemeConstantOverride(
+		margin.AddThemeConstantOverride(
 			"margin_bottom",
 			0
 		);
@@ -706,138 +604,128 @@ public partial class MobileUiAdapter : Node
 
 
 	// ==================================================
-	// SCROLL CONTAINERS
+	// STATS
 	// ==================================================
 
-	private void ConfigureAllScrollContainers(
-		Node node)
+	private void ApplyStatsOverlay(
+		SafeInsets safe)
 	{
-		if (
-			node is ScrollContainer scroll
-		)
-		{
-			ConfigureScrollContainer(
-				scroll
-			);
-		}
-
-
-		foreach (
-			Node child
-			in node.GetChildren()
-		)
-		{
-			ConfigureAllScrollContainers(
-				child
-			);
-		}
-	}
-
-
-	private void ConfigureScrollContainer(
-		ScrollContainer scroll)
-	{
-		/*
-		 * Horizontal scrolling is not used anywhere
-		 * in the mobile UI.
-		 */
-
-		scroll.HorizontalScrollMode =
-			ScrollContainer.ScrollMode.Disabled;
-
-
-		/*
-		 * Scrolling remains enabled.
-		 *
-		 * Only the scrollbar itself is hidden.
-		 */
-
-		scroll.VerticalScrollMode =
-			ScrollContainer.ScrollMode.ShowNever;
-
-
-		scroll.ScrollDeadzone =
-			ScrollDeadzone;
-
-
-		scroll.FollowFocus =
-			false;
-
-
-		scroll.ClipContents =
-			true;
-
-
-		/*
-		 * Buttons and nested Controls otherwise tend
-		 * to consume the touch event on Android before
-		 * the ScrollContainer sees enough movement.
-		 *
-		 * PASS keeps buttons clickable while also
-		 * allowing the drag to reach ScrollContainer.
-		 */
-
-		foreach (
-			Node child
-			in scroll.GetChildren()
-		)
-		{
-			EnableScrollEventPropagation(
-				child
-			);
-		}
-	}
-
-
-	private void EnableScrollEventPropagation(
-		Node node)
-	{
-		/*
-		 * Do not overwrite another nested
-		 * ScrollContainer's own input handling.
-		 */
-
-		if (
-			node is ScrollContainer nestedScroll
-		)
-		{
-			ConfigureScrollContainer(
-				nestedScroll
+		PanelContainer? panel =
+			_root.GetNodeOrNull<PanelContainer>(
+				"StatsOverlay/StatsPanel"
 			);
 
+
+		if (panel == null)
 			return;
-		}
 
 
-		if (
-			node is Control control
-		)
-		{
-			if (
-				control.MouseFilter
-				!= Control.MouseFilterEnum.Ignore
-			)
-			{
-				control.MouseFilter =
-					Control.MouseFilterEnum.Pass;
-			}
-		}
+		panel.AnchorLeft =
+			0;
 
 
-		foreach (
-			Node child
-			in node.GetChildren()
-		)
-		{
-			EnableScrollEventPropagation(
-				child
+		panel.AnchorTop =
+			0;
+
+
+		panel.AnchorRight =
+			1;
+
+
+		panel.AnchorBottom =
+			1;
+
+
+		panel.OffsetLeft =
+			safe.Left
+			+ OverlayPadding;
+
+
+		panel.OffsetTop =
+			safe.Top
+			+ OverlayPadding;
+
+
+		panel.OffsetRight =
+			-(
+				safe.Right
+				+ OverlayPadding
 			);
-		}
+
+
+		panel.OffsetBottom =
+			-(
+				safe.Bottom
+				+ OverlayPadding
+			);
 	}
 
 
 	// ==================================================
-	// SAFE AREA CALCULATION
+	// PRESTIGE
+	// ==================================================
+
+	private void ApplyPrestigeOverlay(
+		SafeInsets safe)
+	{
+		PanelContainer? panel =
+			_root.GetNodeOrNull<PanelContainer>(
+				"PrestigeConfirmOverlay/Panel"
+			);
+
+
+		if (panel == null)
+			return;
+
+
+		/*
+		 * Full-width responsive container,
+		 * but deliberately shifted upward.
+		 */
+
+		panel.AnchorLeft =
+			0;
+
+
+		panel.AnchorTop =
+			0;
+
+
+		panel.AnchorRight =
+			1;
+
+
+		panel.AnchorBottom =
+			1;
+
+
+		panel.OffsetLeft =
+			safe.Left
+			+ 42;
+
+
+		panel.OffsetRight =
+			-(
+				safe.Right
+				+ 42
+			);
+
+
+		panel.OffsetTop =
+			safe.Top
+			+ 95;
+
+
+		panel.OffsetBottom =
+			-(
+				safe.Bottom
+				+ 175
+			);
+	}
+
+
+	// ==================================================
+	// SAFE AREA
 	// ==================================================
 
 	private SafeInsets GetSafeInsets()
@@ -845,11 +733,6 @@ public partial class MobileUiAdapter : Node
 		string os =
 			OS.GetName();
 
-
-		/*
-		 * Avoid applying the physical-screen safe
-		 * rectangle on desktop systems.
-		 */
 
 		if (
 			os != "Android"
@@ -865,160 +748,128 @@ public partial class MobileUiAdapter : Node
 		}
 
 
-		Rect2I physicalSafe =
+		Rect2I safeArea =
 			DisplayServer.GetDisplaySafeArea();
 
 
+		Vector2I windowSize =
+			DisplayServer.WindowGetSize();
+
+
+		Rect2 viewportRect =
+			_root.GetViewport()
+				.GetVisibleRect();
+
+
 		if (
-			physicalSafe.Size.X <= 0
-			|| physicalSafe.Size.Y <= 0
+			windowSize.X <= 0
+			|| windowSize.Y <= 0
+			|| safeArea.Size.X <= 0
+			|| safeArea.Size.Y <= 0
 		)
 		{
+			/*
+			 * Fallback for unusual Android devices.
+			 *
+			 * Better to leave a little too much space
+			 * than place STATS inside the camera hole.
+			 */
+
 			return new SafeInsets(
 				0,
+				34,
 				0,
-				0,
-				0
+				24
 			);
 		}
 
 
-		Viewport viewport =
-			_root.GetViewport();
+		float scaleX =
+			viewportRect.Size.X
+			/ windowSize.X;
 
 
-		Rect2 viewportRect =
-			viewport.GetVisibleRect();
-
-
-		/*
-		 * DisplayServer returns physical screen
-		 * coordinates.
-		 *
-		 * Your game uses canvas_items + expand, so
-		 * simply using physical pixel values as UI
-		 * margins would be wrong.
-		 *
-		 * Convert them through the final viewport
-		 * transform first.
-		 */
-
-		Transform2D inverseTransform =
-			viewport
-				.GetFinalTransform()
-				.AffineInverse();
-
-
-		Vector2 physicalStart =
-			new(
-				physicalSafe.Position.X,
-				physicalSafe.Position.Y
-			);
-
-
-		Vector2 physicalEnd =
-			new(
-				physicalSafe.Position.X
-				+ physicalSafe.Size.X,
-
-				physicalSafe.Position.Y
-				+ physicalSafe.Size.Y
-			);
-
-
-		Vector2 safeStart =
-			inverseTransform
-			* physicalStart;
-
-
-		Vector2 safeEnd =
-			inverseTransform
-			* physicalEnd;
-
-
-		Vector2 viewportStart =
-			viewportRect.Position;
-
-
-		Vector2 viewportEnd =
-			viewportRect.Position
-			+ viewportRect.Size;
+		float scaleY =
+			viewportRect.Size.Y
+			/ windowSize.Y;
 
 
 		float left =
-			MathF.Max(
-				0.0f,
-				safeStart.X
-				- viewportStart.X
-			);
+			safeArea.Position.X
+			* scaleX;
 
 
 		float top =
-			MathF.Max(
-				0.0f,
-				safeStart.Y
-				- viewportStart.Y
+			safeArea.Position.Y
+			* scaleY;
+
+
+		float rightPhysical =
+			windowSize.X
+			- (
+				safeArea.Position.X
+				+ safeArea.Size.X
+			);
+
+
+		float bottomPhysical =
+			windowSize.Y
+			- (
+				safeArea.Position.Y
+				+ safeArea.Size.Y
 			);
 
 
 		float right =
-			MathF.Max(
-				0.0f,
-				viewportEnd.X
-				- safeEnd.X
-			);
+			rightPhysical
+			* scaleX;
 
 
 		float bottom =
-			MathF.Max(
-				0.0f,
-				viewportEnd.Y
-				- safeEnd.Y
-			);
+			bottomPhysical
+			* scaleY;
 
 
 		/*
-		 * Protect against a broken platform value
-		 * causing the entire UI to disappear.
+		 * Some Android ROMs report only the system bar
+		 * and not enough space for the rounded corner /
+		 * camera area. Keep a small minimum at top.
 		 */
 
-		left =
-			MathF.Min(
-				left,
-				viewportRect.Size.X
-				* 0.25f
-			);
-
-
-		right =
-			MathF.Min(
-				right,
-				viewportRect.Size.X
-				* 0.25f
-			);
-
-
 		top =
-			MathF.Min(
+			MathF.Max(
 				top,
-				viewportRect.Size.Y
-				* 0.25f
+				26.0f
 			);
 
 
 		bottom =
-			MathF.Min(
+			MathF.Max(
 				bottom,
-				viewportRect.Size.Y
-				* 0.25f
+				12.0f
 			);
 
 
 		return new SafeInsets(
-			left,
-			top,
-			right,
-			bottom
+			MathF.Max(
+				0,
+				left
+			),
+
+			MathF.Max(
+				0,
+				top
+			),
+
+			MathF.Max(
+				0,
+				right
+			),
+
+			MathF.Max(
+				0,
+				bottom
+			)
 		);
 	}
 
@@ -1027,7 +878,7 @@ public partial class MobileUiAdapter : Node
 	// UTIL
 	// ==================================================
 
-	private static int RoundUp(
+	private static int Ceil(
 		float value)
 	{
 		return (int)MathF.Ceiling(

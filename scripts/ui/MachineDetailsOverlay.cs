@@ -5,6 +5,10 @@ namespace IdleAi;
 
 public sealed class MachineDetailsOverlay
 {
+	private const ulong OutsideCloseReopenBlockMs =
+		180;
+
+
 	public event Action<string>? StateChanged;
 
 
@@ -18,10 +22,6 @@ public sealed class MachineDetailsOverlay
 
 	private readonly BotService _bots;
 
-
-	// ==================================================
-	// UI
-	// ==================================================
 
 	private Control _overlay =
 		null!;
@@ -79,10 +79,6 @@ public sealed class MachineDetailsOverlay
 		null!;
 
 
-	// ==================================================
-	// SELL
-	// ==================================================
-
 	private Control _sellOverlay =
 		null!;
 
@@ -91,23 +87,18 @@ public sealed class MachineDetailsOverlay
 		null!;
 
 
-	// ==================================================
-	// CURRENT MACHINE
-	// ==================================================
-
 	private int _roomIndex;
 
 	private int _slotIndex;
+
+
+	private ulong _blockOpenUntil;
 
 
 	public bool Visible =>
 		_overlay != null
 		&& _overlay.Visible;
 
-
-	// ==================================================
-	// CONSTRUCTOR
-	// ==================================================
 
 	public MachineDetailsOverlay(
 		Game root,
@@ -147,19 +138,35 @@ public sealed class MachineDetailsOverlay
 
 		CreateSellOverlay();
 
-
 		Close();
 	}
 
 
 	// ==================================================
-	// OPEN / CLOSE
+	// OPEN
 	// ==================================================
 
 	public void Open(
 		int roomIndex,
 		int slotIndex)
 	{
+		/*
+		 * Important for Android:
+		 *
+		 * After tapping outside the overlay, prevent
+		 * the underlying MachineSlot from reopening
+		 * this window with the same physical tap.
+		 */
+
+		if (
+			Time.GetTicksMsec()
+			< _blockOpenUntil
+		)
+		{
+			return;
+		}
+
+
 		_roomIndex =
 			roomIndex;
 
@@ -182,6 +189,17 @@ public sealed class MachineDetailsOverlay
 		_sellOverlay?.Hide();
 
 		_overlay?.Hide();
+	}
+
+
+	private void CloseFromOutside()
+	{
+		_blockOpenUntil =
+			Time.GetTicksMsec()
+			+ OutsideCloseReopenBlockMs;
+
+
+		Close();
 	}
 
 
@@ -310,7 +328,7 @@ public sealed class MachineDetailsOverlay
 
 
 	// ==================================================
-	// MACHINE UPGRADES
+	// MACHINE UPGRADE
 	// ==================================================
 
 	private void UpdateUpgradeSection(
@@ -484,8 +502,7 @@ public sealed class MachineDetailsOverlay
 
 
 		double researchBonus =
-			_state.Lab
-				.GetBotPowerBonus();
+			_state.Lab.GetBotPowerBonus();
 
 
 		_botImage.Texture =
@@ -584,7 +601,7 @@ public sealed class MachineDetailsOverlay
 
 
 	// ==================================================
-	// BUY BOT
+	// BOT ACTIONS
 	// ==================================================
 
 	private void BuyBot()
@@ -604,10 +621,6 @@ public sealed class MachineDetailsOverlay
 		Refresh();
 	}
 
-
-	// ==================================================
-	// SELL BOT
-	// ==================================================
 
 	private void OpenSellConfirmation()
 	{
@@ -640,8 +653,7 @@ public sealed class MachineDetailsOverlay
 
 
 		double researchBonus =
-			_state.Lab
-				.GetBotPowerBonus();
+			_state.Lab.GetBotPowerBonus();
 
 
 		_sellInfo.Text =
@@ -700,7 +712,7 @@ public sealed class MachineDetailsOverlay
 	{
 		_overlay =
 			CreateFullScreenOverlay(
-				Close
+				CloseFromOutside
 			);
 
 
@@ -771,10 +783,6 @@ public sealed class MachineDetailsOverlay
 			vbox
 		);
 
-
-		// ==================================================
-		// MACHINE
-		// ==================================================
 
 		_title =
 			CreateLabel(
@@ -882,10 +890,6 @@ public sealed class MachineDetailsOverlay
 			new HSeparator()
 		);
 
-
-		// ==================================================
-		// BOT
-		// ==================================================
 
 		Label botTitle =
 			CreateLabel(
@@ -1117,16 +1121,16 @@ public sealed class MachineDetailsOverlay
 
 		Button confirm =
 			new()
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						58
-					),
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							58
+						),
 
-				Text =
-					"SELL"
-			};
+					Text =
+						"SELL"
+				};
 
 
 		confirm.Pressed +=
@@ -1140,16 +1144,16 @@ public sealed class MachineDetailsOverlay
 
 		Button cancel =
 			new()
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						54
-					),
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							54
+						),
 
-				Text =
-					"CANCEL"
-			};
+					Text =
+						"CANCEL"
+				};
 
 
 		cancel.Pressed +=
@@ -1167,35 +1171,18 @@ public sealed class MachineDetailsOverlay
 
 
 	// ==================================================
-	// HELPERS
-	// ==================================================
-
-	private static string FormatPercent(
-		double value)
-	{
-		return (
-			value
-			* 100.0
-		).ToString(
-			"0.#"
-		)
-		+ "%";
-	}
-
-
-	// ==================================================
-	// FULL SCREEN OVERLAY
+	// OVERLAY
 	// ==================================================
 
 	private static Control CreateFullScreenOverlay(
-		Action outsidePressed)
+		Action outsideReleased)
 	{
 		Control overlay =
 			new()
-			{
-				MouseFilter =
-					Control.MouseFilterEnum.Stop
-			};
+				{
+					MouseFilter =
+						Control.MouseFilterEnum.Stop
+				};
 
 
 		overlay.SetAnchorsAndOffsetsPreset(
@@ -1205,18 +1192,18 @@ public sealed class MachineDetailsOverlay
 
 		ColorRect dim =
 			new()
-			{
-				Color =
-					new Color(
-						0,
-						0,
-						0,
-						0.76f
-					),
+				{
+					Color =
+						new Color(
+							0,
+							0,
+							0,
+							0.76f
+						),
 
-				MouseFilter =
-					Control.MouseFilterEnum.Stop
-			};
+					MouseFilter =
+						Control.MouseFilterEnum.Stop
+				};
 
 
 		dim.SetAnchorsAndOffsetsPreset(
@@ -1227,69 +1214,59 @@ public sealed class MachineDetailsOverlay
 		dim.GuiInput +=
 			@event =>
 			{
-				bool shouldClose =
+				bool released =
 					false;
 
 
 				if (
 					@event
-						is InputEventMouseButton mouse
-					&& mouse.Pressed
-					&& mouse.ButtonIndex
-						== MouseButton.Left
+						is InputEventScreenTouch touch
+					&& !touch.Pressed
 				)
 				{
-					shouldClose =
+					released =
 						true;
 				}
 
 
 				if (
 					@event
-						is InputEventScreenTouch touch
-					&& touch.Pressed
+						is InputEventMouseButton mouse
+					&& !mouse.Pressed
+					&& mouse.ButtonIndex
+						== MouseButton.Left
 				)
 				{
-					shouldClose =
+					released =
 						true;
 				}
 
 
-				if (!shouldClose)
+				if (!released)
 					return;
 
 
 				/*
-				 * Close the overlay first.
+				 * First consume the RELEASE while the
+				 * overlay is still visible.
 				 */
-				outsidePressed();
+
+				overlay.GetViewport()
+					.SetInputAsHandled();
 
 
 				/*
-				 * VERY IMPORTANT:
+				 * Only after the current input event is
+				 * finished may the overlay disappear.
 				 *
-				 * Consume this exact input event.
-				 *
-				 * Without this, Android can forward the
-				 * same touch to the MachineSlot that has
-				 * just become visible underneath.
-				 *
-				 * Result before:
-				 *
-				 * tap outside
-				 * -> details closes
-				 * -> underlying machine receives tap
-				 * -> new details immediately opens
-				 *
-				 * Result now:
-				 *
-				 * tap outside
-				 * -> details closes
-				 * -> event ends here
+				 * This is crucial for Android.
 				 */
-				overlay
-					.GetViewport()
-					.SetInputAsHandled();
+
+				Callable
+					.From(
+						outsideReleased
+					)
+					.CallDeferred();
 			};
 
 
@@ -1302,18 +1279,35 @@ public sealed class MachineDetailsOverlay
 	}
 
 
+	// ==================================================
+	// HELPERS
+	// ==================================================
+
+	private static string FormatPercent(
+		double value)
+	{
+		return (
+			value
+			* 100
+		).ToString(
+			"0.#"
+		)
+		+ "%";
+	}
+
+
 	private static PanelContainer CreatePanel(
 		Vector2 size)
 	{
 		PanelContainer panel =
 			new()
-			{
-				CustomMinimumSize =
-					size,
+				{
+					CustomMinimumSize =
+						size,
 
-				MouseFilter =
-					Control.MouseFilterEnum.Stop
-			};
+					MouseFilter =
+						Control.MouseFilterEnum.Stop
+				};
 
 
 		panel.AddThemeStyleboxOverride(
@@ -1365,13 +1359,13 @@ public sealed class MachineDetailsOverlay
 	{
 		Label label =
 			new()
-			{
-				HorizontalAlignment =
-					HorizontalAlignment.Center,
+				{
+					HorizontalAlignment =
+						HorizontalAlignment.Center,
 
-				AutowrapMode =
-					TextServer.AutowrapMode.WordSmart
-			};
+					AutowrapMode =
+						TextServer.AutowrapMode.WordSmart
+				};
 
 
 		label.AddThemeFontSizeOverride(

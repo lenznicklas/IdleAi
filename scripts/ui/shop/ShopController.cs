@@ -16,6 +16,10 @@ public sealed class ShopController
 		null!;
 
 
+	private MarginContainer _pageMargin =
+		null!;
+
+
 	private ScrollContainer _scroll =
 		null!;
 
@@ -37,6 +41,14 @@ public sealed class ShopController
 
 
 	private Label _luckStatus =
+		null!;
+
+
+	private Label _productionUpgradeStatus =
+		null!;
+
+
+	private Label _offlineUpgradeStatus =
 		null!;
 
 
@@ -66,7 +78,8 @@ public sealed class ShopController
 
 
 	public bool Visible =>
-		_page.Visible;
+		_page != null
+		&& _page.Visible;
 
 
 	public ShopController(
@@ -104,6 +117,8 @@ public sealed class ShopController
 		CreateUi();
 
 		Hide();
+
+		Refresh();
 	}
 
 
@@ -114,6 +129,11 @@ public sealed class ShopController
 			in _page.GetChildren()
 		)
 		{
+			_page.RemoveChild(
+				child
+			);
+
+
 			child.QueueFree();
 		}
 	}
@@ -128,47 +148,54 @@ public sealed class ShopController
 		CreateBackground();
 
 
-		MarginContainer margin =
-			new();
+		_pageMargin =
+			new MarginContainer
+			{
+				Name =
+					"ShopMargin"
+			};
 
 
-		margin.SetAnchorsAndOffsetsPreset(
+		_pageMargin.SetAnchorsAndOffsetsPreset(
 			Control.LayoutPreset.FullRect
 		);
 
 
-		margin.AddThemeConstantOverride(
+		_pageMargin.AddThemeConstantOverride(
 			"margin_left",
 			18
 		);
 
 
-		margin.AddThemeConstantOverride(
+		_pageMargin.AddThemeConstantOverride(
 			"margin_top",
 			18
 		);
 
 
-		margin.AddThemeConstantOverride(
+		_pageMargin.AddThemeConstantOverride(
 			"margin_right",
 			18
 		);
 
 
-		margin.AddThemeConstantOverride(
+		_pageMargin.AddThemeConstantOverride(
 			"margin_bottom",
 			12
 		);
 
 
 		_page.AddChild(
-			margin
+			_pageMargin
 		);
 
 
 		VBoxContainer main =
 			new()
 			{
+				Name =
+					"Main",
+
 				SizeFlagsHorizontal =
 					Control.SizeFlags.ExpandFill,
 
@@ -183,7 +210,7 @@ public sealed class ShopController
 		);
 
 
-		margin.AddChild(
+		_pageMargin.AddChild(
 			main
 		);
 
@@ -196,6 +223,9 @@ public sealed class ShopController
 		_scroll =
 			new ScrollContainer
 			{
+				Name =
+					"Scroll",
+
 				SizeFlagsHorizontal =
 					Control.SizeFlags.ExpandFill,
 
@@ -221,6 +251,9 @@ public sealed class ShopController
 		_content =
 			new VBoxContainer
 			{
+				Name =
+					"Content",
+
 				SizeFlagsHorizontal =
 					Control.SizeFlags.ExpandFill
 			};
@@ -255,6 +288,9 @@ public sealed class ShopController
 		TextureRect background =
 			new()
 			{
+				Name =
+					"ShopBackground",
+
 				Texture =
 					ShopUi.Background,
 
@@ -293,6 +329,10 @@ public sealed class ShopController
 			);
 
 
+		title.Name =
+			"Title";
+
+
 		title.Text =
 			"SHOP";
 
@@ -303,14 +343,17 @@ public sealed class ShopController
 
 
 		PanelContainer shardPanel =
-			new();
+			new()
+			{
+				Name =
+					"ShardPanel",
 
-
-		shardPanel.CustomMinimumSize =
-			new Vector2(
-				0,
-				72
-			);
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						72
+					)
+			};
 
 
 		shardPanel.AddThemeStyleboxOverride(
@@ -442,7 +485,7 @@ public sealed class ShopController
 		);
 
 
-		Label productionStatus =
+		_productionUpgradeStatus =
 			ShopUi.CreateLabel(
 				13
 			);
@@ -453,18 +496,12 @@ public sealed class ShopController
 				ShopUi.Production,
 				"GLOBAL PRODUCTION",
 				"+2% permanent production per level.",
-				productionStatus,
+				_productionUpgradeStatus,
 				BuyProductionUpgrade
 			);
 
 
-		_productionUpgradeButton.SetMeta(
-			"status_label",
-			productionStatus
-		);
-
-
-		Label offlineStatus =
+		_offlineUpgradeStatus =
 			ShopUi.CreateLabel(
 				13
 			);
@@ -475,15 +512,9 @@ public sealed class ShopController
 				ShopUi.Offline,
 				"OFFLINE INCOME",
 				"+5% offline income per level.",
-				offlineStatus,
+				_offlineUpgradeStatus,
 				BuyOfflineUpgrade
 			);
-
-
-		_offlineUpgradeButton.SetMeta(
-			"status_label",
-			offlineStatus
-		);
 	}
 
 
@@ -516,11 +547,11 @@ public sealed class ShopController
 				status,
 				() =>
 				{
-				MessageRequested?.Invoke(
-					"Cosmetics coming soon."
-				);
-			}
-		);
+					MessageRequested?.Invoke(
+						"Cosmetics coming soon."
+					);
+				}
+			);
 
 
 		button.Text =
@@ -544,7 +575,11 @@ public sealed class ShopController
 		Action pressed)
 	{
 		PanelContainer panel =
-			new();
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
 
 
 		panel.AddThemeStyleboxOverride(
@@ -592,7 +627,11 @@ public sealed class ShopController
 
 
 		HBoxContainer row =
-			new();
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
 
 
 		row.AddThemeConstantOverride(
@@ -679,7 +718,10 @@ public sealed class ShopController
 					new Vector2(
 						0,
 						52
-					)
+					),
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
 			};
 
 
@@ -757,7 +799,7 @@ public sealed class ShopController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						50
+						70
 					),
 
 				MouseFilter =
@@ -770,6 +812,10 @@ public sealed class ShopController
 		);
 	}
 
+
+	// ==================================================
+	// MOBILE SCROLL
+	// ==================================================
 
 	private void CreateMobileScrolling()
 	{
@@ -847,16 +893,17 @@ public sealed class ShopController
 		Refresh();
 
 
-		if (result.Changed)
-		{
-			Input.VibrateHandheld(
-				14,
-				0.12f
-			);
+		if (!result.Changed)
+			return;
 
 
-			StateChanged?.Invoke();
-		}
+		Input.VibrateHandheld(
+			14,
+			0.12f
+		);
+
+
+		StateChanged?.Invoke();
 	}
 
 
@@ -867,6 +914,9 @@ public sealed class ShopController
 	public void Open()
 	{
 		Refresh();
+
+
+		_mobileScroll?.ScrollToTop();
 
 
 		_page.Show();
@@ -880,7 +930,7 @@ public sealed class ShopController
 		_mobileScroll?.ResetMotion();
 
 
-		_page.Hide();
+		_page?.Hide();
 	}
 
 
@@ -890,8 +940,13 @@ public sealed class ShopController
 
 	public void Refresh()
 	{
-		if (_page == null)
+		if (
+			_page == null
+			|| _shardLabel == null
+		)
+		{
 			return;
+		}
 
 
 		_shardLabel.Text =
@@ -909,18 +964,7 @@ public sealed class ShopController
 
 		RefreshOfflineUpgrade();
 
-
-		_instantButton.Text =
-			"USE • "
-			+ NumberFormatter.Format(
-				GameConfig.ShopInstantProductionCost
-			)
-			+ " SHARDS";
-
-
-		_instantButton.Disabled =
-			_state.Shop.DataShards
-			< GameConfig.ShopInstantProductionCost;
+		RefreshInstantProduction();
 	}
 
 
@@ -986,6 +1030,22 @@ public sealed class ShopController
 	}
 
 
+	private void RefreshInstantProduction()
+	{
+		_instantButton.Text =
+			"USE • "
+			+ NumberFormatter.Format(
+				GameConfig.ShopInstantProductionCost
+			)
+			+ " SHARDS";
+
+
+		_instantButton.Disabled =
+			_state.Shop.DataShards
+			< GameConfig.ShopInstantProductionCost;
+	}
+
+
 	private void RefreshProductionUpgrade()
 	{
 		int level =
@@ -993,15 +1053,7 @@ public sealed class ShopController
 				.ProductionUpgradeLevel;
 
 
-		Label status =
-			(Label)
-			_productionUpgradeButton.GetMeta(
-				"status_label"
-			)
-			.AsGodotObject();
-
-
-		status.Text =
+		_productionUpgradeStatus.Text =
 			$"Level {level} / {GameConfig.ShopProductionUpgradeMaxLevel}"
 			+ "\nPermanent bonus: +"
 			+ (
@@ -1057,15 +1109,7 @@ public sealed class ShopController
 				.OfflineUpgradeLevel;
 
 
-		Label status =
-			(Label)
-			_offlineUpgradeButton.GetMeta(
-				"status_label"
-			)
-			.AsGodotObject();
-
-
-		status.Text =
+		_offlineUpgradeStatus.Text =
 			$"Level {level} / {GameConfig.ShopOfflineUpgradeMaxLevel}"
 			+ "\nAdditional offline income: +"
 			+ (
@@ -1114,6 +1158,10 @@ public sealed class ShopController
 	}
 
 
+	// ==================================================
+	// TIME
+	// ==================================================
+
 	private static string FormatTime(
 		double seconds)
 	{
@@ -1126,6 +1174,7 @@ public sealed class ShopController
 			);
 
 
-		return $"{total / 60}:{total % 60:00}";
+		return
+			$"{total / 60}:{total % 60:00}";
 	}
 }

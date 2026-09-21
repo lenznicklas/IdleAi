@@ -41,6 +41,18 @@ public partial class MobileUiAdapter : Node
 		22;
 
 
+	private const int ShopHorizontalPadding =
+		18;
+
+
+	private const int ShopTopPadding =
+		12;
+
+
+	private const int ShopBottomPadding =
+		8;
+
+
 	private Game _root =
 		null!;
 
@@ -269,11 +281,6 @@ public partial class MobileUiAdapter : Node
 			return;
 
 
-		/*
-		 * Background may extend to the physical edge,
-		 * but usable content sits above the unsafe area.
-		 */
-
 		bar.OffsetTop =
 			-(
 				BottomBarHeight
@@ -391,7 +398,8 @@ public partial class MobileUiAdapter : Node
 
 
 		button.StretchMode =
-			TextureButton.StretchModeEnum.KeepAspectCentered;
+			TextureButton.StretchModeEnum
+				.KeepAspectCentered;
 
 
 		button.SizeFlagsVertical =
@@ -491,32 +499,47 @@ public partial class MobileUiAdapter : Node
 			);
 
 
-		Control? center =
-			_root.GetNodeOrNull<Control>(
-				"ShopPage/Center"
+		MarginContainer? margin =
+			_root.GetNodeOrNull<MarginContainer>(
+				"ShopPage/ShopMargin"
 			);
 
 
-		if (center == null)
+		if (margin == null)
 			return;
 
 
-		center.OffsetLeft =
-			safe.Left;
+		margin.AddThemeConstantOverride(
+			"margin_left",
+			ShopHorizontalPadding
+			+ Ceil(
+				safe.Left
+			)
+		);
 
 
-		center.OffsetTop =
-			safe.Top
-			- 35.0f;
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			ShopTopPadding
+			+ Ceil(
+				safe.Top
+			)
+		);
 
 
-		center.OffsetRight =
-			-safe.Right;
+		margin.AddThemeConstantOverride(
+			"margin_right",
+			ShopHorizontalPadding
+			+ Ceil(
+				safe.Right
+			)
+		);
 
 
-		center.OffsetBottom =
-			-safe.Bottom
-			- 35.0f;
+		margin.AddThemeConstantOverride(
+			"margin_bottom",
+			ShopBottomPadding
+		);
 	}
 
 
@@ -678,11 +701,6 @@ public partial class MobileUiAdapter : Node
 			return;
 
 
-		/*
-		 * Full-width responsive container,
-		 * but deliberately shifted upward.
-		 */
-
 		panel.AnchorLeft =
 			0;
 
@@ -768,13 +786,6 @@ public partial class MobileUiAdapter : Node
 			|| safeArea.Size.Y <= 0
 		)
 		{
-			/*
-			 * Fallback for unusual Android devices.
-			 *
-			 * Better to leave a little too much space
-			 * than place STATS inside the camera hole.
-			 */
-
 			return new SafeInsets(
 				0,
 				34,
@@ -830,12 +841,6 @@ public partial class MobileUiAdapter : Node
 			* scaleY;
 
 
-		/*
-		 * Some Android ROMs report only the system bar
-		 * and not enough space for the rounded corner /
-		 * camera area. Keep a small minimum at top.
-		 */
-
 		top =
 			MathF.Max(
 				top,
@@ -881,8 +886,9 @@ public partial class MobileUiAdapter : Node
 	private static int Ceil(
 		float value)
 	{
-		return (int)MathF.Ceiling(
-			value
-		);
+		return (int)
+			MathF.Ceiling(
+				value
+			);
 	}
 }

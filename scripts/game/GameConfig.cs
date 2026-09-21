@@ -96,13 +96,13 @@ public static class GameConfig
 	// ==================================================
 
 	/*
-	 * Temporary test balance.
+	 * Data Shards are now earned through gameplay.
 	 *
-	 * This gives new saves enough Data Shards to test
-	 * the shop without adding monetization/rewards yet.
+	 * New saves therefore no longer receive the old
+	 * temporary 250-Shard test balance.
 	 */
 	public const double InitialDataShards =
-		250.0;
+		0.0;
 
 
 	public const double ShopProductionBoostCost =
@@ -163,6 +163,44 @@ public static class GameConfig
 
 	public const int ShopOfflineUpgradeMaxLevel =
 		15;
+
+
+	// ==================================================
+	// DATA SHARD REWARDS
+	// ==================================================
+
+	public const double RoomUnlockDataShardReward =
+		15.0;
+
+
+	public const double PrestigeDataShardReward =
+		25.0;
+
+
+	public static int GetMilestoneDataShards(
+		int level)
+	{
+		return level switch
+		{
+			5 =>
+				1,
+
+			10 =>
+				2,
+
+			15 =>
+				3,
+
+			20 =>
+				5,
+
+			25 =>
+				10,
+
+			_ =>
+				0
+		};
+	}
 
 
 	// ==================================================

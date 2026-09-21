@@ -86,6 +86,9 @@ public sealed class RoomSaveData
 	public bool Unlocked { get; set; }
 
 
+	public bool DataShardUnlockRewardClaimed { get; set; }
+
+
 	public List<SlotSaveData> Slots { get; set; } =
 		[];
 }
@@ -101,6 +104,10 @@ public sealed class SlotSaveData
 
 	public int MachineLevel { get; set; } =
 		1;
+
+
+	public List<int> ClaimedDataShardMilestones { get; set; } =
+		[];
 
 
 	public BotRarity? BotRarity { get; set; }

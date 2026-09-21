@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace IdleAi;
 
 public sealed class SlotData
@@ -10,6 +12,80 @@ public sealed class SlotData
 
 	public int MachineLevel { get; set; } =
 		1;
+
+
+	// ==================================================
+	// DATA SHARD MILESTONES
+	// ==================================================
+
+	/*
+	 * Stores already collected machine milestone rewards.
+	 *
+	 * The key contains both:
+	 *
+	 * - machine tier
+	 * - machine level
+	 *
+	 * Therefore:
+	 *
+	 * Laptop Level 5
+	 * and
+	 * PC Level 5
+	 *
+	 * are separate milestones.
+	 *
+	 * These claims are reset during Prestige so that
+	 * machine progression can reward Data Shards again
+	 * in the next run.
+	 */
+	public List<int> ClaimedDataShardMilestones { get; } =
+		[];
+
+
+	public bool ClaimDataShardMilestone(
+		int machineTier,
+		int level)
+	{
+		int key =
+			CreateMilestoneKey(
+				machineTier,
+				level
+			);
+
+
+		if (
+			ClaimedDataShardMilestones.Contains(
+				key
+			)
+		)
+		{
+			return false;
+		}
+
+
+		ClaimedDataShardMilestones.Add(
+			key
+		);
+
+
+		return true;
+	}
+
+
+	public void ResetDataShardMilestones()
+	{
+		ClaimedDataShardMilestones.Clear();
+	}
+
+
+	private static int CreateMilestoneKey(
+		int machineTier,
+		int level)
+	{
+		return machineTier
+			* 1000
+			+ level;
+	}
 
 
 	// ==================================================
@@ -41,15 +117,7 @@ public sealed class SlotData
 	 *
 	 * Contains the actual current duration after
 	 * research bonuses have been applied.
-	 *
-	 * Example:
-	 *
-	 * Base = 4.0
-	 * Overclocking = -5%
-	 *
-	 * RuntimeCycleDuration = 3.8
 	 */
-
 	public double RuntimeCycleDuration { get; set; }
 
 
@@ -69,6 +137,11 @@ public sealed class SlotData
 
 			MachineLevel =
 				MachineLevel,
+
+			ClaimedDataShardMilestones =
+				new List<int>(
+					ClaimedDataShardMilestones
+				),
 
 			BotRarity =
 				BotRarity,
@@ -98,6 +171,20 @@ public sealed class SlotData
 
 		MachineLevel =
 			data.MachineLevel;
+
+
+		ClaimedDataShardMilestones.Clear();
+
+
+		if (
+			data.ClaimedDataShardMilestones
+			!= null
+		)
+		{
+			ClaimedDataShardMilestones.AddRange(
+				data.ClaimedDataShardMilestones
+			);
+		}
 
 
 		BotRarity =

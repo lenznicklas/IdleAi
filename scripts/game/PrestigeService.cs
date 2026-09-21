@@ -93,6 +93,14 @@ public sealed class PrestigeService
 		_state.Prestige.PrestigeCount++;
 
 
+		/*
+		 * Every successful Prestige gives a fixed
+		 * Data-Shard reward.
+		 */
+		_state.Shop.DataShards +=
+			GameConfig.PrestigeDataShardReward;
+
+
 		ResetNormalProgress();
 
 
@@ -100,6 +108,11 @@ public sealed class PrestigeService
 			true,
 			reward,
 			$"Prestige complete! +{reward} AI Cores"
+			+ " +"
+			+ NumberFormatter.Format(
+				GameConfig.PrestigeDataShardReward
+			)
+			+ " Data Shards!"
 		);
 	}
 
@@ -134,6 +147,16 @@ public sealed class PrestigeService
 				roomIndex == 0;
 
 
+			/*
+			 * IMPORTANT:
+			 *
+			 * DataShardUnlockRewardClaimed is NOT reset.
+			 *
+			 * Room rewards are only available once
+			 * for the whole save.
+			 */
+
+
 			for (
 				int slotIndex = 0;
 				slotIndex < room.Slots.Count;
@@ -159,6 +182,16 @@ public sealed class PrestigeService
 					1;
 
 
+				/*
+				 * Machine milestone rewards ARE reset.
+				 *
+				 * Therefore the player can earn the
+				 * machine Shards again in a new
+				 * Prestige run.
+				 */
+				slot.ResetDataShardMilestones();
+
+
 				slot.BotRarity =
 					null;
 
@@ -172,6 +205,10 @@ public sealed class PrestigeService
 
 
 				slot.CycleRemaining =
+					0.0;
+
+
+				slot.RuntimeCycleDuration =
 					0.0;
 			}
 		}

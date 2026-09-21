@@ -7,7 +7,7 @@ namespace IdleAi;
 public partial class Game : Control
 {
 	private const int SaveVersion =
-		13;
+		14;
 
 
 	private const double AutosaveIntervalSeconds =
@@ -328,6 +328,14 @@ public partial class Game : Control
 				new()
 				{
 					Unlocked =
+						roomIndex == 0,
+
+					/*
+					 * Room 0 starts unlocked and must
+					 * therefore never generate the
+					 * +15 unlock reward.
+					 */
+					DataShardUnlockRewardClaimed =
 						roomIndex == 0
 				};
 
@@ -377,6 +385,10 @@ public partial class Game : Control
 	}
 
 
+	// ==================================================
+	// SLOT
+	// ==================================================
+
 	private void OnSlotActionRequested(
 		int slotIndex)
 	{
@@ -403,6 +415,10 @@ public partial class Game : Control
 		SaveGame();
 	}
 
+
+	// ==================================================
+	// ROOM
+	// ==================================================
 
 	private void OnRoomSelectedRequested(
 		int targetRoom)
@@ -458,6 +474,10 @@ public partial class Game : Control
 	}
 
 
+	// ==================================================
+	// LAB
+	// ==================================================
+
 	private void OnLabStateChanged()
 	{
 		_ui.UpdateAll();
@@ -467,6 +487,10 @@ public partial class Game : Control
 		SaveGame();
 	}
 
+
+	// ==================================================
+	// PRESTIGE
+	// ==================================================
 
 	private void OnPrestigeRequested()
 	{
@@ -490,6 +514,10 @@ public partial class Game : Control
 		}
 	}
 
+
+	// ==================================================
+	// TOKENS
+	// ==================================================
 
 	private void AddEarnedTokens(
 		double amount)
@@ -610,6 +638,9 @@ public partial class Game : Control
 									Unlocked =
 										room.Unlocked,
 
+									DataShardUnlockRewardClaimed =
+										room.DataShardUnlockRewardClaimed,
+
 									Slots =
 										room.Slots
 											.Select(
@@ -687,10 +718,10 @@ public partial class Game : Control
 			save.ActiveResearchEndUnix;
 
 
-		/*
-		 * Existing Version-12 saves get the temporary
-		 * test balance once.
-		 */
+		// ==================================================
+		// SHOP
+		// ==================================================
+
 		_state.Shop.DataShards =
 			save.SaveVersion < 13
 				? GameConfig.InitialDataShards
@@ -712,6 +743,10 @@ public partial class Game : Control
 		_state.Shop.OfflineUpgradeLevel =
 			save.ShopOfflineUpgradeLevel;
 
+
+		// ==================================================
+		// ROOMS
+		// ==================================================
 
 		for (
 			int roomIndex = 0;
@@ -736,6 +771,31 @@ public partial class Game : Control
 
 			room.Unlocked =
 				savedRoom.Unlocked;
+
+
+			/*
+			 * Save migration from Version 13.
+			 *
+			 * Rooms already unlocked before the
+			 * Data-Shard reward system existed are
+			 * treated as already rewarded.
+			 *
+			 * Otherwise an old player could Prestige,
+			 * unlock the same old room and receive a
+			 * supposedly one-time reward.
+			 */
+			if (save.SaveVersion < 14)
+			{
+				room.DataShardUnlockRewardClaimed =
+					roomIndex == 0
+					|| savedRoom.Unlocked;
+			}
+			else
+			{
+				room.DataShardUnlockRewardClaimed =
+					savedRoom
+						.DataShardUnlockRewardClaimed;
+			}
 
 
 			for (

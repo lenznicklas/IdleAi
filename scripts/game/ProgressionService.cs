@@ -168,6 +168,9 @@ public sealed class ProgressionService
 			1;
 
 
+		slot.ResetDataShardMilestones();
+
+
 		return new ProgressionResult(
 			true,
 			$"Slot {slotIndex + 1} unlocked!"
@@ -306,8 +309,7 @@ public sealed class ProgressionService
 
 
 		// ==================================================
-		// MAX MODE
-		// requestedLevels <= 0 = buy as many as possible
+		// MAX
 		// ==================================================
 
 		if (requestedLevels <= 0)
@@ -341,10 +343,6 @@ public sealed class ProgressionService
 			);
 		}
 
-
-		// ==================================================
-		// FIXED MODE
-		// ==================================================
 
 		int levels =
 			Math.Min(
@@ -436,6 +434,10 @@ public sealed class ProgressionService
 			0;
 
 
+		int totalDataShards =
+			0;
+
+
 		double totalSpent =
 			0.0;
 
@@ -473,10 +475,15 @@ public sealed class ProgressionService
 			upgradedLevels++;
 
 
+			// ==================================================
+			// RESEARCH POINT REWARD
+			// ==================================================
+
 			int researchReward =
-				GetResearchPointMilestoneReward(
-					slot.MachineLevel
-				);
+				GameConfig
+					.GetMilestoneResearchPoints(
+						slot.MachineLevel
+					);
 
 
 			if (
@@ -490,6 +497,34 @@ public sealed class ProgressionService
 
 				totalResearchPoints +=
 					researchReward;
+			}
+
+
+			// ==================================================
+			// DATA SHARD REWARD
+			// ==================================================
+
+			int shardReward =
+				GameConfig
+					.GetMilestoneDataShards(
+						slot.MachineLevel
+					);
+
+
+			if (
+				shardReward > 0
+				&& slot.ClaimDataShardMilestone(
+					slot.MachineTier,
+					slot.MachineLevel
+				)
+			)
+			{
+				_state.Shop.DataShards +=
+					shardReward;
+
+
+				totalDataShards +=
+					shardReward;
 			}
 		}
 
@@ -526,6 +561,13 @@ public sealed class ProgressionService
 		{
 			message +=
 				$" +{totalResearchPoints} RP!";
+		}
+
+
+		if (totalDataShards > 0)
+		{
+			message +=
+				$" +{totalDataShards} Data Shards!";
 		}
 
 
@@ -608,20 +650,6 @@ public sealed class ProgressionService
 			true,
 			$"Upgraded to {newMachine.MachineName}!"
 		);
-	}
-
-
-	// ==================================================
-	// RESEARCH POINT MILESTONES
-	// ==================================================
-
-	private static int GetResearchPointMilestoneReward(
-		int level)
-	{
-		return GameConfig
-			.GetMilestoneResearchPoints(
-				level
-			);
 	}
 
 
@@ -723,9 +751,59 @@ public sealed class ProgressionService
 			1;
 
 
+		roomState.Slots[0]
+			.ResetDataShardMilestones();
+
+
+		double shardReward =
+			0.0;
+
+
+		/*
+		 * Room unlock reward is GLOBAL/PERMANENT.
+		 *
+		 * Prestige may lock the room again, but the
+		 * player does not receive another +15 when
+		 * unlocking it in a later Prestige run.
+		 */
+		if (
+			!roomState
+				.DataShardUnlockRewardClaimed
+		)
+		{
+			roomState
+				.DataShardUnlockRewardClaimed =
+				true;
+
+
+			shardReward =
+				GameConfig
+					.RoomUnlockDataShardReward;
+
+
+			_state.Shop.DataShards +=
+				shardReward;
+		}
+
+
+		string message =
+			$"{_state.Rooms[roomIndex].Name} unlocked!";
+
+
+		if (shardReward > 0.0)
+		{
+			message +=
+				" +"
+				+ NumberFormatter.Format(
+					shardReward
+				)
+				+ " Data Shards!";
+		}
+
+
 		return new ProgressionResult(
 			true,
-			$"{_state.Rooms[roomIndex].Name} unlocked!"
+			message
 		);
 	}
 

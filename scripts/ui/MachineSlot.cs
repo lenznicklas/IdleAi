@@ -7,13 +7,13 @@ public partial class MachineSlot : Control
 {
 	private static readonly Texture2D BorderTexture =
 		GD.Load<Texture2D>(
-            "res://assets/background/border.png"
+			"res://assets/background/border.png"
 		);
 
 
 	private static readonly Texture2D StartTexture =
 		GD.Load<Texture2D>(
-            "res://assets/ui/button.png"
+			"res://assets/ui/button.png"
 		);
 
 
@@ -112,18 +112,15 @@ public partial class MachineSlot : Control
 			12
 		);
 
-
 		margin.AddThemeConstantOverride(
 			"margin_top",
 			10
 		);
 
-
 		margin.AddThemeConstantOverride(
 			"margin_right",
 			12
 		);
-
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
@@ -163,30 +160,29 @@ public partial class MachineSlot : Control
 			vbox
 		);
 
-
 		CreateMachineArea(
 			vbox
 		);
-
 
 		CreateInfoRow(
 			vbox
 		);
 
-
 		CreateProgressArea(
 			vbox
 		);
-
 
 		CreateUnlockButton(
 			vbox
 		);
 
-
 		CreateBorder();
 	}
 
+
+	// ==================================================
+	// TITLE
+	// ==================================================
 
 	private void CreateTitle(
 		VBoxContainer parent)
@@ -222,6 +218,10 @@ public partial class MachineSlot : Control
 		);
 	}
 
+
+	// ==================================================
+	// MACHINE
+	// ==================================================
 
 	private void CreateMachineArea(
 		VBoxContainer parent)
@@ -293,6 +293,10 @@ public partial class MachineSlot : Control
 	}
 
 
+	// ==================================================
+	// INFO ROW
+	// ==================================================
+
 	private void CreateInfoRow(
 		VBoxContainer parent)
 	{
@@ -332,7 +336,7 @@ public partial class MachineSlot : Control
 					VerticalAlignment.Center,
 
 				Text =
-                    "Lv. 1"
+					"Lv. 1"
 			};
 
 
@@ -446,6 +450,10 @@ public partial class MachineSlot : Control
 	}
 
 
+	// ==================================================
+	// PROGRESS
+	// ==================================================
+
 	private void CreateProgressArea(
 		VBoxContainer parent)
 	{
@@ -493,7 +501,7 @@ public partial class MachineSlot : Control
 					VerticalAlignment.Center,
 
 				Text =
-                    "READY"
+					"READY"
 			};
 
 
@@ -508,6 +516,10 @@ public partial class MachineSlot : Control
 		);
 	}
 
+
+	// ==================================================
+	// UNLOCK BUTTON
+	// ==================================================
 
 	private void CreateUnlockButton(
 		VBoxContainer parent)
@@ -535,6 +547,10 @@ public partial class MachineSlot : Control
 		);
 	}
 
+
+	// ==================================================
+	// DISPLAY
+	// ==================================================
 
 	public void ShowLocked(
 		string unlockCost,
@@ -637,6 +653,10 @@ public partial class MachineSlot : Control
 	}
 
 
+	// ==================================================
+	// RUNTIME
+	// ==================================================
+
 	public void UpdateRuntime(
 		SlotData slot)
 	{
@@ -644,11 +664,22 @@ public partial class MachineSlot : Control
 			return;
 
 
+		/*
+		 * IMPORTANT:
+		 *
+		 * Use actual runtime duration after Research.
+		 *
+		 * Fall back to base duration only before
+		 * the first cycle has been initialized.
+		 */
+
 		double cycleDuration =
-			GameConfig
-				.GetProductionCycleSeconds(
-					slot.MachineTier
-				);
+			slot.RuntimeCycleDuration > 0.0
+				? slot.RuntimeCycleDuration
+				: GameConfig
+					.GetProductionCycleSeconds(
+						slot.MachineTier
+					);
 
 
 		if (slot.IsRunning)
@@ -673,22 +704,25 @@ public partial class MachineSlot : Control
 				);
 
 
+			string time =
+				Math.Max(
+					0.0,
+					slot.CycleRemaining
+				)
+				.ToString(
+					"F1"
+				);
+
+
 			if (slot.HasBot)
 			{
 				_statusLabel.Text =
-					$"AUTO • "
-					+ $"{Math.Max(
-                        0.0,
-                        slot.CycleRemaining
-					):F1}s";
+					$"AUTO • {time}s";
 			}
 			else
 			{
 				_statusLabel.Text =
-					$"{Math.Max(
-                        0.0,
-                        slot.CycleRemaining
-					):F1}s";
+					$"{time}s";
 			}
 
 
@@ -727,6 +761,10 @@ public partial class MachineSlot : Control
 		}
 	}
 
+
+	// ==================================================
+	// MACHINE ANIMATION
+	// ==================================================
 
 	private void StartMachineAnimation()
 	{
@@ -847,6 +885,10 @@ public partial class MachineSlot : Control
 		);
 	}
 
+
+	// ==================================================
+	// BOT ANIMATION
+	// ==================================================
 
 	private void StartBotAnimation()
 	{
@@ -1048,6 +1090,10 @@ public partial class MachineSlot : Control
 		);
 	}
 
+
+	// ==================================================
+	// BORDER
+	// ==================================================
 
 	private void CreateBorder()
 	{

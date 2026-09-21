@@ -1,3 +1,5 @@
+using System;
+
 namespace IdleAi;
 
 
@@ -21,7 +23,7 @@ public sealed class LabService
 
 
 	// ==================================================
-	// LAB UNLOCK
+	// LAB
 	// ==================================================
 
 	public LabResult UnlockLab()
@@ -143,7 +145,7 @@ public sealed class LabService
 
 
 	// ==================================================
-	// RESEARCH
+	// AVAILABILITY
 	// ==================================================
 
 	public bool IsResearchAvailable(
@@ -177,6 +179,10 @@ public sealed class LabService
 		return true;
 	}
 
+
+	// ==================================================
+	// RESEARCH
+	// ==================================================
 
 	public LabResult Research(
 		string researchId)
@@ -253,10 +259,90 @@ public sealed class LabService
 		);
 
 
+		/*
+		 * If the newly completed research changed
+		 * cycle speed, currently running machines
+		 * should react immediately.
+		 *
+		 * It is safe to call this for every research.
+		 */
+
+		RefreshCycleDurations();
+
+
 		return new LabResult(
 			true,
 			$"{research.Name} completed!"
 		);
+	}
+
+
+	// ==================================================
+	// CYCLE REFRESH
+	// ==================================================
+
+	private void RefreshCycleDurations()
+	{
+		foreach (
+			RoomState room
+			in _state.RoomStates
+		)
+		{
+			foreach (
+				SlotData slot
+				in room.Slots
+			)
+			{
+				if (!slot.Unlocked)
+					continue;
+
+
+				double baseDuration =
+					GameConfig
+						.GetProductionCycleSeconds(
+							slot.MachineTier
+						);
+
+
+				double oldDuration =
+					slot.RuntimeCycleDuration > 0.0
+						? slot.RuntimeCycleDuration
+						: baseDuration;
+
+
+				double newDuration =
+					Math.Max(
+						0.25,
+						baseDuration
+						* _state.Lab
+							.GetCycleTimeMultiplier()
+					);
+
+
+				if (
+					slot.IsRunning
+					&& oldDuration > 0.0
+				)
+				{
+					double remainingRatio =
+						Math.Clamp(
+							slot.CycleRemaining
+							/ oldDuration,
+							0.0,
+							1.0
+						);
+
+
+					slot.CycleRemaining =
+						newDuration
+						* remainingRatio;
+				}
+
+
+				slot.RuntimeCycleDuration =
+					newDuration;
+			}
+		}
 	}
 
 

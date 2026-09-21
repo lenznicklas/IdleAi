@@ -36,6 +36,23 @@ public sealed class SlotData
 	public double CycleRemaining { get; set; }
 
 
+	/*
+	 * Runtime-only value.
+	 *
+	 * Contains the actual current duration after
+	 * research bonuses have been applied.
+	 *
+	 * Example:
+	 *
+	 * Base = 4.0
+	 * Overclocking = -5%
+	 *
+	 * RuntimeCycleDuration = 3.8
+	 */
+
+	public double RuntimeCycleDuration { get; set; }
+
+
 	// ==================================================
 	// SAVE
 	// ==================================================
@@ -97,5 +114,9 @@ public sealed class SlotData
 
 		CycleRemaining =
 			data.CycleRemaining;
+
+
+		RuntimeCycleDuration =
+			0.0;
 	}
 }

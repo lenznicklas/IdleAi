@@ -18,5 +18,8 @@ public sealed record ResearchDefinition(
 	double CycleTimeReduction = 0.0,
 	double BotPowerBonus = 0.0,
 	double OfflineIncomeBonus = 0.0,
+	double RareBotChanceBonus = 0.0,
+	double EpicBotChanceBonus = 0.0,
+	double LegendaryBotChanceBonus = 0.0,
 	string? PrerequisiteId = null
 );

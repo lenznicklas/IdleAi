@@ -16,7 +16,7 @@ public sealed class EconomyService
 
 
 	// ==================================================
-	// UPGRADE COSTS
+	// COSTS
 	// ==================================================
 
 	public double GetLevelUpgradeCost(
@@ -112,16 +112,20 @@ public sealed class EconomyService
 			);
 
 
-		double researchMultiplier =
-			_state.Lab
-				.GetCycleTimeMultiplier();
+		double duration =
+			Math.Max(
+				0.25,
+				baseDuration
+				* _state.Lab
+					.GetCycleTimeMultiplier()
+			);
 
 
-		return Math.Max(
-			0.25,
-			baseDuration
-			* researchMultiplier
-		);
+		slot.RuntimeCycleDuration =
+			duration;
+
+
+		return duration;
 	}
 
 
@@ -164,6 +168,19 @@ public sealed class EconomyService
 			);
 
 
+		/*
+		 * Robotics research only affects a machine
+		 * when it actually has a bot.
+		 */
+
+		if (slot.HasBot)
+		{
+			botMultiplier *=
+				_state.Lab
+					.GetBotPowerMultiplier();
+		}
+
+
 		double prestigeMultiplier =
 			_state.Prestige
 				.GetProductionMultiplier();
@@ -175,20 +192,10 @@ public sealed class EconomyService
 
 
 		/*
-		 * IMPORTANT:
+		 * Reward uses BASE cycle duration.
 		 *
-		 * Reward uses the ORIGINAL cycle duration.
-		 *
-		 * Example:
-		 *
-		 * Base:
-		 * 100 Tokens every 4 seconds
-		 *
-		 * After -10% cycle time:
-		 * 100 Tokens every 3.6 seconds
-		 *
-		 * Therefore cycle-speed research actually
-		 * increases production per second.
+		 * Cycle-time research therefore increases
+		 * Tokens/sec instead of reducing reward.
 		 */
 
 		double baseCycleDuration =

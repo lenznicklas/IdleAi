@@ -1,4 +1,5 @@
 using Godot;
+using System;
 
 namespace IdleAi;
 
@@ -24,6 +25,7 @@ public sealed class BotService
 	{
 		_state =
 			state;
+
 
 		_economy =
 			economy;
@@ -52,7 +54,7 @@ public sealed class BotService
 		{
 			return new BotActionResult(
 				false,
-                "Invalid machine."
+				"Invalid machine."
 			);
 		}
 
@@ -61,7 +63,7 @@ public sealed class BotService
 		{
 			return new BotActionResult(
 				false,
-                "Machine is locked."
+				"Machine is locked."
 			);
 		}
 
@@ -70,7 +72,7 @@ public sealed class BotService
 		{
 			return new BotActionResult(
 				false,
-                "This machine already has a bot."
+				"This machine already has a bot."
 			);
 		}
 
@@ -87,7 +89,7 @@ public sealed class BotService
 		{
 			return new BotActionResult(
 				false,
-                "Not enough Tokens."
+				"Not enough Tokens."
 			);
 		}
 
@@ -109,7 +111,7 @@ public sealed class BotService
 
 
 		// ==================================================
-		// START AUTOMATIC PRODUCTION
+		// AUTO PRODUCTION
 		// ==================================================
 
 		if (!slot.IsRunning)
@@ -141,10 +143,16 @@ public sealed class BotService
 			);
 
 
+		double effectiveMultiplier =
+			bot.ProductionMultiplier
+			* _state.Lab
+				.GetBotPowerMultiplier();
+
+
 		return new BotActionResult(
 			true,
 			$"You got a {bot.Name}! "
-			+ $"x{bot.ProductionMultiplier:F1}"
+			+ $"x{effectiveMultiplier:F2}"
 		);
 	}
 
@@ -171,7 +179,7 @@ public sealed class BotService
 		{
 			return new BotActionResult(
 				false,
-                "No bot to sell."
+				"No bot to sell."
 			);
 		}
 
@@ -199,12 +207,15 @@ public sealed class BotService
 			0.0;
 
 
-		// Machine becomes manual again.
 		slot.IsRunning =
 			false;
 
 
 		slot.CycleRemaining =
+			0.0;
+
+
+		slot.RuntimeCycleDuration =
 			0.0;
 
 
@@ -217,7 +228,7 @@ public sealed class BotService
 
 
 	// ==================================================
-	// BOT PRICE
+	// PRICE
 	// ==================================================
 
 	public double GetBotPrice(
@@ -243,10 +254,6 @@ public sealed class BotService
 	}
 
 
-	// ==================================================
-	// SELL PRICE
-	// ==================================================
-
 	public double GetSellPrice(
 		SlotData slot)
 	{
@@ -260,48 +267,164 @@ public sealed class BotService
 
 
 	// ==================================================
-	// RANDOM RARITY
+	// EFFECTIVE BOT POWER
 	// ==================================================
+
+	public double GetEffectiveMultiplier(
+		SlotData slot)
+	{
+		if (!slot.HasBot)
+			return 1.0;
+
+
+		double baseMultiplier =
+			BotCatalog.GetMultiplier(
+				slot.BotRarity
+			);
+
+
+		return baseMultiplier
+			* _state.Lab
+				.GetBotPowerMultiplier();
+	}
+
+
+	// ==================================================
+	// RARITY CHANCES
+	// ==================================================
+
+	public (
+		double Common,
+		double Rare,
+		double Epic,
+		double Legendary
+	) GetRarityChances()
+	{
+		double rare =
+			GameConfig.RareBotChance
+			+ _state.Lab
+				.GetRareBotChanceBonus();
+
+
+		double epic =
+			GameConfig.EpicBotChance
+			+ _state.Lab
+				.GetEpicBotChanceBonus();
+
+
+		double baseLegendary =
+			1.0
+			- GameConfig.CommonBotChance
+			- GameConfig.RareBotChance
+			- GameConfig.EpicBotChance;
+
+
+		double legendary =
+			baseLegendary
+			+ _state.Lab
+				.GetLegendaryBotChanceBonus();
+
+
+		rare =
+			Math.Max(
+				0.0,
+				rare
+			);
+
+
+		epic =
+			Math.Max(
+				0.0,
+				epic
+			);
+
+
+		legendary =
+			Math.Max(
+				0.0,
+				legendary
+			);
+
+
+		double specialTotal =
+			rare
+			+ epic
+			+ legendary;
+
+
+		/*
+		 * If future research ever pushes the
+		 * non-common total above 100%, normalize it.
+		 */
+
+		if (specialTotal > 1.0)
+		{
+			rare /=
+				specialTotal;
+
+			epic /=
+				specialTotal;
+
+			legendary /=
+				specialTotal;
+
+
+			return (
+				0.0,
+				rare,
+				epic,
+				legendary
+			);
+		}
+
+
+		double common =
+			1.0
+			- specialTotal;
+
+
+		return (
+			common,
+			rare,
+			epic,
+			legendary
+		);
+	}
+
 
 	private BotRarity RollRarity()
 	{
+		(
+			double common,
+			double rare,
+			double epic,
+			double legendary
+		) =
+			GetRarityChances();
+
+
 		double roll =
 			_random.Randf();
 
 
-		if (
-			roll
-			< GameConfig.CommonBotChance
-		)
-		{
+		if (roll < common)
 			return BotRarity.Common;
-		}
 
 
 		roll -=
-			GameConfig.CommonBotChance;
+			common;
 
 
-		if (
-			roll
-			< GameConfig.RareBotChance
-		)
-		{
+		if (roll < rare)
 			return BotRarity.Rare;
-		}
 
 
 		roll -=
-			GameConfig.RareBotChance;
+			rare;
 
 
-		if (
-			roll
-			< GameConfig.EpicBotChance
-		)
-		{
+		if (roll < epic)
 			return BotRarity.Epic;
-		}
 
 
 		return BotRarity.Legendary;
@@ -309,7 +432,7 @@ public sealed class BotService
 
 
 	// ==================================================
-	// SLOT LOOKUP
+	// SLOT
 	// ==================================================
 
 	private SlotData? GetSlot(

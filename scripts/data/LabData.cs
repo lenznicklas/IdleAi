@@ -19,7 +19,7 @@ public sealed class LabData
 
 
 	// ==================================================
-	// RESEARCH STATE
+	// STATE
 	// ==================================================
 
 	public bool IsResearchCompleted(
@@ -73,7 +73,7 @@ public sealed class LabData
 
 
 	// ==================================================
-	// RESEARCH EFFECTS
+	// PRODUCTION
 	// ==================================================
 
 	public double GetProductionBonus()
@@ -94,6 +94,10 @@ public sealed class LabData
 	}
 
 
+	// ==================================================
+	// CYCLE
+	// ==================================================
+
 	public double GetCycleTimeReduction()
 	{
 		return ResearchCatalog
@@ -112,6 +116,10 @@ public sealed class LabData
 	}
 
 
+	// ==================================================
+	// BOTS
+	// ==================================================
+
 	public double GetBotPowerBonus()
 	{
 		return ResearchCatalog
@@ -120,6 +128,46 @@ public sealed class LabData
 			);
 	}
 
+
+	public double GetBotPowerMultiplier()
+	{
+		return ResearchCatalog
+			.GetBotPowerMultiplier(
+				this
+			);
+	}
+
+
+	public double GetRareBotChanceBonus()
+	{
+		return ResearchCatalog
+			.GetRareBotChanceBonus(
+				this
+			);
+	}
+
+
+	public double GetEpicBotChanceBonus()
+	{
+		return ResearchCatalog
+			.GetEpicBotChanceBonus(
+				this
+			);
+	}
+
+
+	public double GetLegendaryBotChanceBonus()
+	{
+		return ResearchCatalog
+			.GetLegendaryBotChanceBonus(
+				this
+			);
+	}
+
+
+	// ==================================================
+	// OFFLINE
+	// ==================================================
 
 	public double GetOfflineIncomeBonus()
 	{

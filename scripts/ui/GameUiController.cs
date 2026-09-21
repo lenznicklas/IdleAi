@@ -731,63 +731,69 @@ public sealed class GameUiController
 
 
 	private void UpdateMapButtons()
+{
+	int count =
+		Math.Min(
+			_state.Rooms.Count,
+			_mapRoomButtons.GetChildCount()
+		);
+
+
+	for (
+		int i = 0;
+		i < count;
+		i++
+	)
 	{
-		int count =
-			Math.Min(
-				_state.Rooms.Count,
-				_mapRoomButtons.GetChildCount()
+		Button button =
+			(Button)
+			_mapRoomButtons.GetChild(
+				i
 			);
 
 
-		for (
-			int i = 0;
-			i < count;
-			i++
+		RoomData room =
+			_state.Rooms[
+				i
+			];
+
+
+		bool unlocked =
+			_state.RoomStates[
+				i
+			].Unlocked;
+
+
+		if (
+			i
+			== _state.CurrentRoomIndex
 		)
 		{
-			Button button =
-				(Button)
-				_mapRoomButtons.GetChild(
-					i
-				);
-
-
-			RoomData room =
-				_state.Rooms[
-					i
-				];
-
-
-			bool unlocked =
-				_state.RoomStates[
-					i
-				].Unlocked;
-
-
-			if (
-				i
-				== _state.CurrentRoomIndex
-			)
-			{
-				button.Text =
-					$"{room.Name}\nCURRENT";
-			}
-			else if (unlocked)
-			{
-				button.Text =
-					$"{room.Name}\nENTER";
-			}
-			else
-			{
-				button.Text =
-					$"{room.Name}\nUNLOCK • "
-					+ NumberFormatter.Format(
-						room.UnlockCost
+			button.Text =
+				$"{room.Name}\nCURRENT";
+		}
+		else if (unlocked)
+		{
+			button.Text =
+				$"{room.Name}\nENTER";
+		}
+		else
+		{
+			double cost =
+				_progression
+					.GetRoomUnlockCost(
+						i
 					);
-			}
+
+
+			button.Text =
+				$"{room.Name}\nUNLOCK • "
+				+ NumberFormatter.Format(
+					cost
+				);
 		}
 	}
-
+}
 
 	private void SelectRoomFromMap(
 		int roomIndex)
@@ -1067,69 +1073,67 @@ public sealed class GameUiController
 
 
 	private void UpdateSlot(
-		int index)
-	{
-		SlotData slot =
-			_state.CurrentRoomState
-				.Slots[
-					index
-				];
-
-
-		MachineSlot view =
-			(MachineSlot)
-			_slotGrid.GetChild(
+	int index)
+{
+	SlotData slot =
+		_state.CurrentRoomState
+			.Slots[
 				index
-			);
+			];
 
 
-		if (!slot.Unlocked)
-		{
-			double cost =
-				GameConfig
-					.GetSlotUnlockCosts(
-						_state.CurrentRoomIndex
-					)[
-						index
-					];
-
-
-			view.ShowLocked(
-				NumberFormatter.Format(
-					cost
-				),
-
-				_state.CurrentRoom
-					.EmptyTexture
-			);
-
-
-			return;
-		}
-
-
-		MachineData machine =
-			_state.CurrentRoom
-				.Machines[
-					slot.MachineTier
-				];
-
-
-		BotDefinition? bot =
-			slot.HasBot
-				? BotCatalog.Get(
-					slot.BotRarity!.Value
-				)
-				: null;
-
-
-		view.ShowMachine(
-			machine,
-			slot,
-			bot
+	MachineSlot view =
+		(MachineSlot)
+		_slotGrid.GetChild(
+			index
 		);
+
+
+	if (!slot.Unlocked)
+	{
+		double cost =
+			_progression
+				.GetSlotUnlockCost(
+					_state.CurrentRoomIndex,
+					index
+				);
+
+
+		view.ShowLocked(
+			NumberFormatter.Format(
+				cost
+			),
+
+			_state.CurrentRoom
+				.EmptyTexture
+		);
+
+
+		return;
 	}
 
+
+	MachineData machine =
+		_state.CurrentRoom
+			.Machines[
+				slot.MachineTier
+			];
+
+
+	BotDefinition? bot =
+		slot.HasBot
+			? BotCatalog.Get(
+				slot.BotRarity!.Value
+			)
+			: null;
+
+
+	view.ShowMachine(
+		machine,
+		slot,
+		bot
+	);
+}
 
 	public void UpdateRuntime()
 	{

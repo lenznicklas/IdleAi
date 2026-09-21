@@ -46,14 +46,34 @@ public static class ResearchCatalog
 
 
 	// ==================================================
+	// INFRASTRUCTURE
+	// ==================================================
+
+	public const string EfficientPurchasing1Id =
+		"efficient_purchasing_1";
+
+	public const string EfficientPurchasing2Id =
+		"efficient_purchasing_2";
+
+	public const string ModularExpansionId =
+		"modular_expansion";
+
+	public const string OfflineServersId =
+		"offline_servers";
+
+	public const string AutonomousInfrastructureId =
+		"autonomous_infrastructure";
+
+
+	// ==================================================
 	// CATALOG
 	// ==================================================
 
 	private static readonly List<ResearchDefinition> Research =
 	[
-		// --------------------------------------------------
+		// ==================================================
 		// HARDWARE
-		// --------------------------------------------------
+		// ==================================================
 
 		new ResearchDefinition(
 			EfficientHardware1Id,
@@ -105,9 +125,9 @@ public static class ResearchCatalog
 		),
 
 
-		// --------------------------------------------------
+		// ==================================================
 		// ROBOTICS
-		// --------------------------------------------------
+		// ==================================================
 
 		new ResearchDefinition(
 			BotEngineering1Id,
@@ -156,6 +176,60 @@ public static class ResearchCatalog
 			500.0,
 			LegendaryBotChanceBonus: 0.03,
 			PrerequisiteId: AdvancedRoboticsId
+		),
+
+
+		// ==================================================
+		// INFRASTRUCTURE
+		// ==================================================
+
+		new ResearchDefinition(
+			EfficientPurchasing1Id,
+			"Efficient Purchasing I",
+			"-5% machine upgrade costs.",
+			ResearchBranch.Infrastructure,
+			25.0,
+			MachineUpgradeCostReduction: 0.05
+		),
+
+		new ResearchDefinition(
+			EfficientPurchasing2Id,
+			"Efficient Purchasing II",
+			"-10% additional machine upgrade costs.",
+			ResearchBranch.Infrastructure,
+			60.0,
+			MachineUpgradeCostReduction: 0.10,
+			PrerequisiteId: EfficientPurchasing1Id
+		),
+
+		new ResearchDefinition(
+			ModularExpansionId,
+			"Modular Expansion",
+			"-10% slot and room unlock costs.",
+			ResearchBranch.Infrastructure,
+			120.0,
+			UnlockCostReduction: 0.10,
+			PrerequisiteId: EfficientPurchasing2Id
+		),
+
+		new ResearchDefinition(
+			OfflineServersId,
+			"Offline Servers",
+			"+10 percentage points offline income.",
+			ResearchBranch.Infrastructure,
+			250.0,
+			OfflineIncomeBonus: 0.10,
+			PrerequisiteId: ModularExpansionId
+		),
+
+		new ResearchDefinition(
+			AutonomousInfrastructureId,
+			"Autonomous Infrastructure",
+			"+15 percentage points additional offline income.",
+			ResearchBranch.Infrastructure,
+			500.0,
+			OfflineIncomeBonus: 0.15,
+			PrerequisiteId: OfflineServersId
 		)
 	];
 
@@ -227,7 +301,7 @@ public static class ResearchCatalog
 
 
 	// ==================================================
-	// CYCLE TIME
+	// CYCLE
 	// ==================================================
 
 	public static double GetCycleTimeReduction(
@@ -398,6 +472,96 @@ public static class ResearchCatalog
 
 
 	// ==================================================
+	// MACHINE COST
+	// ==================================================
+
+	public static double GetMachineUpgradeCostReduction(
+		LabData lab)
+	{
+		double reduction = 0.0;
+
+
+		foreach (
+			ResearchDefinition research
+			in Research
+		)
+		{
+			if (
+				lab.IsResearchCompleted(
+					research.Id
+				)
+			)
+			{
+				reduction +=
+					research.MachineUpgradeCostReduction;
+			}
+		}
+
+
+		return Math.Clamp(
+			reduction,
+			0.0,
+			0.75
+		);
+	}
+
+
+	public static double GetMachineUpgradeCostMultiplier(
+		LabData lab)
+	{
+		return 1.0
+			- GetMachineUpgradeCostReduction(
+				lab
+			);
+	}
+
+
+	// ==================================================
+	// UNLOCK COST
+	// ==================================================
+
+	public static double GetUnlockCostReduction(
+		LabData lab)
+	{
+		double reduction = 0.0;
+
+
+		foreach (
+			ResearchDefinition research
+			in Research
+		)
+		{
+			if (
+				lab.IsResearchCompleted(
+					research.Id
+				)
+			)
+			{
+				reduction +=
+					research.UnlockCostReduction;
+			}
+		}
+
+
+		return Math.Clamp(
+			reduction,
+			0.0,
+			0.75
+		);
+	}
+
+
+	public static double GetUnlockCostMultiplier(
+		LabData lab)
+	{
+		return 1.0
+			- GetUnlockCostReduction(
+				lab
+			);
+	}
+
+
+	// ==================================================
 	// OFFLINE
 	// ==================================================
 
@@ -424,6 +588,10 @@ public static class ResearchCatalog
 		}
 
 
-		return bonus;
+		return Math.Clamp(
+			bonus,
+			0.0,
+			0.75
+		);
 	}
 }

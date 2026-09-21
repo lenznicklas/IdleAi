@@ -96,6 +96,14 @@ public static class GameConfig
 
 
 	// ==================================================
+	// OFFLINE
+	// ==================================================
+
+	public const double BaseOfflineIncomeFactor =
+		0.25;
+
+
+	// ==================================================
 	// BOTS
 	// ==================================================
 
@@ -132,7 +140,7 @@ public static class GameConfig
 
 
 	// ==================================================
-	// CYCLE DURATION
+	// CYCLE
 	// ==================================================
 
 	public static double GetProductionCycleSeconds(

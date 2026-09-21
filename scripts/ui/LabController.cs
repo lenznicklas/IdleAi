@@ -148,9 +148,21 @@ public sealed class LabController
 		null!;
 
 
+	private Label _machineUpgradeCostBonusLabel =
+		null!;
+
+
+	private Label _unlockCostBonusLabel =
+		null!;
+
+
 	private Label _offlineBonusLabel =
 		null!;
 
+
+	// ==================================================
+	// RESEARCH VIEWS
+	// ==================================================
 
 	private readonly Dictionary<string, ResearchView>
 		_researchViews =
@@ -365,6 +377,10 @@ public sealed class LabController
 	}
 
 
+	// ==================================================
+	// CONTENT
+	// ==================================================
+
 	private void CreateContent()
 	{
 		MarginContainer margin =
@@ -515,7 +531,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// RESEARCH POINT BAR
+	// RESEARCH POINTS
 	// ==================================================
 
 	private HBoxContainer CreateResearchPointBar()
@@ -794,10 +810,6 @@ public sealed class LabController
 		);
 
 
-		// ------------------------------
-		// ACTIVE BONUSES
-		// ------------------------------
-
 		content.AddChild(
 			CreateBonusPanel()
 		);
@@ -808,10 +820,6 @@ public sealed class LabController
 		);
 
 
-		// ------------------------------
-		// HARDWARE
-		// ------------------------------
-
 		CreateBranch(
 			content,
 			ResearchBranch.Hardware,
@@ -820,10 +828,6 @@ public sealed class LabController
 		);
 
 
-		// ------------------------------
-		// ROBOTICS
-		// ------------------------------
-
 		CreateBranch(
 			content,
 			ResearchBranch.Robotics,
@@ -831,10 +835,6 @@ public sealed class LabController
 			RoboticsIcon
 		);
 
-
-		// ------------------------------
-		// INFRASTRUCTURE
-		// ------------------------------
 
 		CreateBranch(
 			content,
@@ -865,7 +865,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// ACTIVE BONUSES
+	// BONUS PANEL
 	// ==================================================
 
 	private Control CreateBonusPanel()
@@ -966,6 +966,24 @@ public sealed class LabController
 		);
 
 
+		_machineUpgradeCostBonusLabel =
+			CreateBonusLabel();
+
+
+		box.AddChild(
+			_machineUpgradeCostBonusLabel
+		);
+
+
+		_unlockCostBonusLabel =
+			CreateBonusLabel();
+
+
+		box.AddChild(
+			_unlockCostBonusLabel
+		);
+
+
 		_offlineBonusLabel =
 			CreateBonusLabel();
 
@@ -981,18 +999,14 @@ public sealed class LabController
 
 	private static Label CreateBonusLabel()
 	{
-		Label label =
-			CreateLeftLabel(
-				15
-			);
-
-
-		return label;
+		return CreateLeftLabel(
+			15
+		);
 	}
 
 
 	// ==================================================
-	// BRANCHES
+	// BRANCH
 	// ==================================================
 
 	private void CreateBranch(
@@ -1018,8 +1032,13 @@ public sealed class LabController
 			in ResearchCatalog.All
 		)
 		{
-			if (research.Branch != branch)
+			if (
+				research.Branch
+				!= branch
+			)
+			{
 				continue;
+			}
 
 
 			foundResearch =
@@ -1477,7 +1496,7 @@ public sealed class LabController
 
 
 	// ==================================================
-	// BONUS DISPLAY
+	// BONUS REFRESH
 	// ==================================================
 
 	private void RefreshResearchBonuses()
@@ -1497,9 +1516,28 @@ public sealed class LabController
 				.GetBotPowerBonus();
 
 
+		double machineUpgradeReduction =
+			_state.Lab
+				.GetMachineUpgradeCostReduction();
+
+
+		double unlockReduction =
+			_state.Lab
+				.GetUnlockCostReduction();
+
+
 		double offlineBonus =
 			_state.Lab
 				.GetOfflineIncomeBonus();
+
+
+		double offlineIncome =
+			Math.Clamp(
+				GameConfig.BaseOfflineIncomeFactor
+				+ offlineBonus,
+				0.0,
+				1.0
+			);
 
 
 		_productionBonusLabel.Text =
@@ -1523,16 +1561,30 @@ public sealed class LabController
 			);
 
 
-		_offlineBonusLabel.Text =
-			"Offline Income: +"
+		_machineUpgradeCostBonusLabel.Text =
+			"Machine Upgrade Costs: -"
 			+ FormatPercent(
-				offlineBonus
+				machineUpgradeReduction
+			);
+
+
+		_unlockCostBonusLabel.Text =
+			"Expansion Costs: -"
+			+ FormatPercent(
+				unlockReduction
+			);
+
+
+		_offlineBonusLabel.Text =
+			"Offline Income: "
+			+ FormatPercent(
+				offlineIncome
 			);
 	}
 
 
 	// ==================================================
-	// RESEARCH CARDS
+	// RESEARCH CARD REFRESH
 	// ==================================================
 
 	private void RefreshResearchCards()
@@ -1641,8 +1693,13 @@ public sealed class LabController
 	private static string GetLockedText(
 		ResearchDefinition research)
 	{
-		if (research.PrerequisiteId == null)
+		if (
+			research.PrerequisiteId
+			== null
+		)
+		{
 			return "LOCKED";
+		}
 
 
 		ResearchDefinition? prerequisite =

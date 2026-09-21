@@ -117,7 +117,7 @@ public sealed class LabData
 
 
 	// ==================================================
-	// BOTS
+	// BOT
 	// ==================================================
 
 	public double GetBotPowerBonus()
@@ -160,6 +160,46 @@ public sealed class LabData
 	{
 		return ResearchCatalog
 			.GetLegendaryBotChanceBonus(
+				this
+			);
+	}
+
+
+	// ==================================================
+	// COSTS
+	// ==================================================
+
+	public double GetMachineUpgradeCostReduction()
+	{
+		return ResearchCatalog
+			.GetMachineUpgradeCostReduction(
+				this
+			);
+	}
+
+
+	public double GetMachineUpgradeCostMultiplier()
+	{
+		return ResearchCatalog
+			.GetMachineUpgradeCostMultiplier(
+				this
+			);
+	}
+
+
+	public double GetUnlockCostReduction()
+	{
+		return ResearchCatalog
+			.GetUnlockCostReduction(
+				this
+			);
+	}
+
+
+	public double GetUnlockCostMultiplier()
+	{
+		return ResearchCatalog
+			.GetUnlockCostMultiplier(
 				this
 			);
 	}

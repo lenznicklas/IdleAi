@@ -16,7 +16,7 @@ public sealed class EconomyService
 
 
 	// ==================================================
-	// COSTS
+	// LEVEL UPGRADE COST
 	// ==================================================
 
 	public double GetLevelUpgradeCost(
@@ -44,11 +44,21 @@ public sealed class EconomyService
 			);
 
 
+		double researchMultiplier =
+			_state.Lab
+				.GetMachineUpgradeCostMultiplier();
+
+
 		return machine.BaseUpgradeCost
 			   * slotMultiplier
-			   * levelMultiplier;
+			   * levelMultiplier
+			   * researchMultiplier;
 	}
 
+
+	// ==================================================
+	// TIER UPGRADE COST
+	// ==================================================
 
 	public double GetTierUpgradeCost(
 		int roomIndex,
@@ -62,12 +72,22 @@ public sealed class EconomyService
 			);
 
 
+		double researchMultiplier =
+			_state.Lab
+				.GetMachineUpgradeCostMultiplier();
+
+
 		return machine.TierUpgradeCost
 			   * GameConfig.SlotUpgradeMultipliers[
 				   slotIndex
-			   ];
+			   ]
+			   * researchMultiplier;
 	}
 
+
+	// ==================================================
+	// BOT COST
+	// ==================================================
 
 	public double GetBotCost(
 		int roomIndex,
@@ -168,11 +188,6 @@ public sealed class EconomyService
 			);
 
 
-		/*
-		 * Robotics research only affects a machine
-		 * when it actually has a bot.
-		 */
-
 		if (slot.HasBot)
 		{
 			botMultiplier *=
@@ -190,13 +205,6 @@ public sealed class EconomyService
 			_state.Lab
 				.GetProductionMultiplier();
 
-
-		/*
-		 * Reward uses BASE cycle duration.
-		 *
-		 * Cycle-time research therefore increases
-		 * Tokens/sec instead of reducing reward.
-		 */
 
 		double baseCycleDuration =
 			GetBaseCycleDuration(

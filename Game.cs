@@ -14,10 +14,6 @@ public partial class Game : Control
 		10.0;
 
 
-	private const double OfflineIncomeFactor =
-		0.25;
-
-
 	private GameState _state = null!;
 
 	private EconomyService _economy = null!;
@@ -683,44 +679,54 @@ public partial class Game : Control
 	// ==================================================
 
 	private double ApplyOfflineIncome(
-		long savedTime,
-		double incomePerSecond)
+	long savedTime,
+	double incomePerSecond)
+{
+	long seconds =
+		GetCurrentUnixTime()
+		- savedTime;
+
+
+	if (
+		seconds <= 0
+		|| incomePerSecond <= 0
+	)
 	{
-		long seconds =
-			GetCurrentUnixTime()
-			- savedTime;
+		return 0;
+	}
 
 
-		if (
-			seconds <= 0
-			|| incomePerSecond <= 0
-		)
-		{
-			return 0;
-		}
-
-
-		double amount =
-			incomePerSecond
-			* seconds
-			* OfflineIncomeFactor;
-
-
-		_state.Tokens +=
-			amount;
-
-
-		_state.RunEarnedTokens +=
-			amount;
-
-
-		_state.Stats.AddOfflineEarned(
-			amount
+	double offlineFactor =
+		Math.Clamp(
+			GameConfig.BaseOfflineIncomeFactor
+			+ _state.Lab
+				.GetOfflineIncomeBonus(),
+			0.0,
+			1.0
 		);
 
 
-		return amount;
-	}
+	double amount =
+		incomePerSecond
+		* seconds
+		* offlineFactor;
+
+
+	_state.Tokens +=
+		amount;
+
+
+	_state.RunEarnedTokens +=
+		amount;
+
+
+	_state.Stats.AddOfflineEarned(
+		amount
+	);
+
+
+	return amount;
+}
 
 
 	private static long GetCurrentUnixTime()

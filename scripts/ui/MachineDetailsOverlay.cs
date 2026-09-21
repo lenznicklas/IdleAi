@@ -73,19 +73,27 @@ public sealed class MachineDetailsOverlay
 		_root =
 			root;
 
+
 		_state =
 			state;
+
 
 		_economy =
 			economy;
 
+
 		_progression =
 			progression;
+
 
 		_bots =
 			bots;
 	}
 
+
+	// ==================================================
+	// INITIALIZE
+	// ==================================================
 
 	public void Initialize()
 	{
@@ -97,6 +105,10 @@ public sealed class MachineDetailsOverlay
 		Close();
 	}
 
+
+	// ==================================================
+	// OPEN / CLOSE
+	// ==================================================
 
 	public void Open(
 		int roomIndex,
@@ -126,6 +138,10 @@ public sealed class MachineDetailsOverlay
 		_overlay?.Hide();
 	}
 
+
+	// ==================================================
+	// REFRESH
+	// ==================================================
 
 	public void Refresh()
 	{
@@ -210,7 +226,7 @@ public sealed class MachineDetailsOverlay
 
 
 		_production.Text =
-            "Production: "
+			"Production: "
 			+ NumberFormatter.Format(
 				cycleReward
 			)
@@ -246,6 +262,10 @@ public sealed class MachineDetailsOverlay
 		);
 	}
 
+
+	// ==================================================
+	// MACHINE UPGRADES
+	// ==================================================
 
 	private void UpdateUpgradeSection(
 		RoomData room,
@@ -291,7 +311,7 @@ public sealed class MachineDetailsOverlay
 
 
 			_upgradeInfo.Text =
-                "Next level: "
+				"Next level: "
 				+ NumberFormatter.Format(
 					current
 				)
@@ -302,7 +322,7 @@ public sealed class MachineDetailsOverlay
 
 
 			_upgradeButton.Text =
-                "UPGRADE • "
+				"UPGRADE • "
 				+ NumberFormatter.Format(
 					cost
 				);
@@ -340,7 +360,7 @@ public sealed class MachineDetailsOverlay
 
 
 			_upgradeButton.Text =
-                "UPGRADE MACHINE • "
+				"UPGRADE MACHINE • "
 				+ NumberFormatter.Format(
 					cost
 				);
@@ -384,37 +404,18 @@ public sealed class MachineDetailsOverlay
 	}
 
 
+	// ==================================================
+	// BOT
+	// ==================================================
+
 	private void UpdateBotSection(
 		SlotData slot)
 	{
 		if (!slot.HasBot)
 		{
-			_botImage.Texture =
-				null;
-
-
-			_botName.Text =
-				"NO BOT";
-
-
-			_botMultiplier.Text =
-				"Manual production";
-
-
-			_buyBotButton.Text =
-                "BUY RANDOM BOT • "
-				+ NumberFormatter.Format(
-					_bots.GetBotPrice(
-						_roomIndex,
-						_slotIndex
-					)
-				);
-
-
-			_buyBotButton.Show();
-
-			_sellBotButton.Hide();
-
+			UpdateNoBotSection(
+				slot
+			);
 
 			return;
 		}
@@ -426,6 +427,21 @@ public sealed class MachineDetailsOverlay
 			);
 
 
+		double baseMultiplier =
+			bot.ProductionMultiplier;
+
+
+		double effectiveMultiplier =
+			_bots.GetEffectiveMultiplier(
+				slot
+			);
+
+
+		double researchBonus =
+			_state.Lab
+				.GetBotPowerBonus();
+
+
 		_botImage.Texture =
 			bot.Texture;
 
@@ -435,7 +451,18 @@ public sealed class MachineDetailsOverlay
 
 
 		_botMultiplier.Text =
-			$"Production x{bot.ProductionMultiplier:F1}";
+			"Base Power: x"
+			+ baseMultiplier.ToString(
+				"F2"
+			)
+			+ "\nResearch: +"
+			+ FormatPercent(
+				researchBonus
+			)
+			+ "\nEffective Power: x"
+			+ effectiveMultiplier.ToString(
+				"F2"
+			);
 
 
 		_buyBotButton.Hide();
@@ -444,7 +471,7 @@ public sealed class MachineDetailsOverlay
 
 
 		_sellBotButton.Text =
-            "SELL BOT • "
+			"SELL BOT • "
 			+ NumberFormatter.Format(
 				_bots.GetSellPrice(
 					slot
@@ -452,6 +479,67 @@ public sealed class MachineDetailsOverlay
 			);
 	}
 
+
+	private void UpdateNoBotSection(
+		SlotData slot)
+	{
+		_botImage.Texture =
+			null;
+
+
+		_botName.Text =
+			"NO BOT";
+
+
+		(
+			double common,
+			double rare,
+			double epic,
+			double legendary
+		) =
+			_bots.GetRarityChances();
+
+
+		_botMultiplier.Text =
+			"Manual production"
+			+ "\n\nBot chances:"
+			+ "\nCommon: "
+			+ FormatPercent(
+				common
+			)
+			+ "\nRare: "
+			+ FormatPercent(
+				rare
+			)
+			+ "\nEpic: "
+			+ FormatPercent(
+				epic
+			)
+			+ "\nLegendary: "
+			+ FormatPercent(
+				legendary
+			);
+
+
+		_buyBotButton.Text =
+			"BUY RANDOM BOT • "
+			+ NumberFormatter.Format(
+				_bots.GetBotPrice(
+					_roomIndex,
+					_slotIndex
+				)
+			);
+
+
+		_buyBotButton.Show();
+
+		_sellBotButton.Hide();
+	}
+
+
+	// ==================================================
+	// BUY BOT
+	// ==================================================
 
 	private void BuyBot()
 	{
@@ -470,6 +558,10 @@ public sealed class MachineDetailsOverlay
 		Refresh();
 	}
 
+
+	// ==================================================
+	// SELL BOT
+	// ==================================================
 
 	private void OpenSellConfirmation()
 	{
@@ -491,10 +583,39 @@ public sealed class MachineDetailsOverlay
 			);
 
 
+		double baseMultiplier =
+			bot.ProductionMultiplier;
+
+
+		double effectiveMultiplier =
+			_bots.GetEffectiveMultiplier(
+				slot
+			);
+
+
+		double researchBonus =
+			_state.Lab
+				.GetBotPowerBonus();
+
+
 		_sellInfo.Text =
 			$"Sell {bot.Name}?\n\n"
-			+ $"Production multiplier: x{bot.ProductionMultiplier:F1}\n"
-			+ $"Refund: {NumberFormatter.Format(_bots.GetSellPrice(slot))} Tokens\n\n"
+			+ $"Base power: x{baseMultiplier:F2}\n"
+			+ "Research bonus: +"
+			+ FormatPercent(
+				researchBonus
+			)
+			+ "\nEffective power: x"
+			+ effectiveMultiplier.ToString(
+				"F2"
+			)
+			+ "\nRefund: "
+			+ NumberFormatter.Format(
+				_bots.GetSellPrice(
+					slot
+				)
+			)
+			+ " Tokens\n\n"
 			+ "You receive one third of the original purchase price.";
 
 
@@ -526,7 +647,7 @@ public sealed class MachineDetailsOverlay
 
 
 	// ==================================================
-	// MAIN CARD
+	// MAIN UI
 	// ==================================================
 
 	private void CreateUi()
@@ -546,7 +667,7 @@ public sealed class MachineDetailsOverlay
 			CreatePanel(
 				new Vector2(
 					580,
-					850
+					900
 				)
 			);
 
@@ -605,6 +726,10 @@ public sealed class MachineDetailsOverlay
 		);
 
 
+		// ==================================================
+		// MACHINE
+		// ==================================================
+
 		_title =
 			CreateLabel(
 				27
@@ -622,7 +747,7 @@ public sealed class MachineDetailsOverlay
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						180
+						170
 					),
 
 				ExpandMode =
@@ -712,6 +837,10 @@ public sealed class MachineDetailsOverlay
 		);
 
 
+		// ==================================================
+		// BOT
+		// ==================================================
+
 		Label botTitle =
 			CreateLabel(
 				19
@@ -733,7 +862,7 @@ public sealed class MachineDetailsOverlay
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						100
+						90
 					),
 
 				ExpandMode =
@@ -821,7 +950,7 @@ public sealed class MachineDetailsOverlay
 					),
 
 				Text =
-                    "CLOSE"
+					"CLOSE"
 			};
 
 
@@ -836,7 +965,7 @@ public sealed class MachineDetailsOverlay
 
 
 	// ==================================================
-	// SELL CARD
+	// SELL UI
 	// ==================================================
 
 	private void CreateSellOverlay()
@@ -875,7 +1004,7 @@ public sealed class MachineDetailsOverlay
 			CreatePanel(
 				new Vector2(
 					540,
-					410
+					450
 				)
 			);
 
@@ -950,7 +1079,7 @@ public sealed class MachineDetailsOverlay
 					),
 
 				Text =
-                    "SELL"
+					"SELL"
 			};
 
 
@@ -973,7 +1102,7 @@ public sealed class MachineDetailsOverlay
 					),
 
 				Text =
-                    "CANCEL"
+					"CANCEL"
 			};
 
 
@@ -988,6 +1117,23 @@ public sealed class MachineDetailsOverlay
 
 
 		_sellOverlay.Hide();
+	}
+
+
+	// ==================================================
+	// HELPERS
+	// ==================================================
+
+	private static string FormatPercent(
+		double value)
+	{
+		return (
+			value
+			* 100.0
+		).ToString(
+			"0.#"
+		)
+		+ "%";
 	}
 
 
@@ -1092,18 +1238,15 @@ public sealed class MachineDetailsOverlay
 			28
 		);
 
-
 		margin.AddThemeConstantOverride(
 			"margin_top",
 			24
 		);
 
-
 		margin.AddThemeConstantOverride(
 			"margin_right",
 			28
 		);
-
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",

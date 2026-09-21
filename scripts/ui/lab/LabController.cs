@@ -5,6 +5,22 @@ namespace IdleAi;
 
 public sealed class LabController
 {
+	private const float LabButtonWidth =
+		92.0f;
+
+
+	private const float LabButtonHeight =
+		78.0f;
+
+
+	private const int NavigationHapticDurationMs =
+		12;
+
+
+	private const float NavigationHapticStrength =
+		0.12f;
+
+
 	private readonly Game _root;
 
 	private readonly GameState _state;
@@ -115,30 +131,30 @@ public sealed class LabController
 
 		_labButton =
 			new TextureButton
-				{
-					Name =
-						"LabButton",
+			{
+				Name =
+					"LabButton",
 
-					CustomMinimumSize =
-						new Vector2(
-							72,
-							0
-						),
+				CustomMinimumSize =
+					new Vector2(
+						LabButtonWidth,
+						LabButtonHeight
+					),
 
-					TextureNormal =
-						LabUi.LabIcon,
+				TextureNormal =
+					LabUi.LabIcon,
 
-					IgnoreTextureSize =
-						true,
+				IgnoreTextureSize =
+					true,
 
-					StretchMode =
-						TextureButton.StretchModeEnum
-							.KeepAspectCentered
-				};
+				StretchMode =
+					TextureButton.StretchModeEnum
+						.KeepAspectCentered
+			};
 
 
 		_labButton.Pressed +=
-			TogglePage;
+			OnLabPressed;
 
 
 		hbox.AddChild(
@@ -149,6 +165,24 @@ public sealed class LabController
 		hbox.MoveChild(
 			_labButton,
 			1
+		);
+	}
+
+
+	private void OnLabPressed()
+	{
+		PlayNavigationHaptic();
+
+
+		TogglePage();
+	}
+
+
+	private static void PlayNavigationHaptic()
+	{
+		Input.VibrateHandheld(
+			NavigationHapticDurationMs,
+			NavigationHapticStrength
 		);
 	}
 
@@ -194,10 +228,10 @@ public sealed class LabController
 	{
 		_page =
 			new Control
-				{
-					Name =
-						"LabPage"
-				};
+			{
+				Name =
+					"LabPage"
+			};
 
 
 		_page.SetAnchorsPreset(
@@ -224,19 +258,19 @@ public sealed class LabController
 	{
 		TextureRect background =
 			new()
-				{
-					Texture =
-						LabUi.LabBackground,
+			{
+				Texture =
+					LabUi.LabBackground,
 
-					ExpandMode =
-						TextureRect.ExpandModeEnum.IgnoreSize,
+				ExpandMode =
+					TextureRect.ExpandModeEnum.IgnoreSize,
 
-					StretchMode =
-						TextureRect.StretchModeEnum.KeepAspectCovered,
+				StretchMode =
+					TextureRect.StretchModeEnum.KeepAspectCovered,
 
-					MouseFilter =
-						Control.MouseFilterEnum.Ignore
-				};
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
 
 
 		background.SetAnchorsAndOffsetsPreset(
@@ -292,13 +326,13 @@ public sealed class LabController
 
 		VBoxContainer main =
 			new()
-				{
-					SizeFlagsHorizontal =
-						Control.SizeFlags.ExpandFill,
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
 
-					SizeFlagsVertical =
-						Control.SizeFlags.ExpandFill
-				};
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill
+			};
 
 
 		main.AddThemeConstantOverride(
@@ -336,22 +370,22 @@ public sealed class LabController
 
 		_scroll =
 			new ScrollContainer
-				{
-					SizeFlagsHorizontal =
-						Control.SizeFlags.ExpandFill,
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
 
-					SizeFlagsVertical =
-						Control.SizeFlags.ExpandFill,
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill,
 
-					HorizontalScrollMode =
-						ScrollContainer.ScrollMode.Disabled,
+				HorizontalScrollMode =
+					ScrollContainer.ScrollMode.Disabled,
 
-					VerticalScrollMode =
-						ScrollContainer.ScrollMode.ShowNever,
+				VerticalScrollMode =
+					ScrollContainer.ScrollMode.ShowNever,
 
-					ClipContents =
-						true
-				};
+				ClipContents =
+					true
+			};
 
 
 		main.AddChild(
@@ -372,10 +406,10 @@ public sealed class LabController
 	{
 		_mobileScroll =
 			new MobileScrollController
-				{
-					Name =
-						"LabMobileScroll"
-				};
+			{
+				Name =
+					"LabMobileScroll"
+			};
 
 
 		_page.AddChild(
@@ -393,10 +427,10 @@ public sealed class LabController
 	{
 		VBoxContainer content =
 			new()
-				{
-					SizeFlagsHorizontal =
-						Control.SizeFlags.ExpandFill
-				};
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
 
 
 		content.AddThemeConstantOverride(
@@ -463,13 +497,13 @@ public sealed class LabController
 	{
 		PanelContainer panel =
 			new()
-				{
-					SizeFlagsHorizontal =
-						Control.SizeFlags.ExpandFill,
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
 
-					SizeFlagsVertical =
-						Control.SizeFlags.ExpandFill
-				};
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill
+			};
 
 
 		panel.AddThemeStyleboxOverride(
@@ -494,13 +528,13 @@ public sealed class LabController
 
 		VBoxContainer content =
 			new()
-				{
-					SizeFlagsHorizontal =
-						Control.SizeFlags.ExpandFill,
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
 
-					SizeFlagsVertical =
-						Control.SizeFlags.ExpandFill
-				};
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill
+			};
 
 
 		content.AddThemeConstantOverride(
@@ -516,22 +550,22 @@ public sealed class LabController
 
 		TextureRect image =
 			new()
-				{
-					Texture =
-						LabUi.LabLockedIcon,
+			{
+				Texture =
+					LabUi.LabLockedIcon,
 
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							200
-						),
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						200
+					),
 
-					ExpandMode =
-						TextureRect.ExpandModeEnum.IgnoreSize,
+				ExpandMode =
+					TextureRect.ExpandModeEnum.IgnoreSize,
 
-					StretchMode =
-						TextureRect.StretchModeEnum.KeepAspectCentered
-				};
+				StretchMode =
+					TextureRect.StretchModeEnum.KeepAspectCentered
+			};
 
 
 		content.AddChild(
@@ -586,13 +620,13 @@ public sealed class LabController
 
 		_unlockButton =
 			new Button
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							60
-						)
-				};
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						60
+					)
+			};
 
 
 		_unlockButton.Pressed +=

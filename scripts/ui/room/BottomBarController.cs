@@ -5,6 +5,14 @@ namespace IdleAi;
 
 public sealed class BottomBarController
 {
+	private const int NavigationHapticDurationMs =
+		12;
+
+
+	private const float NavigationHapticStrength =
+		0.12f;
+
+
 	private readonly Game _root;
 
 
@@ -41,6 +49,10 @@ public sealed class BottomBarController
 	}
 
 
+	// ==================================================
+	// INITIALIZE
+	// ==================================================
+
 	public void Initialize()
 	{
 		_bar =
@@ -74,15 +86,52 @@ public sealed class BottomBarController
 
 
 		_mapButton.Pressed +=
-			() =>
-				MapRequested?.Invoke();
+			OnMapPressed;
 
 
 		_shopButton.Pressed +=
-			() =>
-				ShopRequested?.Invoke();
+			OnShopPressed;
 	}
 
+
+	// ==================================================
+	// BUTTONS
+	// ==================================================
+
+	private void OnMapPressed()
+	{
+		PlayNavigationHaptic();
+
+
+		MapRequested?.Invoke();
+	}
+
+
+	private void OnShopPressed()
+	{
+		PlayNavigationHaptic();
+
+
+		ShopRequested?.Invoke();
+	}
+
+
+	// ==================================================
+	// HAPTICS
+	// ==================================================
+
+	private static void PlayNavigationHaptic()
+	{
+		Input.VibrateHandheld(
+			NavigationHapticDurationMs,
+			NavigationHapticStrength
+		);
+	}
+
+
+	// ==================================================
+	// THEME
+	// ==================================================
 
 	public void ApplyTheme(
 		RoomThemeTextures theme)
@@ -92,6 +141,10 @@ public sealed class BottomBarController
 	}
 
 
+	// ==================================================
+	// MESSAGE
+	// ==================================================
+
 	public void SetMessage(
 		string message)
 	{
@@ -99,6 +152,10 @@ public sealed class BottomBarController
 			message;
 	}
 
+
+	// ==================================================
+	// LAYERING
+	// ==================================================
 
 	public void MoveToFront()
 	{

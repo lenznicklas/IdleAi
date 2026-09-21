@@ -13,6 +13,14 @@ public sealed class TopBarController
 		1.0;
 
 
+	private const int NavigationHapticDurationMs =
+		12;
+
+
+	private const float NavigationHapticStrength =
+		0.12f;
+
+
 	private readonly Game _root;
 
 	private readonly GameState _state;
@@ -97,23 +105,61 @@ public sealed class TopBarController
 
 
 		_tokenCard.Pressed +=
-			ToggleTokenPopup;
+			OnTokenPressed;
 
 
 		_statsCard.Pressed +=
-			() =>
-			{
-				HidePopups();
-
-				StatsRequested?.Invoke();
-			};
+			OnStatsPressed;
 
 
 		_levelCard.Pressed +=
-			ToggleLevelPopup;
+			OnLevelPressed;
 
 
 		HidePopups();
+	}
+
+
+	// ==================================================
+	// TOP BAR BUTTONS
+	// ==================================================
+
+	private void OnTokenPressed()
+	{
+		PlayNavigationHaptic();
+
+
+		ToggleTokenPopup();
+	}
+
+
+	private void OnStatsPressed()
+	{
+		PlayNavigationHaptic();
+
+
+		HidePopups();
+
+
+		StatsRequested?.Invoke();
+	}
+
+
+	private void OnLevelPressed()
+	{
+		PlayNavigationHaptic();
+
+
+		ToggleLevelPopup();
+	}
+
+
+	private static void PlayNavigationHaptic()
+	{
+		Input.VibrateHandheld(
+			NavigationHapticDurationMs,
+			NavigationHapticStrength
+		);
 	}
 
 

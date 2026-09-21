@@ -6,6 +6,26 @@ namespace IdleAi;
 
 public sealed class StatsOverlayController
 {
+	private const float OpenStartScale =
+		0.16f;
+
+
+	private const float OpenOvershootScale =
+		1.025f;
+
+
+	private const double OpenMoveDuration =
+		0.24;
+
+
+	private const double OpenSettleDuration =
+		0.09;
+
+
+	private const float OpenStartAlpha =
+		0.55f;
+
+
 	private readonly Game _root;
 
 	private readonly GameState _state;
@@ -22,6 +42,10 @@ public sealed class StatsOverlayController
 
 
 	private PanelContainer _panel =
+		null!;
+
+
+	private TextureButton _statsCard =
 		null!;
 
 
@@ -81,6 +105,14 @@ public sealed class StatsOverlayController
 		null!;
 
 
+	private Tween? _openTween;
+
+
+	private Vector2 _panelNormalGlobalPosition;
+
+	private bool _panelPositionInitialized;
+
+
 	public event Action? PrestigeRequested;
 
 
@@ -131,6 +163,12 @@ public sealed class StatsOverlayController
 		_panel =
 			_root.GetNode<PanelContainer>(
 				"StatsOverlay/StatsPanel"
+			);
+
+
+		_statsCard =
+			_root.GetNode<TextureButton>(
+				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/StatsCard"
 			);
 
 
@@ -255,14 +293,18 @@ public sealed class StatsOverlayController
 	}
 
 
+	// ==================================================
+	// MOBILE SCROLL
+	// ==================================================
+
 	private void CreateMobileScrolling()
 	{
 		_mobileScroll =
 			new MobileScrollController
-				{
-					Name =
-						"StatsMobileScroll"
-				};
+			{
+				Name =
+					"StatsMobileScroll"
+			};
 
 
 		_overlay.AddChild(
@@ -334,15 +376,222 @@ public sealed class StatsOverlayController
 		_overlay.Show();
 
 		_overlay.MoveToFront();
+
+
+		PlayOpenAnimation();
 	}
 
 
 	public void Hide()
 	{
+		_openTween?.Kill();
+
+
 		_mobileScroll?.ResetMotion();
 
 
+		ResetPanelTransform();
+
+
 		_overlay.Hide();
+	}
+
+
+	// ==================================================
+	// OPEN ANIMATION
+	// ==================================================
+
+	private async void PlayOpenAnimation()
+	{
+		_openTween?.Kill();
+
+
+		/*
+		 * Wait one frame so Godot has finished laying
+		 * out StatsPanel after the overlay becomes visible.
+		 */
+		await _root.ToSignal(
+			_root.GetTree(),
+			SceneTree.SignalName.ProcessFrame
+		);
+
+
+		if (!_overlay.Visible)
+			return;
+
+
+		if (!_panelPositionInitialized)
+		{
+			_panelNormalGlobalPosition =
+				_panel.GlobalPosition;
+
+
+			_panelPositionInitialized =
+				true;
+		}
+		else
+		{
+			/*
+			 * Always restore the known final position
+			 * before calculating the animation.
+			 */
+			_panel.GlobalPosition =
+				_panelNormalGlobalPosition;
+		}
+
+
+		Vector2 targetPosition =
+			_panelNormalGlobalPosition;
+
+
+		Vector2 statsCenter =
+			_statsCard.GlobalPosition
+			+ _statsCard.Size
+			/ 2.0f;
+
+
+		/*
+		 * Pivot in the middle of the panel so scaling
+		 * looks natural.
+		 */
+		_panel.PivotOffset =
+			_panel.Size
+			/ 2.0f;
+
+
+		/*
+		 * Place the tiny panel directly over the Stats
+		 * button. Because the panel is heavily scaled
+		 * down, this visually looks like it originates
+		 * from the button itself.
+		 */
+		Vector2 startPosition =
+			statsCenter
+			- _panel.Size
+			/ 2.0f;
+
+
+		_panel.GlobalPosition =
+			startPosition;
+
+
+		_panel.Scale =
+			new Vector2(
+				OpenStartScale,
+				OpenStartScale
+			);
+
+
+		_panel.Modulate =
+			new Color(
+				1.0f,
+				1.0f,
+				1.0f,
+				OpenStartAlpha
+			);
+
+
+		_openTween =
+			_root.CreateTween();
+
+
+		_openTween.SetParallel(
+			true
+		);
+
+
+		/*
+		 * Flow from Stats button toward the normal
+		 * Stats panel position.
+		 */
+		_openTween.TweenProperty(
+			_panel,
+			"global_position",
+			targetPosition,
+			OpenMoveDuration
+		)
+		.SetTrans(
+			Tween.TransitionType.Cubic
+		)
+		.SetEase(
+			Tween.EaseType.Out
+		);
+
+
+		_openTween.TweenProperty(
+			_panel,
+			"scale",
+			new Vector2(
+				OpenOvershootScale,
+				OpenOvershootScale
+			),
+			OpenMoveDuration
+		)
+		.SetTrans(
+			Tween.TransitionType.Back
+		)
+		.SetEase(
+			Tween.EaseType.Out
+		);
+
+
+		_openTween.TweenProperty(
+			_panel,
+			"modulate:a",
+			1.0f,
+			OpenMoveDuration * 0.75
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.Out
+		);
+
+
+		_openTween
+			.Chain()
+			.TweenProperty(
+				_panel,
+				"scale",
+				Vector2.One,
+				OpenSettleDuration
+			)
+			.SetTrans(
+				Tween.TransitionType.Sine
+			)
+			.SetEase(
+				Tween.EaseType.Out
+			);
+	}
+
+
+	private void ResetPanelTransform()
+	{
+		if (
+			_panel == null
+			|| !GodotObject.IsInstanceValid(
+				_panel
+			)
+		)
+		{
+			return;
+		}
+
+
+		if (_panelPositionInitialized)
+		{
+			_panel.GlobalPosition =
+				_panelNormalGlobalPosition;
+		}
+
+
+		_panel.Scale =
+			Vector2.One;
+
+
+		_panel.Modulate =
+			Colors.White;
 	}
 
 

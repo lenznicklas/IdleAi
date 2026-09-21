@@ -57,6 +57,17 @@ public sealed class GameUiController
 		-1;
 
 
+	/*
+	 * The room whose actual room UI was last rendered.
+	 *
+	 * This is separate from _lastThemeRoom because
+	 * changing the room must also reset the room
+	 * ScrollContainer.
+	 */
+	private int _lastDisplayedRoom =
+		-1;
+
+
 	public event Action<int>? SlotActionRequested;
 
 	public event Action<int>? RoomSelectedRequested;
@@ -79,28 +90,39 @@ public sealed class GameUiController
 		_root =
 			root;
 
+
 		_state =
 			state;
+
 
 		_economy =
 			economy;
 
+
 		_progression =
 			progression;
+
 
 		_production =
 			production;
 
+
 		_bots =
 			bots;
 
+
 		_prestigeService =
 			prestige;
+
 
 		_shopService =
 			shopService;
 	}
 
+
+	// ==================================================
+	// INITIALIZE
+	// ==================================================
 
 	public void Initialize()
 	{
@@ -134,6 +156,10 @@ public sealed class GameUiController
 	}
 
 
+	// ==================================================
+	// ROOM
+	// ==================================================
+
 	private void CreateRoomController()
 	{
 		_room =
@@ -164,6 +190,10 @@ public sealed class GameUiController
 	}
 
 
+	// ==================================================
+	// TOP BAR
+	// ==================================================
+
 	private void CreateTopBarController()
 	{
 		_topBar =
@@ -181,6 +211,10 @@ public sealed class GameUiController
 		_topBar.Initialize();
 	}
 
+
+	// ==================================================
+	// BOTTOM BAR
+	// ==================================================
 
 	private void CreateBottomBarController()
 	{
@@ -201,6 +235,10 @@ public sealed class GameUiController
 		_bottomBar.Initialize();
 	}
 
+
+	// ==================================================
+	// MAP
+	// ==================================================
 
 	private void CreateMapController()
 	{
@@ -223,6 +261,10 @@ public sealed class GameUiController
 	}
 
 
+	// ==================================================
+	// STATS
+	// ==================================================
+
 	private void CreateStatsController()
 	{
 		_stats =
@@ -242,6 +284,10 @@ public sealed class GameUiController
 		_stats.Initialize();
 	}
 
+
+	// ==================================================
+	// PRESTIGE
+	// ==================================================
 
 	private void CreatePrestigeController()
 	{
@@ -289,6 +335,7 @@ public sealed class GameUiController
 			() =>
 			{
 				UpdateAll();
+
 
 				StateChanged?.Invoke();
 			};
@@ -381,6 +428,7 @@ public sealed class GameUiController
 		{
 			_map.Hide();
 
+
 			return;
 		}
 
@@ -407,6 +455,7 @@ public sealed class GameUiController
 		if (_shop.Visible)
 		{
 			_shop.Hide();
+
 
 			return;
 		}
@@ -482,6 +531,9 @@ public sealed class GameUiController
 
 	public void UpdateAll()
 	{
+		ResetRoomScrollIfRoomChanged();
+
+
 		_room.UpdateAll();
 
 
@@ -515,6 +567,39 @@ public sealed class GameUiController
 	}
 
 
+	/*
+	 * A single ScrollContainer is reused for every room.
+	 *
+	 * Without resetting it, room 2 inherits the exact
+	 * ScrollVertical value of room 1.
+	 *
+	 * Only reset when the room index actually changes.
+	 * Normal UI refreshes such as upgrades must keep the
+	 * current scroll position.
+	 */
+	private void ResetRoomScrollIfRoomChanged()
+	{
+		int currentRoom =
+			_state.CurrentRoomIndex;
+
+
+		if (
+			currentRoom
+			== _lastDisplayedRoom
+		)
+		{
+			return;
+		}
+
+
+		_lastDisplayedRoom =
+			currentRoom;
+
+
+		_room.ScrollToTop();
+	}
+
+
 	public void UpdateRuntime()
 	{
 		_topBar.UpdateValues();
@@ -541,6 +626,10 @@ public sealed class GameUiController
 		}
 	}
 
+
+	// ==================================================
+	// THEME
+	// ==================================================
 
 	private void ApplyRoomTheme(
 		bool force = false)
@@ -579,6 +668,10 @@ public sealed class GameUiController
 		);
 	}
 
+
+	// ==================================================
+	// MESSAGE
+	// ==================================================
 
 	public void SetMessage(
 		string message)

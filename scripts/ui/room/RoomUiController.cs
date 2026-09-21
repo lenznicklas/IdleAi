@@ -211,6 +211,47 @@ public sealed class RoomUiController
 	}
 
 
+	/*
+	 * Called whenever another room becomes active.
+	 *
+	 * It resets:
+	 *
+	 * - ScrollVertical
+	 * - inertia
+	 * - active drag
+	 * - rubber-band / bounce
+	 * - temporary visual overscroll
+	 *
+	 * Therefore every room always starts at the top.
+	 */
+	public void ScrollToTop()
+	{
+		if (
+			_mobileScroll != null
+			&& GodotObject.IsInstanceValid(
+				_mobileScroll
+			)
+		)
+		{
+			_mobileScroll.ScrollToTop();
+
+			return;
+		}
+
+
+		if (
+			_scroll != null
+			&& GodotObject.IsInstanceValid(
+				_scroll
+			)
+		)
+		{
+			_scroll.ScrollVertical =
+				0;
+		}
+	}
+
+
 	// ==================================================
 	// AMBIENT
 	// ==================================================

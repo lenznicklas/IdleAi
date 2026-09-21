@@ -29,6 +29,10 @@ public sealed class GameState
 		new();
 
 
+	public LabData Lab { get; } =
+		new();
+
+
 	public GameState(
 		List<RoomData> rooms)
 	{

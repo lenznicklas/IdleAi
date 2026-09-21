@@ -29,6 +29,16 @@ public sealed class SaveGameData
 	public int PrestigeCount { get; set; }
 
 
+	// ==================================================
+	// LAB
+	// ==================================================
+
+	public bool LabUnlocked { get; set; }
+
+
+	public double ResearchPoints { get; set; }
+
+
 	public List<RoomSaveData> Rooms { get; set; } =
 		[];
 

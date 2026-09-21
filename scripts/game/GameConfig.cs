@@ -67,6 +67,14 @@ public static class GameConfig
 	];
 
 
+	// ==================================================
+	// LAB
+	// ==================================================
+
+	public const double LabUnlockCost =
+		100_000_000.0;
+
+
 	public const double LevelCostGrowth =
 		1.22;
 

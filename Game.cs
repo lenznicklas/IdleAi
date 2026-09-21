@@ -7,7 +7,7 @@ namespace IdleAi;
 public partial class Game : Control
 {
 	private const int SaveVersion =
-		9;
+		10;
 
 
 	private const double AutosaveIntervalSeconds =
@@ -30,6 +30,10 @@ public partial class Game : Control
 
 	private PrestigeService _prestige = null!;
 
+	private LabService _labService = null!;
+
+	private LabController _labUi = null!;
+
 	private GameUiController _ui = null!;
 
 	private SaveManager _saveManager = null!;
@@ -45,6 +49,9 @@ public partial class Game : Control
 		_ui.Initialize();
 
 
+		CreateLabUi();
+
+
 		SetupSaveSystem();
 
 
@@ -57,11 +64,13 @@ public partial class Game : Control
 
 		_ui.UpdateAll();
 
+		_labUi.Refresh();
+
 
 		if (offlineEarned > 0.0)
 		{
 			_ui.SetMessage(
-                "Welcome back! +"
+				"Welcome back! +"
 				+ NumberFormatter.Format(
 					offlineEarned
 				)
@@ -71,7 +80,7 @@ public partial class Game : Control
 		else
 		{
 			_ui.SetMessage(
-                "Press START to run your first machine."
+				"Press START to run your first machine."
 			);
 		}
 
@@ -98,6 +107,15 @@ public partial class Game : Control
 
 
 		_ui.UpdateRuntime();
+
+
+		if (
+			_labUi != null
+			&& _labUi.Visible
+		)
+		{
+			_labUi.Refresh();
+		}
 	}
 
 
@@ -106,6 +124,10 @@ public partial class Game : Control
 		SaveGame();
 	}
 
+
+	// ==================================================
+	// SYSTEMS
+	// ==================================================
 
 	private void CreateGameSystems()
 	{
@@ -148,6 +170,12 @@ public partial class Game : Control
 			);
 
 
+		_labService =
+			new LabService(
+				_state
+			);
+
+
 		_ui =
 			new GameUiController(
 				this,
@@ -176,6 +204,36 @@ public partial class Game : Control
 			OnPrestigeRequested;
 	}
 
+
+	private void CreateLabUi()
+	{
+		_labUi =
+			new LabController(
+				this,
+				_state,
+				_labService
+			);
+
+
+		_labUi.MessageRequested +=
+			_ui.SetMessage;
+
+
+		_labUi.StateChanged +=
+			OnLabStateChanged;
+
+
+		_labUi.OpenRequested +=
+			_ui.ClosePages;
+
+
+		_labUi.Initialize();
+	}
+
+
+	// ==================================================
+	// ROOM STATE
+	// ==================================================
 
 	private void CreateRoomStates()
 	{
@@ -235,6 +293,10 @@ public partial class Game : Control
 	}
 
 
+	// ==================================================
+	// SLOT ACTION
+	// ==================================================
+
 	private void OnSlotActionRequested(
 		int slotIndex)
 	{
@@ -255,6 +317,9 @@ public partial class Game : Control
 
 		_ui.UpdateAll();
 
+		_labUi.Refresh();
+
+
 		SaveGame();
 	}
 
@@ -266,6 +331,9 @@ public partial class Game : Control
 	private void OnRoomSelectedRequested(
 		int targetRoom)
 	{
+		_labUi.Hide();
+
+
 		if (
 			targetRoom < 0
 			|| targetRoom >= _state.Rooms.Count
@@ -307,12 +375,31 @@ public partial class Game : Control
 
 		_ui.ClosePages();
 
+
 		_ui.UpdateAll();
 
 
 		SaveGame();
 	}
 
+
+	// ==================================================
+	// LAB
+	// ==================================================
+
+	private void OnLabStateChanged()
+	{
+		_ui.UpdateAll();
+
+		_labUi.Refresh();
+
+		SaveGame();
+	}
+
+
+	// ==================================================
+	// PRESTIGE
+	// ==================================================
 
 	private void OnPrestigeRequested()
 	{
@@ -327,6 +414,8 @@ public partial class Game : Control
 
 		_ui.UpdateAll();
 
+		_labUi.Refresh();
+
 
 		if (result.Success)
 		{
@@ -334,6 +423,10 @@ public partial class Game : Control
 		}
 	}
 
+
+	// ==================================================
+	// TOKENS
+	// ==================================================
 
 	private void AddEarnedTokens(
 		double amount)
@@ -355,6 +448,10 @@ public partial class Game : Control
 		);
 	}
 
+
+	// ==================================================
+	// SAVE SYSTEM
+	// ==================================================
 
 	private void SetupSaveSystem()
 	{
@@ -409,6 +506,12 @@ public partial class Game : Control
 
 				PrestigeCount =
 					_state.Prestige.PrestigeCount,
+
+				LabUnlocked =
+					_state.Lab.Unlocked,
+
+				ResearchPoints =
+					_state.Lab.ResearchPoints,
 
 				Rooms =
 					_state.RoomStates
@@ -470,6 +573,22 @@ public partial class Game : Control
 		_state.Prestige.PrestigeCount =
 			save.PrestigeCount;
 
+
+		// ==================================================
+		// LAB
+		// ==================================================
+
+		_state.Lab.Unlocked =
+			save.LabUnlocked;
+
+
+		_state.Lab.ResearchPoints =
+			save.ResearchPoints;
+
+
+		// ==================================================
+		// ROOMS
+		// ==================================================
 
 		for (
 			int roomIndex = 0;
@@ -549,6 +668,10 @@ public partial class Game : Control
 		);
 	}
 
+
+	// ==================================================
+	// OFFLINE INCOME
+	// ==================================================
 
 	private double ApplyOfflineIncome(
 		long savedTime,

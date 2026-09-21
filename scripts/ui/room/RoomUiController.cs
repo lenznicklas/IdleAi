@@ -5,6 +5,10 @@ namespace IdleAi;
 
 public sealed class RoomUiController
 {
+	private const float TopSlotPadding =
+		36.0f;
+
+
 	private readonly Game _root;
 
 	private readonly GameState _state;
@@ -211,6 +215,9 @@ public sealed class RoomUiController
 
 	private void CreateSlotViews()
 	{
+		CreateTopPadding();
+
+
 		for (
 			int i = 0;
 			i < 8;
@@ -250,6 +257,47 @@ public sealed class RoomUiController
 		}
 
 
+		CreateBottomPadding();
+	}
+
+
+	private void CreateTopPadding()
+	{
+		/*
+		 * SlotGrid has 2 columns.
+		 *
+		 * Therefore we need 2 spacer controls so the
+		 * padding fills one complete invisible row.
+		 */
+		for (
+			int i = 0;
+			i < 2;
+			i++
+		)
+		{
+			Control spacer =
+				new()
+					{
+						CustomMinimumSize =
+							new Vector2(
+								0,
+								TopSlotPadding
+							),
+
+						MouseFilter =
+							Control.MouseFilterEnum.Ignore
+					};
+
+
+			_slotGrid.AddChild(
+				spacer
+			);
+		}
+	}
+
+
+	private void CreateBottomPadding()
+	{
 		/*
 		 * Extra bottom room so the final machine
 		 * can comfortably move above the bottom bar.
@@ -342,10 +390,14 @@ public sealed class RoomUiController
 				];
 
 
+		/*
+		 * Child 0 and 1 are the two top-padding spacers.
+		 * Therefore machine slots start at child index 2.
+		 */
 		MachineSlot view =
 			(MachineSlot)
 			_slotGrid.GetChild(
-				index
+				index + 2
 			);
 
 
@@ -422,10 +474,13 @@ public sealed class RoomUiController
 				continue;
 
 
+			/*
+			 * +2 because of the top padding row.
+			 */
 			MachineSlot view =
 				(MachineSlot)
 				_slotGrid.GetChild(
-					i
+					i + 2
 				);
 
 

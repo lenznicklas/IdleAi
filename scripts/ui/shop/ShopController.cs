@@ -152,7 +152,10 @@ public sealed class ShopController
 			new MarginContainer
 			{
 				Name =
-					"ShopMargin"
+					"ShopMargin",
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
 			};
 
 
@@ -169,7 +172,7 @@ public sealed class ShopController
 
 		_pageMargin.AddThemeConstantOverride(
 			"margin_top",
-			18
+			0
 		);
 
 
@@ -181,7 +184,7 @@ public sealed class ShopController
 
 		_pageMargin.AddThemeConstantOverride(
 			"margin_bottom",
-			12
+			0
 		);
 
 
@@ -206,7 +209,7 @@ public sealed class ShopController
 
 		main.AddThemeConstantOverride(
 			"separation",
-			12
+			8
 		);
 
 
@@ -239,7 +242,10 @@ public sealed class ShopController
 					ScrollContainer.ScrollMode.ShowNever,
 
 				ClipContents =
-					true
+					true,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
 			};
 
 
@@ -275,8 +281,6 @@ public sealed class ShopController
 		CreatePermanentSection();
 
 		CreateCosmeticSection();
-
-		CreateBottomPadding();
 
 
 		CreateMobileScrolling();
@@ -337,6 +341,13 @@ public sealed class ShopController
 			"SHOP";
 
 
+		title.CustomMinimumSize =
+			new Vector2(
+				0,
+				42
+			);
+
+
 		parent.AddChild(
 			title
 		);
@@ -351,7 +362,7 @@ public sealed class ShopController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						76
+						72
 					),
 
 				SizeFlagsHorizontal =
@@ -388,13 +399,13 @@ public sealed class ShopController
 
 		shardMargin.AddThemeConstantOverride(
 			"margin_top",
-			8
+			6
 		);
 
 
 		shardMargin.AddThemeConstantOverride(
 			"margin_bottom",
-			8
+			6
 		);
 
 
@@ -446,14 +457,6 @@ public sealed class ShopController
 			);
 
 
-		/*
-		 * IMPORTANT:
-		 *
-		 * Data Shards must always stay on one line.
-		 * ShopUi.CreateLabel() normally enables
-		 * WordSmart wrapping, which caused the text
-		 * to be displayed vertically on narrow layouts.
-		 */
 		_shardLabel.AutowrapMode =
 			TextServer.AutowrapMode.Off;
 
@@ -628,6 +631,10 @@ public sealed class ShopController
 				status,
 				() =>
 				{
+					if (ShopActionBlocked())
+						return;
+
+
 					MessageRequested?.Invoke(
 						"Cosmetics coming soon."
 					);
@@ -659,7 +666,10 @@ public sealed class ShopController
 			new()
 			{
 				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
+					Control.SizeFlags.ExpandFill,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
 			};
 
 
@@ -675,7 +685,11 @@ public sealed class ShopController
 
 
 		MarginContainer margin =
-			new();
+			new()
+			{
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
+			};
 
 
 		margin.AddThemeConstantOverride(
@@ -711,7 +725,10 @@ public sealed class ShopController
 			new()
 			{
 				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
+					Control.SizeFlags.ExpandFill,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
 			};
 
 
@@ -742,7 +759,10 @@ public sealed class ShopController
 			new()
 			{
 				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
+					Control.SizeFlags.ExpandFill,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
 			};
 
 
@@ -767,6 +787,10 @@ public sealed class ShopController
 			title;
 
 
+		titleLabel.MouseFilter =
+			Control.MouseFilterEnum.Ignore;
+
+
 		information.AddChild(
 			titleLabel
 		);
@@ -782,9 +806,17 @@ public sealed class ShopController
 			description;
 
 
+		descriptionLabel.MouseFilter =
+			Control.MouseFilterEnum.Ignore;
+
+
 		information.AddChild(
 			descriptionLabel
 		);
+
+
+		status.MouseFilter =
+			Control.MouseFilterEnum.Ignore;
 
 
 		information.AddChild(
@@ -807,7 +839,14 @@ public sealed class ShopController
 
 
 		button.Pressed +=
-			pressed;
+			() =>
+			{
+				if (ShopActionBlocked())
+					return;
+
+
+				pressed();
+			};
 
 
 		information.AddChild(
@@ -837,6 +876,10 @@ public sealed class ShopController
 				0,
 				38
 			);
+
+
+		label.MouseFilter =
+			Control.MouseFilterEnum.Ignore;
 
 
 		_content.AddChild(
@@ -872,28 +915,6 @@ public sealed class ShopController
 	}
 
 
-	private void CreateBottomPadding()
-	{
-		Control spacer =
-			new()
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						70
-					),
-
-				MouseFilter =
-					Control.MouseFilterEnum.Ignore
-			};
-
-
-		_content.AddChild(
-			spacer
-		);
-	}
-
-
 	// ==================================================
 	// MOBILE SCROLL
 	// ==================================================
@@ -916,6 +937,13 @@ public sealed class ShopController
 		_mobileScroll.Setup(
 			_scroll
 		);
+	}
+
+
+	private bool ShopActionBlocked()
+	{
+		return _mobileScroll != null
+			&& _mobileScroll.ShouldSuppressTap;
 	}
 
 

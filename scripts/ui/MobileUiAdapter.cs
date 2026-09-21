@@ -45,14 +45,6 @@ public partial class MobileUiAdapter : Node
 		18;
 
 
-	private const int ShopTopPadding =
-		12;
-
-
-	private const int ShopBottomPadding =
-		8;
-
-
 	private Game _root =
 		null!;
 
@@ -492,11 +484,45 @@ public partial class MobileUiAdapter : Node
 			return;
 
 
+		/*
+		 * IMPORTANT:
+		 *
+		 * Shop background fills the COMPLETE screen.
+		 * The BottomBar is drawn above it.
+		 *
+		 * This removes the visible empty strip that
+		 * previously existed above the BottomBar.
+		 */
+		page.AnchorLeft =
+			0.0f;
+
+
+		page.AnchorTop =
+			0.0f;
+
+
+		page.AnchorRight =
+			1.0f;
+
+
+		page.AnchorBottom =
+			1.0f;
+
+
+		page.OffsetLeft =
+			0.0f;
+
+
+		page.OffsetTop =
+			0.0f;
+
+
+		page.OffsetRight =
+			0.0f;
+
+
 		page.OffsetBottom =
-			-(
-				BottomBarHeight
-				+ safe.Bottom
-			);
+			0.0f;
 
 
 		MarginContainer? margin =
@@ -509,6 +535,47 @@ public partial class MobileUiAdapter : Node
 			return;
 
 
+		/*
+		 * The actual SHOP CONTENT ends exactly where
+		 * the BottomBar begins.
+		 *
+		 * Background continues behind the BottomBar.
+		 */
+		margin.AnchorLeft =
+			0.0f;
+
+
+		margin.AnchorTop =
+			0.0f;
+
+
+		margin.AnchorRight =
+			1.0f;
+
+
+		margin.AnchorBottom =
+			1.0f;
+
+
+		margin.OffsetLeft =
+			0.0f;
+
+
+		margin.OffsetTop =
+			0.0f;
+
+
+		margin.OffsetRight =
+			0.0f;
+
+
+		margin.OffsetBottom =
+			-(
+				BottomBarHeight
+				+ safe.Bottom
+			);
+
+
 		margin.AddThemeConstantOverride(
 			"margin_left",
 			ShopHorizontalPadding
@@ -518,10 +585,13 @@ public partial class MobileUiAdapter : Node
 		);
 
 
+		/*
+		 * No artificial top gap.
+		 * Only the actual device safe-area remains.
+		 */
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			ShopTopPadding
-			+ Ceil(
+			Ceil(
 				safe.Top
 			)
 		);
@@ -538,7 +608,7 @@ public partial class MobileUiAdapter : Node
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
-			ShopBottomPadding
+			0
 		);
 	}
 

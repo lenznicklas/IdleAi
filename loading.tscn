@@ -31,6 +31,7 @@ anchor_right = 1.0
 anchor_bottom = 1.0
 grow_horizontal = 2
 grow_vertical = 2
+mouse_filter = 2
 script = ExtResource("1_loading")
 
 [node name="Background" type="TextureRect" parent="."]
@@ -45,16 +46,26 @@ texture = ExtResource("2_background")
 expand_mode = 1
 stretch_mode = 6
 
+[node name="Atmosphere" type="ColorRect" parent="."]
+layout_mode = 1
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+mouse_filter = 2
+color = Color(0.05, 0.45, 1, 0.05)
+
 [node name="BottomFade" type="ColorRect" parent="."]
 layout_mode = 1
 anchors_preset = 12
 anchor_right = 1.0
 anchor_bottom = 1.0
-offset_top = -260.0
+offset_top = -280.0
 grow_horizontal = 2
 grow_vertical = 0
 mouse_filter = 2
-color = Color(0.005, 0.01, 0.03, 0.38)
+color = Color(0.005, 0.01, 0.03, 0.42)
 
 [node name="LoadingUi" type="VBoxContainer" parent="."]
 layout_mode = 1
@@ -62,7 +73,7 @@ anchors_preset = 12
 anchor_right = 1.0
 anchor_bottom = 1.0
 offset_left = 58.0
-offset_top = -220.0
+offset_top = -225.0
 offset_right = -58.0
 offset_bottom = -70.0
 grow_horizontal = 2

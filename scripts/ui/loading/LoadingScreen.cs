@@ -9,12 +9,60 @@ public partial class LoadingScreen : Control
 		"res://game.tscn";
 
 
+	// ==================================================
+	// TIMING
+	// ==================================================
+
 	private const double MinimumDisplayTime =
 		1.4;
 
 
 	private const double ProgressSmoothSpeed =
 		5.0;
+
+
+	private const double UiFadeInDuration =
+		0.55;
+
+
+	private const double SceneFadeDuration =
+		0.55;
+
+
+	// ==================================================
+	// BACKGROUND ANIMATION
+	// ==================================================
+
+	private const double BackgroundAnimationSpeed =
+		0.65;
+
+
+	private const float BackgroundBaseScale =
+		1.035f;
+
+
+	private const float BackgroundScaleAmount =
+		0.012f;
+
+
+	private const double GlowAnimationSpeed =
+		1.25;
+
+
+	// ==================================================
+	// NODES
+	// ==================================================
+
+	private TextureRect _background =
+		null!;
+
+
+	private ColorRect _atmosphere =
+		null!;
+
+
+	private VBoxContainer _loadingUi =
+		null!;
 
 
 	private ProgressBar _progressBar =
@@ -29,7 +77,14 @@ public partial class LoadingScreen : Control
 		null!;
 
 
+	// ==================================================
+	// STATE
+	// ==================================================
+
 	private double _elapsed;
+
+	private double _animationTime;
+
 
 	private double _targetProgress;
 
@@ -38,11 +93,33 @@ public partial class LoadingScreen : Control
 
 	private bool _loadFinished;
 
-	private bool _changingScene;
+	private bool _transitionStarted;
 
+
+	// ==================================================
+	// READY
+	// ==================================================
 
 	public override void _Ready()
 	{
+		_background =
+			GetNode<TextureRect>(
+				"Background"
+			);
+
+
+		_atmosphere =
+			GetNode<ColorRect>(
+				"Atmosphere"
+			);
+
+
+		_loadingUi =
+			GetNode<VBoxContainer>(
+				"LoadingUi"
+			);
+
+
 		_progressBar =
 			GetNode<ProgressBar>(
 				"LoadingUi/ProgressBar"
@@ -73,7 +150,46 @@ public partial class LoadingScreen : Control
 			"INITIALIZING AI...";
 
 
+		/*
+		 * Background is slightly larger than the viewport
+		 * so the breathing animation never exposes an edge.
+		 */
+		_background.Scale =
+			Vector2.One
+			* BackgroundBaseScale;
+
+
+		_loadingUi.Modulate =
+			new Color(
+				1,
+				1,
+				1,
+				0
+			);
+
+
+		StartUiFadeIn();
+
 		StartLoading();
+	}
+
+
+	// ==================================================
+	// UI INTRO
+	// ==================================================
+
+	private void StartUiFadeIn()
+	{
+		Tween tween =
+			CreateTween();
+
+
+		tween.TweenProperty(
+			_loadingUi,
+			"modulate:a",
+			1.0f,
+			UiFadeInDuration
+		);
 	}
 
 
@@ -103,11 +219,28 @@ public partial class LoadingScreen : Control
 	}
 
 
+	// ==================================================
+	// PROCESS
+	// ==================================================
+
 	public override void _Process(
 		double delta)
 	{
 		_elapsed +=
 			delta;
+
+
+		_animationTime +=
+			delta;
+
+
+		UpdateBackgroundAnimation();
+
+		UpdateAtmosphereAnimation();
+
+
+		if (_transitionStarted)
+			return;
 
 
 		UpdateLoadingState();
@@ -119,6 +252,107 @@ public partial class LoadingScreen : Control
 		TryEnterGame();
 	}
 
+
+	// ==================================================
+	// BACKGROUND ANIMATION
+	// ==================================================
+
+	private void UpdateBackgroundAnimation()
+	{
+		if (
+			_background == null
+			|| !GodotObject.IsInstanceValid(
+				_background
+			)
+		)
+		{
+			return;
+		}
+
+
+		/*
+		 * Keep the scale centered.
+		 */
+		_background.PivotOffset =
+			_background.Size
+			/ 2.0f;
+
+
+		double wave =
+			(
+				Math.Sin(
+					_animationTime
+					* BackgroundAnimationSpeed
+				)
+				+ 1.0
+			)
+			* 0.5;
+
+
+		float scale =
+			BackgroundBaseScale
+			+ (
+				(float)wave
+				* BackgroundScaleAmount
+			);
+
+
+		_background.Scale =
+			new Vector2(
+				scale,
+				scale
+			);
+	}
+
+
+	private void UpdateAtmosphereAnimation()
+	{
+		if (
+			_atmosphere == null
+			|| !GodotObject.IsInstanceValid(
+				_atmosphere
+			)
+		)
+		{
+			return;
+		}
+
+
+		double wave =
+			(
+				Math.Sin(
+					_animationTime
+					* GlowAnimationSpeed
+				)
+				+ 1.0
+			)
+			* 0.5;
+
+
+		float alpha =
+			0.035f
+			+ (
+				(float)wave
+				* 0.045f
+			);
+
+
+		Color color =
+			_atmosphere.Color;
+
+
+		color.A =
+			alpha;
+
+
+		_atmosphere.Color =
+			color;
+	}
+
+
+	// ==================================================
+	// LOAD STATE
+	// ==================================================
 
 	private void UpdateLoadingState()
 	{
@@ -222,6 +456,10 @@ public partial class LoadingScreen : Control
 			);
 
 
+		/*
+		 * Let the final few percent finish smoothly
+		 * once the actual resource has loaded.
+		 */
 		if (
 			_loadFinished
 			&& _displayProgress < 1.0
@@ -257,6 +495,10 @@ public partial class LoadingScreen : Control
 			+ "%";
 	}
 
+
+	// ==================================================
+	// STATUS TEXT
+	// ==================================================
 
 	private void UpdateStatusText()
 	{
@@ -295,28 +537,44 @@ public partial class LoadingScreen : Control
 	private void TryEnterGame()
 	{
 		if (
-			_changingScene
+			_transitionStarted
 			|| !_loadFinished
-			|| _elapsed < MinimumDisplayTime
-			|| _displayProgress < 0.995
+			|| _elapsed
+				< MinimumDisplayTime
+			|| _displayProgress
+				< 0.995
 		)
 		{
 			return;
 		}
 
 
-		_changingScene =
+		_transitionStarted =
 			true;
 
 
-		PackedScene? gameScene =
+		BeginSceneTransition();
+	}
+
+
+	/*
+	 * Instead of immediately calling ChangeSceneToPacked(),
+	 * the Game scene is instantiated behind the loading
+	 * screen first.
+	 *
+	 * Then this whole loading screen fades away and reveals
+	 * the already initialized game underneath it.
+	 */
+	private async void BeginSceneTransition()
+	{
+		PackedScene? packedGame =
 			ResourceLoader.LoadThreadedGet(
 				GameScenePath
 			)
 			as PackedScene;
 
 
-		if (gameScene == null)
+		if (packedGame == null)
 		{
 			_statusLabel.Text =
 				"LOADING FAILED";
@@ -327,7 +585,7 @@ public partial class LoadingScreen : Control
 			);
 
 
-			_changingScene =
+			_transitionStarted =
 				false;
 
 
@@ -335,27 +593,100 @@ public partial class LoadingScreen : Control
 		}
 
 
-		Error error =
-			GetTree()
-				.ChangeSceneToPacked(
-					gameScene
-				);
+		Node game =
+			packedGame.Instantiate();
 
 
-		if (error != Error.Ok)
+		Window root =
+			GetTree().Root;
+
+
+		root.AddChild(
+			game
+		);
+
+
+		/*
+		 * The game was added after us, which would normally
+		 * render it above the LoadingScreen.
+		 *
+		 * Move the LoadingScreen back to the very front.
+		 */
+		root.MoveChild(
+			this,
+			root.GetChildCount() - 1
+		);
+
+
+		/*
+		 * Give the new Game scene one frame to initialize
+		 * all UI, save data, backgrounds etc.
+		 */
+		await ToSignal(
+			GetTree(),
+			SceneTree.SignalName.ProcessFrame
+		);
+
+
+		if (
+			!IsInstanceValid(
+				this
+			)
+		)
 		{
-			_statusLabel.Text =
-				"LOADING FAILED";
-
-
-			GD.PushError(
-				"Could not change to game scene: "
-				+ error
-			);
-
-
-			_changingScene =
-				false;
+			return;
 		}
+
+
+		_statusLabel.Text =
+			"AI READY";
+
+
+		_percentLabel.Text =
+			"100%";
+
+
+		_progressBar.Value =
+			100.0;
+
+
+		Tween fadeTween =
+			CreateTween();
+
+
+		fadeTween.TweenProperty(
+			this,
+			"modulate:a",
+			0.0f,
+			SceneFadeDuration
+		);
+
+
+		await ToSignal(
+			fadeTween,
+			Tween.SignalName.Finished
+		);
+
+
+		if (
+			game == null
+			|| !IsInstanceValid(
+				game
+			)
+		)
+		{
+			return;
+		}
+
+
+		/*
+		 * Make the newly instantiated scene the official
+		 * current scene before removing the LoadingScreen.
+		 */
+		GetTree().CurrentScene =
+			game;
+
+
+		QueueFree();
 	}
 }

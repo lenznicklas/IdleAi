@@ -9,6 +9,22 @@ public sealed class MachineDetailsOverlay
 		180;
 
 
+	private const float OpenStartScale =
+		0.88f;
+
+
+	private const float OpenOvershootScale =
+		1.035f;
+
+
+	private const double OpenGrowDuration =
+		0.16;
+
+
+	private const double OpenSettleDuration =
+		0.10;
+
+
 	private enum UpgradeAmount
 	{
 		One,
@@ -116,6 +132,9 @@ public sealed class MachineDetailsOverlay
 		null!;
 
 
+	private Tween? _openTween;
+
+
 	private int _roomIndex;
 
 	private int _slotIndex;
@@ -210,11 +229,24 @@ public sealed class MachineDetailsOverlay
 		_overlay.Show();
 
 		_overlay.MoveToFront();
+
+
+		PlayOpenAnimation();
 	}
 
 
 	public void Close()
 	{
+		_openTween?.Kill();
+
+
+		if (_panel != null)
+		{
+			_panel.Scale =
+				Vector2.One;
+		}
+
+
 		_sellOverlay?.Hide();
 
 		_overlay?.Hide();
@@ -229,6 +261,73 @@ public sealed class MachineDetailsOverlay
 
 
 		Close();
+	}
+
+
+	// ==================================================
+	// OPEN ANIMATION
+	// ==================================================
+
+	private void PlayOpenAnimation()
+	{
+		_openTween?.Kill();
+
+
+		/*
+		 * Scale around the exact visual center
+		 * of the machine panel.
+		 */
+		_panel.PivotOffset =
+			_panel.Size
+			/ 2.0f;
+
+
+		_panel.Scale =
+			new Vector2(
+				OpenStartScale,
+				OpenStartScale
+			);
+
+
+		_openTween =
+			_root.CreateTween();
+
+
+		/*
+		 * First expand slightly beyond normal size.
+		 */
+		_openTween.TweenProperty(
+			_panel,
+			"scale",
+			new Vector2(
+				OpenOvershootScale,
+				OpenOvershootScale
+			),
+			OpenGrowDuration
+		)
+		.SetTrans(
+			Tween.TransitionType.Back
+		)
+		.SetEase(
+			Tween.EaseType.Out
+		);
+
+
+		/*
+		 * Then settle cleanly at normal size.
+		 */
+		_openTween.TweenProperty(
+			_panel,
+			"scale",
+			Vector2.One,
+			OpenSettleDuration
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.Out
+		);
 	}
 
 
@@ -957,13 +1056,13 @@ public sealed class MachineDetailsOverlay
 
 		VBoxContainer vbox =
 			new()
-				{
-					SizeFlagsHorizontal =
-						Control.SizeFlags.ExpandFill,
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
 
-					SizeFlagsVertical =
-						Control.SizeFlags.ExpandFill
-				};
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill
+			};
 
 
 		vbox.AddThemeConstantOverride(
@@ -1283,16 +1382,6 @@ public sealed class MachineDetailsOverlay
 		UpdateUpgradeAmountButtons();
 
 
-		/*
-		 * IMPORTANT:
-		 *
-		 * Add the X LAST.
-		 *
-		 * The previous version added it before the
-		 * MarginContainer. Because PanelContainer is
-		 * a Container, the later MarginContainer could
-		 * sit above the X and intercept touch input.
-		 */
 		OverlayCloseButton.Add(
 			_panel,
 			Close
@@ -1454,10 +1543,6 @@ public sealed class MachineDetailsOverlay
 		);
 
 
-		/*
-		 * Same fix:
-		 * X gets added AFTER all panel content.
-		 */
 		OverlayCloseButton.Add(
 			panel,
 			() =>

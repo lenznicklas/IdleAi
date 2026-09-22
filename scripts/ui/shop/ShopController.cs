@@ -1,5 +1,8 @@
 using Godot;
 using System;
+using PoingStudios.AdMob.Api;
+using PoingStudios.AdMob.Api.Core;
+using PoingStudios.AdMob.Api.Listeners;
 
 namespace IdleAi;
 
@@ -15,6 +18,31 @@ public sealed class ShopController
 
 	private const float HeaderExtraTopPadding =
 		6.0f;
+
+
+	private const int RewardedAdShardReward =
+		5;
+
+
+	/*
+	 * Google test Rewarded Ad unit IDs.
+	 *
+	 * Keep these while developing/testing. Replace them
+	 * with your own AdMob rewarded ad unit IDs only when
+	 * you are ready to publish.
+	 */
+	private const string AndroidRewardedAdUnitId =
+		"ca-app-pub-3940256099942544/5224354917";
+
+
+	private const string IosRewardedAdUnitId =
+		"ca-app-pub-3940256099942544/1712485313";
+
+
+	private static readonly Texture2D FiveShardsIcon =
+		GD.Load<Texture2D>(
+			"res://assets/shop/five_shards.png"
+		);
 
 
 	private readonly Game _root;
@@ -58,6 +86,33 @@ public sealed class ShopController
 
 	private Label _shardLabel =
 		null!;
+
+
+	private Label _rewardedAdStatus =
+		null!;
+
+
+	private Button _rewardedAdButton =
+		null!;
+
+
+	private RewardedAd _rewardedAd =
+		null!;
+
+
+	private FullScreenContentCallback _rewardedFullScreenCallback =
+		null!;
+
+
+	private OnUserEarnedRewardListener _rewardListener =
+		null!;
+
+
+	private bool _rewardedAdLoading;
+
+	private bool _rewardedAdShowing;
+
+	private bool _rewardGrantedForCurrentAd;
 
 
 	private Label _productionBoostStatus =
@@ -139,6 +194,17 @@ public sealed class ShopController
 		ClearOldContent();
 
 		CreateUi();
+
+
+		/*
+		 * Poing Studios AdMob initialization should happen
+		 * once near app startup. ShopController itself is
+		 * created once, so this is a safe place for the first
+		 * rewarded-ad integration.
+		 */
+		MobileAds.Initialize();
+
+		LoadRewardedAd();
 
 
 		_root.GetViewport().SizeChanged +=
@@ -264,6 +330,8 @@ public sealed class ShopController
 		CreateScrollArea();
 
 		CreateFixedHeader();
+
+		CreateRewardedAdSection();
 
 		CreateBoostSection();
 
@@ -1038,6 +1106,351 @@ public sealed class ShopController
 			top,
 			26.0f
 		);
+	}
+
+
+	// ==================================================
+	// FREE SHARDS / REWARDED VIDEO
+	// ==================================================
+
+	private void CreateRewardedAdSection()
+	{
+		CreateSectionTitle(
+			"FREE SHARDS",
+			"Watch a rewarded video and collect Data Shards."
+		);
+
+
+		_rewardedAdStatus =
+			ShopUi.CreateMutedLabel(
+				13
+			);
+
+
+		_rewardedAdButton =
+			CreateShopCard(
+				FiveShardsIcon,
+				"5 DATA SHARDS",
+				"Watch one video and receive 5 Data Shards.",
+				_rewardedAdStatus,
+				ShopUi.Gold,
+				ShowRewardedVideo
+			);
+
+
+		RefreshRewardedAdOffer();
+	}
+
+
+	private void LoadRewardedAd()
+	{
+		if (
+			_rewardedAdLoading
+			|| _rewardedAdShowing
+		)
+		{
+			return;
+		}
+
+
+		DestroyRewardedAd();
+
+
+		_rewardedAdLoading =
+			true;
+
+
+		RefreshRewardedAdOffer();
+
+
+		RewardedAdLoadCallback loadCallback =
+			new()
+			{
+				OnAdLoaded =
+					ad =>
+					{
+						_rewardedAdLoading =
+							false;
+
+
+						_rewardedAd =
+							ad;
+
+
+						ConfigureRewardedAdCallbacks();
+
+						RefreshRewardedAdOffer();
+					},
+
+				OnAdFailedToLoad =
+					error =>
+					{
+						_rewardedAdLoading =
+							false;
+
+
+						_rewardedAd =
+							null!;
+
+
+						GD.PushWarning(
+							"Rewarded Ad failed to load: "
+							+ error.Message
+						);
+
+
+						RefreshRewardedAdOffer();
+					}
+			};
+
+
+		new RewardedAdLoader()
+			.Load(
+				GetRewardedAdUnitId(),
+				new AdRequest(),
+				loadCallback
+			);
+	}
+
+
+	private void ConfigureRewardedAdCallbacks()
+	{
+		if (_rewardedAd == null)
+			return;
+
+
+		_rewardedFullScreenCallback =
+			new FullScreenContentCallback
+			{
+				OnAdDismissedFullScreenContent =
+					() =>
+					{
+						_rewardedAdShowing =
+							false;
+
+
+						DestroyRewardedAd();
+
+						LoadRewardedAd();
+					},
+
+				OnAdFailedToShowFullScreenContent =
+					error =>
+					{
+						_rewardedAdShowing =
+							false;
+
+
+						MessageRequested?.Invoke(
+							"Video could not be shown. Please try again."
+						);
+
+
+						GD.PushWarning(
+							"Rewarded Ad failed to show: "
+							+ error.Message
+						);
+
+
+						DestroyRewardedAd();
+
+						LoadRewardedAd();
+					}
+			};
+
+
+		_rewardedAd.FullScreenContentCallback =
+			_rewardedFullScreenCallback;
+	}
+
+
+	private void ShowRewardedVideo()
+	{
+		if (_rewardedAdShowing)
+			return;
+
+
+		if (_rewardedAd == null)
+		{
+			if (!_rewardedAdLoading)
+			{
+				LoadRewardedAd();
+			}
+
+
+			MessageRequested?.Invoke(
+				"Reward video is loading."
+			);
+
+
+			return;
+		}
+
+
+		_rewardGrantedForCurrentAd =
+			false;
+
+
+		_rewardedAdShowing =
+			true;
+
+
+		RefreshRewardedAdOffer();
+
+
+		_rewardListener =
+			new OnUserEarnedRewardListener
+			{
+				OnUserEarnedReward =
+					_reward =>
+						GrantRewardedAdShards()
+			};
+
+
+		_rewardedAd.Show(
+			_rewardListener
+		);
+	}
+
+
+	private void GrantRewardedAdShards()
+	{
+		if (_rewardGrantedForCurrentAd)
+			return;
+
+
+		_rewardGrantedForCurrentAd =
+			true;
+
+
+		HandleResult(
+			_service.GrantDataShards(
+				RewardedAdShardReward
+			)
+		);
+	}
+
+
+	private void DestroyRewardedAd()
+	{
+		if (_rewardedAd == null)
+			return;
+
+
+		_rewardedAd.Destroy();
+
+		_rewardedAd =
+			null!;
+	}
+
+
+	private string GetRewardedAdUnitId()
+	{
+		return OS.GetName() == "iOS"
+			? IosRewardedAdUnitId
+			: AndroidRewardedAdUnitId;
+	}
+
+
+	private void RefreshRewardedAdOffer()
+	{
+		if (
+			_rewardedAdStatus == null
+			|| _rewardedAdButton == null
+		)
+		{
+			return;
+		}
+
+
+		if (_rewardedAdShowing)
+		{
+			_rewardedAdStatus.Text =
+				"COMPLETE THE VIDEO TO CLAIM YOUR REWARD";
+
+
+			_rewardedAdStatus.AddThemeColorOverride(
+				"font_color",
+				ShopUi.Gold
+			);
+
+
+			_rewardedAdButton.Text =
+				"VIDEO PLAYING...";
+
+
+			_rewardedAdButton.Disabled =
+				true;
+
+
+			return;
+		}
+
+
+		if (_rewardedAd != null)
+		{
+			_rewardedAdStatus.Text =
+				"VIDEO READY";
+
+
+			_rewardedAdStatus.AddThemeColorOverride(
+				"font_color",
+				ShopUi.Green
+			);
+
+
+			_rewardedAdButton.Text =
+				"WATCH VIDEO  •  +5 SHARDS";
+
+
+			_rewardedAdButton.Disabled =
+				false;
+
+
+			return;
+		}
+
+
+		if (_rewardedAdLoading)
+		{
+			_rewardedAdStatus.Text =
+				"LOADING REWARDED VIDEO...";
+
+
+			_rewardedAdStatus.AddThemeColorOverride(
+				"font_color",
+				ShopUi.TextSecondary
+			);
+
+
+			_rewardedAdButton.Text =
+				"LOADING VIDEO...";
+
+
+			_rewardedAdButton.Disabled =
+				true;
+
+
+			return;
+		}
+
+
+		_rewardedAdStatus.Text =
+			"VIDEO CURRENTLY UNAVAILABLE";
+
+
+		_rewardedAdStatus.AddThemeColorOverride(
+			"font_color",
+			ShopUi.TextSecondary
+		);
+
+
+		_rewardedAdButton.Text =
+			"RETRY VIDEO";
+
+
+		_rewardedAdButton.Disabled =
+			false;
 	}
 
 
@@ -1848,6 +2261,8 @@ public sealed class ShopController
 				_state.Shop.DataShards
 			);
 
+
+		RefreshRewardedAdOffer();
 
 		RefreshProductionBoost();
 

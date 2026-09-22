@@ -37,6 +37,35 @@ public sealed class ShopService
 	}
 
 
+	public ShopResult GrantDataShards(
+		int amount)
+	{
+		if (amount <= 0)
+		{
+			return new ShopResult(
+				false,
+				"Invalid Data Shard reward."
+			);
+		}
+
+
+		_state.Shop.DataShards +=
+			amount;
+
+
+		return new ShopResult(
+			true,
+			"+"
+			+ amount
+			+ (
+				amount == 1
+					? " Data Shard!"
+					: " Data Shards!"
+			)
+		);
+	}
+
+
 	public double GetProductionUpgradeCost()
 	{
 		return GameConfig

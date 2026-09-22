@@ -19,6 +19,18 @@ public sealed class PipelineUiController
 
 
 	private const int SummaryBottomSpacing =
+		24;
+
+
+	private const int ScrollContentTopPadding =
+		28;
+
+
+	private const int ScrollContentBottomPadding =
+		120;
+
+
+	private const int CardSpacing =
 		18;
 
 
@@ -611,13 +623,13 @@ public sealed class PipelineUiController
 
 		outerMargin.AddThemeConstantOverride(
 			"margin_top",
-			12
+			ScrollContentTopPadding
 		);
 
 
 		outerMargin.AddThemeConstantOverride(
 			"margin_bottom",
-			80
+			ScrollContentBottomPadding
 		);
 
 
@@ -642,7 +654,7 @@ public sealed class PipelineUiController
 
 		content.AddThemeConstantOverride(
 			"separation",
-			12
+			CardSpacing
 		);
 
 
@@ -1394,15 +1406,16 @@ public sealed class PipelineUiController
 
 
 		/*
-		 * MACHINES / PIPELINE is a fixed overlay.
-		 * Do not rubber-band past the top edge or the
-		 * SERVER PIPELINE card can end up visually under
-		 * the fixed tabs while the spring is settling.
+		 * Pipeline uses rubber-band scrolling at BOTH edges.
+		 *
+		 * The hidden -> visible reset in ShowCorrectView()
+		 * still clears old inertia and stale overscroll, so
+		 * the page always starts from a clean top position.
 		 */
 		_mobileScroll.Setup(
 			_pipelineScroll,
 			allowTopOverscroll:
-				false,
+				true,
 			allowBottomOverscroll:
 				true
 		);

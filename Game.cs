@@ -7,7 +7,7 @@ namespace IdleAi;
 public partial class Game : Control
 {
 	private const int SaveVersion =
-		17;
+		18;
 
 
 	private const double AutosaveIntervalSeconds =
@@ -47,6 +47,10 @@ public partial class Game : Control
 
 
 	private PipelineService _pipelineService =
+		null!;
+
+
+	private InfrastructureService _infrastructureService =
 		null!;
 
 
@@ -221,6 +225,12 @@ public partial class Game : Control
 			);
 
 
+		_infrastructureService =
+			new InfrastructureService(
+				_state
+			);
+
+
 		_progression =
 			new ProgressionService(
 				_state,
@@ -273,7 +283,8 @@ public partial class Game : Control
 				_bots,
 				_prestige,
 				_shopService,
-				_pipelineService
+				_pipelineService,
+				_infrastructureService
 			);
 
 
@@ -665,6 +676,9 @@ public partial class Game : Control
 									Pipeline =
 										room.Pipeline.ToSaveData(),
 
+									Infrastructure =
+										room.Infrastructure.ToSaveData(),
+
 									Slots =
 										room.Slots
 											.Select(
@@ -742,10 +756,6 @@ public partial class Game : Control
 			save.ActiveResearchEndUnix;
 
 
-		// ==================================================
-		// SHOP
-		// ==================================================
-
 		_state.Shop.DataShards =
 			save.SaveVersion < 13
 				? GameConfig.InitialDataShards
@@ -767,10 +777,6 @@ public partial class Game : Control
 		_state.Shop.OfflineUpgradeLevel =
 			save.ShopOfflineUpgradeLevel;
 
-
-		// ==================================================
-		// ROOMS
-		// ==================================================
 
 		for (
 			int roomIndex = 0;
@@ -826,6 +832,21 @@ public partial class Game : Control
 			}
 
 
+			if (
+				save.SaveVersion >= 18
+				&& savedRoom.Infrastructure != null
+			)
+			{
+				room.Infrastructure.LoadFromSaveData(
+					savedRoom.Infrastructure
+				);
+			}
+			else
+			{
+				room.Infrastructure.Reset();
+			}
+
+
 			for (
 				int slotIndex = 0;
 				slotIndex < Math.Min(
@@ -874,12 +895,12 @@ public partial class Game : Control
 
 
 		/*
-		 * Version 16 still used the old pipeline multiplier
-		 * model. Recalculate the offline snapshot once when
-		 * migrating to the new material-flow pipeline.
+		 * Recalculate the offline snapshot once when
+		 * migrating from a save that did not yet have
+		 * Data Center infrastructure.
 		 */
 		double savedBaseIncome =
-			save.SaveVersion < 17
+			save.SaveVersion < 18
 				? _economy
 					.GetTotalIncomeWithoutTemporaryShopBoost()
 				: GetMigratedOfflineIncomePerSecond(
@@ -1044,10 +1065,6 @@ public partial class Game : Control
 		return amount;
 	}
 
-
-	// ==================================================
-	// TIME
-	// ==================================================
 
 	private static long GetCurrentUnixTime()
 	{

@@ -19,9 +19,11 @@ public sealed class GameUiController
 	private readonly PrestigeService _prestigeService;
 	private readonly ShopService _shopService;
 	private readonly PipelineService _pipelineService;
+	private readonly InfrastructureService _infrastructureService;
 
 	private RoomUiController _room = null!;
 	private PipelineUiController _pipeline = null!;
+	private InfrastructureUiController _infrastructure = null!;
 	private TopBarController _topBar = null!;
 	private BottomBarController _bottomBar = null!;
 	private MapController _map = null!;
@@ -47,7 +49,8 @@ public sealed class GameUiController
 		BotService bots,
 		PrestigeService prestige,
 		ShopService shopService,
-		PipelineService pipelineService)
+		PipelineService pipelineService,
+		InfrastructureService infrastructureService)
 	{
 		_root = root;
 		_state = state;
@@ -58,6 +61,7 @@ public sealed class GameUiController
 		_prestigeService = prestige;
 		_shopService = shopService;
 		_pipelineService = pipelineService;
+		_infrastructureService = infrastructureService;
 	}
 
 	public void Initialize()
@@ -66,6 +70,7 @@ public sealed class GameUiController
 
 		CreateRoomController();
 		CreatePipelineController();
+		CreateInfrastructureController();
 		CreateTopBarController();
 		CreateBottomBarController();
 		CreateMapController();
@@ -116,6 +121,26 @@ public sealed class GameUiController
 		};
 
 		_pipeline.Initialize();
+	}
+
+	private void CreateInfrastructureController()
+	{
+		_infrastructure =
+			new InfrastructureUiController(
+				_root,
+				_state,
+				_infrastructureService
+			);
+
+		_infrastructure.MessageRequested += SetMessage;
+
+		_infrastructure.StateChanged += () =>
+		{
+			UpdateAll();
+			StateChanged?.Invoke();
+		};
+
+		_infrastructure.Initialize();
 	}
 
 	private void CreateTopBarController()
@@ -328,6 +353,7 @@ public sealed class GameUiController
 
 		_room.UpdateAll();
 		_pipeline.UpdateAll();
+		_infrastructure.UpdateAll();
 
 		_topBar.SetRoomName(
 			_state.CurrentRoom.Name
@@ -363,6 +389,7 @@ public sealed class GameUiController
 		_topBar.UpdateValues();
 		_room.UpdateRuntime();
 		_pipeline.UpdateRuntime();
+		_infrastructure.UpdateRuntime();
 
 		if (_shop.Visible)
 			_shop.Refresh();

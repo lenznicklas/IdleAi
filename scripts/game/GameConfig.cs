@@ -176,23 +176,12 @@ public static class GameConfig
 	{
 		return level switch
 		{
-			5 =>
-				1,
-
-			10 =>
-				2,
-
-			15 =>
-				3,
-
-			20 =>
-				5,
-
-			25 =>
-				10,
-
-			_ =>
-				0
+			5 => 1,
+			10 => 2,
+			15 => 3,
+			20 => 5,
+			25 => 10,
+			_ => 0
 		};
 	}
 
@@ -225,14 +214,6 @@ public static class GameConfig
 		10_000.0;
 
 
-	/*
-	 * Capacity is expressed as material units per second.
-	 *
-	 * In the actual simulation it is converted into a
-	 * batch:
-	 *
-	 * batch = capacity * cycle duration
-	 */
 	public const double PipelineBaseCapacity =
 		100.0;
 
@@ -293,22 +274,87 @@ public static class GameConfig
 	{
 		return stage switch
 		{
-			PipelineStage.Compute =>
-				1.00,
-
-			PipelineStage.Data =>
-				1.15,
-
-			PipelineStage.Model =>
-				1.35,
-
-			PipelineStage.Output =>
-				1.60,
-
-			_ =>
-				1.0
+			PipelineStage.Compute => 1.00,
+			PipelineStage.Data => 1.15,
+			PipelineStage.Model => 1.35,
+			PipelineStage.Output => 1.60,
+			_ => 1.0
 		};
 	}
+
+
+	// ==================================================
+	// DATA CENTER INFRASTRUCTURE
+	// ==================================================
+
+	public const int InfrastructureRoomIndex =
+		2;
+
+
+	public const int InfrastructureMaxLevel =
+		25;
+
+
+	/*
+	 * Data Center raw production is converted into
+	 * normalized infrastructure load units.
+	 *
+	 * 10B raw Tokens/s = 1 load unit.
+	 */
+	public const double InfrastructureTokensPerLoadUnit =
+		10_000_000_000.0;
+
+
+	public const double InfrastructureBasePowerCapacity =
+		8.0;
+
+
+	public const double InfrastructureBaseCoolingCapacity =
+		7.0;
+
+
+	public const double InfrastructureBaseStorageCapacity =
+		10.0;
+
+
+	public const double InfrastructureCapacityGrowth =
+		1.55;
+
+
+	public const double InfrastructurePowerBaseUpgradeCost =
+		250_000_000_000.0;
+
+
+	public const double InfrastructureCoolingBaseUpgradeCost =
+		300_000_000_000.0;
+
+
+	public const double InfrastructureStorageBaseUpgradeCost =
+		400_000_000_000.0;
+
+
+	public const double InfrastructureUpgradeCostGrowth =
+		1.80;
+
+
+	public const double InfrastructureIdleTemperature =
+		40.0;
+
+
+	public const double InfrastructureMaximumTemperature =
+		95.0;
+
+
+	public const double InfrastructurePowerMinimumEfficiency =
+		0.65;
+
+
+	public const double InfrastructureStorageMinimumEfficiency =
+		0.80;
+
+
+	public const double InfrastructureMinimumProductionMultiplier =
+		0.25;
 
 
 	// ==================================================
@@ -364,20 +410,11 @@ public static class GameConfig
 	{
 		return machineTier switch
 		{
-			0 =>
-				4.0,
-
-			1 =>
-				4.5,
-
-			2 =>
-				5.0,
-
-			3 =>
-				5.5,
-
-			_ =>
-				5.5
+			0 => 4.0,
+			1 => 4.5,
+			2 => 5.0,
+			3 => 5.5,
+			_ => 5.5
 		};
 	}
 
@@ -391,23 +428,12 @@ public static class GameConfig
 	{
 		return level switch
 		{
-			5 =>
-				1,
-
-			10 =>
-				2,
-
-			15 =>
-				3,
-
-			20 =>
-				5,
-
-			25 =>
-				10,
-
-			_ =>
-				0
+			5 => 1,
+			10 => 2,
+			15 => 3,
+			20 => 5,
+			25 => 10,
+			_ => 0
 		};
 	}
 
@@ -421,20 +447,11 @@ public static class GameConfig
 	{
 		return roomIndex switch
 		{
-			0 =>
-				GarageSlotUnlockCosts,
-
-			1 =>
-				ServerRoomSlotUnlockCosts,
-
-			2 =>
-				DataCenterSlotUnlockCosts,
-
-			3 =>
-				QuantumLabSlotUnlockCosts,
-
-			_ =>
-				GarageSlotUnlockCosts
+			0 => GarageSlotUnlockCosts,
+			1 => ServerRoomSlotUnlockCosts,
+			2 => DataCenterSlotUnlockCosts,
+			3 => QuantumLabSlotUnlockCosts,
+			_ => GarageSlotUnlockCosts
 		};
 	}
 }

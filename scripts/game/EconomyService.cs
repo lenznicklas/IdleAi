@@ -11,7 +11,10 @@ public sealed class EconomyService
 		_state = state;
 	}
 
-	public double GetLevelUpgradeCost(int roomIndex, SlotData slot, int slotIndex)
+	public double GetLevelUpgradeCost(
+		int roomIndex,
+		SlotData slot,
+		int slotIndex)
 	{
 		return GetLevelUpgradeCostAtLevel(
 			roomIndex,
@@ -56,22 +59,37 @@ public sealed class EconomyService
 		if (levelCount <= 0)
 			return 0.0;
 
-		MachineData machine = GetMachine(roomIndex, slot);
+		MachineData machine =
+			GetMachine(
+				roomIndex,
+				slot
+			);
 
 		int remaining =
 			Math.Max(
 				0,
-				machine.MaxLevel - slot.MachineLevel
+				machine.MaxLevel
+				- slot.MachineLevel
 			);
 
 		int actualLevels =
-			Math.Min(levelCount, remaining);
+			Math.Min(
+				levelCount,
+				remaining
+			);
 
-		double total = 0.0;
+		double total =
+			0.0;
 
-		for (int i = 0; i < actualLevels; i++)
+		for (
+			int i = 0;
+			i < actualLevels;
+			i++
+		)
 		{
-			int level = slot.MachineLevel + i;
+			int level =
+				slot.MachineLevel
+				+ i;
 
 			total +=
 				GetLevelUpgradeCostAtLevel(
@@ -91,20 +109,34 @@ public sealed class EconomyService
 		int slotIndex,
 		double availableTokens)
 	{
-		MachineData machine = GetMachine(roomIndex, slot);
+		MachineData machine =
+			GetMachine(
+				roomIndex,
+				slot
+			);
 
 		int remaining =
 			Math.Max(
 				0,
-				machine.MaxLevel - slot.MachineLevel
+				machine.MaxLevel
+				- slot.MachineLevel
 			);
 
-		int levels = 0;
-		double total = 0.0;
+		int levels =
+			0;
 
-		for (int i = 0; i < remaining; i++)
+		double total =
+			0.0;
+
+		for (
+			int i = 0;
+			i < remaining;
+			i++
+		)
 		{
-			int level = slot.MachineLevel + i;
+			int level =
+				slot.MachineLevel
+				+ i;
 
 			double nextCost =
 				GetLevelUpgradeCostAtLevel(
@@ -114,10 +146,17 @@ public sealed class EconomyService
 					level
 				);
 
-			if (total + nextCost > availableTokens)
+			if (
+				total + nextCost
+				> availableTokens
+			)
+			{
 				break;
+			}
 
-			total += nextCost;
+			total +=
+				nextCost;
+
 			levels++;
 		}
 
@@ -129,13 +168,19 @@ public sealed class EconomyService
 		SlotData slot,
 		int slotIndex)
 	{
-		MachineData machine = GetMachine(roomIndex, slot);
+		MachineData machine =
+			GetMachine(
+				roomIndex,
+				slot
+			);
 
 		double researchMultiplier =
 			_state.Lab.GetMachineUpgradeCostMultiplier();
 
 		return machine.TierUpgradeCost
-			* GameConfig.SlotUpgradeMultipliers[slotIndex]
+			* GameConfig.SlotUpgradeMultipliers[
+				slotIndex
+			]
 			* researchMultiplier;
 	}
 
@@ -144,32 +189,47 @@ public sealed class EconomyService
 		SlotData slot,
 		int slotIndex)
 	{
-		MachineData machine = GetMachine(roomIndex, slot);
+		MachineData machine =
+			GetMachine(
+				roomIndex,
+				slot
+			);
 
 		return machine.BaseUpgradeCost
 			* GameConfig.BotBaseCostMultiplier
-			* GameConfig.SlotUpgradeMultipliers[slotIndex];
+			* GameConfig.SlotUpgradeMultipliers[
+				slotIndex
+			];
 	}
 
-	public double GetBaseCycleDuration(SlotData slot)
+	public double GetBaseCycleDuration(
+		SlotData slot)
 	{
-		return GameConfig.GetProductionCycleSeconds(
-			slot.MachineTier
-		);
+		return GameConfig
+			.GetProductionCycleSeconds(
+				slot.MachineTier
+			);
 	}
 
-	public double GetCycleDuration(SlotData slot)
+	public double GetCycleDuration(
+		SlotData slot)
 	{
-		double baseDuration = GetBaseCycleDuration(slot);
+		double baseDuration =
+			GetBaseCycleDuration(
+				slot
+			);
 
 		double duration =
 			Math.Max(
 				0.25,
+
 				baseDuration
-				* _state.Lab.GetCycleTimeMultiplier()
+				* _state.Lab
+					.GetCycleTimeMultiplier()
 			);
 
-		slot.RuntimeCycleDuration = duration;
+		slot.RuntimeCycleDuration =
+			duration;
 
 		return duration;
 	}
@@ -182,11 +242,18 @@ public sealed class EconomyService
 		if (!slot.Unlocked)
 			return 0.0;
 
-		MachineData machine = GetMachine(roomIndex, slot);
+		MachineData machine =
+			GetMachine(
+				roomIndex,
+				slot
+			);
 
 		double levelMultiplier =
 			1.0
-			+ (slot.MachineLevel - 1)
+			+ (
+				slot.MachineLevel
+				- 1
+			)
 			* GameConfig.IncomePerLevel;
 
 		double milestoneMultiplier =
@@ -202,24 +269,40 @@ public sealed class EconomyService
 		if (slot.HasBot)
 		{
 			botMultiplier *=
-				_state.Lab.GetBotPowerMultiplier();
+				_state.Lab
+					.GetBotPowerMultiplier();
 		}
 
 		double prestigeMultiplier =
-			_state.Prestige.GetProductionMultiplier();
+			_state.Prestige
+				.GetProductionMultiplier();
 
 		double researchProductionMultiplier =
-			_state.Lab.GetProductionMultiplier();
+			_state.Lab
+				.GetProductionMultiplier();
 
 		double shopProductionMultiplier =
 			includeTemporaryShopBoost
-				? _state.Shop.GetProductionMultiplier()
+				? _state.Shop
+					.GetProductionMultiplier()
 				: 1.0
-					+ _state.Shop.ProductionUpgradeLevel
-					* GameConfig.ShopProductionUpgradeBonus;
+					+ _state.Shop
+						.ProductionUpgradeLevel
+					* GameConfig
+						.ShopProductionUpgradeBonus;
+
+		double infrastructureMultiplier =
+			InfrastructureService
+				.GetProductionMultiplierForRoom(
+					_state,
+					roomIndex,
+					includeTemporaryShopBoost
+				);
 
 		double baseCycleDuration =
-			GetBaseCycleDuration(slot);
+			GetBaseCycleDuration(
+				slot
+			);
 
 		return machine.BaseIncome
 			* baseCycleDuration
@@ -228,15 +311,21 @@ public sealed class EconomyService
 			* botMultiplier
 			* prestigeMultiplier
 			* researchProductionMultiplier
-			* shopProductionMultiplier;
+			* shopProductionMultiplier
+			* infrastructureMultiplier;
 	}
 
 	public double GetCycleReward(
 		int roomIndex,
 		SlotData slot)
 	{
-		if (roomIndex == GameConfig.PipelineRoomIndex)
+		if (
+			roomIndex
+			== GameConfig.PipelineRoomIndex
+		)
+		{
 			return 0.0;
+		}
 
 		return GetMachineRewardBeforePipeline(
 			roomIndex,
@@ -249,8 +338,13 @@ public sealed class EconomyService
 		int roomIndex,
 		SlotData slot)
 	{
-		if (roomIndex == GameConfig.PipelineRoomIndex)
+		if (
+			roomIndex
+			== GameConfig.PipelineRoomIndex
+		)
+		{
 			return 0.0;
+		}
 
 		return GetMachineRewardBeforePipeline(
 			roomIndex,
@@ -263,8 +357,13 @@ public sealed class EconomyService
 		int roomIndex,
 		SlotData slot)
 	{
-		if (roomIndex != GameConfig.PipelineRoomIndex)
+		if (
+			roomIndex
+			!= GameConfig.PipelineRoomIndex
+		)
+		{
 			return 0.0;
+		}
 
 		return GetMachineRewardBeforePipeline(
 			roomIndex,
@@ -278,8 +377,13 @@ public sealed class EconomyService
 		int roomIndex,
 		SlotData slot)
 	{
-		if (roomIndex != GameConfig.PipelineRoomIndex)
+		if (
+			roomIndex
+			!= GameConfig.PipelineRoomIndex
+		)
+		{
 			return 0.0;
+		}
 
 		return GetMachineRewardBeforePipeline(
 			roomIndex,
@@ -293,7 +397,10 @@ public sealed class EconomyService
 		int roomIndex,
 		SlotData slot)
 	{
-		double duration = GetCycleDuration(slot);
+		double duration =
+			GetCycleDuration(
+				slot
+			);
 
 		if (duration <= 0.0)
 			return 0.0;
@@ -309,7 +416,10 @@ public sealed class EconomyService
 		int roomIndex,
 		SlotData slot)
 	{
-		double duration = GetCycleDuration(slot);
+		double duration =
+			GetCycleDuration(
+				slot
+			);
 
 		if (duration <= 0.0)
 			return 0.0;
@@ -325,18 +435,25 @@ public sealed class EconomyService
 		int roomIndex,
 		SlotData slot)
 	{
-		double duration = GetCycleDuration(slot);
+		double duration =
+			GetCycleDuration(
+				slot
+			);
 
 		if (duration <= 0.0)
 			return 0.0;
 
-		if (roomIndex == GameConfig.PipelineRoomIndex)
+		if (
+			roomIndex
+			== GameConfig.PipelineRoomIndex
+		)
 		{
 			return GetPipelineInputPerSecond(
 				roomIndex,
 				slot
 			)
-			* GameConfig.PipelineTokensPerOutputUnit;
+			* GameConfig
+				.PipelineTokensPerOutputUnit;
 		}
 
 		return GetCycleReward(
@@ -350,7 +467,10 @@ public sealed class EconomyService
 		int roomIndex,
 		SlotData slot)
 	{
-		double duration = GetCycleDuration(slot);
+		double duration =
+			GetCycleDuration(
+				slot
+			);
 
 		if (duration <= 0.0)
 			return 0.0;
@@ -362,32 +482,52 @@ public sealed class EconomyService
 		/ duration;
 	}
 
-	public double GetRoomIncome(int roomIndex)
+	public double GetRoomIncome(
+		int roomIndex)
 	{
-		if (!_state.RoomStates[roomIndex].Unlocked)
+		if (
+			!_state.RoomStates[
+				roomIndex
+			].Unlocked
+		)
+		{
 			return 0.0;
+		}
 
-		if (roomIndex == GameConfig.PipelineRoomIndex)
+		if (
+			roomIndex
+			== GameConfig.PipelineRoomIndex
+		)
 		{
 			return GetPipelineSteadyTokenOutputPerSecond(
-				includeTemporaryShopBoost: true
+				includeTemporaryShopBoost:
+					true
 			);
 		}
 
-		double total = 0.0;
+		double total =
+			0.0;
 
 		foreach (
 			SlotData slot
-			in _state.RoomStates[roomIndex].Slots
+			in _state.RoomStates[
+				roomIndex
+			].Slots
 		)
 		{
-			if (!slot.Unlocked || !slot.HasBot)
+			if (
+				!slot.Unlocked
+				|| !slot.HasBot
+			)
+			{
 				continue;
+			}
 
-			total += GetSlotIncome(
-				roomIndex,
-				slot
-			);
+			total +=
+				GetSlotIncome(
+					roomIndex,
+					slot
+				);
 		}
 
 		return total;
@@ -396,25 +536,43 @@ public sealed class EconomyService
 	private double GetRoomIncomeWithoutTemporaryShopBoost(
 		int roomIndex)
 	{
-		if (!_state.RoomStates[roomIndex].Unlocked)
+		if (
+			!_state.RoomStates[
+				roomIndex
+			].Unlocked
+		)
+		{
 			return 0.0;
+		}
 
-		if (roomIndex == GameConfig.PipelineRoomIndex)
+		if (
+			roomIndex
+			== GameConfig.PipelineRoomIndex
+		)
 		{
 			return GetPipelineSteadyTokenOutputPerSecond(
-				includeTemporaryShopBoost: false
+				includeTemporaryShopBoost:
+					false
 			);
 		}
 
-		double total = 0.0;
+		double total =
+			0.0;
 
 		foreach (
 			SlotData slot
-			in _state.RoomStates[roomIndex].Slots
+			in _state.RoomStates[
+				roomIndex
+			].Slots
 		)
 		{
-			if (!slot.Unlocked || !slot.HasBot)
+			if (
+				!slot.Unlocked
+				|| !slot.HasBot
+			)
+			{
 				continue;
+			}
 
 			total +=
 				GetSlotIncomeWithoutTemporaryShopBoost(
@@ -432,15 +590,23 @@ public sealed class EconomyService
 		int roomIndex =
 			GameConfig.PipelineRoomIndex;
 
-		double input = 0.0;
+		double input =
+			0.0;
 
 		foreach (
 			SlotData slot
-			in _state.RoomStates[roomIndex].Slots
+			in _state.RoomStates[
+				roomIndex
+			].Slots
 		)
 		{
-			if (!slot.Unlocked || !slot.HasBot)
+			if (
+				!slot.Unlocked
+				|| !slot.HasBot
+			)
+			{
 				continue;
+			}
 
 			input +=
 				includeTemporaryShopBoost
@@ -455,7 +621,9 @@ public sealed class EconomyService
 		}
 
 		PipelineData pipeline =
-			_state.RoomStates[roomIndex].Pipeline;
+			_state.RoomStates[
+				roomIndex
+			].Pipeline;
 
 		double throughput =
 			Math.Min(
@@ -494,12 +662,14 @@ public sealed class EconomyService
 			);
 
 		return throughput
-			* GameConfig.PipelineTokensPerOutputUnit;
+			* GameConfig
+				.PipelineTokensPerOutputUnit;
 	}
 
 	public double GetTotalIncome()
 	{
-		double total = 0.0;
+		double total =
+			0.0;
 
 		for (
 			int roomIndex = 0;
@@ -507,7 +677,10 @@ public sealed class EconomyService
 			roomIndex++
 		)
 		{
-			total += GetRoomIncome(roomIndex);
+			total +=
+				GetRoomIncome(
+					roomIndex
+				);
 		}
 
 		return total;
@@ -515,7 +688,8 @@ public sealed class EconomyService
 
 	public double GetTotalIncomeWithoutTemporaryShopBoost()
 	{
-		double total = 0.0;
+		double total =
+			0.0;
 
 		for (
 			int roomIndex = 0;
@@ -532,7 +706,8 @@ public sealed class EconomyService
 		return total;
 	}
 
-	public static double GetMilestoneMultiplier(int level)
+	public static double GetMilestoneMultiplier(
+		int level)
 	{
 		if (level >= 25)
 			return 8.0;
@@ -552,7 +727,8 @@ public sealed class EconomyService
 		return 1.0;
 	}
 
-	public static string GetMilestoneText(int level)
+	public static string GetMilestoneText(
+		int level)
 	{
 		if (level >= 25)
 			return "x8 production";
@@ -576,7 +752,10 @@ public sealed class EconomyService
 		int roomIndex,
 		SlotData slot)
 	{
-		return _state.Rooms[roomIndex]
-			.Machines[slot.MachineTier];
+		return _state.Rooms[
+			roomIndex
+		].Machines[
+			slot.MachineTier
+		];
 	}
 }

@@ -107,10 +107,8 @@ public sealed class PrestigeService
 			room.Unlocked =
 				roomIndex == 0;
 
-			/*
-			 * Pipeline upgrades are normal run progression.
-			 */
 			room.Pipeline.Reset();
+			room.Infrastructure.Reset();
 
 			for (
 				int slotIndex = 0;

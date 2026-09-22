@@ -14,5 +14,7 @@ public sealed class RoomState
 
 	public PipelineData Pipeline { get; } = new();
 
+	public InfrastructureData Infrastructure { get; } = new();
+
 	public List<SlotData> Slots { get; } = [];
 }

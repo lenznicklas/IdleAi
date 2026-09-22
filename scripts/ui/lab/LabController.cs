@@ -230,7 +230,10 @@ public sealed class LabController
 			new Control
 			{
 				Name =
-					"LabPage"
+					"LabPage",
+
+				Visible =
+					false
 			};
 
 

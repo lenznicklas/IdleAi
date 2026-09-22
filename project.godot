@@ -3,8 +3,8 @@
 ; since the parameters that go here are not all obvious.
 ;
 ; Format:
-;   [section] ; section between []
-;   param=value
+;   [section] ; section goes between []
+;   param=value ; assign values to parameters
 
 config_version=5
 
@@ -14,9 +14,6 @@ config/name="IdleAi"
 run/main_scene="res://loading.tscn"
 config/features=PackedStringArray("4.7", "C#", "Mobile")
 boot_splash/image="res://assets/ui/loading_screen.png"
-boot_splash/fullsize=true
-boot_splash/use_filter=true
-boot_splash/show_image=true
 config/icon="uid://44mag1j18nrj"
 
 [display]
@@ -30,6 +27,10 @@ window/handheld/orientation=1
 [dotnet]
 
 project/assembly_name="IdleAi"
+
+[editor_plugins]
+
+enabled=PackedStringArray("res://addons/GodotGooglePlayBilling/plugin.cfg")
 
 [physics]
 

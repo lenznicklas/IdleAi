@@ -9,6 +9,13 @@ public readonly record struct ManualStartResult(
 );
 
 
+public readonly record struct ProductionCompletionResult(
+	int CompletedCycles,
+	int ResearchPointsAwarded,
+	double Earned
+);
+
+
 public sealed class ProductionService
 {
 	// ==================================================
@@ -24,7 +31,6 @@ public sealed class ProductionService
 	 * Research Points only drop after the
 	 * Laboratory has been unlocked.
 	 */
-
 	private const double ResearchPointDropChance =
 		0.0025;
 
@@ -122,7 +128,6 @@ public sealed class ProductionService
 				 * More than one cycle may complete in one
 				 * frame, for example after a frame spike.
 				 */
-
 				while (
 					slot.CycleRemaining <= 0.0
 					&& safety < 100
@@ -131,51 +136,24 @@ public sealed class ProductionService
 					safety++;
 
 
-					// ==================================================
-					// TOKEN REWARD
-					// ==================================================
-
-					earned +=
-						_economy.GetCycleReward(
+					ProductionCompletionResult result =
+						CompleteCycle(
 							roomIndex,
-							slot
+							slot,
+							preserveOvershoot: true
 						);
 
 
-					// ==================================================
-					// RESEARCH POINT DROP
-					// ==================================================
-
-					TryAwardResearchPoint();
+					earned +=
+						result.Earned;
 
 
-					// ==================================================
-					// NEXT CYCLE
-					// ==================================================
-
-					if (slot.HasBot)
-					{
-						slot.CycleRemaining +=
-							_economy.GetCycleDuration(
-								slot
-							);
-
-
-						slot.IsRunning =
-							true;
-					}
-					else
-					{
-						slot.CycleRemaining =
-							0.0;
-
-
-						slot.IsRunning =
-							false;
-
-
+					/*
+					 * Manual machines stop after one
+					 * completed cycle.
+					 */
+					if (!slot.HasBot)
 						break;
-					}
 				}
 			}
 		}
@@ -186,18 +164,207 @@ public sealed class ProductionService
 
 
 	// ==================================================
+	// INSTANT COMPLETION
+	// ==================================================
+
+	/*
+	 * Completes every production cycle that is currently
+	 * running.
+	 *
+	 * This is used by the Shop's Instant Production item.
+	 *
+	 * It deliberately goes through the exact same
+	 * CompleteCycle() method as natural cycle completion.
+	 */
+	public ProductionCompletionResult
+		CompleteAllRunningCyclesInstantly()
+	{
+		int completedCycles =
+			0;
+
+
+		int researchPointsAwarded =
+			0;
+
+
+		double earned =
+			0.0;
+
+
+		for (
+			int roomIndex = 0;
+			roomIndex < _state.RoomStates.Count;
+			roomIndex++
+		)
+		{
+			RoomState room =
+				_state.RoomStates[
+					roomIndex
+				];
+
+
+			if (!room.Unlocked)
+				continue;
+
+
+			foreach (
+				SlotData slot
+				in room.Slots
+			)
+			{
+				if (
+					!slot.Unlocked
+					|| !slot.IsRunning
+				)
+				{
+					continue;
+				}
+
+
+				ProductionCompletionResult result =
+					CompleteCycle(
+						roomIndex,
+						slot,
+						preserveOvershoot: false
+					);
+
+
+				completedCycles +=
+					result.CompletedCycles;
+
+
+				researchPointsAwarded +=
+					result.ResearchPointsAwarded;
+
+
+				earned +=
+					result.Earned;
+			}
+		}
+
+
+		return new ProductionCompletionResult(
+			completedCycles,
+			researchPointsAwarded,
+			earned
+		);
+	}
+
+
+	// ==================================================
+	// COMPLETE CYCLE
+	// ==================================================
+
+	private ProductionCompletionResult CompleteCycle(
+		int roomIndex,
+		SlotData slot,
+		bool preserveOvershoot)
+	{
+		if (
+			!slot.Unlocked
+			|| !slot.IsRunning
+		)
+		{
+			return new ProductionCompletionResult(
+				0,
+				0,
+				0.0
+			);
+		}
+
+
+		// ==================================================
+		// TOKENS
+		// ==================================================
+
+		double earned =
+			_economy.GetCycleReward(
+				roomIndex,
+				slot
+			);
+
+
+		// ==================================================
+		// RESEARCH POINT
+		// ==================================================
+
+		int researchPoints =
+			TryAwardResearchPoint();
+
+
+		// ==================================================
+		// NEXT STATE
+		// ==================================================
+
+		if (slot.HasBot)
+		{
+			double duration =
+				_economy.GetCycleDuration(
+					slot
+				);
+
+
+			if (preserveOvershoot)
+			{
+				/*
+				 * Example:
+				 *
+				 * Cycle was 0.05 seconds past completion.
+				 *
+				 * Instead of throwing that elapsed time
+				 * away, the next cycle starts at:
+				 *
+				 * duration - 0.05
+				 */
+				slot.CycleRemaining +=
+					duration;
+			}
+			else
+			{
+				/*
+				 * Instant Production explicitly finishes
+				 * the currently running cycle and begins
+				 * a fresh one.
+				 */
+				slot.CycleRemaining =
+					duration;
+			}
+
+
+			slot.IsRunning =
+				true;
+		}
+		else
+		{
+			slot.CycleRemaining =
+				0.0;
+
+
+			slot.IsRunning =
+				false;
+		}
+
+
+		return new ProductionCompletionResult(
+			1,
+			researchPoints,
+			earned
+		);
+	}
+
+
+	// ==================================================
 	// RESEARCH POINT DROP
 	// ==================================================
 
-	private void TryAwardResearchPoint()
+	private int TryAwardResearchPoint()
 	{
 		/*
-		 * Do not secretly accumulate Research Points
-		 * before the player has unlocked the lab.
+		 * Do not accumulate Research Points before the
+		 * Laboratory has been unlocked.
 		 */
-
 		if (!_state.Lab.Unlocked)
-			return;
+			return 0;
 
 
 		double roll =
@@ -209,12 +376,15 @@ public sealed class ProductionService
 			>= ResearchPointDropChance
 		)
 		{
-			return;
+			return 0;
 		}
 
 
 		_state.Lab.ResearchPoints +=
 			ResearchPointDropAmount;
+
+
+		return ResearchPointDropAmount;
 	}
 
 

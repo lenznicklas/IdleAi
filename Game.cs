@@ -232,10 +232,17 @@ public partial class Game : Control
 			);
 
 
+		/*
+		 * ShopService now receives ProductionService.
+		 *
+		 * Instant Production can therefore use the same
+		 * completion logic as normal production cycles.
+		 */
 		_shopService =
 			new ShopService(
 				_state,
-				_economy
+				_economy,
+				_production
 			);
 
 
@@ -581,18 +588,6 @@ public partial class Game : Control
 				LastSaveUnix =
 					GetCurrentUnixTime(),
 
-				/*
-				 * IMPORTANT:
-				 *
-				 * Do NOT save GetTotalIncome() here.
-				 *
-				 * That method contains the temporary
-				 * Shop 2x production multiplier.
-				 *
-				 * Offline income stores the permanent/base
-				 * income instead and applies the temporary
-				 * boost based on its real expiration time.
-				 */
 				IncomePerSecond =
 					_economy
 						.GetTotalIncomeWithoutTemporaryShopBoost(),
@@ -860,18 +855,6 @@ public partial class Game : Control
 	// OFFLINE MIGRATION
 	// ==================================================
 
-	/*
-	 * Save versions <= 14 stored the CURRENT income.
-	 *
-	 * Therefore an active 2x production boost was already
-	 * included in IncomePerSecond.
-	 *
-	 * Version 15 stores income without the temporary boost.
-	 *
-	 * When loading an older save that had an active boost,
-	 * divide that saved value by the boost multiplier once
-	 * to reconstruct the correct base income.
-	 */
 	private static double GetMigratedOfflineIncomePerSecond(
 		SaveGameData save)
 	{
@@ -941,10 +924,6 @@ public partial class Game : Control
 		}
 
 
-		// ==================================================
-		// OFFLINE FACTOR
-		// ==================================================
-
 		double offlineFactor =
 			Math.Clamp(
 				GameConfig.BaseOfflineIncomeFactor
@@ -958,20 +937,6 @@ public partial class Game : Control
 			);
 
 
-		// ==================================================
-		// TEMPORARY PRODUCTION BOOST OVERLAP
-		// ==================================================
-
-		/*
-		 * Example:
-		 *
-		 * saved at 12:00
-		 * 2x boost ends at 12:03
-		 * game reopened at 14:00
-		 *
-		 * boostedSeconds = 180
-		 * normalSeconds  = 7020
-		 */
 		long boostOverlapEnd =
 			Math.Min(
 				now,
@@ -999,10 +964,6 @@ public partial class Game : Control
 			- boostedSeconds;
 
 
-		// ==================================================
-		// CALCULATE
-		// ==================================================
-
 		double normalIncome =
 			baseIncomePerSecond
 			* normalSeconds;
@@ -1022,10 +983,6 @@ public partial class Game : Control
 			)
 			* offlineFactor;
 
-
-		// ==================================================
-		// APPLY
-		// ==================================================
 
 		_state.Tokens +=
 			amount;

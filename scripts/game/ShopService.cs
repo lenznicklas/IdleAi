@@ -16,16 +16,24 @@ public sealed class ShopService
 
 	private readonly EconomyService _economy;
 
+	private readonly ProductionService _production;
+
 
 	public ShopService(
 		GameState state,
-		EconomyService economy)
+		EconomyService economy,
+		ProductionService production)
 	{
 		_state =
 			state;
 
+
 		_economy =
 			economy;
+
+
+		_production =
+			production;
 	}
 
 
@@ -151,10 +159,120 @@ public sealed class ShopService
 
 	public ShopResult BuyInstantProduction()
 	{
-		bool hasRunningMachine =
-			false;
+		if (!HasRunningProduction())
+		{
+			return new ShopResult(
+				false,
+				"No production cycles are currently running."
+			);
+		}
 
 
+		if (
+			!TrySpend(
+				GameConfig.ShopInstantProductionCost
+			)
+		)
+		{
+			return NotEnough();
+		}
+
+
+		/*
+		 * IMPORTANT:
+		 *
+		 * ShopService no longer calculates production
+		 * rewards itself.
+		 *
+		 * The normal ProductionService is responsible for
+		 * completing the cycles, which means all cycle
+		 * completion effects use one central code path.
+		 */
+		ProductionCompletionResult result =
+			_production
+				.CompleteAllRunningCyclesInstantly();
+
+
+		if (result.CompletedCycles <= 0)
+		{
+			/*
+			 * This should only happen if state changed
+			 * between the HasRunningProduction check and
+			 * completion.
+			 *
+			 * Refund the Shards in that rare case.
+			 */
+			_state.Shop.DataShards +=
+				GameConfig.ShopInstantProductionCost;
+
+
+			return new ShopResult(
+				false,
+				"No production cycles are currently running."
+			);
+		}
+
+
+		// ==================================================
+		// APPLY TOKENS
+		// ==================================================
+
+		if (result.Earned > 0.0)
+		{
+			_state.Tokens +=
+				result.Earned;
+
+
+			_state.RunEarnedTokens +=
+				result.Earned;
+
+
+			_state.Stats.AddEarned(
+				result.Earned
+			);
+		}
+
+
+		// ==================================================
+		// MESSAGE
+		// ==================================================
+
+		string message =
+			"Production completed instantly. +"
+			+ NumberFormatter.Format(
+				result.Earned
+			)
+			+ " Tokens";
+
+
+		if (result.ResearchPointsAwarded > 0)
+		{
+			message +=
+				" +"
+				+ result.ResearchPointsAwarded
+				+ " RP";
+		}
+
+
+		message +=
+			" • "
+			+ result.CompletedCycles
+			+ (
+				result.CompletedCycles == 1
+					? " cycle"
+					: " cycles"
+			);
+
+
+		return new ShopResult(
+			true,
+			message
+		);
+	}
+
+
+	private bool HasRunningProduction()
+	{
 		foreach (
 			RoomState room
 			in _state.RoomStates
@@ -174,127 +292,13 @@ public sealed class ShopService
 					&& slot.IsRunning
 				)
 				{
-					hasRunningMachine =
-						true;
-
-					break;
-				}
-			}
-
-
-			if (hasRunningMachine)
-				break;
-		}
-
-
-		if (!hasRunningMachine)
-		{
-			return new ShopResult(
-				false,
-				"No production cycles are currently running."
-			);
-		}
-
-
-		if (
-			!TrySpend(
-				GameConfig.ShopInstantProductionCost
-			)
-		)
-		{
-			return NotEnough();
-		}
-
-
-		double earned =
-			0.0;
-
-
-		for (
-			int roomIndex = 0;
-			roomIndex < _state.RoomStates.Count;
-			roomIndex++
-		)
-		{
-			RoomState room =
-				_state.RoomStates[
-					roomIndex
-				];
-
-
-			if (!room.Unlocked)
-				continue;
-
-
-			foreach (
-				SlotData slot
-				in room.Slots
-			)
-			{
-				if (
-					!slot.Unlocked
-					|| !slot.IsRunning
-				)
-				{
-					continue;
-				}
-
-
-				earned +=
-					_economy.GetCycleReward(
-						roomIndex,
-						slot
-					);
-
-
-				if (slot.HasBot)
-				{
-					slot.IsRunning =
-						true;
-
-
-					slot.CycleRemaining =
-						_economy.GetCycleDuration(
-							slot
-						);
-				}
-				else
-				{
-					slot.IsRunning =
-						false;
-
-
-					slot.CycleRemaining =
-						0.0;
+					return true;
 				}
 			}
 		}
 
 
-		if (earned > 0.0)
-		{
-			_state.Tokens +=
-				earned;
-
-
-			_state.RunEarnedTokens +=
-				earned;
-
-
-			_state.Stats.AddEarned(
-				earned
-			);
-		}
-
-
-		return new ShopResult(
-			true,
-			"Production completed instantly. +"
-			+ NumberFormatter.Format(
-				earned
-			)
-			+ " Tokens"
-		);
+		return false;
 	}
 
 

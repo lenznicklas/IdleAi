@@ -604,6 +604,36 @@ public sealed class MachineDetailsOverlay
 					);
 
 
+			/*
+			 * MAX normally shows the maximum number of levels
+			 * the player can currently afford.
+			 *
+			 * If zero levels are affordable, keep MAX selected
+			 * but preview the next single level instead. This
+			 * keeps the upgrade information/button geometry
+			 * identical to the normal upgrade state instead of
+			 * replacing it with a short "Not enough Tokens"
+			 * message.
+			 */
+			MachineUpgradeQuote displayQuote =
+				quote;
+
+
+			if (
+				_upgradeAmount == UpgradeAmount.Max
+				&& quote.Levels <= 0
+			)
+			{
+				displayQuote =
+					_progression
+						.GetMachineUpgradeQuote(
+							_roomIndex,
+							_slotIndex,
+							1
+						);
+			}
+
+
 			bool pipelineMachine =
 				_roomIndex
 				== GameConfig.PipelineRoomIndex;
@@ -627,10 +657,10 @@ public sealed class MachineDetailsOverlay
 				slot.MachineLevel;
 
 
-			if (quote.Levels > 0)
+			if (displayQuote.Levels > 0)
 			{
 				slot.MachineLevel =
-					quote.TargetLevel;
+					displayQuote.TargetLevel;
 			}
 
 
@@ -652,13 +682,10 @@ public sealed class MachineDetailsOverlay
 				originalLevel;
 
 
-			if (quote.Levels <= 0)
+			if (displayQuote.Levels <= 0)
 			{
 				_upgradeInfo.Text =
-					_upgradeAmount
-						== UpgradeAmount.Max
-						? "Not enough Tokens for another level."
-						: "No levels available.";
+					"No levels available.";
 
 
 				_upgradeButton.Text =
@@ -683,7 +710,7 @@ public sealed class MachineDetailsOverlay
 				"Level "
 				+ originalLevel
 				+ " → "
-				+ quote.TargetLevel
+				+ displayQuote.TargetLevel
 				+ "\n"
 				+ productionName
 				+ ": "
@@ -697,9 +724,9 @@ public sealed class MachineDetailsOverlay
 
 
 			string amountText =
-				quote.Levels == 1
+				displayQuote.Levels == 1
 					? "1 LEVEL"
-					: quote.Levels
+					: displayQuote.Levels
 						+ " LEVELS";
 
 
@@ -708,12 +735,12 @@ public sealed class MachineDetailsOverlay
 				+ amountText
 				+ " • "
 				+ NumberFormatter.Format(
-					quote.Cost
+					displayQuote.Cost
 				);
 
 
 			_upgradeButton.Disabled =
-				!quote.CanAfford;
+				!displayQuote.CanAfford;
 
 
 			return;

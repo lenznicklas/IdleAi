@@ -45,10 +45,6 @@ public partial class MobileUiAdapter : Node
 		18;
 
 
-	private const int ShopExtraTopPadding =
-		6;
-
-
 	private Game _root =
 		null!;
 
@@ -585,15 +581,19 @@ public partial class MobileUiAdapter : Node
 
 
 		/*
-		 * SHOP and the Data-Shard bar are moved below
-		 * the phone's notch / status area.
+		 * IMPORTANT:
+		 *
+		 * ShopMargin itself starts at the physical top edge
+		 * of the display so the Shop ScrollContainer can
+		 * extend behind the notch.
+		 *
+		 * ShopController applies the safe-top inset only to
+		 * the fixed SHOP / DATA SHARDS overlay and to the
+		 * scroll CONTENT padding.
 		 */
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			Ceil(
-				safe.Top
-			)
-			+ ShopExtraTopPadding
+			0
 		);
 
 

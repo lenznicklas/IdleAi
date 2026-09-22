@@ -13,6 +13,10 @@ public sealed class ShopController
 		10;
 
 
+	private const float HeaderExtraTopPadding =
+		6.0f;
+
+
 	private readonly Game _root;
 
 	private readonly GameState _state;
@@ -37,6 +41,10 @@ public sealed class ShopController
 
 
 	private ScrollContainer _scroll =
+		null!;
+
+
+	private MarginContainer _scrollMargin =
 		null!;
 
 
@@ -131,6 +139,13 @@ public sealed class ShopController
 		ClearOldContent();
 
 		CreateUi();
+
+
+		_root.GetViewport().SizeChanged +=
+			ApplyOverlayMetrics;
+
+
+		ApplyOverlayMetrics();
 
 		Hide();
 
@@ -856,8 +871,8 @@ public sealed class ShopController
 		);
 
 
-		MarginContainer scrollMargin =
-			new()
+		_scrollMargin =
+			new MarginContainer
 			{
 				Name =
 					"ScrollMargin",
@@ -867,24 +882,20 @@ public sealed class ShopController
 			};
 
 
-		scrollMargin.AddThemeConstantOverride(
+		_scrollMargin.AddThemeConstantOverride(
 			"margin_top",
-			(int)(
-				HeaderHeight
-				+ HeaderGap
-				+ 10
-			)
+			0
 		);
 
 
-		scrollMargin.AddThemeConstantOverride(
+		_scrollMargin.AddThemeConstantOverride(
 			"margin_bottom",
 			24
 		);
 
 
 		_scroll.AddChild(
-			scrollMargin
+			_scrollMargin
 		);
 
 
@@ -905,8 +916,127 @@ public sealed class ShopController
 		);
 
 
-		scrollMargin.AddChild(
+		_scrollMargin.AddChild(
 			_content
+		);
+	}
+
+
+	// ==================================================
+	// OVERLAY METRICS / SAFE AREA
+	// ==================================================
+
+	private void ApplyOverlayMetrics()
+	{
+		if (
+			_header == null
+			|| _scrollMargin == null
+		)
+		{
+			return;
+		}
+
+
+		float safeTop =
+			GetSafeTopInset();
+
+
+		float headerTop =
+			safeTop
+			+ HeaderExtraTopPadding;
+
+
+		/*
+		 * SHOP + DATA SHARDS stay below the notch.
+		 *
+		 * The ScrollContainer itself does NOT move down:
+		 * it still begins at y = 0 and therefore reaches
+		 * the physical top edge of the display.
+		 */
+		_header.OffsetTop =
+			headerTop;
+
+
+		_header.OffsetBottom =
+			headerTop
+			+ HeaderHeight;
+
+
+		/*
+		 * Only the scroll CONTENT receives top padding.
+		 *
+		 * This means:
+		 * - at rest, BOOSTS starts below the fixed overlays
+		 * - while scrolling, cards travel behind the header
+		 * - the scroll viewport itself extends behind the notch
+		 */
+		_scrollMargin.AddThemeConstantOverride(
+			"margin_top",
+			(int)MathF.Ceiling(
+				headerTop
+				+ HeaderHeight
+				+ HeaderGap
+				+ 10.0f
+			)
+		);
+
+
+		_header.MoveToFront();
+	}
+
+
+	private float GetSafeTopInset()
+	{
+		string os =
+			OS.GetName();
+
+
+		if (
+			os != "Android"
+			&& os != "iOS"
+		)
+		{
+			return 0.0f;
+		}
+
+
+		Rect2I safeArea =
+			DisplayServer.GetDisplaySafeArea();
+
+
+		Vector2I windowSize =
+			DisplayServer.WindowGetSize();
+
+
+		Rect2 viewportRect =
+			_root.GetViewport()
+				.GetVisibleRect();
+
+
+		if (
+			windowSize.X <= 0
+			|| windowSize.Y <= 0
+			|| safeArea.Size.X <= 0
+			|| safeArea.Size.Y <= 0
+		)
+		{
+			return 34.0f;
+		}
+
+
+		float scaleY =
+			viewportRect.Size.Y
+			/ windowSize.Y;
+
+
+		float top =
+			safeArea.Position.Y
+			* scaleY;
+
+
+		return MathF.Max(
+			top,
+			26.0f
 		);
 	}
 
@@ -1675,6 +1805,8 @@ public sealed class ShopController
 
 	public void Open()
 	{
+		ApplyOverlayMetrics();
+
 		Refresh();
 
 

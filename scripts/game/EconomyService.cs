@@ -718,29 +718,71 @@ public sealed class EconomyService
 	public static double GetMilestoneMultiplier(
 		int level)
 	{
+		double baseMultiplier;
+
 		if (level >= 25)
-			return 8.0;
+			baseMultiplier = 8.0;
+		else if (level >= 20)
+			baseMultiplier = 5.0;
+		else if (level >= 15)
+			baseMultiplier = 3.0;
+		else if (level >= 10)
+			baseMultiplier = 2.0;
+		else if (level >= 5)
+			baseMultiplier = 1.5;
+		else
+			baseMultiplier = 1.0;
 
-		if (level >= 20)
-			return 5.0;
 
-		if (level >= 15)
-			return 3.0;
+		/*
+		 * Final-tier machines can level forever.
+		 * After Level 25 they receive another x1.5
+		 * milestone every 25 levels.
+		 */
+		if (level <= 25)
+			return baseMultiplier;
 
-		if (level >= 10)
-			return 2.0;
 
-		if (level >= 5)
-			return 1.5;
+		int extraMilestones =
+			(level - 25)
+			/ 25;
 
-		return 1.0;
+
+		return baseMultiplier
+			* Math.Pow(
+				1.5,
+				extraMilestones
+			);
 	}
+
 
 	public static string GetMilestoneText(
 		int level)
 	{
 		if (level >= 25)
-			return "x8 production";
+		{
+			int nextMilestone =
+				(
+					level / 25
+					+ 1
+				)
+				* 25;
+
+
+			double nextMultiplier =
+				GetMilestoneMultiplier(
+					nextMilestone
+				);
+
+
+			return "Level "
+				+ nextMilestone
+				+ ": x"
+				+ nextMultiplier.ToString(
+					"0.##"
+				);
+		}
+
 
 		if (level >= 20)
 			return "Level 25: x8";
@@ -756,6 +798,7 @@ public sealed class EconomyService
 
 		return "Level 5: x1.5";
 	}
+
 
 	private MachineData GetMachine(
 		int roomIndex,

@@ -12,7 +12,15 @@ public sealed class MachineData
 
 	public double TierUpgradeCost { get; }
 
-	public int MaxLevel { get; }
+	private readonly int _maxLevel;
+
+	public int MaxLevel =>
+		IsInfiniteLevel
+			? int.MaxValue
+			: _maxLevel;
+
+	public bool IsInfiniteLevel =>
+		TierUpgradeCost <= 0.0;
 
 	public Texture2D Texture { get; }
 
@@ -41,7 +49,7 @@ public sealed class MachineData
 			tierUpgradeCost;
 
 
-		MaxLevel =
+		_maxLevel =
 			maxLevel;
 
 

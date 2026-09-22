@@ -69,7 +69,22 @@ public sealed class PrestigeService
 			);
 		}
 
-		_state.Prestige.AiCores += reward;
+		if (
+			long.MaxValue
+			- _state.Prestige.AiCores
+			< reward
+		)
+		{
+			_state.Prestige.AiCores =
+				long.MaxValue;
+		}
+		else
+		{
+			_state.Prestige.AiCores +=
+				reward;
+		}
+
+
 		_state.Prestige.PrestigeCount++;
 
 		_state.Shop.DataShards +=

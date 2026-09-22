@@ -1556,9 +1556,7 @@ public sealed class PipelineUiController
 				stage
 			].Text =
 				"LEVEL  "
-				+ level
-				+ " / "
-				+ GameConfig.PipelineMaxLevel;
+				+ level;
 
 
 			_capacityLabels[
@@ -1645,22 +1643,6 @@ public sealed class PipelineUiController
 					stage
 				];
 
-
-			if (
-				level
-				>= GameConfig.PipelineMaxLevel
-			)
-			{
-				button.Text =
-					"MAX LEVEL";
-
-
-				button.Disabled =
-					true;
-
-
-				continue;
-			}
 
 
 			double cost =

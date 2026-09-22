@@ -1497,9 +1497,7 @@ public sealed class InfrastructureUiController
 				system
 			].Text =
 				"LEVEL  "
-				+ level
-				+ " / "
-				+ GameConfig.InfrastructureMaxLevel;
+				+ level;
 
 
 			switch (system)
@@ -1570,22 +1568,6 @@ public sealed class InfrastructureUiController
 					system
 				];
 
-
-			if (
-				level
-				>= GameConfig.InfrastructureMaxLevel
-			)
-			{
-				button.Text =
-					"MAX LEVEL";
-
-
-				button.Disabled =
-					true;
-
-
-				continue;
-			}
 
 
 			double cost =

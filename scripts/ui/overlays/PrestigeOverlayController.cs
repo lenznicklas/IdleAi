@@ -185,25 +185,42 @@ public sealed class PrestigeOverlayController
 			return false;
 
 
-		long coresAfter =
-			_state.Prestige.AiCores
-			+ reward;
+		long coresAfter;
+
+
+		if (
+			long.MaxValue
+			- _state.Prestige.AiCores
+			< reward
+		)
+		{
+			coresAfter =
+				long.MaxValue;
+		}
+		else
+		{
+			coresAfter =
+				_state.Prestige.AiCores
+				+ reward;
+		}
 
 
 		double multiplier =
-			1.0
-			+ coresAfter
-			* GameConfig
-				.ProductionBoostPerAiCore;
+			PrestigeData
+				.GetProductionMultiplierForCores(
+					coresAfter
+				);
 
 
 		_info.Text =
 			$"You gain +{reward} AI Cores.\n\n"
 			+ $"AI Cores after prestige: {coresAfter}\n"
-			+ $"Production after prestige: x{multiplier:F2}";
+			+ $"Production after prestige: x{multiplier:F3}\n"
+			+ $"Maximum prestige production: x{GameConfig.PrestigeMaximumProductionMultiplier:F1}";
 
 
 		_overlay.Show();
+
 
 		_overlay.MoveToFront();
 

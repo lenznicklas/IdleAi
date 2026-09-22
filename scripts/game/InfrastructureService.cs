@@ -705,20 +705,6 @@ public sealed class InfrastructureService
 			);
 
 
-		if (
-			currentLevel
-			>= GameConfig.InfrastructureMaxLevel
-		)
-		{
-			return new InfrastructureUpgradeResult(
-				false,
-				GetSystemName(
-					system
-				)
-				+ " is already at maximum level."
-			);
-		}
-
 
 		double cost =
 			GetUpgradeCost(

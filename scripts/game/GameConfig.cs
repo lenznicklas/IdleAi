@@ -206,10 +206,6 @@ public static class GameConfig
 		1;
 
 
-	public const int PipelineMaxLevel =
-		25;
-
-
 	public const double PipelineTokensPerOutputUnit =
 		10_000.0;
 
@@ -289,10 +285,6 @@ public static class GameConfig
 
 	public const int InfrastructureRoomIndex =
 		2;
-
-
-	public const int InfrastructureMaxLevel =
-		25;
 
 
 	/*
@@ -411,10 +403,6 @@ public static class GameConfig
 
 	public const int QuantumRoomIndex =
 		3;
-
-
-	public const int QuantumUpgradeMaxLevel =
-		25;
 
 
 	public const double QuantumMaximumStability =
@@ -566,8 +554,23 @@ public static class GameConfig
 		1_000_000_000_000_000_000.0;
 
 
-	public const double ProductionBoostPerAiCore =
-		0.02;
+	/*
+	 * Prestige now has diminishing returns and can never
+	 * exceed x2 total production.
+	 *
+	 * Examples:
+	 *   1 core   ≈ x1.010
+	 *   10 cores ≈ x1.095
+	 *   50 cores ≈ x1.393
+	 *   100 cores ≈ x1.632
+	 *   200 cores ≈ x1.865
+	 */
+	public const double PrestigeMaximumProductionMultiplier =
+		2.0;
+
+
+	public const double PrestigeCoreSoftcap =
+		100.0;
 
 
 	// ==================================================

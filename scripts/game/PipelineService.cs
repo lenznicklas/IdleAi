@@ -590,20 +590,6 @@ public sealed class PipelineService
 			);
 
 
-		if (
-			currentLevel
-			>= GameConfig.PipelineMaxLevel
-		)
-		{
-			return new PipelineUpgradeResult(
-				false,
-				GetStageName(
-					stage
-				)
-				+ " is already at maximum level."
-			);
-		}
-
 
 		double cost =
 			GetUpgradeCost(

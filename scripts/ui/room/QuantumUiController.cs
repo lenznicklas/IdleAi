@@ -1608,9 +1608,7 @@ public sealed class QuantumUiController
 				upgrade
 			].Text =
 				"LEVEL  "
-				+ level
-				+ " / "
-				+ GameConfig.QuantumUpgradeMaxLevel;
+				+ level;
 
 
 			switch (upgrade)
@@ -1677,22 +1675,6 @@ public sealed class QuantumUiController
 					upgrade
 				];
 
-
-			if (
-				level
-				>= GameConfig.QuantumUpgradeMaxLevel
-			)
-			{
-				button.Text =
-					"MAX LEVEL";
-
-
-				button.Disabled =
-					true;
-
-
-				continue;
-			}
 
 
 			double cost =

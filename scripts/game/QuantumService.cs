@@ -437,20 +437,6 @@ public sealed class QuantumService
 			);
 
 
-		if (
-			currentLevel
-			>= GameConfig.QuantumUpgradeMaxLevel
-		)
-		{
-			return new QuantumUpgradeResult(
-				false,
-				GetUpgradeName(
-					upgrade
-				)
-				+ " is already at maximum level."
-			);
-		}
-
 
 		double cost =
 			GetUpgradeCost(

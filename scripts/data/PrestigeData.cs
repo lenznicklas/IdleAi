@@ -1,3 +1,5 @@
+using System;
+
 namespace IdleAi;
 
 public sealed class PrestigeData
@@ -9,16 +11,42 @@ public sealed class PrestigeData
 
 	public double GetProductionMultiplier()
 	{
+		return GetProductionMultiplierForCores(
+			AiCores
+		);
+	}
+
+
+	public static double GetProductionMultiplierForCores(
+		long cores)
+	{
+		if (cores <= 0)
+			return 1.0;
+
+
+		double progress =
+			1.0
+			- Math.Exp(
+				-cores
+				/ GameConfig.PrestigeCoreSoftcap
+			);
+
+
 		return 1.0
-			   + AiCores
-			   * GameConfig.ProductionBoostPerAiCore;
+			+ progress
+			* (
+				GameConfig.PrestigeMaximumProductionMultiplier
+				- 1.0
+			);
 	}
 
 
 	public double GetProductionBonusPercent()
 	{
-		return AiCores
-			   * GameConfig.ProductionBoostPerAiCore
-			   * 100.0;
+		return (
+			GetProductionMultiplier()
+			- 1.0
+		)
+		* 100.0;
 	}
 }

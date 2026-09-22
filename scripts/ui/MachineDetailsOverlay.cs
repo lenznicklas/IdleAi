@@ -426,7 +426,9 @@ public sealed class MachineDetailsOverlay
 
 
 		_level.Text =
-			$"Level {slot.MachineLevel} / {machine.MaxLevel}";
+			machine.IsInfiniteLevel
+				? $"Level {slot.MachineLevel}"
+				: $"Level {slot.MachineLevel} / {machine.MaxLevel}";
 
 
 		if (pipelineMachine)
@@ -563,8 +565,9 @@ public sealed class MachineDetailsOverlay
 
 
 		if (
-			slot.MachineLevel
-			< machine.MaxLevel
+			machine.IsInfiniteLevel
+			|| slot.MachineLevel
+				< machine.MaxLevel
 		)
 		{
 			_upgradeAmountRow.Show();
@@ -742,11 +745,11 @@ public sealed class MachineDetailsOverlay
 
 
 		_upgradeInfo.Text =
-			"Maximum machine reached";
+			"No further machine tier available";
 
 
 		_upgradeButton.Text =
-			"MAX";
+			"UNAVAILABLE";
 
 
 		_upgradeButton.Disabled =
@@ -780,8 +783,9 @@ public sealed class MachineDetailsOverlay
 
 
 		if (
-			slot.MachineLevel
-			< machine.MaxLevel
+			machine.IsInfiniteLevel
+			|| slot.MachineLevel
+				< machine.MaxLevel
 		)
 		{
 			result =

@@ -121,6 +121,23 @@ public sealed class InfrastructureUiController
 		-1;
 
 
+	private bool _displayInitialized;
+
+
+	private ulong _lastSmoothTicks;
+
+
+	private double _displayTemperature;
+
+
+	private double _displayOutputPercent;
+
+
+	private readonly Dictionary<InfrastructureSystem, double>
+		_displayUsagePercent =
+			[];
+
+
 	public event Action<string>? MessageRequested;
 
 	public event Action? StateChanged;
@@ -1199,8 +1216,17 @@ public sealed class InfrastructureUiController
 
 			if (
 				currentRoom
-				!= GameConfig.InfrastructureRoomIndex
+				== GameConfig.InfrastructureRoomIndex
 			)
+			{
+				_displayInitialized =
+					false;
+
+
+				_lastSmoothTicks =
+					Time.GetTicksMsec();
+			}
+			else
 			{
 				_showInfrastructure =
 					false;
@@ -1228,7 +1254,10 @@ public sealed class InfrastructureUiController
 		}
 
 
-		Refresh();
+		Refresh(
+			animate:
+				true
+		);
 	}
 
 
@@ -1260,7 +1289,8 @@ public sealed class InfrastructureUiController
 	}
 
 
-	private void Refresh()
+	private void Refresh(
+		bool animate = false)
 	{
 		if (
 			_state.RoomStates.Count
@@ -1275,17 +1305,158 @@ public sealed class InfrastructureUiController
 			_service.GetCurrentLoad();
 
 
-		double temperature =
+		double targetTemperature =
 			_service.GetTemperatureCelsius();
 
 
-		double multiplier =
-			_service.GetProductionMultiplier();
+		double targetOutputPercent =
+			_service.GetProductionMultiplier()
+			* 100.0;
+
+
+		Dictionary<InfrastructureSystem, double>
+			targetUsage =
+				[];
+
+
+		foreach (
+			InfrastructureSystem system
+			in SystemOrder
+		)
+		{
+			double capacity =
+				_service.GetCapacity(
+					system
+				);
+
+
+			targetUsage[
+				system
+			] =
+				GetUsagePercent(
+					load,
+					capacity
+				);
+		}
+
+
+		if (!_displayInitialized)
+		{
+			_displayTemperature =
+				targetTemperature;
+
+
+			_displayOutputPercent =
+				targetOutputPercent;
+
+
+			foreach (
+				InfrastructureSystem system
+				in SystemOrder
+			)
+			{
+				_displayUsagePercent[
+					system
+				] =
+					targetUsage[
+						system
+					];
+			}
+
+
+			_displayInitialized =
+				true;
+
+
+			_lastSmoothTicks =
+				Time.GetTicksMsec();
+		}
+		else if (animate)
+		{
+			ulong now =
+				Time.GetTicksMsec();
+
+
+			double delta =
+				_lastSmoothTicks == 0
+					? 0.0
+					: (
+						now
+						- _lastSmoothTicks
+					)
+					/ 1000.0;
+
+
+			_lastSmoothTicks =
+				now;
+
+
+			/*
+			 * Exponential smoothing feels natural on a
+			 * mobile UI and is independent of frame rate.
+			 *
+			 * Larger value = faster visual reaction.
+			 */
+			double smoothing =
+				1.0
+				- Math.Exp(
+					-2.2
+					* Math.Clamp(
+						delta,
+						0.0,
+						0.10
+					)
+				);
+
+
+			_displayTemperature =
+				Lerp(
+					_displayTemperature,
+					targetTemperature,
+					smoothing
+				);
+
+
+			_displayOutputPercent =
+				Lerp(
+					_displayOutputPercent,
+					targetOutputPercent,
+					smoothing
+				);
+
+
+			foreach (
+				InfrastructureSystem system
+				in SystemOrder
+			)
+			{
+				double current =
+					_displayUsagePercent
+						.GetValueOrDefault(
+							system,
+							targetUsage[
+								system
+							]
+						);
+
+
+				_displayUsagePercent[
+					system
+				] =
+					Lerp(
+						current,
+						targetUsage[
+							system
+						],
+						smoothing
+					);
+			}
+		}
 
 
 		_temperatureLabel.Text =
 			"TEMPERATURE\n"
-			+ temperature.ToString(
+			+ _displayTemperature.ToString(
 				"0"
 			)
 			+ "°C";
@@ -1293,17 +1464,13 @@ public sealed class InfrastructureUiController
 
 		_temperatureLabel.Modulate =
 			GetTemperatureColor(
-				temperature
+				_displayTemperature
 			);
 
 
 		_efficiencyLabel.Text =
 			"ROOM OUTPUT\n"
-			+ (
-				multiplier
-				* 100.0
-			)
-			.ToString(
+			+ _displayOutputPercent.ToString(
 				"0"
 			)
 			+ "%";
@@ -1349,15 +1516,6 @@ public sealed class InfrastructureUiController
 						+ NumberFormatter.Format(
 							capacity
 						);
-
-
-					_usageBars[
-						system
-					].Value =
-						GetUsagePercent(
-							load,
-							capacity
-						);
 					break;
 
 
@@ -1374,19 +1532,10 @@ public sealed class InfrastructureUiController
 							capacity
 						)
 						+ "  •  "
-						+ temperature.ToString(
+						+ _displayTemperature.ToString(
 							"0"
 						)
 						+ "°C";
-
-
-					_usageBars[
-						system
-					].Value =
-						GetUsagePercent(
-							load,
-							capacity
-						);
 					break;
 
 
@@ -1402,17 +1551,18 @@ public sealed class InfrastructureUiController
 						+ NumberFormatter.Format(
 							capacity
 						);
-
-
-					_usageBars[
-						system
-					].Value =
-						GetUsagePercent(
-							load,
-							capacity
-						);
 					break;
 			}
+
+
+			_usageBars[
+				system
+			].Value =
+				_displayUsagePercent
+					.GetValueOrDefault(
+						system,
+						0.0
+					);
 
 
 			Button button =
@@ -1455,6 +1605,22 @@ public sealed class InfrastructureUiController
 				_state.Tokens
 				< cost;
 		}
+	}
+
+	private static double Lerp(
+		double from,
+		double to,
+		double weight)
+	{
+		return from
+			+ (
+				to - from
+			)
+			* Math.Clamp(
+				weight,
+				0.0,
+				1.0
+			);
 	}
 
 

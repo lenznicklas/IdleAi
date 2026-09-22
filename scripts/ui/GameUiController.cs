@@ -20,10 +20,12 @@ public sealed class GameUiController
 	private readonly ShopService _shopService;
 	private readonly PipelineService _pipelineService;
 	private readonly InfrastructureService _infrastructureService;
+	private readonly QuantumService _quantumService;
 
 	private RoomUiController _room = null!;
 	private PipelineUiController _pipeline = null!;
 	private InfrastructureUiController _infrastructure = null!;
+	private QuantumUiController _quantum = null!;
 	private TopBarController _topBar = null!;
 	private BottomBarController _bottomBar = null!;
 	private MapController _map = null!;
@@ -50,7 +52,8 @@ public sealed class GameUiController
 		PrestigeService prestige,
 		ShopService shopService,
 		PipelineService pipelineService,
-		InfrastructureService infrastructureService)
+		InfrastructureService infrastructureService,
+		QuantumService quantumService)
 	{
 		_root = root;
 		_state = state;
@@ -62,6 +65,7 @@ public sealed class GameUiController
 		_shopService = shopService;
 		_pipelineService = pipelineService;
 		_infrastructureService = infrastructureService;
+		_quantumService = quantumService;
 	}
 
 	public void Initialize()
@@ -71,6 +75,7 @@ public sealed class GameUiController
 		CreateRoomController();
 		CreatePipelineController();
 		CreateInfrastructureController();
+		CreateQuantumController();
 		CreateTopBarController();
 		CreateBottomBarController();
 		CreateMapController();
@@ -141,6 +146,26 @@ public sealed class GameUiController
 		};
 
 		_infrastructure.Initialize();
+	}
+
+	private void CreateQuantumController()
+	{
+		_quantum =
+			new QuantumUiController(
+				_root,
+				_state,
+				_quantumService
+			);
+
+		_quantum.MessageRequested += SetMessage;
+
+		_quantum.StateChanged += () =>
+		{
+			UpdateAll();
+			StateChanged?.Invoke();
+		};
+
+		_quantum.Initialize();
 	}
 
 	private void CreateTopBarController()
@@ -354,6 +379,7 @@ public sealed class GameUiController
 		_room.UpdateAll();
 		_pipeline.UpdateAll();
 		_infrastructure.UpdateAll();
+		_quantum.UpdateAll();
 
 		_topBar.SetRoomName(
 			_state.CurrentRoom.Name
@@ -390,6 +416,7 @@ public sealed class GameUiController
 		_room.UpdateRuntime();
 		_pipeline.UpdateRuntime();
 		_infrastructure.UpdateRuntime();
+		_quantum.UpdateRuntime();
 
 		if (_shop.Visible)
 			_shop.Refresh();

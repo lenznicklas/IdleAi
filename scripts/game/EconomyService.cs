@@ -299,6 +299,14 @@ public sealed class EconomyService
 					includeTemporaryShopBoost
 				);
 
+
+		double quantumMultiplier =
+			QuantumService
+				.GetProductionMultiplierForRoom(
+					_state,
+					roomIndex
+				);
+
 		double baseCycleDuration =
 			GetBaseCycleDuration(
 				slot
@@ -312,7 +320,8 @@ public sealed class EconomyService
 			* prestigeMultiplier
 			* researchProductionMultiplier
 			* shopProductionMultiplier
-			* infrastructureMultiplier;
+			* infrastructureMultiplier
+			* quantumMultiplier;
 	}
 
 	public double GetCycleReward(

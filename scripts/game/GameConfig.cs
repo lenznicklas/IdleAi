@@ -406,6 +406,127 @@ public static class GameConfig
 
 
 	// ==================================================
+	// QUANTUM LAB
+	// ==================================================
+
+	public const int QuantumRoomIndex =
+		3;
+
+
+	public const int QuantumUpgradeMaxLevel =
+		25;
+
+
+	public const double QuantumMaximumStability =
+		100.0;
+
+
+	public const double QuantumStartingEnergy =
+		200.0;
+
+
+	public const double QuantumBaseEnergyCapacity =
+		200.0;
+
+
+	public const double QuantumEnergyCapacityGrowth =
+		1.45;
+
+
+	public const double QuantumBaseEnergyRegenPerSecond =
+		5.0;
+
+
+	public const double QuantumEnergyRegenPerCoreLevel =
+		1.5;
+
+
+	public const double QuantumBaseStabilityRecoveryPerSecond =
+		0.35;
+
+
+	public const double QuantumStabilityRecoveryPerLevel =
+		0.10;
+
+
+	public const double QuantumRecoveryResumeStability =
+		35.0;
+
+
+	public const double QuantumRecoveryResumeEnergyFraction =
+		0.25;
+
+
+	public const double QuantumAmplifierBonusPerLevel =
+		0.03;
+
+
+	public const double QuantumMinimumStabilityMultiplier =
+		0.55;
+
+
+	public const double QuantumStabilizerBaseUpgradeCost =
+		15_000_000_000_000_000.0;
+
+
+	public const double QuantumEnergyCoreBaseUpgradeCost =
+		20_000_000_000_000_000.0;
+
+
+	public const double QuantumAmplifierBaseUpgradeCost =
+		30_000_000_000_000_000.0;
+
+
+	public const double QuantumUpgradeCostGrowth =
+		1.80;
+
+
+	public static double GetQuantumOverclockMultiplier(
+		int overclockIndex)
+	{
+		return overclockIndex switch
+		{
+			0 => 1.00,
+			1 => 1.25,
+			2 => 1.50,
+			3 => 2.00,
+			4 => 2.50,
+			_ => 1.00
+		};
+	}
+
+
+	public static double GetQuantumEnergyDrainPerSecond(
+		int overclockIndex)
+	{
+		return overclockIndex switch
+		{
+			0 => 0.0,
+			1 => 6.0,
+			2 => 10.0,
+			3 => 18.0,
+			4 => 30.0,
+			_ => 0.0
+		};
+	}
+
+
+	public static double GetQuantumStabilityDrainPerSecond(
+		int overclockIndex)
+	{
+		return overclockIndex switch
+		{
+			0 => 0.0,
+			1 => 0.45,
+			2 => 0.80,
+			3 => 1.50,
+			4 => 2.50,
+			_ => 0.0
+		};
+	}
+
+
+	// ==================================================
 	// OFFLINE
 	// ==================================================
 

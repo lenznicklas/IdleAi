@@ -60,6 +60,8 @@ public sealed class RoomSaveData
 
 	public InfrastructureSaveData? Infrastructure { get; set; } = new();
 
+	public QuantumSaveData? Quantum { get; set; } = new();
+
 	public List<SlotSaveData> Slots { get; set; } = [];
 }
 
@@ -99,6 +101,26 @@ public sealed class InfrastructureSaveData
 	public int CoolingLevel { get; set; } = 1;
 
 	public int StorageLevel { get; set; } = 1;
+}
+
+
+public sealed class QuantumSaveData
+{
+	public double Stability { get; set; } =
+		GameConfig.QuantumMaximumStability;
+
+	public double Energy { get; set; } =
+		GameConfig.QuantumStartingEnergy;
+
+	public int OverclockIndex { get; set; }
+
+	public int StabilizerLevel { get; set; } = 1;
+
+	public int EnergyCoreLevel { get; set; } = 1;
+
+	public int AmplifierLevel { get; set; } = 1;
+
+	public bool RecoveryMode { get; set; }
 }
 
 

@@ -109,6 +109,7 @@ public sealed class PrestigeService
 
 			room.Pipeline.Reset();
 			room.Infrastructure.Reset();
+			room.Quantum.Reset();
 
 			for (
 				int slotIndex = 0;

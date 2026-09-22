@@ -7,7 +7,7 @@ namespace IdleAi;
 public partial class Game : Control
 {
 	private const int SaveVersion =
-		18;
+		19;
 
 
 	private const double AutosaveIntervalSeconds =
@@ -51,6 +51,10 @@ public partial class Game : Control
 
 
 	private InfrastructureService _infrastructureService =
+		null!;
+
+
+	private QuantumService _quantumService =
 		null!;
 
 
@@ -161,6 +165,11 @@ public partial class Game : Control
 		}
 
 
+		_quantumService.Update(
+			delta
+		);
+
+
 		LabResult researchResult =
 			_labService.Update();
 
@@ -231,6 +240,12 @@ public partial class Game : Control
 			);
 
 
+		_quantumService =
+			new QuantumService(
+				_state
+			);
+
+
 		_progression =
 			new ProgressionService(
 				_state,
@@ -284,7 +299,8 @@ public partial class Game : Control
 				_prestige,
 				_shopService,
 				_pipelineService,
-				_infrastructureService
+				_infrastructureService,
+				_quantumService
 			);
 
 
@@ -679,6 +695,9 @@ public partial class Game : Control
 									Infrastructure =
 										room.Infrastructure.ToSaveData(),
 
+									Quantum =
+										room.Quantum.ToSaveData(),
+
 									Slots =
 										room.Slots
 											.Select(
@@ -847,6 +866,21 @@ public partial class Game : Control
 			}
 
 
+			if (
+				save.SaveVersion >= 19
+				&& savedRoom.Quantum != null
+			)
+			{
+				room.Quantum.LoadFromSaveData(
+					savedRoom.Quantum
+				);
+			}
+			else
+			{
+				room.Quantum.Reset();
+			}
+
+
 			for (
 				int slotIndex = 0;
 				slotIndex < Math.Min(
@@ -900,7 +934,7 @@ public partial class Game : Control
 		 * Data Center infrastructure.
 		 */
 		double savedBaseIncome =
-			save.SaveVersion < 18
+			save.SaveVersion < 19
 				? _economy
 					.GetTotalIncomeWithoutTemporaryShopBoost()
 				: GetMigratedOfflineIncomePerSecond(

@@ -16,5 +16,7 @@ public sealed class RoomState
 
 	public InfrastructureData Infrastructure { get; } = new();
 
+	public QuantumData Quantum { get; } = new();
+
 	public List<SlotData> Slots { get; } = [];
 }

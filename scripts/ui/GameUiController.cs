@@ -72,6 +72,21 @@ public sealed class GameUiController
 	{
 		_root.Theme = MainTheme;
 
+		/*
+		 * Important initialization order:
+		 *
+		 * 1. All normal room/special-room controllers create
+		 *    their UI using the original scene hierarchy.
+		 *
+		 * 2. TopBar / BottomBar controllers cache their nodes.
+		 *
+		 * 3. Only then RoomUiController reparents the room
+		 *    content and chrome into the new overlay layout.
+		 *
+		 * Cached Control references remain valid after Reparent,
+		 * so Pipeline / Infrastructure / Quantum do not need to
+		 * know about the new hierarchy.
+		 */
 		CreateRoomController();
 		CreatePipelineController();
 		CreateInfrastructureController();
@@ -83,6 +98,8 @@ public sealed class GameUiController
 		CreatePrestigeController();
 		CreateShopController();
 		CreateMachineDetails();
+
+		_room.EnableOverlayLayout();
 
 		ApplyRoomTheme(true);
 		UpdateAll();

@@ -1,21 +1,48 @@
 using Godot;
 using System;
-using System.Collections.Generic;
 
 namespace IdleAi;
 
 public sealed class RoomUiController
 {
-	private const float TopSlotPadding =
-		36.0f;
-
-
 	private const int MachineHapticDurationMs =
 		18;
 
 
 	private const float MachineHapticStrength =
 		0.18f;
+
+
+	private const float MainHorizontalPadding =
+		16.0f;
+
+
+	private const float TopBarTopPadding =
+		10.0f;
+
+
+	private const float TopBarHeight =
+		96.0f;
+
+
+	private const float ModeTabsGap =
+		8.0f;
+
+
+	private const float ModeTabsHeight =
+		56.0f;
+
+
+	private const float ContentGap =
+		12.0f;
+
+
+	private const float BottomBarHeight =
+		116.0f;
+
+
+	private const float BottomContentGap =
+		24.0f;
 
 
 	private readonly Game _root;
@@ -32,6 +59,10 @@ public sealed class RoomUiController
 
 
 	private VBoxContainer _mainLayout =
+		null!;
+
+
+	private MarginContainer _roomPanel =
 		null!;
 
 
@@ -55,11 +86,53 @@ public sealed class RoomUiController
 		null!;
 
 
-	private readonly List<Control> _topSpacers =
-		[];
+	private Control _contentLayer =
+		null!;
 
 
-	private bool _pipelineButtonsHooked;
+	private Control _overlayLayer =
+		null!;
+
+
+	private Control _topBar =
+		null!;
+
+
+	private Control _bottomBar =
+		null!;
+
+
+	private CenterContainer? _pipelineNavigation;
+
+	private CenterContainer? _infrastructureNavigation;
+
+	private CenterContainer? _quantumNavigation;
+
+
+	private ScrollContainer? _pipelineScroll;
+
+	private ScrollContainer? _infrastructureScroll;
+
+	private ScrollContainer? _quantumScroll;
+
+
+	private Control _topSpacerLeft =
+		null!;
+
+
+	private Control _topSpacerRight =
+		null!;
+
+
+	private Control _bottomSpacerLeft =
+		null!;
+
+
+	private Control _bottomSpacerRight =
+		null!;
+
+
+	private bool _overlayLayoutEnabled;
 
 
 	public event Action<int>? SlotActionRequested;
@@ -135,6 +208,12 @@ public sealed class RoomUiController
 			);
 
 
+		_roomPanel =
+			_root.GetNode<MarginContainer>(
+				"MarginContainer/VBoxContainer/RoomPanel"
+			);
+
+
 		_roomVBox =
 			_root.GetNode<VBoxContainer>(
 				"MarginContainer/VBoxContainer/RoomPanel/RoomVBox"
@@ -195,6 +274,755 @@ public sealed class RoomUiController
 
 
 	// ==================================================
+	// OVERLAY LAYOUT
+	// ==================================================
+
+	public void EnableOverlayLayout()
+	{
+		if (_overlayLayoutEnabled)
+			return;
+
+
+		_overlayLayoutEnabled =
+			true;
+
+
+		_topBar =
+			_root.GetNode<Control>(
+				"MarginContainer/VBoxContainer/TopBar"
+			);
+
+
+		_bottomBar =
+			_root.GetNode<Control>(
+				"BottomBar"
+			);
+
+
+		_pipelineNavigation =
+			_roomVBox.GetNodeOrNull<CenterContainer>(
+				"PipelineNavigationCenter"
+			);
+
+
+		_infrastructureNavigation =
+			_roomVBox.GetNodeOrNull<CenterContainer>(
+				"InfrastructureNavigationCenter"
+			);
+
+
+		_quantumNavigation =
+			_roomVBox.GetNodeOrNull<CenterContainer>(
+				"QuantumNavigationCenter"
+			);
+
+
+		_pipelineScroll =
+			_roomVBox.GetNodeOrNull<ScrollContainer>(
+				"PipelineScroll"
+			);
+
+
+		_infrastructureScroll =
+			_roomVBox.GetNodeOrNull<ScrollContainer>(
+				"InfrastructureScroll"
+			);
+
+
+		_quantumScroll =
+			_roomVBox.GetNodeOrNull<ScrollContainer>(
+				"QuantumScroll"
+			);
+
+
+		CreateOverlayLayers();
+
+		MoveScrollableViewsToContentLayer();
+
+		MoveChromeToOverlayLayer();
+
+		_roomPanel.Hide();
+
+
+		_root.GetViewport().SizeChanged +=
+			ApplyOverlayLayoutMetrics;
+
+
+		ApplyOverlayLayoutMetrics();
+
+		_overlayLayer.MoveToFront();
+
+		_bottomBar.MoveToFront();
+	}
+
+
+	private void CreateOverlayLayers()
+	{
+		_contentLayer =
+			new Control
+			{
+				Name =
+					"RoomContentLayer",
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+
+		_contentLayer.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+
+		_root.AddChild(
+			_contentLayer
+		);
+
+
+		_overlayLayer =
+			new Control
+			{
+				Name =
+					"RoomOverlayLayer",
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+
+		_overlayLayer.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+
+		_root.AddChild(
+			_overlayLayer
+		);
+	}
+
+
+	private void MoveScrollableViewsToContentLayer()
+	{
+		ReparentScrollToContentLayer(
+			_scroll
+		);
+
+
+		if (_pipelineScroll != null)
+		{
+			ReparentScrollToContentLayer(
+				_pipelineScroll
+			);
+		}
+
+
+		if (_infrastructureScroll != null)
+		{
+			ReparentScrollToContentLayer(
+				_infrastructureScroll
+			);
+		}
+
+
+		if (_quantumScroll != null)
+		{
+			ReparentScrollToContentLayer(
+				_quantumScroll
+			);
+		}
+	}
+
+
+	private void ReparentScrollToContentLayer(
+		ScrollContainer scroll)
+	{
+		scroll.Reparent(
+			_contentLayer,
+			false
+		);
+
+
+		scroll.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+
+		scroll.SizeFlagsHorizontal =
+			Control.SizeFlags.ExpandFill;
+
+
+		scroll.SizeFlagsVertical =
+			Control.SizeFlags.ExpandFill;
+
+
+		scroll.HorizontalScrollMode =
+			ScrollContainer.ScrollMode.Disabled;
+
+
+		scroll.VerticalScrollMode =
+			ScrollContainer.ScrollMode.ShowNever;
+
+
+		scroll.ClipContents =
+			true;
+	}
+
+
+	private void MoveChromeToOverlayLayer()
+	{
+		_topBar.Reparent(
+			_overlayLayer,
+			false
+		);
+
+
+		PrepareTopOverlayControl(
+			_topBar
+		);
+
+
+		if (_pipelineNavigation != null)
+		{
+			_pipelineNavigation.Reparent(
+				_overlayLayer,
+				false
+			);
+
+
+			PrepareTopOverlayControl(
+				_pipelineNavigation
+			);
+		}
+
+
+		if (_infrastructureNavigation != null)
+		{
+			_infrastructureNavigation.Reparent(
+				_overlayLayer,
+				false
+			);
+
+
+			PrepareTopOverlayControl(
+				_infrastructureNavigation
+			);
+		}
+
+
+		if (_quantumNavigation != null)
+		{
+			_quantumNavigation.Reparent(
+				_overlayLayer,
+				false
+			);
+
+
+			PrepareTopOverlayControl(
+				_quantumNavigation
+			);
+		}
+	}
+
+
+	private static void PrepareTopOverlayControl(
+		Control control)
+	{
+		control.AnchorLeft =
+			0.0f;
+
+
+		control.AnchorTop =
+			0.0f;
+
+
+		control.AnchorRight =
+			1.0f;
+
+
+		control.AnchorBottom =
+			0.0f;
+
+	}
+
+
+	private void ApplyOverlayLayoutMetrics()
+	{
+		if (!_overlayLayoutEnabled)
+			return;
+
+
+		SafeInsets safe =
+			GetSafeInsets();
+
+
+		float horizontalLeft =
+			MainHorizontalPadding
+			+ safe.Left;
+
+
+		float horizontalRight =
+			MainHorizontalPadding
+			+ safe.Right;
+
+
+		float topBarTop =
+			TopBarTopPadding
+			+ safe.Top;
+
+
+		float topBarBottom =
+			topBarTop
+			+ TopBarHeight;
+
+
+		_topBar.OffsetLeft =
+			horizontalLeft;
+
+
+		_topBar.OffsetTop =
+			topBarTop;
+
+
+		_topBar.OffsetRight =
+			-horizontalRight;
+
+
+		_topBar.OffsetBottom =
+			topBarBottom;
+
+
+		float tabsTop =
+			topBarBottom
+			+ ModeTabsGap;
+
+
+		float tabsBottom =
+			tabsTop
+			+ ModeTabsHeight;
+
+
+		PositionNavigationOverlay(
+			_pipelineNavigation,
+			horizontalLeft,
+			horizontalRight,
+			tabsTop,
+			tabsBottom
+		);
+
+
+		PositionNavigationOverlay(
+			_infrastructureNavigation,
+			horizontalLeft,
+			horizontalRight,
+			tabsTop,
+			tabsBottom
+		);
+
+
+		PositionNavigationOverlay(
+			_quantumNavigation,
+			horizontalLeft,
+			horizontalRight,
+			tabsTop,
+			tabsBottom
+		);
+
+
+		PositionScrollableView(
+			_scroll,
+			horizontalLeft,
+			horizontalRight
+		);
+
+
+		if (_pipelineScroll != null)
+		{
+			PositionScrollableView(
+				_pipelineScroll,
+				horizontalLeft,
+				horizontalRight
+			);
+		}
+
+
+		if (_infrastructureScroll != null)
+		{
+			PositionScrollableView(
+				_infrastructureScroll,
+				horizontalLeft,
+				horizontalRight
+			);
+		}
+
+
+		if (_quantumScroll != null)
+		{
+			PositionScrollableView(
+				_quantumScroll,
+				horizontalLeft,
+				horizontalRight
+			);
+		}
+
+
+		float machineTopPadding =
+			GetMachineContentTopPadding(
+				safe
+			);
+
+
+		float bottomPadding =
+			BottomBarHeight
+			+ safe.Bottom
+			+ BottomContentGap;
+
+
+		SetMachineContentPadding(
+			machineTopPadding,
+			bottomPadding
+		);
+
+
+		float specialTopPadding =
+			tabsBottom
+			+ ContentGap;
+
+
+		SetSpecialScrollContentPadding(
+			_pipelineScroll,
+			specialTopPadding,
+			bottomPadding
+		);
+
+
+		SetSpecialScrollContentPadding(
+			_infrastructureScroll,
+			specialTopPadding,
+			bottomPadding
+		);
+
+
+		SetSpecialScrollContentPadding(
+			_quantumScroll,
+			specialTopPadding,
+			bottomPadding
+		);
+	}
+
+
+	private static void PositionNavigationOverlay(
+		Control? navigation,
+		float left,
+		float right,
+		float top,
+		float bottom)
+	{
+		if (navigation == null)
+			return;
+
+
+		navigation.OffsetLeft =
+			left;
+
+
+		navigation.OffsetTop =
+			top;
+
+
+		navigation.OffsetRight =
+			-right;
+
+
+		navigation.OffsetBottom =
+			bottom;
+
+
+		navigation.CustomMinimumSize =
+			Vector2.Zero;
+	}
+
+
+	private static void PositionScrollableView(
+		ScrollContainer scroll,
+		float left,
+		float right)
+	{
+		scroll.OffsetLeft =
+			left;
+
+
+		scroll.OffsetTop =
+			0.0f;
+
+
+		scroll.OffsetRight =
+			-right;
+
+
+		scroll.OffsetBottom =
+			0.0f;
+	}
+
+
+	private float GetMachineContentTopPadding(
+		SafeInsets safe)
+	{
+		float top =
+			TopBarTopPadding
+			+ safe.Top
+			+ TopBarHeight
+			+ ContentGap;
+
+
+		if (_state.CurrentRoomIndex == 0)
+		{
+			return top;
+		}
+
+
+		return top
+			+ ModeTabsGap
+			+ ModeTabsHeight;
+	}
+
+
+	private void SetMachineContentPadding(
+		float top,
+		float bottom)
+	{
+		_topSpacerLeft.CustomMinimumSize =
+			new Vector2(
+				0,
+				top
+			);
+
+
+		_topSpacerRight.CustomMinimumSize =
+			new Vector2(
+				0,
+				top
+			);
+
+
+		_bottomSpacerLeft.CustomMinimumSize =
+			new Vector2(
+				0,
+				bottom
+			);
+
+
+		_bottomSpacerRight.CustomMinimumSize =
+			new Vector2(
+				0,
+				bottom
+			);
+	}
+
+
+	private static void SetSpecialScrollContentPadding(
+		ScrollContainer? scroll,
+		float top,
+		float bottom)
+	{
+		if (
+			scroll == null
+			|| scroll.GetChildCount() == 0
+		)
+		{
+			return;
+		}
+
+
+		Control? center =
+			scroll.GetChild(
+				0
+			)
+			as Control;
+
+
+		if (
+			center == null
+			|| center.GetChildCount() == 0
+		)
+		{
+			return;
+		}
+
+
+		MarginContainer? margin =
+			center.GetChild(
+				0
+			)
+			as MarginContainer;
+
+
+		if (margin == null)
+			return;
+
+
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			(int)MathF.Ceiling(
+				top
+			)
+		);
+
+
+		margin.AddThemeConstantOverride(
+			"margin_bottom",
+			(int)MathF.Ceiling(
+				bottom
+			)
+		);
+	}
+
+
+	// ==================================================
+	// SAFE AREA
+	// ==================================================
+
+	private readonly record struct SafeInsets(
+		float Left,
+		float Top,
+		float Right,
+		float Bottom
+	);
+
+
+	private SafeInsets GetSafeInsets()
+	{
+		string os =
+			OS.GetName();
+
+
+		if (
+			os != "Android"
+			&& os != "iOS"
+		)
+		{
+			return new SafeInsets(
+				0,
+				0,
+				0,
+				0
+			);
+		}
+
+
+		Rect2I safeArea =
+			DisplayServer.GetDisplaySafeArea();
+
+
+		Vector2I windowSize =
+			DisplayServer.WindowGetSize();
+
+
+		Rect2 viewportRect =
+			_root.GetViewport()
+				.GetVisibleRect();
+
+
+		if (
+			windowSize.X <= 0
+			|| windowSize.Y <= 0
+			|| safeArea.Size.X <= 0
+			|| safeArea.Size.Y <= 0
+		)
+		{
+			return new SafeInsets(
+				0,
+				34,
+				0,
+				24
+			);
+		}
+
+
+		float scaleX =
+			viewportRect.Size.X
+			/ windowSize.X;
+
+
+		float scaleY =
+			viewportRect.Size.Y
+			/ windowSize.Y;
+
+
+		float left =
+			safeArea.Position.X
+			* scaleX;
+
+
+		float top =
+			safeArea.Position.Y
+			* scaleY;
+
+
+		float rightPhysical =
+			windowSize.X
+			- (
+				safeArea.Position.X
+				+ safeArea.Size.X
+			);
+
+
+		float bottomPhysical =
+			windowSize.Y
+			- (
+				safeArea.Position.Y
+				+ safeArea.Size.Y
+			);
+
+
+		float right =
+			rightPhysical
+			* scaleX;
+
+
+		float bottom =
+			bottomPhysical
+			* scaleY;
+
+
+		top =
+			MathF.Max(
+				top,
+				26.0f
+			);
+
+
+		bottom =
+			MathF.Max(
+				bottom,
+				12.0f
+			);
+
+
+		return new SafeInsets(
+			MathF.Max(
+				0,
+				left
+			),
+
+			MathF.Max(
+				0,
+				top
+			),
+
+			MathF.Max(
+				0,
+				right
+			),
+
+			MathF.Max(
+				0,
+				bottom
+			)
+		);
+	}
+
+
+	// ==================================================
 	// MOBILE SCROLL
 	// ==================================================
 
@@ -214,7 +1042,11 @@ public sealed class RoomUiController
 
 
 		_mobileScroll.Setup(
-			_scroll
+			_scroll,
+			allowTopOverscroll:
+				true,
+			allowBottomOverscroll:
+				true
 		);
 	}
 
@@ -322,500 +1154,70 @@ public sealed class RoomUiController
 
 	private void CreateTopPadding()
 	{
-		for (
-			int i = 0;
-			i < 2;
-			i++
-		)
-		{
-			Control spacer =
-				new()
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							TopSlotPadding
-						),
-
-					MouseFilter =
-						Control.MouseFilterEnum.Ignore
-				};
-
-
-			_topSpacers.Add(
-				spacer
+		_topSpacerLeft =
+			CreatePaddingSpacer(
+				"MachineTopSpacerLeft"
 			);
 
 
-			_slotGrid.AddChild(
-				spacer
+		_topSpacerRight =
+			CreatePaddingSpacer(
+				"MachineTopSpacerRight"
 			);
-		}
+
+
+		_slotGrid.AddChild(
+			_topSpacerLeft
+		);
+
+
+		_slotGrid.AddChild(
+			_topSpacerRight
+		);
 	}
 
 
 	private void CreateBottomPadding()
 	{
-		for (
-			int i = 0;
-			i < 2;
-			i++
-		)
-		{
-			Control spacer =
-				new()
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							70
-						),
-
-					MouseFilter =
-						Control.MouseFilterEnum.Ignore
-				};
-
-
-			_slotGrid.AddChild(
-				spacer
+		_bottomSpacerLeft =
+			CreatePaddingSpacer(
+				"MachineBottomSpacerLeft"
 			);
-		}
+
+
+		_bottomSpacerRight =
+			CreatePaddingSpacer(
+				"MachineBottomSpacerRight"
+			);
+
+
+		_slotGrid.AddChild(
+			_bottomSpacerLeft
+		);
+
+
+		_slotGrid.AddChild(
+			_bottomSpacerRight
+		);
 	}
 
 
-	// ==================================================
-	// SPECIAL ROOM NAVIGATION
-	// ==================================================
-
-	private void UpdateSpecialRoomLayout()
+	private static Control CreatePaddingSpacer(
+		string name)
 	{
-		float machineTopPadding =
-			_state.CurrentRoomIndex == 0
-				? TopSlotPadding
-				: 0.0f;
-
-
-		foreach (
-			Control spacer
-			in _topSpacers
-		)
+		return new Control
 		{
-			spacer.CustomMinimumSize =
+			Name =
+				name,
+
+			CustomMinimumSize =
 				new Vector2(
 					0,
-					machineTopPadding
-				);
-		}
-
-
-		SetNavigationHeight(
-			"PipelineNavigationCenter",
-			56.0f
-		);
-
-
-		SetNavigationHeight(
-			"InfrastructureNavigationCenter",
-			56.0f
-		);
-
-
-		SetNavigationHeight(
-			"QuantumNavigationCenter",
-			56.0f
-		);
-
-
-		RemoveSpecialViewTopMargin(
-			"PipelineScroll"
-		);
-
-
-		RemoveSpecialViewTopMargin(
-			"InfrastructureScroll"
-		);
-
-
-		RemoveSpecialViewTopMargin(
-			"QuantumScroll"
-		);
-
-
-		HookPipelineButtons();
-
-
-		Callable
-			.From(
-				ApplyPipelineTabTheme
-			)
-			.CallDeferred();
-	}
-
-
-	private void SetNavigationHeight(
-		string nodeName,
-		float height)
-	{
-		CenterContainer? navigation =
-			_roomVBox.GetNodeOrNull<CenterContainer>(
-				nodeName
-			);
-
-
-		if (navigation == null)
-			return;
-
-
-		navigation.CustomMinimumSize =
-			new Vector2(
-				0,
-				height
-			);
-	}
-
-
-	private void RemoveSpecialViewTopMargin(
-		string scrollName)
-	{
-		ScrollContainer? specialScroll =
-			_roomVBox.GetNodeOrNull<ScrollContainer>(
-				scrollName
-			);
-
-
-		if (
-			specialScroll == null
-			|| specialScroll.GetChildCount() == 0
-		)
-		{
-			return;
-		}
-
-
-		Control? first =
-			specialScroll.GetChild(
-				0
-			)
-			as Control;
-
-
-		if (
-			first == null
-			|| first.GetChildCount() == 0
-		)
-		{
-			return;
-		}
-
-
-		MarginContainer? margin =
-			first.GetChild(
-				0
-			)
-			as MarginContainer;
-
-
-		if (margin == null)
-			return;
-
-
-		margin.AddThemeConstantOverride(
-			"margin_top",
-			0
-		);
-	}
-
-
-	private void HookPipelineButtons()
-	{
-		if (_pipelineButtonsHooked)
-			return;
-
-
-		Control? navigation =
-			_roomVBox.GetNodeOrNull<Control>(
-				"PipelineNavigationCenter"
-			);
-
-
-		if (navigation == null)
-			return;
-
-
-		foreach (
-			Node node
-			in navigation.FindChildren(
-				"*",
-				"Button",
-				true,
-				false
-			)
-		)
-		{
-			if (node is not Button button)
-				continue;
-
-
-			button.Pressed +=
-				() =>
-					Callable
-						.From(
-							ApplyPipelineTabTheme
-						)
-						.CallDeferred();
-		}
-
-
-		_pipelineButtonsHooked =
-			true;
-	}
-
-
-	private void ApplyPipelineTabTheme()
-	{
-		Control? navigation =
-			_roomVBox.GetNodeOrNull<Control>(
-				"PipelineNavigationCenter"
-			);
-
-
-		ScrollContainer? pipelineScroll =
-			_roomVBox.GetNodeOrNull<ScrollContainer>(
-				"PipelineScroll"
-			);
-
-
-		if (
-			navigation == null
-			|| pipelineScroll == null
-		)
-		{
-			return;
-		}
-
-
-		Color accent =
-			RoomThemePalette.GetAccentColor(
-				GameConfig.PipelineRoomIndex
-			);
-
-
-		bool pipelineActive =
-			pipelineScroll.Visible;
-
-
-		foreach (
-			Node node
-			in navigation.FindChildren(
-				"*",
-				"Button",
-				true,
-				false
-			)
-		)
-		{
-			if (node is not Button button)
-				continue;
-
-
-			bool active =
-				button.Text == "PIPELINE"
-					? pipelineActive
-					: !pipelineActive;
-
-
-			ApplyRedNavigationStyle(
-				button,
-				accent,
-				active
-			);
-		}
-
-
-		PanelContainer? panel =
-			navigation.GetNodeOrNull<PanelContainer>(
-				"PipelineNavigation"
-			);
-
-
-		if (panel != null)
-		{
-			panel.AddThemeStyleboxOverride(
-				"panel",
-				CreateNavigationPanelStyle(
-					accent
-				)
-			);
-		}
-	}
-
-
-	private static void ApplyRedNavigationStyle(
-		Button button,
-		Color accent,
-		bool active)
-	{
-		Color background =
-			active
-				? accent.Darkened(
-					0.18f
-				)
-				: accent.Darkened(
-					0.62f
-				);
-
-
-		Color border =
-			active
-				? accent.Lightened(
-					0.10f
-				)
-				: new Color(
-					accent.R,
-					accent.G,
-					accent.B,
-					0.56f
-				);
-
-
-		button.AddThemeStyleboxOverride(
-			"normal",
-			CreateNavigationButtonStyle(
-				background,
-				border
-			)
-		);
-
-
-		button.AddThemeStyleboxOverride(
-			"hover",
-			CreateNavigationButtonStyle(
-				active
-					? accent.Darkened(
-						0.08f
-					)
-					: accent.Darkened(
-						0.44f
-					),
-				accent
-			)
-		);
-
-
-		button.AddThemeStyleboxOverride(
-			"pressed",
-			CreateNavigationButtonStyle(
-				accent.Darkened(
-					0.28f
-				),
-				accent
-			)
-		);
-
-
-		button.AddThemeColorOverride(
-			"font_color",
-			active
-				? Colors.White
-				: new Color(
-					0.86f,
-					0.82f,
-					0.83f,
-					1.0f
-				)
-		);
-
-
-		button.AddThemeColorOverride(
-			"font_hover_color",
-			Colors.White
-		);
-	}
-
-
-	private static StyleBoxFlat CreateNavigationButtonStyle(
-		Color background,
-		Color border)
-	{
-		return new StyleBoxFlat
-		{
-			BgColor =
-				background,
-
-			BorderColor =
-				border,
-
-			BorderWidthLeft =
-				1,
-
-			BorderWidthTop =
-				1,
-
-			BorderWidthRight =
-				1,
-
-			BorderWidthBottom =
-				1,
-
-			CornerRadiusTopLeft =
-				15,
-
-			CornerRadiusTopRight =
-				15,
-
-			CornerRadiusBottomLeft =
-				15,
-
-			CornerRadiusBottomRight =
-				15
-		};
-	}
-
-
-	private static StyleBoxFlat CreateNavigationPanelStyle(
-		Color accent)
-	{
-		return new StyleBoxFlat
-		{
-			BgColor =
-				new Color(
-					accent.R * 0.10f,
-					accent.G * 0.10f,
-					accent.B * 0.10f,
-					0.97f
+					0
 				),
 
-			BorderColor =
-				new Color(
-					accent.R,
-					accent.G,
-					accent.B,
-					0.62f
-				),
-
-			BorderWidthLeft =
-				1,
-
-			BorderWidthTop =
-				1,
-
-			BorderWidthRight =
-				1,
-
-			BorderWidthBottom =
-				1,
-
-			CornerRadiusTopLeft =
-				19,
-
-			CornerRadiusTopRight =
-				19,
-
-			CornerRadiusBottomLeft =
-				19,
-
-			CornerRadiusBottomRight =
-				19
+			MouseFilter =
+				Control.MouseFilterEnum.Ignore
 		};
 	}
 
@@ -932,7 +1334,20 @@ public sealed class RoomUiController
 		);
 
 
-		UpdateSpecialRoomLayout();
+		if (_overlayLayoutEnabled)
+		{
+			ApplyOverlayLayoutMetrics();
+
+			_overlayLayer.MoveToFront();
+
+			_bottomBar.MoveToFront();
+		}
+
+
+		if (_state.CurrentRoomIndex == 0)
+		{
+			_scroll.Show();
+		}
 
 
 		int count =

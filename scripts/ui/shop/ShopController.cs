@@ -1,8 +1,26 @@
 using Godot;
 using System;
-using PoingStudios.AdMob.Api;
-using PoingStudios.AdMob.Api.Core;
-using PoingStudios.AdMob.Api.Listeners;
+
+using AdMobMobileAds =
+	PoingStudios.AdMob.Api.MobileAds;
+
+using AdMobRewardedAd =
+	PoingStudios.AdMob.Api.RewardedAd;
+
+using AdMobRewardedAdLoader =
+	PoingStudios.AdMob.Api.RewardedAdLoader;
+
+using AdMobAdRequest =
+	PoingStudios.AdMob.Api.Core.AdRequest;
+
+using AdMobRewardedAdLoadCallback =
+	PoingStudios.AdMob.Api.Listeners.RewardedAdLoadCallback;
+
+using AdMobFullScreenContentCallback =
+	PoingStudios.AdMob.Api.Listeners.FullScreenContentCallback;
+
+using AdMobRewardListener =
+	PoingStudios.AdMob.Api.Listeners.OnUserEarnedRewardListener;
 
 namespace IdleAi;
 
@@ -96,15 +114,15 @@ public sealed class ShopController
 		null!;
 
 
-	private RewardedAd _rewardedAd =
+	private AdMobRewardedAd _rewardedAd =
 		null!;
 
 
-	private FullScreenContentCallback _rewardedFullScreenCallback =
+	private AdMobFullScreenContentCallback _rewardedFullScreenCallback =
 		null!;
 
 
-	private OnUserEarnedRewardListener _rewardListener =
+	private AdMobRewardListener _rewardListener =
 		null!;
 
 
@@ -202,7 +220,7 @@ public sealed class ShopController
 		 * created once, so this is a safe place for the first
 		 * rewarded-ad integration.
 		 */
-		MobileAds.Initialize();
+		AdMobMobileAds.Initialize();
 
 		LoadRewardedAd();
 
@@ -1163,7 +1181,7 @@ public sealed class ShopController
 		RefreshRewardedAdOffer();
 
 
-		RewardedAdLoadCallback loadCallback =
+		AdMobRewardedAdLoadCallback loadCallback =
 			new()
 			{
 				OnAdLoaded =
@@ -1204,10 +1222,10 @@ public sealed class ShopController
 			};
 
 
-		new RewardedAdLoader()
+		new AdMobRewardedAdLoader()
 			.Load(
 				GetRewardedAdUnitId(),
-				new AdRequest(),
+				new AdMobAdRequest(),
 				loadCallback
 			);
 	}
@@ -1220,7 +1238,7 @@ public sealed class ShopController
 
 
 		_rewardedFullScreenCallback =
-			new FullScreenContentCallback
+			new AdMobFullScreenContentCallback
 			{
 				OnAdDismissedFullScreenContent =
 					() =>
@@ -1299,7 +1317,7 @@ public sealed class ShopController
 
 
 		_rewardListener =
-			new OnUserEarnedRewardListener
+			new AdMobRewardListener
 			{
 				OnUserEarnedReward =
 					_reward =>

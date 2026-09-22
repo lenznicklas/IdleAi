@@ -37,10 +37,6 @@ public sealed class ShopService
 	}
 
 
-	// ==================================================
-	// COSTS
-	// ==================================================
-
 	public double GetProductionUpgradeCost()
 	{
 		return GameConfig
@@ -68,10 +64,6 @@ public sealed class ShopService
 			);
 	}
 
-
-	// ==================================================
-	// PRODUCTION BOOST
-	// ==================================================
 
 	public ShopResult BuyProductionBoost()
 	{
@@ -111,10 +103,6 @@ public sealed class ShopService
 	}
 
 
-	// ==================================================
-	// BOT LUCK
-	// ==================================================
-
 	public ShopResult BuyBotLuck()
 	{
 		if (
@@ -153,10 +141,6 @@ public sealed class ShopService
 	}
 
 
-	// ==================================================
-	// INSTANT PRODUCTION
-	// ==================================================
-
 	public ShopResult BuyInstantProduction()
 	{
 		if (!HasRunningProduction())
@@ -178,16 +162,6 @@ public sealed class ShopService
 		}
 
 
-		/*
-		 * IMPORTANT:
-		 *
-		 * ShopService no longer calculates production
-		 * rewards itself.
-		 *
-		 * The normal ProductionService is responsible for
-		 * completing the cycles, which means all cycle
-		 * completion effects use one central code path.
-		 */
 		ProductionCompletionResult result =
 			_production
 				.CompleteAllRunningCyclesInstantly();
@@ -195,13 +169,6 @@ public sealed class ShopService
 
 		if (result.CompletedCycles <= 0)
 		{
-			/*
-			 * This should only happen if state changed
-			 * between the HasRunningProduction check and
-			 * completion.
-			 *
-			 * Refund the Shards in that rare case.
-			 */
 			_state.Shop.DataShards +=
 				GameConfig.ShopInstantProductionCost;
 
@@ -212,10 +179,6 @@ public sealed class ShopService
 			);
 		}
 
-
-		// ==================================================
-		// APPLY TOKENS
-		// ==================================================
 
 		if (result.Earned > 0.0)
 		{
@@ -233,16 +196,33 @@ public sealed class ShopService
 		}
 
 
-		// ==================================================
-		// MESSAGE
-		// ==================================================
-
 		string message =
-			"Production completed instantly. +"
-			+ NumberFormatter.Format(
-				result.Earned
-			)
-			+ " Tokens";
+			"Production completed instantly.";
+
+
+		if (result.Earned > 0.0)
+		{
+			message +=
+				" +"
+				+ NumberFormatter.Format(
+					result.Earned
+				)
+				+ " Tokens";
+		}
+
+
+		if (
+			result.PipelineInputProduced
+			> 0.0
+		)
+		{
+			message +=
+				" +"
+				+ NumberFormatter.Format(
+					result.PipelineInputProduced
+				)
+				+ " Pipeline Material";
+		}
 
 
 		if (result.ResearchPointsAwarded > 0)
@@ -302,10 +282,6 @@ public sealed class ShopService
 	}
 
 
-	// ==================================================
-	// PERMANENT PRODUCTION
-	// ==================================================
-
 	public ShopResult BuyProductionUpgrade()
 	{
 		if (
@@ -346,10 +322,6 @@ public sealed class ShopService
 	}
 
 
-	// ==================================================
-	// PERMANENT OFFLINE
-	// ==================================================
-
 	public ShopResult BuyOfflineUpgrade()
 	{
 		if (
@@ -382,10 +354,6 @@ public sealed class ShopService
 	}
 
 
-	// ==================================================
-	// SPEND
-	// ==================================================
-
 	private bool TrySpend(
 		double amount)
 	{
@@ -415,10 +383,6 @@ public sealed class ShopService
 		);
 	}
 
-
-	// ==================================================
-	// TIME
-	// ==================================================
 
 	private static long GetCurrentUnixTime()
 	{

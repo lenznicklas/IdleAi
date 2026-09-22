@@ -12,25 +12,13 @@ public readonly record struct ManualStartResult(
 public readonly record struct ProductionCompletionResult(
 	int CompletedCycles,
 	int ResearchPointsAwarded,
-	double Earned
+	double Earned,
+	double PipelineInputProduced
 );
 
 
 public sealed class ProductionService
 {
-	// ==================================================
-	// RESEARCH POINT DROPS
-	// ==================================================
-
-	/*
-	 * 0.0025 = 0.25 %
-	 *
-	 * Every completed production cycle has a
-	 * small chance to generate one Research Point.
-	 *
-	 * Research Points only drop after the
-	 * Laboratory has been unlocked.
-	 */
 	private const double ResearchPointDropChance =
 		0.0025;
 
@@ -39,18 +27,17 @@ public sealed class ProductionService
 		1;
 
 
-	// ==================================================
-	// SERVICES
-	// ==================================================
-
 	private readonly GameState _state;
 
 	private readonly EconomyService _economy;
 
+	private readonly PipelineService _pipeline;
+
 
 	public ProductionService(
 		GameState state,
-		EconomyService economy)
+		EconomyService economy,
+		PipelineService pipeline)
 	{
 		_state =
 			state;
@@ -58,12 +45,12 @@ public sealed class ProductionService
 
 		_economy =
 			economy;
+
+
+		_pipeline =
+			pipeline;
 	}
 
-
-	// ==================================================
-	// UPDATE
-	// ==================================================
 
 	public double Update(
 		double delta)
@@ -97,10 +84,6 @@ public sealed class ProductionService
 					continue;
 
 
-				// ==================================================
-				// AUTO START BOT MACHINES
-				// ==================================================
-
 				if (
 					slot.HasBot
 					&& !slot.IsRunning
@@ -124,10 +107,6 @@ public sealed class ProductionService
 					0;
 
 
-				/*
-				 * More than one cycle may complete in one
-				 * frame, for example after a frame spike.
-				 */
 				while (
 					slot.CycleRemaining <= 0.0
 					&& safety < 100
@@ -148,10 +127,6 @@ public sealed class ProductionService
 						result.Earned;
 
 
-					/*
-					 * Manual machines stop after one
-					 * completed cycle.
-					 */
 					if (!slot.HasBot)
 						break;
 				}
@@ -163,19 +138,6 @@ public sealed class ProductionService
 	}
 
 
-	// ==================================================
-	// INSTANT COMPLETION
-	// ==================================================
-
-	/*
-	 * Completes every production cycle that is currently
-	 * running.
-	 *
-	 * This is used by the Shop's Instant Production item.
-	 *
-	 * It deliberately goes through the exact same
-	 * CompleteCycle() method as natural cycle completion.
-	 */
 	public ProductionCompletionResult
 		CompleteAllRunningCyclesInstantly()
 	{
@@ -188,6 +150,10 @@ public sealed class ProductionService
 
 
 		double earned =
+			0.0;
+
+
+		double pipelineInputProduced =
 			0.0;
 
 
@@ -239,6 +205,10 @@ public sealed class ProductionService
 
 				earned +=
 					result.Earned;
+
+
+				pipelineInputProduced +=
+					result.PipelineInputProduced;
 			}
 		}
 
@@ -246,14 +216,11 @@ public sealed class ProductionService
 		return new ProductionCompletionResult(
 			completedCycles,
 			researchPointsAwarded,
-			earned
+			earned,
+			pipelineInputProduced
 		);
 	}
 
-
-	// ==================================================
-	// COMPLETE CYCLE
-	// ==================================================
 
 	private ProductionCompletionResult CompleteCycle(
 		int roomIndex,
@@ -268,33 +235,50 @@ public sealed class ProductionService
 			return new ProductionCompletionResult(
 				0,
 				0,
+				0.0,
 				0.0
 			);
 		}
 
 
-		// ==================================================
-		// TOKENS
-		// ==================================================
-
 		double earned =
-			_economy.GetCycleReward(
-				roomIndex,
-				slot
+			0.0;
+
+
+		double pipelineInputProduced =
+			0.0;
+
+
+		if (
+			roomIndex
+			== GameConfig.PipelineRoomIndex
+		)
+		{
+			pipelineInputProduced =
+				_economy
+					.GetPipelineInputCycleReward(
+						roomIndex,
+						slot
+					);
+
+
+			_pipeline.AddMachineInput(
+				pipelineInputProduced
 			);
+		}
+		else
+		{
+			earned =
+				_economy.GetCycleReward(
+					roomIndex,
+					slot
+				);
+		}
 
-
-		// ==================================================
-		// RESEARCH POINT
-		// ==================================================
 
 		int researchPoints =
 			TryAwardResearchPoint();
 
-
-		// ==================================================
-		// NEXT STATE
-		// ==================================================
 
 		if (slot.HasBot)
 		{
@@ -306,26 +290,11 @@ public sealed class ProductionService
 
 			if (preserveOvershoot)
 			{
-				/*
-				 * Example:
-				 *
-				 * Cycle was 0.05 seconds past completion.
-				 *
-				 * Instead of throwing that elapsed time
-				 * away, the next cycle starts at:
-				 *
-				 * duration - 0.05
-				 */
 				slot.CycleRemaining +=
 					duration;
 			}
 			else
 			{
-				/*
-				 * Instant Production explicitly finishes
-				 * the currently running cycle and begins
-				 * a fresh one.
-				 */
 				slot.CycleRemaining =
 					duration;
 			}
@@ -348,21 +317,14 @@ public sealed class ProductionService
 		return new ProductionCompletionResult(
 			1,
 			researchPoints,
-			earned
+			earned,
+			pipelineInputProduced
 		);
 	}
 
 
-	// ==================================================
-	// RESEARCH POINT DROP
-	// ==================================================
-
 	private int TryAwardResearchPoint()
 	{
-		/*
-		 * Do not accumulate Research Points before the
-		 * Laboratory has been unlocked.
-		 */
 		if (!_state.Lab.Unlocked)
 			return 0;
 
@@ -387,10 +349,6 @@ public sealed class ProductionService
 		return ResearchPointDropAmount;
 	}
 
-
-	// ==================================================
-	// MANUAL START
-	// ==================================================
 
 	public ManualStartResult TryStartManual(
 		int roomIndex,
@@ -471,10 +429,6 @@ public sealed class ProductionService
 	}
 
 
-	// ==================================================
-	// LOAD
-	// ==================================================
-
 	public void PrepareAfterLoad()
 	{
 		foreach (
@@ -508,10 +462,6 @@ public sealed class ProductionService
 		}
 	}
 
-
-	// ==================================================
-	// START CYCLE
-	// ==================================================
 
 	private void StartCycle(
 		SlotData slot)

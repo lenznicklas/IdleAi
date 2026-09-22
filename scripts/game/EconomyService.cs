@@ -11,10 +11,7 @@ public sealed class EconomyService
 		_state = state;
 	}
 
-	public double GetLevelUpgradeCost(
-		int roomIndex,
-		SlotData slot,
-		int slotIndex)
+	public double GetLevelUpgradeCost(int roomIndex, SlotData slot, int slotIndex)
 	{
 		return GetLevelUpgradeCostAtLevel(
 			roomIndex,
@@ -76,12 +73,13 @@ public sealed class EconomyService
 		{
 			int level = slot.MachineLevel + i;
 
-			total += GetLevelUpgradeCostAtLevel(
-				roomIndex,
-				slot,
-				slotIndex,
-				level
-			);
+			total +=
+				GetLevelUpgradeCostAtLevel(
+					roomIndex,
+					slot,
+					slotIndex,
+					level
+				);
 		}
 
 		return total;
@@ -176,9 +174,10 @@ public sealed class EconomyService
 		return duration;
 	}
 
-	public double GetCycleReward(
+	private double GetMachineRewardBeforePipeline(
 		int roomIndex,
-		SlotData slot)
+		SlotData slot,
+		bool includeTemporaryShopBoost)
 	{
 		if (!slot.Unlocked)
 			return 0.0;
@@ -191,10 +190,14 @@ public sealed class EconomyService
 			* GameConfig.IncomePerLevel;
 
 		double milestoneMultiplier =
-			GetMilestoneMultiplier(slot.MachineLevel);
+			GetMilestoneMultiplier(
+				slot.MachineLevel
+			);
 
 		double botMultiplier =
-			BotCatalog.GetMultiplier(slot.BotRarity);
+			BotCatalog.GetMultiplier(
+				slot.BotRarity
+			);
 
 		if (slot.HasBot)
 		{
@@ -209,13 +212,11 @@ public sealed class EconomyService
 			_state.Lab.GetProductionMultiplier();
 
 		double shopProductionMultiplier =
-			_state.Shop.GetProductionMultiplier();
-
-		double pipelineMultiplier =
-			PipelineService.GetProductionMultiplierForRoom(
-				_state,
-				roomIndex
-			);
+			includeTemporaryShopBoost
+				? _state.Shop.GetProductionMultiplier()
+				: 1.0
+					+ _state.Shop.ProductionUpgradeLevel
+					* GameConfig.ShopProductionUpgradeBonus;
 
 		double baseCycleDuration =
 			GetBaseCycleDuration(slot);
@@ -227,65 +228,97 @@ public sealed class EconomyService
 			* botMultiplier
 			* prestigeMultiplier
 			* researchProductionMultiplier
-			* shopProductionMultiplier
-			* pipelineMultiplier;
+			* shopProductionMultiplier;
+	}
+
+	public double GetCycleReward(
+		int roomIndex,
+		SlotData slot)
+	{
+		if (roomIndex == GameConfig.PipelineRoomIndex)
+			return 0.0;
+
+		return GetMachineRewardBeforePipeline(
+			roomIndex,
+			slot,
+			true
+		);
 	}
 
 	private double GetCycleRewardWithoutTemporaryShopBoost(
 		int roomIndex,
 		SlotData slot)
 	{
-		if (!slot.Unlocked)
+		if (roomIndex == GameConfig.PipelineRoomIndex)
 			return 0.0;
 
-		MachineData machine = GetMachine(roomIndex, slot);
+		return GetMachineRewardBeforePipeline(
+			roomIndex,
+			slot,
+			false
+		);
+	}
 
-		double levelMultiplier =
-			1.0
-			+ (slot.MachineLevel - 1)
-			* GameConfig.IncomePerLevel;
+	public double GetPipelineInputCycleReward(
+		int roomIndex,
+		SlotData slot)
+	{
+		if (roomIndex != GameConfig.PipelineRoomIndex)
+			return 0.0;
 
-		double milestoneMultiplier =
-			GetMilestoneMultiplier(slot.MachineLevel);
+		return GetMachineRewardBeforePipeline(
+			roomIndex,
+			slot,
+			true
+		)
+		/ GameConfig.PipelineTokensPerOutputUnit;
+	}
 
-		double botMultiplier =
-			BotCatalog.GetMultiplier(slot.BotRarity);
+	public double GetPipelineInputCycleRewardWithoutTemporaryShopBoost(
+		int roomIndex,
+		SlotData slot)
+	{
+		if (roomIndex != GameConfig.PipelineRoomIndex)
+			return 0.0;
 
-		if (slot.HasBot)
-		{
-			botMultiplier *=
-				_state.Lab.GetBotPowerMultiplier();
-		}
+		return GetMachineRewardBeforePipeline(
+			roomIndex,
+			slot,
+			false
+		)
+		/ GameConfig.PipelineTokensPerOutputUnit;
+	}
 
-		double prestigeMultiplier =
-			_state.Prestige.GetProductionMultiplier();
+	public double GetPipelineInputPerSecond(
+		int roomIndex,
+		SlotData slot)
+	{
+		double duration = GetCycleDuration(slot);
 
-		double researchProductionMultiplier =
-			_state.Lab.GetProductionMultiplier();
+		if (duration <= 0.0)
+			return 0.0;
 
-		double permanentShopProductionMultiplier =
-			1.0
-			+ _state.Shop.ProductionUpgradeLevel
-			* GameConfig.ShopProductionUpgradeBonus;
+		return GetPipelineInputCycleReward(
+			roomIndex,
+			slot
+		)
+		/ duration;
+	}
 
-		double pipelineMultiplier =
-			PipelineService.GetProductionMultiplierForRoom(
-				_state,
-				roomIndex
-			);
+	public double GetPipelineInputPerSecondWithoutTemporaryShopBoost(
+		int roomIndex,
+		SlotData slot)
+	{
+		double duration = GetCycleDuration(slot);
 
-		double baseCycleDuration =
-			GetBaseCycleDuration(slot);
+		if (duration <= 0.0)
+			return 0.0;
 
-		return machine.BaseIncome
-			* baseCycleDuration
-			* levelMultiplier
-			* milestoneMultiplier
-			* botMultiplier
-			* prestigeMultiplier
-			* researchProductionMultiplier
-			* permanentShopProductionMultiplier
-			* pipelineMultiplier;
+		return GetPipelineInputCycleRewardWithoutTemporaryShopBoost(
+			roomIndex,
+			slot
+		)
+		/ duration;
 	}
 
 	public double GetSlotIncome(
@@ -297,8 +330,20 @@ public sealed class EconomyService
 		if (duration <= 0.0)
 			return 0.0;
 
-		return GetCycleReward(roomIndex, slot)
-			/ duration;
+		if (roomIndex == GameConfig.PipelineRoomIndex)
+		{
+			return GetPipelineInputPerSecond(
+				roomIndex,
+				slot
+			)
+			* GameConfig.PipelineTokensPerOutputUnit;
+		}
+
+		return GetCycleReward(
+			roomIndex,
+			slot
+		)
+		/ duration;
 	}
 
 	private double GetSlotIncomeWithoutTemporaryShopBoost(
@@ -321,6 +366,13 @@ public sealed class EconomyService
 	{
 		if (!_state.RoomStates[roomIndex].Unlocked)
 			return 0.0;
+
+		if (roomIndex == GameConfig.PipelineRoomIndex)
+		{
+			return GetPipelineSteadyTokenOutputPerSecond(
+				includeTemporaryShopBoost: true
+			);
+		}
 
 		double total = 0.0;
 
@@ -347,6 +399,13 @@ public sealed class EconomyService
 		if (!_state.RoomStates[roomIndex].Unlocked)
 			return 0.0;
 
+		if (roomIndex == GameConfig.PipelineRoomIndex)
+		{
+			return GetPipelineSteadyTokenOutputPerSecond(
+				includeTemporaryShopBoost: false
+			);
+		}
+
 		double total = 0.0;
 
 		foreach (
@@ -365,6 +424,77 @@ public sealed class EconomyService
 		}
 
 		return total;
+	}
+
+	private double GetPipelineSteadyTokenOutputPerSecond(
+		bool includeTemporaryShopBoost)
+	{
+		int roomIndex =
+			GameConfig.PipelineRoomIndex;
+
+		double input = 0.0;
+
+		foreach (
+			SlotData slot
+			in _state.RoomStates[roomIndex].Slots
+		)
+		{
+			if (!slot.Unlocked || !slot.HasBot)
+				continue;
+
+			input +=
+				includeTemporaryShopBoost
+					? GetPipelineInputPerSecond(
+						roomIndex,
+						slot
+					)
+					: GetPipelineInputPerSecondWithoutTemporaryShopBoost(
+						roomIndex,
+						slot
+					);
+		}
+
+		PipelineData pipeline =
+			_state.RoomStates[roomIndex].Pipeline;
+
+		double throughput =
+			Math.Min(
+				input,
+				PipelineService.GetCapacity(
+					pipeline,
+					PipelineStage.Compute
+				)
+			);
+
+		throughput =
+			Math.Min(
+				throughput,
+				PipelineService.GetCapacity(
+					pipeline,
+					PipelineStage.Data
+				)
+			);
+
+		throughput =
+			Math.Min(
+				throughput,
+				PipelineService.GetCapacity(
+					pipeline,
+					PipelineStage.Model
+				)
+			);
+
+		throughput =
+			Math.Min(
+				throughput,
+				PipelineService.GetCapacity(
+					pipeline,
+					PipelineStage.Output
+				)
+			);
+
+		return throughput
+			* GameConfig.PipelineTokensPerOutputUnit;
 	}
 
 	public double GetTotalIncome()

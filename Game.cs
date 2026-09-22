@@ -7,45 +7,99 @@ namespace IdleAi;
 public partial class Game : Control
 {
 	private const int SaveVersion =
-		16;
+		17;
+
 
 	private const double AutosaveIntervalSeconds =
 		10.0;
 
-	private GameState _state = null!;
-	private EconomyService _economy = null!;
-	private ProgressionService _progression = null!;
-	private ProductionService _production = null!;
-	private BotService _bots = null!;
-	private PrestigeService _prestige = null!;
-	private LabService _labService = null!;
-	private ShopService _shopService = null!;
-	private PipelineService _pipelineService = null!;
-	private LabController _labUi = null!;
-	private GameUiController _ui = null!;
-	private MobileUiAdapter _mobileUi = null!;
-	private SaveManager _saveManager = null!;
+
+	private GameState _state =
+		null!;
+
+
+	private EconomyService _economy =
+		null!;
+
+
+	private ProgressionService _progression =
+		null!;
+
+
+	private ProductionService _production =
+		null!;
+
+
+	private BotService _bots =
+		null!;
+
+
+	private PrestigeService _prestige =
+		null!;
+
+
+	private LabService _labService =
+		null!;
+
+
+	private ShopService _shopService =
+		null!;
+
+
+	private PipelineService _pipelineService =
+		null!;
+
+
+	private LabController _labUi =
+		null!;
+
+
+	private GameUiController _ui =
+		null!;
+
+
+	private MobileUiAdapter _mobileUi =
+		null!;
+
+
+	private SaveManager _saveManager =
+		null!;
+
 
 	public override void _Ready()
 	{
 		CreateGameSystems();
+
 		CreateRoomStates();
 
+
 		_ui.Initialize();
+
+
 		CreateLabUi();
+
+
 		CreateMobileUi();
+
+
 		SetupSaveSystem();
+
 
 		double offlineEarned =
 			LoadGame();
 
+
 		LabResult researchResult =
 			_labService.Update();
 
+
 		_production.PrepareAfterLoad();
 
+
 		_ui.UpdateAll();
+
 		_labUi.Refresh();
+
 
 		if (researchResult.Changed)
 		{
@@ -70,22 +124,42 @@ public partial class Game : Control
 			);
 		}
 
+
 		SaveGame();
 	}
+
 
 	public override void _Process(
 		double delta)
 	{
+		double directMachineTokens =
+			_production.Update(
+				delta
+			);
+
+
+		double pipelineTokens =
+			_pipelineService.Update(
+				delta
+			);
+
+
 		double earned =
-			_production.Update(delta);
+			directMachineTokens
+			+ pipelineTokens;
+
 
 		if (earned > 0.0)
 		{
-			AddEarnedTokens(earned);
+			AddEarnedTokens(
+				earned
+			);
 		}
+
 
 		LabResult researchResult =
 			_labService.Update();
+
 
 		if (researchResult.Changed)
 		{
@@ -93,12 +167,18 @@ public partial class Game : Control
 				researchResult.Message
 			);
 
+
 			_ui.UpdateAll();
+
 			_labUi.Refresh();
+
+
 			SaveGame();
 		}
 
+
 		_ui.UpdateRuntime();
+
 
 		if (
 			_labUi != null
@@ -109,10 +189,16 @@ public partial class Game : Control
 		}
 	}
 
+
 	public override void _ExitTree()
 	{
 		SaveGame();
 	}
+
+
+	// ==================================================
+	// SYSTEMS
+	// ==================================================
 
 	private void CreateGameSystems()
 	{
@@ -121,15 +207,19 @@ public partial class Game : Control
 				RoomCatalog.Create()
 			);
 
-		_pipelineService =
-			new PipelineService(
-				_state
-			);
 
 		_economy =
 			new EconomyService(
 				_state
 			);
+
+
+		_pipelineService =
+			new PipelineService(
+				_state,
+				_economy
+			);
+
 
 		_progression =
 			new ProgressionService(
@@ -137,11 +227,14 @@ public partial class Game : Control
 				_economy
 			);
 
+
 		_production =
 			new ProductionService(
 				_state,
-				_economy
+				_economy,
+				_pipelineService
 			);
+
 
 		_bots =
 			new BotService(
@@ -149,15 +242,18 @@ public partial class Game : Control
 				_economy
 			);
 
+
 		_prestige =
 			new PrestigeService(
 				_state
 			);
 
+
 		_labService =
 			new LabService(
 				_state
 			);
+
 
 		_shopService =
 			new ShopService(
@@ -165,6 +261,7 @@ public partial class Game : Control
 				_economy,
 				_production
 			);
+
 
 		_ui =
 			new GameUiController(
@@ -179,18 +276,23 @@ public partial class Game : Control
 				_pipelineService
 			);
 
+
 		_ui.SlotActionRequested +=
 			OnSlotActionRequested;
+
 
 		_ui.RoomSelectedRequested +=
 			OnRoomSelectedRequested;
 
+
 		_ui.StateChanged +=
 			SaveGame;
+
 
 		_ui.PrestigeRequested +=
 			OnPrestigeRequested;
 	}
+
 
 	private void CreateLabUi()
 	{
@@ -201,26 +303,43 @@ public partial class Game : Control
 				_labService
 			);
 
+
 		_labUi.MessageRequested +=
 			_ui.SetMessage;
+
 
 		_labUi.StateChanged +=
 			OnLabStateChanged;
 
+
 		_labUi.OpenRequested +=
 			_ui.ClosePages;
 
+
 		_labUi.Initialize();
 	}
+
 
 	private void CreateMobileUi()
 	{
 		_mobileUi =
 			new MobileUiAdapter();
 
-		_mobileUi.Setup(this);
-		AddChild(_mobileUi);
+
+		_mobileUi.Setup(
+			this
+		);
+
+
+		AddChild(
+			_mobileUi
+		);
 	}
+
+
+	// ==================================================
+	// ROOM STATE
+	// ==================================================
 
 	private void CreateRoomStates()
 	{
@@ -240,6 +359,7 @@ public partial class Game : Control
 						roomIndex == 0
 				};
 
+
 			for (
 				int i = 0;
 				i < 8;
@@ -253,20 +373,41 @@ public partial class Game : Control
 							roomIndex == 0
 							&& i == 0,
 
-						MachineTier = 0,
-						MachineLevel = 1,
-						BotRarity = null,
-						BotPurchasePrice = 0,
-						IsRunning = false,
-						CycleRemaining = 0,
-						RuntimeCycleDuration = 0
+						MachineTier =
+							0,
+
+						MachineLevel =
+							1,
+
+						BotRarity =
+							null,
+
+						BotPurchasePrice =
+							0,
+
+						IsRunning =
+							false,
+
+						CycleRemaining =
+							0,
+
+						RuntimeCycleDuration =
+							0
 					}
 				);
 			}
 
-			_state.RoomStates.Add(room);
+
+			_state.RoomStates.Add(
+				room
+			);
 		}
 	}
+
+
+	// ==================================================
+	// SLOT
+	// ==================================================
 
 	private void OnSlotActionRequested(
 		int slotIndex)
@@ -276,22 +417,34 @@ public partial class Game : Control
 				slotIndex
 			);
 
+
 		_ui.SetMessage(
 			result.Message
 		);
 
+
 		if (!result.Changed)
 			return;
 
+
 		_ui.UpdateAll();
+
 		_labUi.Refresh();
+
+
 		SaveGame();
 	}
+
+
+	// ==================================================
+	// ROOM
+	// ==================================================
 
 	private void OnRoomSelectedRequested(
 		int targetRoom)
 	{
 		_labUi.Hide();
+
 
 		if (
 			targetRoom < 0
@@ -301,8 +454,11 @@ public partial class Game : Control
 			return;
 		}
 
+
 		if (
-			!_state.RoomStates[targetRoom].Unlocked
+			!_state.RoomStates[
+				targetRoom
+			].Unlocked
 		)
 		{
 			ProgressionResult result =
@@ -310,47 +466,78 @@ public partial class Game : Control
 					targetRoom
 				);
 
+
 			_ui.SetMessage(
 				result.Message
 			);
 
+
 			if (!result.Changed)
 			{
 				_ui.UpdateAll();
+
 				return;
 			}
 		}
 
+
 		_state.CurrentRoomIndex =
 			targetRoom;
 
+
 		_ui.ClosePages();
+
 		_ui.UpdateAll();
+
+
 		SaveGame();
 	}
+
+
+	// ==================================================
+	// LAB
+	// ==================================================
 
 	private void OnLabStateChanged()
 	{
 		_ui.UpdateAll();
+
 		_labUi.Refresh();
+
 		SaveGame();
 	}
+
+
+	// ==================================================
+	// PRESTIGE
+	// ==================================================
 
 	private void OnPrestigeRequested()
 	{
 		PrestigeResult result =
 			_prestige.Prestige();
 
+
 		_ui.SetMessage(
 			result.Message
 		);
 
+
 		_ui.UpdateAll();
+
 		_labUi.Refresh();
 
+
 		if (result.Success)
+		{
 			SaveGame();
+		}
 	}
+
+
+	// ==================================================
+	// TOKENS
+	// ==================================================
 
 	private void AddEarnedTokens(
 		double amount)
@@ -358,38 +545,66 @@ public partial class Game : Control
 		if (amount <= 0)
 			return;
 
-		_state.Tokens += amount;
-		_state.RunEarnedTokens += amount;
-		_state.Stats.AddEarned(amount);
+
+		_state.Tokens +=
+			amount;
+
+
+		_state.RunEarnedTokens +=
+			amount;
+
+
+		_state.Stats.AddEarned(
+			amount
+		);
 	}
+
+
+	// ==================================================
+	// SAVE
+	// ==================================================
 
 	private void SetupSaveSystem()
 	{
 		_saveManager =
 			new SaveManager();
 
-		AddChild(_saveManager);
+
+		AddChild(
+			_saveManager
+		);
+
 
 		_saveManager.AutosaveRequested +=
 			SaveGame;
+
 
 		_saveManager.StartAutosave(
 			AutosaveIntervalSeconds
 		);
 	}
 
+
 	private void SaveGame()
 	{
 		if (_saveManager == null)
 			return;
 
+
 		SaveGameData save =
 			new()
 			{
-				SaveVersion = SaveVersion,
-				Tokens = _state.Tokens,
-				RunEarnedTokens = _state.RunEarnedTokens,
-				LastSaveUnix = GetCurrentUnixTime(),
+				SaveVersion =
+					SaveVersion,
+
+				Tokens =
+					_state.Tokens,
+
+				RunEarnedTokens =
+					_state.RunEarnedTokens,
+
+				LastSaveUnix =
+					GetCurrentUnixTime(),
 
 				IncomePerSecond =
 					_economy
@@ -465,61 +680,97 @@ public partial class Game : Control
 					_state.Stats.ToSaveData()
 			};
 
-		_saveManager.SaveData(save);
+
+		_saveManager.SaveData(
+			save
+		);
 	}
+
+
+	// ==================================================
+	// LOAD
+	// ==================================================
 
 	private double LoadGame()
 	{
 		if (!_saveManager.HasSave())
 			return 0;
 
+
 		SaveGameData? save =
 			_saveManager.LoadData();
+
 
 		if (save == null)
 			return 0;
 
-		_state.Tokens = save.Tokens;
-		_state.RunEarnedTokens = save.RunEarnedTokens;
+
+		_state.Tokens =
+			save.Tokens;
+
+
+		_state.RunEarnedTokens =
+			save.RunEarnedTokens;
+
 
 		_state.Prestige.AiCores =
 			save.AiCores;
 
+
 		_state.Prestige.PrestigeCount =
 			save.PrestigeCount;
+
 
 		_state.Lab.Unlocked =
 			save.LabUnlocked;
 
+
 		_state.Lab.ResearchPoints =
 			save.ResearchPoints;
+
 
 		_state.Lab.LoadCompletedResearch(
 			save.CompletedResearch
 		);
 
+
 		_state.Lab.ActiveResearchId =
 			save.ActiveResearchId;
 
+
 		_state.Lab.ActiveResearchEndUnix =
 			save.ActiveResearchEndUnix;
+
+
+		// ==================================================
+		// SHOP
+		// ==================================================
 
 		_state.Shop.DataShards =
 			save.SaveVersion < 13
 				? GameConfig.InitialDataShards
 				: save.DataShards;
 
+
 		_state.Shop.ProductionBoostEndUnix =
 			save.ShopProductionBoostEndUnix;
+
 
 		_state.Shop.BotLuckBoostEndUnix =
 			save.ShopBotLuckBoostEndUnix;
 
+
 		_state.Shop.ProductionUpgradeLevel =
 			save.ShopProductionUpgradeLevel;
 
+
 		_state.Shop.OfflineUpgradeLevel =
 			save.ShopOfflineUpgradeLevel;
+
+
+		// ==================================================
+		// ROOMS
+		// ==================================================
 
 		for (
 			int roomIndex = 0;
@@ -531,13 +782,20 @@ public partial class Game : Control
 		)
 		{
 			RoomSaveData savedRoom =
-				save.Rooms[roomIndex];
+				save.Rooms[
+					roomIndex
+				];
+
 
 			RoomState room =
-				_state.RoomStates[roomIndex];
+				_state.RoomStates[
+					roomIndex
+				];
+
 
 			room.Unlocked =
 				savedRoom.Unlocked;
+
 
 			if (save.SaveVersion < 14)
 			{
@@ -551,6 +809,7 @@ public partial class Game : Control
 					savedRoom
 						.DataShardUnlockRewardClaimed;
 			}
+
 
 			if (
 				save.SaveVersion >= 16
@@ -566,6 +825,7 @@ public partial class Game : Control
 				room.Pipeline.Reset();
 			}
 
+
 			for (
 				int slotIndex = 0;
 				slotIndex < Math.Min(
@@ -575,12 +835,16 @@ public partial class Game : Control
 				slotIndex++
 			)
 			{
-				room.Slots[slotIndex]
-					.LoadFromSaveData(
-						savedRoom.Slots[slotIndex]
-					);
+				room.Slots[
+					slotIndex
+				].LoadFromSaveData(
+					savedRoom.Slots[
+						slotIndex
+					]
+				);
 			}
 		}
+
 
 		_state.CurrentRoomIndex =
 			Math.Clamp(
@@ -589,14 +853,17 @@ public partial class Game : Control
 				_state.Rooms.Count - 1
 			);
 
+
 		if (
 			!_state.RoomStates[
 				_state.CurrentRoomIndex
 			].Unlocked
 		)
 		{
-			_state.CurrentRoomIndex = 0;
+			_state.CurrentRoomIndex =
+				0;
 		}
+
 
 		if (save.Stats != null)
 		{
@@ -605,10 +872,20 @@ public partial class Game : Control
 			);
 		}
 
+
+		/*
+		 * Version 16 still used the old pipeline multiplier
+		 * model. Recalculate the offline snapshot once when
+		 * migrating to the new material-flow pipeline.
+		 */
 		double savedBaseIncome =
-			GetMigratedOfflineIncomePerSecond(
-				save
-			);
+			save.SaveVersion < 17
+				? _economy
+					.GetTotalIncomeWithoutTemporaryShopBoost()
+				: GetMigratedOfflineIncomePerSecond(
+					save
+				);
+
 
 		return ApplyOfflineIncome(
 			save.LastSaveUnix,
@@ -617,11 +894,17 @@ public partial class Game : Control
 		);
 	}
 
+
+	// ==================================================
+	// OFFLINE MIGRATION
+	// ==================================================
+
 	private static double GetMigratedOfflineIncomePerSecond(
 		SaveGameData save)
 	{
 		double income =
 			save.IncomePerSecond;
+
 
 		if (
 			save.SaveVersion >= 15
@@ -631,21 +914,36 @@ public partial class Game : Control
 			return income;
 		}
 
+
 		bool boostWasActiveWhenSaved =
 			save.ShopProductionBoostEndUnix
 			> save.LastSaveUnix;
 
+
 		if (!boostWasActiveWhenSaved)
+		{
 			return income;
+		}
+
 
 		double boostMultiplier =
 			GameConfig.ShopTemporaryProductionMultiplier;
 
-		if (boostMultiplier <= 0.0)
-			return income;
 
-		return income / boostMultiplier;
+		if (boostMultiplier <= 0.0)
+		{
+			return income;
+		}
+
+
+		return income
+			/ boostMultiplier;
 	}
+
+
+	// ==================================================
+	// OFFLINE
+	// ==================================================
 
 	private double ApplyOfflineIncome(
 		long savedTime,
@@ -655,8 +953,11 @@ public partial class Game : Control
 		long now =
 			GetCurrentUnixTime();
 
+
 		long totalOfflineSeconds =
-			now - savedTime;
+			now
+			- savedTime;
+
 
 		if (
 			totalOfflineSeconds <= 0
@@ -666,14 +967,19 @@ public partial class Game : Control
 			return 0.0;
 		}
 
+
 		double offlineFactor =
 			Math.Clamp(
 				GameConfig.BaseOfflineIncomeFactor
-				+ _state.Lab.GetOfflineIncomeBonus()
-				+ _state.Shop.GetOfflineIncomeBonus(),
+				+ _state.Lab
+					.GetOfflineIncomeBonus()
+				+ _state.Shop
+					.GetOfflineIncomeBonus(),
+
 				0,
 				1
 			);
+
 
 		long boostOverlapEnd =
 			Math.Min(
@@ -681,11 +987,14 @@ public partial class Game : Control
 				productionBoostEndUnix
 			);
 
+
 		long boostedSeconds =
 			Math.Max(
 				0,
-				boostOverlapEnd - savedTime
+				boostOverlapEnd
+				- savedTime
 			);
+
 
 		boostedSeconds =
 			Math.Min(
@@ -693,19 +1002,23 @@ public partial class Game : Control
 				totalOfflineSeconds
 			);
 
+
 		long normalSeconds =
 			totalOfflineSeconds
 			- boostedSeconds;
 
+
 		double normalIncome =
 			baseIncomePerSecond
 			* normalSeconds;
+
 
 		double boostedIncome =
 			baseIncomePerSecond
 			* boostedSeconds
 			* GameConfig
 				.ShopTemporaryProductionMultiplier;
+
 
 		double amount =
 			(
@@ -714,12 +1027,27 @@ public partial class Game : Control
 			)
 			* offlineFactor;
 
-		_state.Tokens += amount;
-		_state.RunEarnedTokens += amount;
-		_state.Stats.AddOfflineEarned(amount);
+
+		_state.Tokens +=
+			amount;
+
+
+		_state.RunEarnedTokens +=
+			amount;
+
+
+		_state.Stats.AddOfflineEarned(
+			amount
+		);
+
 
 		return amount;
 	}
+
+
+	// ==================================================
+	// TIME
+	// ==================================================
 
 	private static long GetCurrentUnixTime()
 	{

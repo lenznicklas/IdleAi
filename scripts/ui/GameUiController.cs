@@ -243,7 +243,50 @@ public sealed class GameUiController
 
 		_map.RoomSelectedRequested +=
 			roomIndex =>
-				RoomSelectedRequested?.Invoke(roomIndex);
+			{
+				bool validRoom =
+					roomIndex >= 0
+					&& roomIndex
+						< _state.RoomStates.Count;
+
+
+				bool wasUnlocked =
+					validRoom
+					&& _state.RoomStates[
+						roomIndex
+					].Unlocked;
+
+
+				/*
+				 * Game handles the request synchronously.
+				 * After it returns we can tell whether this
+				 * exact tap unlocked a new room.
+				 */
+				RoomSelectedRequested?.Invoke(
+					roomIndex
+				);
+
+
+				bool isUnlocked =
+					validRoom
+					&& _state.RoomStates[
+						roomIndex
+					].Unlocked;
+
+
+				bool enteredUnlockedRoom =
+					validRoom
+					&& !wasUnlocked
+					&& isUnlocked
+					&& _state.CurrentRoomIndex
+						== roomIndex;
+
+
+				if (enteredUnlockedRoom)
+				{
+					_room.PlayRoomUnlockAnimation();
+				}
+			};
 
 		_map.Initialize();
 	}

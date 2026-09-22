@@ -13,6 +13,22 @@ public sealed class RoomUiController
 		0.18f;
 
 
+	private const int SlotUnlockHapticDurationMs =
+		24;
+
+
+	private const float SlotUnlockHapticStrength =
+		0.24f;
+
+
+	private const int RoomUnlockHapticDurationMs =
+		34;
+
+
+	private const float RoomUnlockHapticStrength =
+		0.30f;
+
+
 	private const float MainHorizontalPadding =
 		16.0f;
 
@@ -133,6 +149,9 @@ public sealed class RoomUiController
 
 
 	private bool _overlayLayoutEnabled;
+
+
+	private Tween? _roomUnlockTween;
 
 
 	public event Action<int>? SlotActionRequested;
@@ -1233,9 +1252,53 @@ public sealed class RoomUiController
 			return;
 
 
+		if (
+			slotIndex < 0
+			|| slotIndex
+				>= _state.CurrentRoomState.Slots.Count
+		)
+		{
+			return;
+		}
+
+
+		bool wasUnlocked =
+			_state.CurrentRoomState
+				.Slots[
+					slotIndex
+				]
+				.Unlocked;
+
+
+		/*
+		 * SlotActionRequested is handled synchronously by
+		 * Game. A successful unlock updates the state and UI
+		 * before this method resumes, so the transition can
+		 * be detected here without changing save/gameplay
+		 * services.
+		 */
 		SlotActionRequested?.Invoke(
 			slotIndex
 		);
+
+
+		bool isUnlocked =
+			_state.CurrentRoomState
+				.Slots[
+					slotIndex
+				]
+				.Unlocked;
+
+
+		if (
+			!wasUnlocked
+			&& isUnlocked
+		)
+		{
+			PlaySlotUnlockAnimation(
+				slotIndex
+			);
+		}
 	}
 
 
@@ -1288,6 +1351,300 @@ public sealed class RoomUiController
 
 		MessageRequested?.Invoke(
 			result.Message
+		);
+	}
+
+
+	// ==================================================
+	// UNLOCK ANIMATIONS
+	// ==================================================
+
+	private void PlaySlotUnlockAnimation(
+		int slotIndex)
+	{
+		MachineSlot view =
+			GetMachineSlot(
+				slotIndex
+			);
+
+
+		view.PivotOffset =
+			view.Size
+			/ 2.0f;
+
+
+		view.Scale =
+			new Vector2(
+				0.82f,
+				0.82f
+			);
+
+
+		view.Modulate =
+			new Color(
+				1.0f,
+				1.0f,
+				1.0f,
+				0.28f
+			);
+
+
+		Tween tween =
+			_root.CreateTween();
+
+
+		tween.SetParallel(
+			true
+		);
+
+
+		tween.TweenProperty(
+			view,
+			"scale",
+			new Vector2(
+				1.06f,
+				1.06f
+			),
+			0.22
+		)
+		.SetTrans(
+			Tween.TransitionType.Back
+		)
+		.SetEase(
+			Tween.EaseType.Out
+		);
+
+
+		tween.TweenProperty(
+			view,
+			"modulate:a",
+			1.0f,
+			0.16
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.Out
+		);
+
+
+		tween
+			.Chain()
+			.TweenProperty(
+				view,
+				"scale",
+				Vector2.One,
+				0.16
+			)
+			.SetTrans(
+				Tween.TransitionType.Sine
+			)
+			.SetEase(
+				Tween.EaseType.Out
+			);
+
+
+		Input.VibrateHandheld(
+			SlotUnlockHapticDurationMs,
+			SlotUnlockHapticStrength
+		);
+	}
+
+
+	public void PlayRoomUnlockAnimation()
+	{
+		if (
+			!_overlayLayoutEnabled
+			|| _contentLayer == null
+			|| _overlayLayer == null
+		)
+		{
+			return;
+		}
+
+
+		_roomUnlockTween?.Kill();
+
+
+		ScrollToTop();
+
+
+		/*
+		 * New rooms enter with a short reveal:
+		 * - room content fades / grows in
+		 * - fixed room chrome fades in
+		 * - a room-colored flash fades over the content
+		 *
+		 * Only visual properties are animated, so the
+		 * ScrollContainer/Grid layout cannot be disturbed.
+		 */
+		_scroll.PivotOffset =
+			_scroll.Size
+			/ 2.0f;
+
+
+		_scroll.Scale =
+			new Vector2(
+				0.96f,
+				0.96f
+			);
+
+
+		_scroll.Modulate =
+			new Color(
+				1.0f,
+				1.0f,
+				1.0f,
+				0.22f
+			);
+
+
+		_overlayLayer.Modulate =
+			new Color(
+				1.0f,
+				1.0f,
+				1.0f,
+				0.52f
+			);
+
+
+		Color accent =
+			RoomThemePalette.GetAccentColor(
+				_state.CurrentRoomIndex
+			);
+
+
+		ColorRect flash =
+			new()
+			{
+				Color =
+					new Color(
+						accent.R,
+						accent.G,
+						accent.B,
+						0.24f
+					),
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+
+		flash.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+
+		_contentLayer.AddChild(
+			flash
+		);
+
+
+		flash.MoveToFront();
+
+
+		_roomUnlockTween =
+			_root.CreateTween();
+
+
+		_roomUnlockTween.SetParallel(
+			true
+		);
+
+
+		_roomUnlockTween.TweenProperty(
+			_scroll,
+			"scale",
+			new Vector2(
+				1.015f,
+				1.015f
+			),
+			0.28
+		)
+		.SetTrans(
+			Tween.TransitionType.Cubic
+		)
+		.SetEase(
+			Tween.EaseType.Out
+		);
+
+
+		_roomUnlockTween.TweenProperty(
+			_scroll,
+			"modulate:a",
+			1.0f,
+			0.22
+		);
+
+
+		_roomUnlockTween.TweenProperty(
+			_overlayLayer,
+			"modulate:a",
+			1.0f,
+			0.24
+		);
+
+
+		_roomUnlockTween.TweenProperty(
+			flash,
+			"color:a",
+			0.0f,
+			0.42
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.Out
+		);
+
+
+		_roomUnlockTween
+			.Chain()
+			.TweenProperty(
+				_scroll,
+				"scale",
+				Vector2.One,
+				0.14
+			)
+			.SetTrans(
+				Tween.TransitionType.Sine
+			)
+			.SetEase(
+				Tween.EaseType.Out
+			);
+
+
+		_roomUnlockTween.Finished +=
+			() =>
+			{
+				_scroll.Scale =
+					Vector2.One;
+
+
+				_scroll.Modulate =
+					Colors.White;
+
+
+				_overlayLayer.Modulate =
+					Colors.White;
+
+
+				if (
+					GodotObject.IsInstanceValid(
+						flash
+					)
+				)
+				{
+					flash.QueueFree();
+				}
+			};
+
+
+		Input.VibrateHandheld(
+			RoomUnlockHapticDurationMs,
+			RoomUnlockHapticStrength
 		);
 	}
 

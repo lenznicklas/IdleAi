@@ -14,6 +14,14 @@ public sealed class PipelineUiController
 		255.0f;
 
 
+	private const int SummaryTopSpacing =
+		14;
+
+
+	private const int SummaryBottomSpacing =
+		18;
+
+
 	private static readonly PipelineStage[] StageOrder =
 	[
 		PipelineStage.Compute,
@@ -50,6 +58,12 @@ public sealed class PipelineUiController
 	private static readonly Texture2D UpgradeIcon =
 		GD.Load<Texture2D>(
 			"res://assets/pipeline/pipeline_upgrade.png"
+		);
+
+
+	private static readonly Texture2D ArrowDownIcon =
+		GD.Load<Texture2D>(
+			"res://assets/ui/arrow_down.png"
 		);
 
 
@@ -131,6 +145,10 @@ public sealed class PipelineUiController
 
 
 	private bool _showPipeline;
+
+
+	private bool _pipelineWasVisible;
+
 
 	private int _lastRoom =
 		-1;
@@ -360,8 +378,6 @@ public sealed class PipelineUiController
 
 				UpdateTabStyles();
 
-
-				_mobileScroll?.ScrollToTop();
 
 				PlayHaptic();
 			};
@@ -670,6 +686,43 @@ public sealed class PipelineUiController
 	private void CreateSummaryCard(
 		VBoxContainer parent)
 	{
+		/*
+		 * The summary card gets its own stable spacing.
+		 * RoomUiController already reserves the fixed
+		 * TopBar + tab area; this adds visual breathing
+		 * room directly around SERVER PIPELINE.
+		 */
+		MarginContainer summarySpacing =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						ContentWidth,
+						0
+					),
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ShrinkCenter
+			};
+
+
+		summarySpacing.AddThemeConstantOverride(
+			"margin_top",
+			SummaryTopSpacing
+		);
+
+
+		summarySpacing.AddThemeConstantOverride(
+			"margin_bottom",
+			SummaryBottomSpacing
+		);
+
+
+		parent.AddChild(
+			summarySpacing
+		);
+
+
 		PanelContainer panel =
 			new()
 			{
@@ -690,7 +743,7 @@ public sealed class PipelineUiController
 		);
 
 
-		parent.AddChild(
+		summarySpacing.AddChild(
 			panel
 		);
 
@@ -1291,7 +1344,7 @@ public sealed class PipelineUiController
 				CustomMinimumSize =
 					new Vector2(
 						ContentWidth,
-						28
+						38
 					)
 			};
 
@@ -1301,19 +1354,17 @@ public sealed class PipelineUiController
 		);
 
 
-		Label arrow =
-			CreateLabel(
-				26,
-				"↓"
+		TextureRect arrow =
+			CreateIcon(
+				ArrowDownIcon,
+				34
 			);
 
 
-		arrow.Modulate =
-			new Color(
-				0.30f,
-				0.75f,
-				1.0f,
-				0.82f
+		arrow.CustomMinimumSize =
+			new Vector2(
+				34,
+				34
 			);
 
 
@@ -1342,8 +1393,18 @@ public sealed class PipelineUiController
 		);
 
 
+		/*
+		 * MACHINES / PIPELINE is a fixed overlay.
+		 * Do not rubber-band past the top edge or the
+		 * SERVER PIPELINE card can end up visually under
+		 * the fixed tabs while the spring is settling.
+		 */
 		_mobileScroll.Setup(
-			_pipelineScroll
+			_pipelineScroll,
+			allowTopOverscroll:
+				false,
+			allowBottomOverscroll:
+				true
 		);
 	}
 
@@ -1452,22 +1513,50 @@ public sealed class PipelineUiController
 			serverRoom;
 
 
+		bool pipelineVisible =
+			serverRoom
+			&& _showPipeline;
+
+
 		if (!serverRoom)
 		{
 			_machineScroll.Show();
 
 			_pipelineScroll.Hide();
 
+			_pipelineWasVisible =
+				false;
+
 			return;
 		}
 
 
 		_machineScroll.Visible =
-			!_showPipeline;
+			!pipelineVisible;
 
 
 		_pipelineScroll.Visible =
-			_showPipeline;
+			pipelineVisible;
+
+
+		/*
+		 * When Pipeline becomes visible again, always
+		 * normalize old inertia / rubber-band state and
+		 * start at the real top of the content.
+		 */
+		if (
+			pipelineVisible
+			&& !_pipelineWasVisible
+		)
+		{
+			_mobileScroll?.ResetMotion();
+
+			_mobileScroll?.ScrollToTop();
+		}
+
+
+		_pipelineWasVisible =
+			pipelineVisible;
 	}
 
 

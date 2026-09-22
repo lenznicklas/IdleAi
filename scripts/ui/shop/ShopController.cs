@@ -207,15 +207,9 @@ public sealed class ShopController
 			};
 
 
-		/*
-		 * Important:
-		 *
-		 * No gap between the Data Shard header
-		 * and the ScrollContainer.
-		 */
 		main.AddThemeConstantOverride(
 			"separation",
-			0
+			8
 		);
 
 
@@ -273,7 +267,7 @@ public sealed class ShopController
 
 		_content.AddThemeConstantOverride(
 			"separation",
-			14
+			18
 		);
 
 
@@ -289,9 +283,32 @@ public sealed class ShopController
 		CreateCosmeticSection();
 
 
+		Control bottomSpace =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						28
+					),
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+
+		_content.AddChild(
+			bottomSpace
+		);
+
+
 		CreateMobileScrolling();
 	}
 
+
+	// ==================================================
+	// BACKGROUND
+	// ==================================================
 
 	private void CreateBackground()
 	{
@@ -311,7 +328,15 @@ public sealed class ShopController
 					TextureRect.StretchModeEnum.KeepAspectCovered,
 
 				MouseFilter =
-					Control.MouseFilterEnum.Ignore
+					Control.MouseFilterEnum.Ignore,
+
+				Modulate =
+					new Color(
+						0.70f,
+						0.78f,
+						0.90f,
+						1.0f
+					)
 			};
 
 
@@ -323,6 +348,35 @@ public sealed class ShopController
 		_page.AddChild(
 			background
 		);
+
+
+		ColorRect tint =
+			new()
+			{
+				Name =
+					"ShopTint",
+
+				Color =
+					new Color(
+						0.01f,
+						0.025f,
+						0.06f,
+						0.42f
+					),
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+
+		tint.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+
+		_page.AddChild(
+			tint
+		);
 	}
 
 
@@ -333,9 +387,31 @@ public sealed class ShopController
 	private void CreateHeader(
 		VBoxContainer parent)
 	{
+		VBoxContainer header =
+			new()
+			{
+				Name =
+					"Header",
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		header.AddThemeConstantOverride(
+			"separation",
+			7
+		);
+
+
+		parent.AddChild(
+			header
+		);
+
+
 		Label title =
 			ShopUi.CreateLabel(
-				30
+				34
 			);
 
 
@@ -350,12 +426,63 @@ public sealed class ShopController
 		title.CustomMinimumSize =
 			new Vector2(
 				0,
-				42
+				48
 			);
 
 
-		parent.AddChild(
+		title.AddThemeColorOverride(
+			"font_color",
+			Colors.White
+		);
+
+
+		title.AddThemeColorOverride(
+			"font_shadow_color",
+			new Color(
+				0.05f,
+				0.55f,
+				1.0f,
+				0.9f
+			)
+		);
+
+
+		title.AddThemeConstantOverride(
+			"shadow_offset_x",
+			2
+		);
+
+
+		title.AddThemeConstantOverride(
+			"shadow_offset_y",
+			2
+		);
+
+
+		header.AddChild(
 			title
+		);
+
+
+		Label subtitle =
+			ShopUi.CreateMutedLabel(
+				14
+			);
+
+
+		subtitle.Text =
+			"Upgrade your AI empire";
+
+
+		subtitle.CustomMinimumSize =
+			new Vector2(
+				0,
+				24
+			);
+
+
+		header.AddChild(
+			subtitle
 		);
 
 
@@ -368,21 +495,24 @@ public sealed class ShopController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						72
+						86
 					),
 
 				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
+					Control.SizeFlags.ExpandFill,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
 			};
 
 
 		shardPanel.AddThemeStyleboxOverride(
 			"panel",
-			ShopUi.CreatePanelStyle()
+			ShopUi.CreateShardPanelStyle()
 		);
 
 
-		parent.AddChild(
+		header.AddChild(
 			shardPanel
 		);
 
@@ -393,25 +523,25 @@ public sealed class ShopController
 
 		shardMargin.AddThemeConstantOverride(
 			"margin_left",
-			16
+			18
 		);
 
 
 		shardMargin.AddThemeConstantOverride(
 			"margin_right",
-			16
+			18
 		);
 
 
 		shardMargin.AddThemeConstantOverride(
 			"margin_top",
-			6
+			10
 		);
 
 
 		shardMargin.AddThemeConstantOverride(
 			"margin_bottom",
-			6
+			10
 		);
 
 
@@ -436,7 +566,7 @@ public sealed class ShopController
 
 		row.AddThemeConstantOverride(
 			"separation",
-			12
+			14
 		);
 
 
@@ -448,7 +578,7 @@ public sealed class ShopController
 		TextureRect icon =
 			CreateIcon(
 				ShopUi.DataShard,
-				52
+				58
 			);
 
 
@@ -457,9 +587,47 @@ public sealed class ShopController
 		);
 
 
+		VBoxContainer shardText =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ShrinkCenter
+			};
+
+
+		shardText.AddThemeConstantOverride(
+			"separation",
+			0
+		);
+
+
+		row.AddChild(
+			shardText
+		);
+
+
+		Label shardTitle =
+			ShopUi.CreateMutedLabel(
+				12
+			);
+
+
+		shardTitle.Text =
+			"DATA SHARDS";
+
+
+		shardTitle.HorizontalAlignment =
+			HorizontalAlignment.Left;
+
+
+		shardText.AddChild(
+			shardTitle
+		);
+
+
 		_shardLabel =
 			ShopUi.CreateLabel(
-				22
+				26
 			);
 
 
@@ -469,8 +637,8 @@ public sealed class ShopController
 
 		_shardLabel.CustomMinimumSize =
 			new Vector2(
-				260,
-				52
+				220,
+				42
 			);
 
 
@@ -478,23 +646,17 @@ public sealed class ShopController
 			Control.SizeFlags.ShrinkCenter;
 
 
-		_shardLabel.SizeFlagsVertical =
-			Control.SizeFlags.ShrinkCenter;
-
-
 		_shardLabel.HorizontalAlignment =
 			HorizontalAlignment.Left;
 
 
-		_shardLabel.VerticalAlignment =
-			VerticalAlignment.Center;
+		_shardLabel.AddThemeColorOverride(
+			"font_color",
+			ShopUi.Accent
+		);
 
 
-		_shardLabel.ClipText =
-			false;
-
-
-		row.AddChild(
+		shardText.AddChild(
 			_shardLabel
 		);
 	}
@@ -507,12 +669,13 @@ public sealed class ShopController
 	private void CreateBoostSection()
 	{
 		CreateSectionTitle(
-			"BOOSTS"
+			"BOOSTS",
+			"Temporary upgrades for faster progress."
 		);
 
 
 		_productionBoostStatus =
-			ShopUi.CreateLabel(
+			ShopUi.CreateMutedLabel(
 				13
 			);
 
@@ -523,12 +686,13 @@ public sealed class ShopController
 				"2x PRODUCTION",
 				"Double all production for 15 minutes.",
 				_productionBoostStatus,
+				ShopUi.Accent,
 				BuyProductionBoost
 			);
 
 
 		_luckStatus =
-			ShopUi.CreateLabel(
+			ShopUi.CreateMutedLabel(
 				13
 			);
 
@@ -537,28 +701,30 @@ public sealed class ShopController
 			CreateShopCard(
 				ShopUi.Luck,
 				"BOT LUCK",
-				"Improves Rare, Epic and Legendary chances for 10 minutes.",
+				"Better chances for Rare, Epic and Legendary bots.",
 				_luckStatus,
+				ShopUi.Purple,
 				BuyLuck
 			);
 
 
 		Label instantStatus =
-			ShopUi.CreateLabel(
+			ShopUi.CreateMutedLabel(
 				13
 			);
 
 
 		instantStatus.Text =
-			"Complete every currently running cycle.";
+			"Finishes all currently running cycles.";
 
 
 		_instantButton =
 			CreateShopCard(
 				ShopUi.Instant,
 				"INSTANT PRODUCTION",
-				"Finish all active production cycles immediately.",
+				"Complete all active production cycles immediately.",
 				instantStatus,
+				ShopUi.Gold,
 				BuyInstant
 			);
 	}
@@ -571,12 +737,13 @@ public sealed class ShopController
 	private void CreatePermanentSection()
 	{
 		CreateSectionTitle(
-			"PERMANENT UPGRADES"
+			"PERMANENT UPGRADES",
+			"These upgrades remain forever."
 		);
 
 
 		_productionUpgradeStatus =
-			ShopUi.CreateLabel(
+			ShopUi.CreateMutedLabel(
 				13
 			);
 
@@ -587,12 +754,13 @@ public sealed class ShopController
 				"GLOBAL PRODUCTION",
 				"+2% permanent production per level.",
 				_productionUpgradeStatus,
+				ShopUi.Green,
 				BuyProductionUpgrade
 			);
 
 
 		_offlineUpgradeStatus =
-			ShopUi.CreateLabel(
+			ShopUi.CreateMutedLabel(
 				13
 			);
 
@@ -603,6 +771,7 @@ public sealed class ShopController
 				"OFFLINE INCOME",
 				"+5% offline income per level.",
 				_offlineUpgradeStatus,
+				ShopUi.AccentSoft,
 				BuyOfflineUpgrade
 			);
 	}
@@ -615,32 +784,30 @@ public sealed class ShopController
 	private void CreateCosmeticSection()
 	{
 		CreateSectionTitle(
-			"COSMETICS"
+			"COSMETICS",
+			"Visual customization for your AI empire."
 		);
 
 
 		Label status =
-			ShopUi.CreateLabel(
+			ShopUi.CreateMutedLabel(
 				13
 			);
 
 
 		status.Text =
-			"More themes and particle styles will be added later.";
+			"Machine skins, themes and particle effects.";
 
 
 		Button button =
 			CreateShopCard(
 				ShopUi.Cosmetics,
 				"COSMETICS",
-				"Machine skins, themes and particles.",
+				"Customize machines and environments.",
 				status,
+				ShopUi.Purple,
 				() =>
 				{
-					if (ShopActionBlocked())
-						return;
-
-
 					MessageRequested?.Invoke(
 						"Cosmetics coming soon."
 					);
@@ -666,6 +833,7 @@ public sealed class ShopController
 		string title,
 		string description,
 		Label status,
+		Color accent,
 		Action pressed)
 	{
 		PanelContainer panel =
@@ -700,7 +868,7 @@ public sealed class ShopController
 
 		margin.AddThemeConstantOverride(
 			"margin_left",
-			16
+			14
 		);
 
 
@@ -712,7 +880,7 @@ public sealed class ShopController
 
 		margin.AddThemeConstantOverride(
 			"margin_right",
-			16
+			14
 		);
 
 
@@ -749,14 +917,96 @@ public sealed class ShopController
 		);
 
 
-		TextureRect icon =
-			CreateIcon(
-				iconTexture,
-				92
-			);
+		PanelContainer iconPanel =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						102,
+						102
+					),
+
+				SizeFlagsVertical =
+					Control.SizeFlags.ShrinkCenter,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+
+		StyleBoxFlat iconStyle =
+			new()
+			{
+				BgColor =
+					new Color(
+						accent.R,
+						accent.G,
+						accent.B,
+						0.12f
+					),
+
+				BorderColor =
+					new Color(
+						accent.R,
+						accent.G,
+						accent.B,
+						0.56f
+					),
+
+				BorderWidthLeft =
+					2,
+
+				BorderWidthTop =
+					2,
+
+				BorderWidthRight =
+					2,
+
+				BorderWidthBottom =
+					2,
+
+				CornerRadiusTopLeft =
+					18,
+
+				CornerRadiusTopRight =
+					18,
+
+				CornerRadiusBottomLeft =
+					18,
+
+				CornerRadiusBottomRight =
+					18
+			};
+
+
+		iconPanel.AddThemeStyleboxOverride(
+			"panel",
+			iconStyle
+		);
 
 
 		row.AddChild(
+			iconPanel
+		);
+
+
+		CenterContainer iconCenter =
+			new();
+
+
+		iconPanel.AddChild(
+			iconCenter
+		);
+
+
+		TextureRect icon =
+			CreateIcon(
+				iconTexture,
+				82
+			);
+
+
+		iconCenter.AddChild(
 			icon
 		);
 
@@ -774,7 +1024,7 @@ public sealed class ShopController
 
 		information.AddThemeConstantOverride(
 			"separation",
-			6
+			5
 		);
 
 
@@ -785,7 +1035,7 @@ public sealed class ShopController
 
 		Label titleLabel =
 			ShopUi.CreateLabel(
-				20
+				19
 			);
 
 
@@ -793,8 +1043,14 @@ public sealed class ShopController
 			title;
 
 
-		titleLabel.MouseFilter =
-			Control.MouseFilterEnum.Ignore;
+		titleLabel.HorizontalAlignment =
+			HorizontalAlignment.Left;
+
+
+		titleLabel.AddThemeColorOverride(
+			"font_color",
+			accent
+		);
 
 
 		information.AddChild(
@@ -803,8 +1059,8 @@ public sealed class ShopController
 
 
 		Label descriptionLabel =
-			ShopUi.CreateLabel(
-				14
+			ShopUi.CreateMutedLabel(
+				13
 			);
 
 
@@ -812,8 +1068,12 @@ public sealed class ShopController
 			description;
 
 
-		descriptionLabel.MouseFilter =
-			Control.MouseFilterEnum.Ignore;
+		descriptionLabel.HorizontalAlignment =
+			HorizontalAlignment.Left;
+
+
+		descriptionLabel.VerticalAlignment =
+			VerticalAlignment.Top;
 
 
 		information.AddChild(
@@ -821,8 +1081,19 @@ public sealed class ShopController
 		);
 
 
-		status.MouseFilter =
-			Control.MouseFilterEnum.Ignore;
+		status.HorizontalAlignment =
+			HorizontalAlignment.Left;
+
+
+		status.VerticalAlignment =
+			VerticalAlignment.Center;
+
+
+		status.CustomMinimumSize =
+			new Vector2(
+				0,
+				28
+			);
 
 
 		information.AddChild(
@@ -840,8 +1111,16 @@ public sealed class ShopController
 					),
 
 				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
+					Control.SizeFlags.ExpandFill,
+
+				FocusMode =
+					Control.FocusModeEnum.None
 			};
+
+
+		ShopUi.ApplyPrimaryButtonStyle(
+			button
+		);
 
 
 		button.Pressed +=
@@ -864,35 +1143,132 @@ public sealed class ShopController
 	}
 
 
+	// ==================================================
+	// SECTION
+	// ==================================================
+
 	private void CreateSectionTitle(
-		string text)
+		string title,
+		string subtitle)
 	{
-		Label label =
-			ShopUi.CreateLabel(
-				21
-			);
+		PanelContainer panel =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
 
 
-		label.Text =
-			text;
-
-
-		label.CustomMinimumSize =
-			new Vector2(
-				0,
-				38
-			);
-
-
-		label.MouseFilter =
-			Control.MouseFilterEnum.Ignore;
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			ShopUi.CreateSectionStyle()
+		);
 
 
 		_content.AddChild(
-			label
+			panel
+		);
+
+
+		MarginContainer margin =
+			new();
+
+
+		margin.AddThemeConstantOverride(
+			"margin_left",
+			14
+		);
+
+
+		margin.AddThemeConstantOverride(
+			"margin_right",
+			14
+		);
+
+
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			8
+		);
+
+
+		margin.AddThemeConstantOverride(
+			"margin_bottom",
+			8
+		);
+
+
+		panel.AddChild(
+			margin
+		);
+
+
+		VBoxContainer box =
+			new();
+
+
+		box.AddThemeConstantOverride(
+			"separation",
+			1
+		);
+
+
+		margin.AddChild(
+			box
+		);
+
+
+		Label titleLabel =
+			ShopUi.CreateLabel(
+				19
+			);
+
+
+		titleLabel.Text =
+			title;
+
+
+		titleLabel.HorizontalAlignment =
+			HorizontalAlignment.Left;
+
+
+		titleLabel.AddThemeColorOverride(
+			"font_color",
+			ShopUi.Accent
+		);
+
+
+		box.AddChild(
+			titleLabel
+		);
+
+
+		Label subtitleLabel =
+			ShopUi.CreateMutedLabel(
+				12
+			);
+
+
+		subtitleLabel.Text =
+			subtitle;
+
+
+		subtitleLabel.HorizontalAlignment =
+			HorizontalAlignment.Left;
+
+
+		box.AddChild(
+			subtitleLabel
 		);
 	}
 
+
+	// ==================================================
+	// ICON
+	// ==================================================
 
 	private static TextureRect CreateIcon(
 		Texture2D texture,
@@ -1067,8 +1443,7 @@ public sealed class ShopController
 		_shardLabel.Text =
 			NumberFormatter.Format(
 				_state.Shop.DataShards
-			)
-			+ " DATA SHARDS";
+			);
 
 
 		RefreshProductionBoost();
@@ -1090,18 +1465,35 @@ public sealed class ShopController
 				.GetProductionBoostRemainingSeconds();
 
 
-		_productionBoostStatus.Text =
-			remaining > 0
-				? "ACTIVE • "
-					+ FormatTime(
-						remaining
-					)
-					+ " remaining"
-				: "Currently inactive";
+		if (remaining > 0)
+		{
+			_productionBoostStatus.Text =
+				"● ACTIVE  •  "
+				+ FormatTime(
+					remaining
+				);
+
+
+			_productionBoostStatus.AddThemeColorOverride(
+				"font_color",
+				ShopUi.Green
+			);
+		}
+		else
+		{
+			_productionBoostStatus.Text =
+				"INACTIVE";
+
+
+			_productionBoostStatus.AddThemeColorOverride(
+				"font_color",
+				ShopUi.TextSecondary
+			);
+		}
 
 
 		_productionBoostButton.Text =
-			"BUY • "
+			"BUY  •  "
 			+ NumberFormatter.Format(
 				GameConfig.ShopProductionBoostCost
 			)
@@ -1121,18 +1513,35 @@ public sealed class ShopController
 				.GetBotLuckRemainingSeconds();
 
 
-		_luckStatus.Text =
-			remaining > 0
-				? "ACTIVE • "
-					+ FormatTime(
-						remaining
-					)
-					+ " remaining"
-				: "Currently inactive";
+		if (remaining > 0)
+		{
+			_luckStatus.Text =
+				"● ACTIVE  •  "
+				+ FormatTime(
+					remaining
+				);
+
+
+			_luckStatus.AddThemeColorOverride(
+				"font_color",
+				ShopUi.Green
+			);
+		}
+		else
+		{
+			_luckStatus.Text =
+				"INACTIVE";
+
+
+			_luckStatus.AddThemeColorOverride(
+				"font_color",
+				ShopUi.TextSecondary
+			);
+		}
 
 
 		_luckButton.Text =
-			"BUY • "
+			"BUY  •  "
 			+ NumberFormatter.Format(
 				GameConfig.ShopBotLuckCost
 			)
@@ -1148,7 +1557,7 @@ public sealed class ShopController
 	private void RefreshInstantProduction()
 	{
 		_instantButton.Text =
-			"USE • "
+			"USE  •  "
 			+ NumberFormatter.Format(
 				GameConfig.ShopInstantProductionCost
 			)
@@ -1169,8 +1578,11 @@ public sealed class ShopController
 
 
 		_productionUpgradeStatus.Text =
-			$"Level {level} / {GameConfig.ShopProductionUpgradeMaxLevel}"
-			+ "\nPermanent bonus: +"
+			"LEVEL "
+			+ level
+			+ " / "
+			+ GameConfig.ShopProductionUpgradeMaxLevel
+			+ "   •   +"
 			+ (
 				level
 				* GameConfig.ShopProductionUpgradeBonus
@@ -1204,7 +1616,7 @@ public sealed class ShopController
 
 
 		_productionUpgradeButton.Text =
-			"UPGRADE • "
+			"UPGRADE  •  "
 			+ NumberFormatter.Format(
 				cost
 			)
@@ -1225,8 +1637,11 @@ public sealed class ShopController
 
 
 		_offlineUpgradeStatus.Text =
-			$"Level {level} / {GameConfig.ShopOfflineUpgradeMaxLevel}"
-			+ "\nAdditional offline income: +"
+			"LEVEL "
+			+ level
+			+ " / "
+			+ GameConfig.ShopOfflineUpgradeMaxLevel
+			+ "   •   +"
 			+ (
 				level
 				* GameConfig.ShopOfflineUpgradeBonus
@@ -1260,7 +1675,7 @@ public sealed class ShopController
 
 
 		_offlineUpgradeButton.Text =
-			"UPGRADE • "
+			"UPGRADE  •  "
 			+ NumberFormatter.Format(
 				cost
 			)

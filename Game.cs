@@ -7,7 +7,7 @@ namespace IdleAi;
 public partial class Game : Control
 {
 	private const int SaveVersion =
-		14;
+		15;
 
 
 	private const double AutosaveIntervalSeconds =
@@ -330,11 +330,6 @@ public partial class Game : Control
 					Unlocked =
 						roomIndex == 0,
 
-					/*
-					 * Room 0 starts unlocked and must
-					 * therefore never generate the
-					 * +15 unlock reward.
-					 */
 					DataShardUnlockRewardClaimed =
 						roomIndex == 0
 				};
@@ -586,8 +581,21 @@ public partial class Game : Control
 				LastSaveUnix =
 					GetCurrentUnixTime(),
 
+				/*
+				 * IMPORTANT:
+				 *
+				 * Do NOT save GetTotalIncome() here.
+				 *
+				 * That method contains the temporary
+				 * Shop 2x production multiplier.
+				 *
+				 * Offline income stores the permanent/base
+				 * income instead and applies the temporary
+				 * boost based on its real expiration time.
+				 */
 				IncomePerSecond =
-					_economy.GetTotalIncome(),
+					_economy
+						.GetTotalIncomeWithoutTemporaryShopBoost(),
 
 				CurrentRoomIndex =
 					_state.CurrentRoomIndex,
@@ -773,17 +781,6 @@ public partial class Game : Control
 				savedRoom.Unlocked;
 
 
-			/*
-			 * Save migration from Version 13.
-			 *
-			 * Rooms already unlocked before the
-			 * Data-Shard reward system existed are
-			 * treated as already rewarded.
-			 *
-			 * Otherwise an old player could Prestige,
-			 * unlock the same old room and receive a
-			 * supposedly one-time reward.
-			 */
 			if (save.SaveVersion < 14)
 			{
 				room.DataShardUnlockRewardClaimed =
@@ -845,10 +842,75 @@ public partial class Game : Control
 		}
 
 
+		double savedBaseIncome =
+			GetMigratedOfflineIncomePerSecond(
+				save
+			);
+
+
 		return ApplyOfflineIncome(
 			save.LastSaveUnix,
-			save.IncomePerSecond
+			savedBaseIncome,
+			save.ShopProductionBoostEndUnix
 		);
+	}
+
+
+	// ==================================================
+	// OFFLINE MIGRATION
+	// ==================================================
+
+	/*
+	 * Save versions <= 14 stored the CURRENT income.
+	 *
+	 * Therefore an active 2x production boost was already
+	 * included in IncomePerSecond.
+	 *
+	 * Version 15 stores income without the temporary boost.
+	 *
+	 * When loading an older save that had an active boost,
+	 * divide that saved value by the boost multiplier once
+	 * to reconstruct the correct base income.
+	 */
+	private static double GetMigratedOfflineIncomePerSecond(
+		SaveGameData save)
+	{
+		double income =
+			save.IncomePerSecond;
+
+
+		if (
+			save.SaveVersion >= 15
+			|| income <= 0.0
+		)
+		{
+			return income;
+		}
+
+
+		bool boostWasActiveWhenSaved =
+			save.ShopProductionBoostEndUnix
+			> save.LastSaveUnix;
+
+
+		if (!boostWasActiveWhenSaved)
+		{
+			return income;
+		}
+
+
+		double boostMultiplier =
+			GameConfig.ShopTemporaryProductionMultiplier;
+
+
+		if (boostMultiplier <= 0.0)
+		{
+			return income;
+		}
+
+
+		return income
+			/ boostMultiplier;
 	}
 
 
@@ -858,21 +920,30 @@ public partial class Game : Control
 
 	private double ApplyOfflineIncome(
 		long savedTime,
-		double incomePerSecond)
+		double baseIncomePerSecond,
+		long productionBoostEndUnix)
 	{
-		long seconds =
-			GetCurrentUnixTime()
+		long now =
+			GetCurrentUnixTime();
+
+
+		long totalOfflineSeconds =
+			now
 			- savedTime;
 
 
 		if (
-			seconds <= 0
-			|| incomePerSecond <= 0
+			totalOfflineSeconds <= 0
+			|| baseIncomePerSecond <= 0.0
 		)
 		{
-			return 0;
+			return 0.0;
 		}
 
+
+		// ==================================================
+		// OFFLINE FACTOR
+		// ==================================================
 
 		double offlineFactor =
 			Math.Clamp(
@@ -887,11 +958,74 @@ public partial class Game : Control
 			);
 
 
+		// ==================================================
+		// TEMPORARY PRODUCTION BOOST OVERLAP
+		// ==================================================
+
+		/*
+		 * Example:
+		 *
+		 * saved at 12:00
+		 * 2x boost ends at 12:03
+		 * game reopened at 14:00
+		 *
+		 * boostedSeconds = 180
+		 * normalSeconds  = 7020
+		 */
+		long boostOverlapEnd =
+			Math.Min(
+				now,
+				productionBoostEndUnix
+			);
+
+
+		long boostedSeconds =
+			Math.Max(
+				0,
+				boostOverlapEnd
+				- savedTime
+			);
+
+
+		boostedSeconds =
+			Math.Min(
+				boostedSeconds,
+				totalOfflineSeconds
+			);
+
+
+		long normalSeconds =
+			totalOfflineSeconds
+			- boostedSeconds;
+
+
+		// ==================================================
+		// CALCULATE
+		// ==================================================
+
+		double normalIncome =
+			baseIncomePerSecond
+			* normalSeconds;
+
+
+		double boostedIncome =
+			baseIncomePerSecond
+			* boostedSeconds
+			* GameConfig
+				.ShopTemporaryProductionMultiplier;
+
+
 		double amount =
-			incomePerSecond
-			* seconds
+			(
+				normalIncome
+				+ boostedIncome
+			)
 			* offlineFactor;
 
+
+		// ==================================================
+		// APPLY
+		// ==================================================
 
 		_state.Tokens +=
 			amount;
@@ -909,6 +1043,10 @@ public partial class Game : Control
 		return amount;
 	}
 
+
+	// ==================================================
+	// TIME
+	// ==================================================
 
 	private static long GetCurrentUnixTime()
 	{

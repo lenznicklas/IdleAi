@@ -380,6 +380,104 @@ public sealed class EconomyService
 	}
 
 
+	// ==================================================
+	// REWARD WITHOUT TEMPORARY SHOP BOOST
+	// ==================================================
+
+	/*
+	 * Used for offline-income snapshots.
+	 *
+	 * The normal GetCycleReward() contains both:
+	 *
+	 * - permanent Shop production upgrades
+	 * - temporary 2x production boost
+	 *
+	 * For offline income we must save the permanent/base
+	 * production separately and apply the temporary boost
+	 * only to the time during which it was actually active.
+	 */
+	private double GetCycleRewardWithoutTemporaryShopBoost(
+		int roomIndex,
+		SlotData slot)
+	{
+		if (!slot.Unlocked)
+			return 0.0;
+
+
+		MachineData machine =
+			GetMachine(
+				roomIndex,
+				slot
+			);
+
+
+		double levelMultiplier =
+			1.0
+			+ (
+				slot.MachineLevel
+				- 1
+			)
+			* GameConfig.IncomePerLevel;
+
+
+		double milestoneMultiplier =
+			GetMilestoneMultiplier(
+				slot.MachineLevel
+			);
+
+
+		double botMultiplier =
+			BotCatalog.GetMultiplier(
+				slot.BotRarity
+			);
+
+
+		if (slot.HasBot)
+		{
+			botMultiplier *=
+				_state.Lab
+					.GetBotPowerMultiplier();
+		}
+
+
+		double prestigeMultiplier =
+			_state.Prestige
+				.GetProductionMultiplier();
+
+
+		double researchProductionMultiplier =
+			_state.Lab
+				.GetProductionMultiplier();
+
+
+		/*
+		 * Keep the permanent Shop production upgrade.
+		 *
+		 * Only the temporary 2x multiplier is excluded.
+		 */
+		double permanentShopProductionMultiplier =
+			1.0
+			+ _state.Shop.ProductionUpgradeLevel
+			* GameConfig.ShopProductionUpgradeBonus;
+
+
+		double baseCycleDuration =
+			GetBaseCycleDuration(
+				slot
+			);
+
+
+		return machine.BaseIncome
+			* baseCycleDuration
+			* levelMultiplier
+			* milestoneMultiplier
+			* botMultiplier
+			* prestigeMultiplier
+			* researchProductionMultiplier
+			* permanentShopProductionMultiplier;
+	}
+
+
 	public double GetSlotIncome(
 		int roomIndex,
 		SlotData slot)
@@ -395,6 +493,28 @@ public sealed class EconomyService
 
 
 		return GetCycleReward(
+			roomIndex,
+			slot
+		)
+		/ duration;
+	}
+
+
+	private double GetSlotIncomeWithoutTemporaryShopBoost(
+		int roomIndex,
+		SlotData slot)
+	{
+		double duration =
+			GetCycleDuration(
+				slot
+			);
+
+
+		if (duration <= 0.0)
+			return 0.0;
+
+
+		return GetCycleRewardWithoutTemporaryShopBoost(
 			roomIndex,
 			slot
 		)
@@ -451,6 +571,51 @@ public sealed class EconomyService
 	}
 
 
+	private double GetRoomIncomeWithoutTemporaryShopBoost(
+		int roomIndex)
+	{
+		if (
+			!_state.RoomStates[
+				roomIndex
+			].Unlocked
+		)
+		{
+			return 0.0;
+		}
+
+
+		double total =
+			0.0;
+
+
+		foreach (
+			SlotData slot
+			in _state.RoomStates[
+				roomIndex
+			].Slots
+		)
+		{
+			if (
+				!slot.Unlocked
+				|| !slot.HasBot
+			)
+			{
+				continue;
+			}
+
+
+			total +=
+				GetSlotIncomeWithoutTemporaryShopBoost(
+					roomIndex,
+					slot
+				);
+		}
+
+
+		return total;
+	}
+
+
 	public double GetTotalIncome()
 	{
 		double total =
@@ -465,6 +630,35 @@ public sealed class EconomyService
 		{
 			total +=
 				GetRoomIncome(
+					roomIndex
+				);
+		}
+
+
+		return total;
+	}
+
+
+	/*
+	 * Offline income must be based on this value.
+	 *
+	 * Temporary boosts are calculated separately using
+	 * their real expiration timestamp.
+	 */
+	public double GetTotalIncomeWithoutTemporaryShopBoost()
+	{
+		double total =
+			0.0;
+
+
+		for (
+			int roomIndex = 0;
+			roomIndex < _state.Rooms.Count;
+			roomIndex++
+		)
+		{
+			total +=
+				GetRoomIncomeWithoutTemporaryShopBoost(
 					roomIndex
 				);
 		}

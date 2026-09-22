@@ -22,13 +22,6 @@ public partial class SaveManager : Node
 	private Timer? _autosaveTimer;
 
 
-	private bool _loadAttempted;
-
-	private bool _loadSucceeded;
-
-	private bool _protectExistingSaveAfterLoadFailure;
-
-
 	public event Action? AutosaveRequested;
 
 
@@ -57,7 +50,10 @@ public partial class SaveManager : Node
 					false,
 
 				Autostart =
-					true
+					true,
+
+				ProcessMode =
+					ProcessModeEnum.Always
 			};
 
 
@@ -84,49 +80,34 @@ public partial class SaveManager : Node
 	public bool SaveData(
 		SaveGameData data)
 	{
-		/*
-		 * Critical protection:
-		 *
-		 * If a save existed when loading was attempted but
-		 * BOTH the primary save and backup could not be read,
-		 * never overwrite them with a fresh default game.
-		 *
-		 * This prevents a temporary/corrupt load failure from
-		 * turning into permanent progress loss.
-		 */
-		if (_protectExistingSaveAfterLoadFailure)
-		{
-			GD.PushError(
-				"Save blocked because an existing save failed to load. "
-				+ "The old save files were left untouched."
-			);
-
-
-			return false;
-		}
-
-
 		try
 		{
-			JsonSerializerOptions options =
-				new()
-				{
-					WriteIndented =
-						true
-				};
-
-
 			string json =
 				JsonSerializer.Serialize(
 					data,
-					options
+					SaveJsonContext
+						.Default
+						.SaveGameData
 				);
 
 
+			if (
+				string.IsNullOrWhiteSpace(
+					json
+				)
+			)
+			{
+				GD.PushError(
+					"Save serialization produced empty JSON."
+				);
+
+
+				return false;
+			}
+
+
 			/*
-			 * Write a temporary file first.
-			 * We only replace the real save after the temp
-			 * file has been written successfully.
+			 * Stage 1: write a temporary file.
 			 */
 			if (
 				!WriteTextFile(
@@ -140,56 +121,21 @@ public partial class SaveManager : Node
 
 
 			/*
-			 * Keep the previous valid primary file as backup.
-			 * A fresh install has no primary yet, which is fine.
+			 * Stage 2: read and deserialize the temp file.
+			 * Only a verified save may replace the primary.
 			 */
-			if (
-				Godot.FileAccess.FileExists(
-					SavePath
-				)
-			)
-			{
-				string? currentPrimary =
-					ReadTextFile(
-						SavePath
-					);
-
-
-				if (
-					!string.IsNullOrWhiteSpace(
-						currentPrimary
-					)
-					&& CanDeserialize(
-						currentPrimary
-					)
-				)
-				{
-					WriteTextFile(
-						BackupSavePath,
-						currentPrimary
-					);
-				}
-			}
-
-
-			string? tempJson =
-				ReadTextFile(
-					TempSavePath
+			SaveGameData? verified =
+				TryLoadFromPath(
+					TempSavePath,
+					logErrors:
+						true
 				);
 
 
-			if (
-				string.IsNullOrWhiteSpace(
-					tempJson
-				)
-				|| !CanDeserialize(
-					tempJson
-				)
-			)
+			if (verified == null)
 			{
 				GD.PushError(
-					"Temporary save verification failed. "
-					+ "Existing save was not replaced."
+					"Temporary save verification failed."
 				);
 
 
@@ -197,10 +143,53 @@ public partial class SaveManager : Node
 			}
 
 
+			/*
+			 * Stage 3: preserve the current valid primary.
+			 */
+			if (
+				Godot.FileAccess.FileExists(
+					SavePath
+				)
+			)
+			{
+				SaveGameData? oldPrimary =
+					TryLoadFromPath(
+						SavePath,
+						logErrors:
+							false
+					);
+
+
+				if (oldPrimary != null)
+				{
+					string? currentJson =
+						ReadTextFile(
+							SavePath
+						);
+
+
+					if (
+						!string.IsNullOrWhiteSpace(
+							currentJson
+						)
+					)
+					{
+						WriteTextFile(
+							BackupSavePath,
+							currentJson
+						);
+					}
+				}
+			}
+
+
+			/*
+			 * Stage 4: write verified data to primary.
+			 */
 			if (
 				!WriteTextFile(
 					SavePath,
-					tempJson
+					json
 				)
 			)
 			{
@@ -210,6 +199,14 @@ public partial class SaveManager : Node
 
 			DeleteFileIfExists(
 				TempSavePath
+			);
+
+
+			GD.Print(
+				"Idle AI save written: ",
+				ProjectSettings.GlobalizePath(
+					SavePath
+				)
 			);
 
 
@@ -233,111 +230,64 @@ public partial class SaveManager : Node
 
 	public SaveGameData? LoadData()
 	{
-		_loadAttempted =
-			true;
-
-
-		_loadSucceeded =
-			false;
-
-
-		bool primaryExists =
-			Godot.FileAccess.FileExists(
-				SavePath
-			);
-
-
-		bool backupExists =
-			Godot.FileAccess.FileExists(
-				BackupSavePath
-			);
-
-
-		if (
-			!primaryExists
-			&& !backupExists
-		)
-		{
-			/*
-			 * Real first launch.
-			 * Saving a new game is allowed.
-			 */
-			_protectExistingSaveAfterLoadFailure =
-				false;
-
-
-			return null;
-		}
-
-
 		SaveGameData? primary =
 			TryLoadFromPath(
-				SavePath
+				SavePath,
+				logErrors:
+					true
 			);
 
 
 		if (primary != null)
 		{
-			_loadSucceeded =
-				true;
-
-
-			_protectExistingSaveAfterLoadFailure =
-				false;
+			GD.Print(
+				"Idle AI save loaded from primary."
+			);
 
 
 			return primary;
 		}
 
 
-		GD.PushWarning(
-			"Primary save could not be loaded. Trying backup save."
-		);
-
-
 		SaveGameData? backup =
 			TryLoadFromPath(
-				BackupSavePath
+				BackupSavePath,
+				logErrors:
+					true
 			);
 
 
 		if (backup != null)
 		{
-			_loadSucceeded =
-				true;
-
-
-			_protectExistingSaveAfterLoadFailure =
-				false;
-
-
 			GD.PushWarning(
-				"Backup save loaded successfully."
+				"Primary save was unavailable. Backup save loaded."
 			);
 
 
-			/*
-			 * Do not rewrite immediately here.
-			 * Game.cs will save normally after the whole state
-			 * has been restored.
-			 */
 			return backup;
 		}
 
 
 		/*
-		 * A save existed but neither copy could be loaded.
-		 * Protect those files from the automatic SaveGame()
-		 * at the end of Game._Ready().
+		 * If corrupt files from an older broken build are
+		 * present, move them out of the active save names.
+		 *
+		 * This is intentionally different from permanently
+		 * blocking all future saves: that old behavior caused
+		 * a broken file to make the game unable to save at all.
 		 */
-		_protectExistingSaveAfterLoadFailure =
-			true;
+		QuarantineIfInvalid(
+			SavePath
+		);
 
 
-		GD.PushError(
-			"Existing save data could not be loaded. "
-			+ "Autosave/manual save is blocked so the old files "
-			+ "cannot be overwritten."
+		QuarantineIfInvalid(
+			BackupSavePath
+		);
+
+
+		GD.Print(
+			"No readable Idle AI save found. Starting a new save."
 		);
 
 
@@ -346,7 +296,8 @@ public partial class SaveManager : Node
 
 
 	private SaveGameData? TryLoadFromPath(
-		string path)
+		string path,
+		bool logErrors)
 	{
 		if (
 			!Godot.FileAccess.FileExists(
@@ -372,9 +323,12 @@ public partial class SaveManager : Node
 				)
 			)
 			{
-				GD.PushError(
-					$"Save file is empty: {path}"
-				);
+				if (logErrors)
+				{
+					GD.PushError(
+						$"Save file is empty: {path}"
+					);
+				}
 
 
 				return null;
@@ -382,16 +336,24 @@ public partial class SaveManager : Node
 
 
 			SaveGameData? data =
-				JsonSerializer.Deserialize<SaveGameData>(
-					json
+				JsonSerializer.Deserialize(
+					json,
+					SaveJsonContext
+						.Default
+						.SaveGameData
 				);
 
 
-			if (data == null)
+			if (
+				data == null
+			)
 			{
-				GD.PushError(
-					$"Save file deserialized to null: {path}"
-				);
+				if (logErrors)
+				{
+					GD.PushError(
+						$"Save file deserialized to null: {path}"
+					);
+				}
 
 
 				return null;
@@ -402,9 +364,12 @@ public partial class SaveManager : Node
 		}
 		catch (Exception exception)
 		{
-			GD.PushError(
-				$"Could not load save from {path}: {exception}"
-			);
+			if (logErrors)
+			{
+				GD.PushError(
+					$"Could not load save from {path}: {exception}"
+				);
+			}
 
 
 			return null;
@@ -427,15 +392,6 @@ public partial class SaveManager : Node
 	}
 
 
-	public bool LastLoadSucceeded =>
-		_loadAttempted
-		&& _loadSucceeded;
-
-
-	public bool SaveProtectionActive =>
-		_protectExistingSaveAfterLoadFailure;
-
-
 	// ==================================================
 	// DELETE
 	// ==================================================
@@ -455,18 +411,58 @@ public partial class SaveManager : Node
 		DeleteFileIfExists(
 			TempSavePath
 		);
+	}
 
 
-		_loadAttempted =
-			false;
+	// ==================================================
+	// CORRUPT SAVE HANDLING
+	// ==================================================
+
+	private static void QuarantineIfInvalid(
+		string path)
+	{
+		if (
+			!Godot.FileAccess.FileExists(
+				path
+			)
+		)
+		{
+			return;
+		}
 
 
-		_loadSucceeded =
-			false;
+		string absolute =
+			ProjectSettings.GlobalizePath(
+				path
+			);
 
 
-		_protectExistingSaveAfterLoadFailure =
-			false;
+		string quarantine =
+			absolute
+			+ ".corrupt_"
+			+ DateTimeOffset.UtcNow
+				.ToUnixTimeSeconds();
+
+
+		Error error =
+			DirAccess.RenameAbsolute(
+				absolute,
+				quarantine
+			);
+
+
+		if (error != Error.Ok)
+		{
+			GD.PushWarning(
+				$"Could not quarantine invalid save {path}: {error}"
+			);
+		}
+		else
+		{
+			GD.PushWarning(
+				$"Invalid save moved to: {quarantine}"
+			);
+		}
 	}
 
 
@@ -521,35 +517,11 @@ public partial class SaveManager : Node
 
 		if (file == null)
 		{
-			GD.PushError(
-				$"Could not open save file for reading: {path}. "
-				+ $"Godot error: {Godot.FileAccess.GetOpenError()}"
-			);
-
-
 			return null;
 		}
 
 
 		return file.GetAsText();
-	}
-
-
-	private static bool CanDeserialize(
-		string json)
-	{
-		try
-		{
-			return JsonSerializer
-				.Deserialize<SaveGameData>(
-					json
-				)
-				!= null;
-		}
-		catch
-		{
-			return false;
-		}
 	}
 
 
@@ -566,15 +538,11 @@ public partial class SaveManager : Node
 		}
 
 
-		string absolutePath =
-			ProjectSettings.GlobalizePath(
-				path
-			);
-
-
 		Error error =
 			DirAccess.RemoveAbsolute(
-				absolutePath
+				ProjectSettings.GlobalizePath(
+					path
+				)
 			);
 
 

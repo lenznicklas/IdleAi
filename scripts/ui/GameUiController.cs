@@ -10,72 +10,33 @@ public sealed class GameUiController
 			"res://assets/themes/main_theme.tres"
 		);
 
-
 	private readonly Game _root;
-
 	private readonly GameState _state;
-
 	private readonly EconomyService _economy;
-
 	private readonly ProgressionService _progression;
-
 	private readonly ProductionService _production;
-
 	private readonly BotService _bots;
-
 	private readonly PrestigeService _prestigeService;
-
 	private readonly ShopService _shopService;
+	private readonly PipelineService _pipelineService;
 
+	private RoomUiController _room = null!;
+	private PipelineUiController _pipeline = null!;
+	private TopBarController _topBar = null!;
+	private BottomBarController _bottomBar = null!;
+	private MapController _map = null!;
+	private StatsOverlayController _stats = null!;
+	private PrestigeOverlayController _prestige = null!;
+	private MachineDetailsOverlay _details = null!;
+	private ShopController _shop = null!;
 
-	private RoomUiController _room =
-		null!;
-
-	private TopBarController _topBar =
-		null!;
-
-	private BottomBarController _bottomBar =
-		null!;
-
-	private MapController _map =
-		null!;
-
-	private StatsOverlayController _stats =
-		null!;
-
-	private PrestigeOverlayController _prestige =
-		null!;
-
-	private MachineDetailsOverlay _details =
-		null!;
-
-	private ShopController _shop =
-		null!;
-
-
-	private int _lastThemeRoom =
-		-1;
-
-
-	/*
-	 * The room whose actual room UI was last rendered.
-	 *
-	 * This is separate from _lastThemeRoom because
-	 * changing the room must also reset the room
-	 * ScrollContainer.
-	 */
-	private int _lastDisplayedRoom =
-		-1;
-
+	private int _lastThemeRoom = -1;
+	private int _lastDisplayedRoom = -1;
 
 	public event Action<int>? SlotActionRequested;
-
 	public event Action<int>? RoomSelectedRequested;
-
 	public event Action? StateChanged;
-
 	public event Action? PrestigeRequested;
-
 
 	public GameUiController(
 		Game root,
@@ -85,80 +46,37 @@ public sealed class GameUiController
 		ProductionService production,
 		BotService bots,
 		PrestigeService prestige,
-		ShopService shopService)
+		ShopService shopService,
+		PipelineService pipelineService)
 	{
-		_root =
-			root;
-
-
-		_state =
-			state;
-
-
-		_economy =
-			economy;
-
-
-		_progression =
-			progression;
-
-
-		_production =
-			production;
-
-
-		_bots =
-			bots;
-
-
-		_prestigeService =
-			prestige;
-
-
-		_shopService =
-			shopService;
+		_root = root;
+		_state = state;
+		_economy = economy;
+		_progression = progression;
+		_production = production;
+		_bots = bots;
+		_prestigeService = prestige;
+		_shopService = shopService;
+		_pipelineService = pipelineService;
 	}
-
-
-	// ==================================================
-	// INITIALIZE
-	// ==================================================
 
 	public void Initialize()
 	{
-		_root.Theme =
-			MainTheme;
-
+		_root.Theme = MainTheme;
 
 		CreateRoomController();
-
+		CreatePipelineController();
 		CreateTopBarController();
-
 		CreateBottomBarController();
-
 		CreateMapController();
-
 		CreateStatsController();
-
 		CreatePrestigeController();
-
 		CreateShopController();
-
 		CreateMachineDetails();
 
-
-		ApplyRoomTheme(
-			true
-		);
-
-
+		ApplyRoomTheme(true);
 		UpdateAll();
 	}
-
-
-	// ==================================================
-	// ROOM
-	// ==================================================
 
 	private void CreateRoomController()
 	{
@@ -170,29 +88,35 @@ public sealed class GameUiController
 				_production
 			);
 
-
 		_room.SlotActionRequested +=
 			index =>
-				SlotActionRequested?.Invoke(
-					index
-				);
+				SlotActionRequested?.Invoke(index);
 
-
-		_room.MessageRequested +=
-			SetMessage;
-
-
-		_room.DetailsRequested +=
-			OpenMachineDetails;
-
+		_room.MessageRequested += SetMessage;
+		_room.DetailsRequested += OpenMachineDetails;
 
 		_room.Initialize();
 	}
 
+	private void CreatePipelineController()
+	{
+		_pipeline =
+			new PipelineUiController(
+				_root,
+				_state,
+				_pipelineService
+			);
 
-	// ==================================================
-	// TOP BAR
-	// ==================================================
+		_pipeline.MessageRequested += SetMessage;
+
+		_pipeline.StateChanged += () =>
+		{
+			UpdateAll();
+			StateChanged?.Invoke();
+		};
+
+		_pipeline.Initialize();
+	}
 
 	private void CreateTopBarController()
 	{
@@ -203,18 +127,9 @@ public sealed class GameUiController
 				_progression
 			);
 
-
-		_topBar.StatsRequested +=
-			OpenStats;
-
-
+		_topBar.StatsRequested += OpenStats;
 		_topBar.Initialize();
 	}
-
-
-	// ==================================================
-	// BOTTOM BAR
-	// ==================================================
 
 	private void CreateBottomBarController()
 	{
@@ -223,22 +138,10 @@ public sealed class GameUiController
 				_root
 			);
 
-
-		_bottomBar.MapRequested +=
-			ToggleMapPage;
-
-
-		_bottomBar.ShopRequested +=
-			ToggleShopPage;
-
-
+		_bottomBar.MapRequested += ToggleMapPage;
+		_bottomBar.ShopRequested += ToggleShopPage;
 		_bottomBar.Initialize();
 	}
-
-
-	// ==================================================
-	// MAP
-	// ==================================================
 
 	private void CreateMapController()
 	{
@@ -249,21 +152,12 @@ public sealed class GameUiController
 				_progression
 			);
 
-
 		_map.RoomSelectedRequested +=
 			roomIndex =>
-				RoomSelectedRequested?.Invoke(
-					roomIndex
-				);
-
+				RoomSelectedRequested?.Invoke(roomIndex);
 
 		_map.Initialize();
 	}
-
-
-	// ==================================================
-	// STATS
-	// ==================================================
 
 	private void CreateStatsController()
 	{
@@ -276,18 +170,11 @@ public sealed class GameUiController
 				_prestigeService
 			);
 
-
 		_stats.PrestigeRequested +=
 			OpenPrestigeConfirmation;
 
-
 		_stats.Initialize();
 	}
-
-
-	// ==================================================
-	// PRESTIGE
-	// ==================================================
 
 	private void CreatePrestigeController()
 	{
@@ -298,24 +185,14 @@ public sealed class GameUiController
 				_prestigeService
 			);
 
-
 		_prestige.Confirmed +=
-			() =>
-				PrestigeRequested?.Invoke();
-
+			() => PrestigeRequested?.Invoke();
 
 		_prestige.Cancelled +=
-			() =>
-				_stats.Open();
-
+			() => _stats.Open();
 
 		_prestige.Initialize();
 	}
-
-
-	// ==================================================
-	// SHOP
-	// ==================================================
 
 	private void CreateShopController()
 	{
@@ -326,28 +203,16 @@ public sealed class GameUiController
 				_shopService
 			);
 
+		_shop.MessageRequested += SetMessage;
 
-		_shop.MessageRequested +=
-			SetMessage;
-
-
-		_shop.StateChanged +=
-			() =>
-			{
-				UpdateAll();
-
-
-				StateChanged?.Invoke();
-			};
-
+		_shop.StateChanged += () =>
+		{
+			UpdateAll();
+			StateChanged?.Invoke();
+		};
 
 		_shop.Initialize();
 	}
-
-
-	// ==================================================
-	// MACHINE DETAILS
-	// ==================================================
 
 	private void CreateMachineDetails()
 	{
@@ -360,38 +225,27 @@ public sealed class GameUiController
 				_bots
 			);
 
-
 		_details.Initialize();
-
-
 		_details.StateChanged +=
 			OnDetailsStateChanged;
 	}
-
 
 	private void OpenMachineDetails(
 		int slotIndex)
 	{
 		if (
 			slotIndex < 0
-			|| slotIndex
-			>= _state.CurrentRoomState.Slots.Count
+			|| slotIndex >= _state.CurrentRoomState.Slots.Count
 		)
 		{
 			return;
 		}
 
-
 		SlotData slot =
-			_state.CurrentRoomState
-				.Slots[
-					slotIndex
-				];
-
+			_state.CurrentRoomState.Slots[slotIndex];
 
 		if (!slot.Unlocked)
 			return;
-
 
 		_details.Open(
 			_state.CurrentRoomIndex,
@@ -399,237 +253,126 @@ public sealed class GameUiController
 		);
 	}
 
-
 	private void OnDetailsStateChanged(
 		string message)
 	{
-		SetMessage(
-			message
-		);
-
-
+		SetMessage(message);
 		UpdateAll();
-
-
 		StateChanged?.Invoke();
 	}
-
-
-	// ==================================================
-	// MAP
-	// ==================================================
 
 	private void ToggleMapPage()
 	{
 		_shop.Hide();
 
-
 		if (_map.Visible)
 		{
 			_map.Hide();
-
-
 			return;
 		}
 
-
 		CloseTransientOverlays();
-
-
 		_map.Open();
-
-
 		_bottomBar.MoveToFront();
 	}
-
-
-	// ==================================================
-	// SHOP
-	// ==================================================
 
 	private void ToggleShopPage()
 	{
 		_map.Hide();
 
-
 		if (_shop.Visible)
 		{
 			_shop.Hide();
-
-
 			return;
 		}
 
-
 		CloseTransientOverlays();
-
-
 		_shop.Open();
-
-
 		_bottomBar.MoveToFront();
 	}
-
-
-	// ==================================================
-	// STATS
-	// ==================================================
 
 	private void OpenStats()
 	{
 		ClosePages();
-
-
 		_details.Close();
-
 		_topBar.HidePopups();
-
 		_prestige.Hide();
-
-
 		_stats.Open();
 	}
 
-
 	private void OpenPrestigeConfirmation()
 	{
-		if (
-			!_prestige.Open()
-		)
-		{
+		if (!_prestige.Open())
 			return;
-		}
-
 
 		_stats.Hide();
 	}
-
 
 	private void CloseTransientOverlays()
 	{
 		_details.Close();
-
 		_stats.Hide();
-
 		_prestige.Hide();
-
 		_topBar.HidePopups();
 	}
-
 
 	public void ClosePages()
 	{
 		_map.Hide();
-
 		_shop.Hide();
 	}
-
-
-	// ==================================================
-	// UPDATE
-	// ==================================================
 
 	public void UpdateAll()
 	{
 		ResetRoomScrollIfRoomChanged();
 
-
 		_room.UpdateAll();
-
+		_pipeline.UpdateAll();
 
 		_topBar.SetRoomName(
 			_state.CurrentRoom.Name
 		);
 
-
 		_topBar.UpdateValues();
-
-
 		_map.Refresh();
-
-
 		_shop.Refresh();
-
 
 		ApplyRoomTheme();
 
-
 		if (_stats.Visible)
-		{
 			_stats.Refresh();
-		}
-
 
 		if (_details.Visible)
-		{
 			_details.Refresh();
-		}
 	}
 
-
-	/*
-	 * A single ScrollContainer is reused for every room.
-	 *
-	 * Without resetting it, room 2 inherits the exact
-	 * ScrollVertical value of room 1.
-	 *
-	 * Only reset when the room index actually changes.
-	 * Normal UI refreshes such as upgrades must keep the
-	 * current scroll position.
-	 */
 	private void ResetRoomScrollIfRoomChanged()
 	{
 		int currentRoom =
 			_state.CurrentRoomIndex;
 
-
-		if (
-			currentRoom
-			== _lastDisplayedRoom
-		)
-		{
+		if (currentRoom == _lastDisplayedRoom)
 			return;
-		}
 
-
-		_lastDisplayedRoom =
-			currentRoom;
-
-
+		_lastDisplayedRoom = currentRoom;
 		_room.ScrollToTop();
 	}
-
 
 	public void UpdateRuntime()
 	{
 		_topBar.UpdateValues();
-
-
 		_room.UpdateRuntime();
-
+		_pipeline.UpdateRuntime();
 
 		if (_shop.Visible)
-		{
 			_shop.Refresh();
-		}
-
 
 		if (_details.Visible)
-		{
 			_details.Refresh();
-		}
-
 
 		if (_stats.Visible)
-		{
 			_stats.RefreshRuntime();
-		}
 	}
-
-
-	// ==================================================
-	// THEME
-	// ==================================================
 
 	private void ApplyRoomTheme(
 		bool force = false)
@@ -637,47 +380,26 @@ public sealed class GameUiController
 		int roomIndex =
 			_state.CurrentRoomIndex;
 
-
 		if (
 			!force
-			&& roomIndex
-			== _lastThemeRoom
+			&& roomIndex == _lastThemeRoom
 		)
 		{
 			return;
 		}
 
-
-		_lastThemeRoom =
-			roomIndex;
-
+		_lastThemeRoom = roomIndex;
 
 		RoomThemeTextures theme =
-			RoomThemePalette.Create(
-				roomIndex
-			);
+			RoomThemePalette.Create(roomIndex);
 
-
-		_topBar.ApplyTheme(
-			theme
-		);
-
-
-		_bottomBar.ApplyTheme(
-			theme
-		);
+		_topBar.ApplyTheme(theme);
+		_bottomBar.ApplyTheme(theme);
 	}
-
-
-	// ==================================================
-	// MESSAGE
-	// ==================================================
 
 	public void SetMessage(
 		string message)
 	{
-		_bottomBar.SetMessage(
-			message
-		);
+		_bottomBar.SetMessage(message);
 	}
 }

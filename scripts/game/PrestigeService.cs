@@ -8,19 +8,14 @@ public readonly record struct PrestigeResult(
 	string Message
 );
 
-
 public sealed class PrestigeService
 {
 	private readonly GameState _state;
 
-
-	public PrestigeService(
-		GameState state)
+	public PrestigeService(GameState state)
 	{
-		_state =
-			state;
+		_state = state;
 	}
-
 
 	public long GetAvailableAiCores()
 	{
@@ -32,47 +27,36 @@ public sealed class PrestigeService
 			return 0;
 		}
 
-
 		double result =
 			Math.Floor(
 				_state.RunEarnedTokens
 				/ GameConfig.PrestigeTokensPerCore
 			);
 
-
 		if (result >= long.MaxValue)
 			return long.MaxValue;
 
-
 		return (long)result;
 	}
-
 
 	public bool CanPrestige()
 	{
 		return GetAvailableAiCores() > 0;
 	}
 
-
 	public double GetProductionMultiplier()
 	{
-		return _state.Prestige
-			.GetProductionMultiplier();
+		return _state.Prestige.GetProductionMultiplier();
 	}
-
 
 	public double GetProductionBonusPercent()
 	{
-		return _state.Prestige
-			.GetProductionBonusPercent();
+		return _state.Prestige.GetProductionBonusPercent();
 	}
-
 
 	public PrestigeResult Prestige()
 	{
-		long reward =
-			GetAvailableAiCores();
-
+		long reward = GetAvailableAiCores();
 
 		if (reward <= 0)
 		{
@@ -85,24 +69,13 @@ public sealed class PrestigeService
 			);
 		}
 
-
-		_state.Prestige.AiCores +=
-			reward;
-
-
+		_state.Prestige.AiCores += reward;
 		_state.Prestige.PrestigeCount++;
 
-
-		/*
-		 * Every successful Prestige gives a fixed
-		 * Data-Shard reward.
-		 */
 		_state.Shop.DataShards +=
 			GameConfig.PrestigeDataShardReward;
 
-
 		ResetNormalProgress();
-
 
 		return new PrestigeResult(
 			true,
@@ -116,20 +89,11 @@ public sealed class PrestigeService
 		);
 	}
 
-
 	private void ResetNormalProgress()
 	{
-		_state.Tokens =
-			0.0;
-
-
-		_state.RunEarnedTokens =
-			0.0;
-
-
-		_state.CurrentRoomIndex =
-			0;
-
+		_state.Tokens = 0.0;
+		_state.RunEarnedTokens = 0.0;
+		_state.CurrentRoomIndex = 0;
 
 		for (
 			int roomIndex = 0;
@@ -138,24 +102,15 @@ public sealed class PrestigeService
 		)
 		{
 			RoomState room =
-				_state.RoomStates[
-					roomIndex
-				];
-
+				_state.RoomStates[roomIndex];
 
 			room.Unlocked =
 				roomIndex == 0;
 
-
 			/*
-			 * IMPORTANT:
-			 *
-			 * DataShardUnlockRewardClaimed is NOT reset.
-			 *
-			 * Room rewards are only available once
-			 * for the whole save.
+			 * Pipeline upgrades are normal run progression.
 			 */
-
+			room.Pipeline.Reset();
 
 			for (
 				int slotIndex = 0;
@@ -164,52 +119,22 @@ public sealed class PrestigeService
 			)
 			{
 				SlotData slot =
-					room.Slots[
-						slotIndex
-					];
-
+					room.Slots[slotIndex];
 
 				slot.Unlocked =
 					roomIndex == 0
 					&& slotIndex == 0;
 
+				slot.MachineTier = 0;
+				slot.MachineLevel = 1;
 
-				slot.MachineTier =
-					0;
-
-
-				slot.MachineLevel =
-					1;
-
-
-				/*
-				 * Machine milestone rewards ARE reset.
-				 *
-				 * Therefore the player can earn the
-				 * machine Shards again in a new
-				 * Prestige run.
-				 */
 				slot.ResetDataShardMilestones();
 
-
-				slot.BotRarity =
-					null;
-
-
-				slot.BotPurchasePrice =
-					0.0;
-
-
-				slot.IsRunning =
-					false;
-
-
-				slot.CycleRemaining =
-					0.0;
-
-
-				slot.RuntimeCycleDuration =
-					0.0;
+				slot.BotRarity = null;
+				slot.BotPurchasePrice = 0.0;
+				slot.IsRunning = false;
+				slot.CycleRemaining = 0.0;
+				slot.RuntimeCycleDuration = 0.0;
 			}
 		}
 	}

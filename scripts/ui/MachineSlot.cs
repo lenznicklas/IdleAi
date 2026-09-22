@@ -28,7 +28,6 @@ public partial class MachineSlot : Control
 
 	private int _slotIndex;
 
-
 	private bool _isLocked;
 
 
@@ -131,6 +130,236 @@ public partial class MachineSlot : Control
 
 
 		CreateUi();
+
+
+		ApplyRoomTheme(
+			0
+		);
+	}
+
+
+	// ==================================================
+	// ROOM THEME
+	// ==================================================
+
+	public void ApplyRoomTheme(
+		int roomIndex)
+	{
+		Color accent =
+			GetRoomAccentColor(
+				roomIndex
+			);
+
+
+		Color accentDark =
+			accent.Darkened(
+				0.42f
+			);
+
+
+		Color accentHover =
+			accent.Lightened(
+				0.10f
+			);
+
+
+		Color accentPressed =
+			accent.Darkened(
+				0.18f
+			);
+
+
+		StyleBoxFlat progressBackground =
+			new()
+			{
+				BgColor =
+					new Color(
+						0.035f,
+						0.045f,
+						0.055f,
+						0.96f
+					),
+
+				CornerRadiusTopLeft =
+					9,
+
+				CornerRadiusTopRight =
+					9,
+
+				CornerRadiusBottomLeft =
+					9,
+
+				CornerRadiusBottomRight =
+					9
+			};
+
+
+		StyleBoxFlat progressFill =
+			new()
+			{
+				BgColor =
+					accent,
+
+				CornerRadiusTopLeft =
+					9,
+
+				CornerRadiusTopRight =
+					9,
+
+				CornerRadiusBottomLeft =
+					9,
+
+				CornerRadiusBottomRight =
+					9
+			};
+
+
+		_progressBar.AddThemeStyleboxOverride(
+			"background",
+			progressBackground
+		);
+
+
+		_progressBar.AddThemeStyleboxOverride(
+			"fill",
+			progressFill
+		);
+
+
+		_unlockButton.AddThemeStyleboxOverride(
+			"normal",
+			CreateRoundedButtonStyle(
+				accentDark,
+				accent
+			)
+		);
+
+
+		_unlockButton.AddThemeStyleboxOverride(
+			"hover",
+			CreateRoundedButtonStyle(
+				accent,
+				accentHover
+			)
+		);
+
+
+		_unlockButton.AddThemeStyleboxOverride(
+			"pressed",
+			CreateRoundedButtonStyle(
+				accentPressed,
+				accent
+			)
+		);
+
+
+		_unlockButton.AddThemeStyleboxOverride(
+			"disabled",
+			CreateRoundedButtonStyle(
+				new Color(
+					0.075f,
+					0.085f,
+					0.095f,
+					0.94f
+				),
+				new Color(
+					accent.R,
+					accent.G,
+					accent.B,
+					0.28f
+				)
+			)
+		);
+
+
+		_unlockButton.AddThemeColorOverride(
+			"font_color",
+			Colors.White
+		);
+
+
+		_unlockButton.AddThemeColorOverride(
+			"font_hover_color",
+			Colors.White
+		);
+
+
+		_unlockButton.AddThemeColorOverride(
+			"font_pressed_color",
+			Colors.White
+		);
+
+
+		_unlockButton.AddThemeColorOverride(
+			"font_disabled_color",
+			new Color(
+				0.55f,
+				0.58f,
+				0.62f,
+				1.0f
+			)
+		);
+	}
+
+
+	private static Color GetRoomAccentColor(
+		int roomIndex)
+	{
+		return RoomThemePalette
+			.GetAccentColor(
+				roomIndex
+			);
+	}
+
+
+	private static StyleBoxFlat CreateRoundedButtonStyle(
+		Color background,
+		Color border)
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				background,
+
+			BorderColor =
+				border,
+
+			BorderWidthLeft =
+				2,
+
+			BorderWidthTop =
+				2,
+
+			BorderWidthRight =
+				2,
+
+			BorderWidthBottom =
+				2,
+
+			CornerRadiusTopLeft =
+				16,
+
+			CornerRadiusTopRight =
+				16,
+
+			CornerRadiusBottomLeft =
+				16,
+
+			CornerRadiusBottomRight =
+				16,
+
+			ContentMarginLeft =
+				10,
+
+			ContentMarginRight =
+				10,
+
+			ContentMarginTop =
+				7,
+
+			ContentMarginBottom =
+				7
+		};
 	}
 
 
@@ -349,6 +578,7 @@ public partial class MachineSlot : Control
 				_slotIndex
 			);
 
+
 			return;
 		}
 
@@ -385,19 +615,6 @@ public partial class MachineSlot : Control
 			CreateTween();
 
 
-		/*
-		 * Small "heartbeat":
-		 *
-		 * 1.00
-		 *  ↓
-		 * 1.10
-		 *  ↓
-		 * 0.97
-		 *  ↓
-		 * 1.05
-		 *  ↓
-		 * 1.00
-		 */
 		_emptyPulseTween.TweenProperty(
 			_machineVisual,
 			"scale",
@@ -707,7 +924,10 @@ public partial class MachineSlot : Control
 					new Vector2(
 						0,
 						55
-					)
+					),
+
+				FocusMode =
+					Control.FocusModeEnum.None
 			};
 
 
@@ -756,12 +976,6 @@ public partial class MachineSlot : Control
 			emptyTexture;
 
 
-		/*
-		 * IMPORTANT:
-		 *
-		 * The empty icon must remain clickable so
-		 * it can play the pulse animation.
-		 */
 		_machineButton.Disabled =
 			false;
 
@@ -830,7 +1044,6 @@ public partial class MachineSlot : Control
 		if (bot == null)
 		{
 			StopBotAnimation();
-
 
 			_botVisual.Hide();
 

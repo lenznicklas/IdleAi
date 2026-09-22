@@ -9,9 +9,6 @@ public sealed class RoomUiController
 		36.0f;
 
 
-	/*
-	 * Very short/light haptic feedback.
-	 */
 	private const int MachineHapticDurationMs =
 		18;
 
@@ -211,19 +208,6 @@ public sealed class RoomUiController
 	}
 
 
-	/*
-	 * Called whenever another room becomes active.
-	 *
-	 * It resets:
-	 *
-	 * - ScrollVertical
-	 * - inertia
-	 * - active drag
-	 * - rubber-band / bounce
-	 * - temporary visual overscroll
-	 *
-	 * Therefore every room always starts at the top.
-	 */
 	public void ScrollToTop()
 	{
 		if (
@@ -466,9 +450,6 @@ public sealed class RoomUiController
 	private MachineSlot GetMachineSlot(
 		int slotIndex)
 	{
-		/*
-		 * Child 0 + 1 are the top padding row.
-		 */
 		return (MachineSlot)
 			_slotGrid.GetChild(
 				slotIndex + 2
@@ -504,6 +485,21 @@ public sealed class RoomUiController
 			i++
 		)
 		{
+			MachineSlot view =
+				GetMachineSlot(
+					i
+				);
+
+
+			/*
+			 * Cycle bar and unlock button use the active
+			 * room's color theme.
+			 */
+			view.ApplyRoomTheme(
+				_state.CurrentRoomIndex
+			);
+
+
 			UpdateSlot(
 				i
 			);

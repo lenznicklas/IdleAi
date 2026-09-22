@@ -76,6 +76,15 @@ public static class RoomThemePalette
 	}
 
 
+	public static Color GetAccentColor(
+		int room)
+	{
+		return GetColors(
+			room
+		).Main;
+	}
+
+
 	private static (
 		Color Main,
 		Color Secondary

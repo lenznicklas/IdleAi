@@ -108,6 +108,10 @@ public sealed class MachineDetailsOverlay
 		null!;
 
 
+	private Button _sellConfirmButton =
+		null!;
+
+
 	private Control _sellOverlay =
 		null!;
 
@@ -173,6 +177,14 @@ public sealed class MachineDetailsOverlay
 		CreateUi();
 
 		CreateSellOverlay();
+
+
+		_roomIndex =
+			0;
+
+
+		ApplyRoomButtonTheme();
+
 
 		Close();
 	}
@@ -385,6 +397,9 @@ public sealed class MachineDetailsOverlay
 			];
 
 
+		ApplyRoomButtonTheme();
+
+
 		double cycleDuration =
 			_economy.GetCycleDuration(
 				slot
@@ -527,6 +542,9 @@ public sealed class MachineDetailsOverlay
 			_upgradeAmount == UpgradeAmount.Max
 				? "✓ MAX"
 				: "MAX";
+
+
+		ApplyUpgradeAmountButtonStyles();
 	}
 
 
@@ -1314,7 +1332,10 @@ public sealed class MachineDetailsOverlay
 					new Vector2(
 						0,
 						56
-					)
+					),
+
+				FocusMode =
+					Control.FocusModeEnum.None
 			};
 
 
@@ -1398,7 +1419,10 @@ public sealed class MachineDetailsOverlay
 					new Vector2(
 						0,
 						52
-					)
+					),
+
+				FocusMode =
+					Control.FocusModeEnum.None
 			};
 
 
@@ -1418,7 +1442,10 @@ public sealed class MachineDetailsOverlay
 					new Vector2(
 						0,
 						52
-					)
+					),
+
+				FocusMode =
+					Control.FocusModeEnum.None
 			};
 
 
@@ -1456,7 +1483,362 @@ public sealed class MachineDetailsOverlay
 				),
 
 			SizeFlagsHorizontal =
-				Control.SizeFlags.ExpandFill
+				Control.SizeFlags.ExpandFill,
+
+			FocusMode =
+				Control.FocusModeEnum.None
+		};
+	}
+
+
+	// ==================================================
+	// ROOM BUTTON THEME
+	// ==================================================
+
+	private void ApplyRoomButtonTheme()
+	{
+		if (
+			_roomIndex < 0
+			|| _roomIndex >= _state.Rooms.Count
+		)
+		{
+			return;
+		}
+
+
+		Color accent =
+			RoomThemePalette.GetAccentColor(
+				_roomIndex
+			);
+
+
+		ApplyPrimaryButtonStyle(
+			_upgradeButton,
+			accent
+		);
+
+
+		ApplyPrimaryButtonStyle(
+			_buyBotButton,
+			accent
+		);
+
+
+		ApplyPrimaryButtonStyle(
+			_sellBotButton,
+			accent
+		);
+
+
+		if (_sellConfirmButton != null)
+		{
+			ApplyPrimaryButtonStyle(
+				_sellConfirmButton,
+				accent
+			);
+		}
+
+
+		ApplyUpgradeAmountButtonStyles();
+	}
+
+
+	private void ApplyUpgradeAmountButtonStyles()
+	{
+		if (
+			_upgrade1Button == null
+			|| _upgrade5Button == null
+			|| _upgrade10Button == null
+			|| _upgradeMaxButton == null
+			|| _roomIndex < 0
+			|| _roomIndex >= _state.Rooms.Count
+		)
+		{
+			return;
+		}
+
+
+		Color accent =
+			RoomThemePalette.GetAccentColor(
+				_roomIndex
+			);
+
+
+		ApplyAmountButtonStyle(
+			_upgrade1Button,
+			accent,
+			_upgradeAmount
+				== UpgradeAmount.One
+		);
+
+
+		ApplyAmountButtonStyle(
+			_upgrade5Button,
+			accent,
+			_upgradeAmount
+				== UpgradeAmount.Five
+		);
+
+
+		ApplyAmountButtonStyle(
+			_upgrade10Button,
+			accent,
+			_upgradeAmount
+				== UpgradeAmount.Ten
+		);
+
+
+		ApplyAmountButtonStyle(
+			_upgradeMaxButton,
+			accent,
+			_upgradeAmount
+				== UpgradeAmount.Max
+		);
+	}
+
+
+	private static void ApplyPrimaryButtonStyle(
+		Button button,
+		Color accent)
+	{
+		Color normalBackground =
+			accent.Darkened(
+				0.42f
+			);
+
+
+		Color hoverBackground =
+			accent;
+
+
+		Color pressedBackground =
+			accent.Darkened(
+				0.18f
+			);
+
+
+		button.AddThemeStyleboxOverride(
+			"normal",
+			CreateRoundedButtonStyle(
+				normalBackground,
+				accent,
+				16
+			)
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"hover",
+			CreateRoundedButtonStyle(
+				hoverBackground,
+				accent.Lightened(
+					0.10f
+				),
+				16
+			)
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"pressed",
+			CreateRoundedButtonStyle(
+				pressedBackground,
+				accent,
+				16
+			)
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"disabled",
+			CreateRoundedButtonStyle(
+				new Color(
+					0.075f,
+					0.085f,
+					0.095f,
+					0.94f
+				),
+				new Color(
+					accent.R,
+					accent.G,
+					accent.B,
+					0.28f
+				),
+				16
+			)
+		);
+
+
+		button.AddThemeColorOverride(
+			"font_color",
+			Colors.White
+		);
+
+
+		button.AddThemeColorOverride(
+			"font_hover_color",
+			Colors.White
+		);
+
+
+		button.AddThemeColorOverride(
+			"font_pressed_color",
+			Colors.White
+		);
+
+
+		button.AddThemeColorOverride(
+			"font_disabled_color",
+			new Color(
+				0.55f,
+				0.58f,
+				0.62f,
+				1.0f
+			)
+		);
+	}
+
+
+	private static void ApplyAmountButtonStyle(
+		Button button,
+		Color accent,
+		bool selected)
+	{
+		Color background =
+			selected
+				? accent.Darkened(
+					0.18f
+				)
+				: accent.Darkened(
+					0.62f
+				);
+
+
+		Color border =
+			selected
+				? accent.Lightened(
+					0.10f
+				)
+				: new Color(
+					accent.R,
+					accent.G,
+					accent.B,
+					0.52f
+				);
+
+
+		button.AddThemeStyleboxOverride(
+			"normal",
+			CreateRoundedButtonStyle(
+				background,
+				border,
+				14
+			)
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"hover",
+			CreateRoundedButtonStyle(
+				selected
+					? accent.Darkened(
+						0.08f
+					)
+					: accent.Darkened(
+						0.42f
+					),
+				accent,
+				14
+			)
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"pressed",
+			CreateRoundedButtonStyle(
+				accent.Darkened(
+					0.26f
+				),
+				accent,
+				14
+			)
+		);
+
+
+		button.AddThemeColorOverride(
+			"font_color",
+			selected
+				? Colors.White
+				: new Color(
+					0.82f,
+					0.84f,
+					0.88f,
+					1.0f
+				)
+		);
+
+
+		button.AddThemeColorOverride(
+			"font_hover_color",
+			Colors.White
+		);
+
+
+		button.AddThemeColorOverride(
+			"font_pressed_color",
+			Colors.White
+		);
+	}
+
+
+	private static StyleBoxFlat CreateRoundedButtonStyle(
+		Color background,
+		Color border,
+		int radius)
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				background,
+
+			BorderColor =
+				border,
+
+			BorderWidthLeft =
+				2,
+
+			BorderWidthTop =
+				2,
+
+			BorderWidthRight =
+				2,
+
+			BorderWidthBottom =
+				2,
+
+			CornerRadiusTopLeft =
+				radius,
+
+			CornerRadiusTopRight =
+				radius,
+
+			CornerRadiusBottomLeft =
+				radius,
+
+			CornerRadiusBottomRight =
+				radius,
+
+			ContentMarginLeft =
+				10,
+
+			ContentMarginRight =
+				10,
+
+			ContentMarginTop =
+				7,
+
+			ContentMarginBottom =
+				7
 		};
 	}
 
@@ -1572,8 +1954,8 @@ public sealed class MachineDetailsOverlay
 		);
 
 
-		Button confirm =
-			new()
+		_sellConfirmButton =
+			new Button
 			{
 				CustomMinimumSize =
 					new Vector2(
@@ -1582,16 +1964,19 @@ public sealed class MachineDetailsOverlay
 					),
 
 				Text =
-					"SELL"
+					"SELL",
+
+				FocusMode =
+					Control.FocusModeEnum.None
 			};
 
 
-		confirm.Pressed +=
+		_sellConfirmButton.Pressed +=
 			ConfirmSell;
 
 
 		box.AddChild(
-			confirm
+			_sellConfirmButton
 		);
 
 

@@ -5,6 +5,14 @@ namespace IdleAi;
 
 public sealed class ShopController
 {
+	private const float HeaderHeight =
+		190.0f;
+
+
+	private const int HeaderGap =
+		10;
+
+
 	private readonly Game _root;
 
 	private readonly GameState _state;
@@ -17,6 +25,14 @@ public sealed class ShopController
 
 
 	private MarginContainer _pageMargin =
+		null!;
+
+
+	private Control _layoutRoot =
+		null!;
+
+
+	private VBoxContainer _header =
 		null!;
 
 
@@ -148,6 +164,21 @@ public sealed class ShopController
 		CreateBackground();
 
 
+		/*
+		 * MobileUiAdapter already sizes ShopMargin so it:
+		 *
+		 * - starts below the notch / safe area
+		 * - ends directly above BottomBar
+		 *
+		 * Inside that area we now use an overlay-like layout:
+		 *
+		 * fixed header
+		 *   SHOP
+		 *   DATA SHARDS
+		 *
+		 * scroll area
+		 *   everything else
+		 */
 		_pageMargin =
 			new MarginContainer
 			{
@@ -193,88 +224,31 @@ public sealed class ShopController
 		);
 
 
-		VBoxContainer main =
-			new()
+		_layoutRoot =
+			new Control
 			{
 				Name =
-					"Main",
-
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
-
-				SizeFlagsVertical =
-					Control.SizeFlags.ExpandFill
-			};
-
-
-		main.AddThemeConstantOverride(
-			"separation",
-			8
-		);
-
-
-		_pageMargin.AddChild(
-			main
-		);
-
-
-		CreateHeader(
-			main
-		);
-
-
-		_scroll =
-			new ScrollContainer
-			{
-				Name =
-					"Scroll",
+					"LayoutRoot",
 
 				SizeFlagsHorizontal =
 					Control.SizeFlags.ExpandFill,
 
 				SizeFlagsVertical =
 					Control.SizeFlags.ExpandFill,
-
-				HorizontalScrollMode =
-					ScrollContainer.ScrollMode.Disabled,
-
-				VerticalScrollMode =
-					ScrollContainer.ScrollMode.ShowNever,
-
-				ClipContents =
-					true,
 
 				MouseFilter =
 					Control.MouseFilterEnum.Pass
 			};
 
 
-		main.AddChild(
-			_scroll
+		_pageMargin.AddChild(
+			_layoutRoot
 		);
 
 
-		_content =
-			new VBoxContainer
-			{
-				Name =
-					"Content",
+		CreateFixedHeader();
 
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
-			};
-
-
-		_content.AddThemeConstantOverride(
-			"separation",
-			18
-		);
-
-
-		_scroll.AddChild(
-			_content
-		);
-
+		CreateScrollArea();
 
 		CreateBoostSection();
 
@@ -282,25 +256,7 @@ public sealed class ShopController
 
 		CreateCosmeticSection();
 
-
-		Control bottomSpace =
-			new()
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						28
-					),
-
-				MouseFilter =
-					Control.MouseFilterEnum.Ignore
-			};
-
-
-		_content.AddChild(
-			bottomSpace
-		);
-
+		CreateBottomSpace();
 
 		CreateMobileScrolling();
 	}
@@ -381,37 +337,151 @@ public sealed class ShopController
 
 
 	// ==================================================
-	// HEADER
+	// FIXED HEADER
 	// ==================================================
 
-	private void CreateHeader(
-		VBoxContainer parent)
+	private void CreateFixedHeader()
 	{
-		VBoxContainer header =
-			new()
+		_header =
+			new VBoxContainer
 			{
 				Name =
-					"Header",
+					"FixedHeader",
 
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
+				AnchorLeft =
+					0.0f,
+
+				AnchorTop =
+					0.0f,
+
+				AnchorRight =
+					1.0f,
+
+				AnchorBottom =
+					0.0f,
+
+				OffsetLeft =
+					0.0f,
+
+				OffsetTop =
+					0.0f,
+
+				OffsetRight =
+					0.0f,
+
+				OffsetBottom =
+					HeaderHeight,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
 			};
 
 
-		header.AddThemeConstantOverride(
+		_header.AddThemeConstantOverride(
 			"separation",
-			7
+			HeaderGap
 		);
 
 
-		parent.AddChild(
-			header
+		_layoutRoot.AddChild(
+			_header
+		);
+
+
+		CreateShopTitlePanel();
+
+		CreateShardPanel();
+	}
+
+
+	private void CreateShopTitlePanel()
+	{
+		PanelContainer panel =
+			new()
+			{
+				Name =
+					"ShopTitlePanel",
+
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						84
+					),
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			CreateShopTitleStyle()
+		);
+
+
+		_header.AddChild(
+			panel
+		);
+
+
+		MarginContainer margin =
+			new();
+
+
+		margin.AddThemeConstantOverride(
+			"margin_left",
+			18
+		);
+
+
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			8
+		);
+
+
+		margin.AddThemeConstantOverride(
+			"margin_right",
+			18
+		);
+
+
+		margin.AddThemeConstantOverride(
+			"margin_bottom",
+			8
+		);
+
+
+		panel.AddChild(
+			margin
+		);
+
+
+		VBoxContainer box =
+			new()
+			{
+				Alignment =
+					BoxContainer.AlignmentMode.Center
+			};
+
+
+		box.AddThemeConstantOverride(
+			"separation",
+			0
+		);
+
+
+		margin.AddChild(
+			box
 		);
 
 
 		Label title =
 			ShopUi.CreateLabel(
-				34
+				32
 			);
 
 
@@ -426,7 +496,7 @@ public sealed class ShopController
 		title.CustomMinimumSize =
 			new Vector2(
 				0,
-				48
+				42
 			);
 
 
@@ -459,14 +529,14 @@ public sealed class ShopController
 		);
 
 
-		header.AddChild(
+		box.AddChild(
 			title
 		);
 
 
 		Label subtitle =
 			ShopUi.CreateMutedLabel(
-				14
+				13
 			);
 
 
@@ -477,15 +547,18 @@ public sealed class ShopController
 		subtitle.CustomMinimumSize =
 			new Vector2(
 				0,
-				24
+				22
 			);
 
 
-		header.AddChild(
+		box.AddChild(
 			subtitle
 		);
+	}
 
 
+	private void CreateShardPanel()
+	{
 		PanelContainer shardPanel =
 			new()
 			{
@@ -495,7 +568,7 @@ public sealed class ShopController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						86
+						96
 					),
 
 				SizeFlagsHorizontal =
@@ -512,7 +585,7 @@ public sealed class ShopController
 		);
 
 
-		header.AddChild(
+		_header.AddChild(
 			shardPanel
 		);
 
@@ -658,6 +731,171 @@ public sealed class ShopController
 
 		shardText.AddChild(
 			_shardLabel
+		);
+	}
+
+
+	private static StyleBoxFlat CreateShopTitleStyle()
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				new Color(
+					0.018f,
+					0.045f,
+					0.085f,
+					0.98f
+				),
+
+			BorderColor =
+				new Color(
+					ShopUi.Accent.R,
+					ShopUi.Accent.G,
+					ShopUi.Accent.B,
+					0.70f
+				),
+
+			BorderWidthLeft =
+				2,
+
+			BorderWidthTop =
+				2,
+
+			BorderWidthRight =
+				2,
+
+			BorderWidthBottom =
+				2,
+
+			CornerRadiusTopLeft =
+				22,
+
+			CornerRadiusTopRight =
+				22,
+
+			CornerRadiusBottomLeft =
+				22,
+
+			CornerRadiusBottomRight =
+				22,
+
+			ShadowColor =
+				new Color(
+					0.05f,
+					0.48f,
+					1.0f,
+					0.18f
+				),
+
+			ShadowSize =
+				12
+		};
+	}
+
+
+	// ==================================================
+	// SCROLL AREA
+	// ==================================================
+
+	private void CreateScrollArea()
+	{
+		_scroll =
+			new ScrollContainer
+			{
+				Name =
+					"Scroll",
+
+				AnchorLeft =
+					0.0f,
+
+				AnchorTop =
+					0.0f,
+
+				AnchorRight =
+					1.0f,
+
+				AnchorBottom =
+					1.0f,
+
+				OffsetLeft =
+					0.0f,
+
+				OffsetTop =
+					HeaderHeight
+					+ HeaderGap,
+
+				OffsetRight =
+					0.0f,
+
+				OffsetBottom =
+					0.0f,
+
+				HorizontalScrollMode =
+					ScrollContainer.ScrollMode.Disabled,
+
+				VerticalScrollMode =
+					ScrollContainer.ScrollMode.ShowNever,
+
+				ClipContents =
+					true,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
+			};
+
+
+		_layoutRoot.AddChild(
+			_scroll
+		);
+
+
+		MarginContainer scrollMargin =
+			new()
+			{
+				Name =
+					"ScrollMargin",
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		scrollMargin.AddThemeConstantOverride(
+			"margin_top",
+			10
+		);
+
+
+		scrollMargin.AddThemeConstantOverride(
+			"margin_bottom",
+			24
+		);
+
+
+		_scroll.AddChild(
+			scrollMargin
+		);
+
+
+		_content =
+			new VBoxContainer
+			{
+				Name =
+					"Content",
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		_content.AddThemeConstantOverride(
+			"separation",
+			18
+		);
+
+
+		scrollMargin.AddChild(
+			_content
 		);
 	}
 
@@ -1294,6 +1532,28 @@ public sealed class ShopController
 			MouseFilter =
 				Control.MouseFilterEnum.Ignore
 		};
+	}
+
+
+	private void CreateBottomSpace()
+	{
+		Control bottomSpace =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						28
+					),
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+
+		_content.AddChild(
+			bottomSpace
+		);
 	}
 
 

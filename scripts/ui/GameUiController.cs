@@ -138,8 +138,8 @@ public sealed class GameUiController
 
 		_pipeline.StateChanged += () =>
 		{
-			UpdateAll();
 			StateChanged?.Invoke();
+			UpdateAll();
 		};
 
 		_pipeline.Initialize();
@@ -158,8 +158,8 @@ public sealed class GameUiController
 
 		_infrastructure.StateChanged += () =>
 		{
-			UpdateAll();
 			StateChanged?.Invoke();
+			UpdateAll();
 		};
 
 		_infrastructure.Initialize();
@@ -178,8 +178,8 @@ public sealed class GameUiController
 
 		_quantum.StateChanged += () =>
 		{
-			UpdateAll();
 			StateChanged?.Invoke();
+			UpdateAll();
 		};
 
 		_quantum.Initialize();
@@ -274,8 +274,8 @@ public sealed class GameUiController
 
 		_shop.StateChanged += () =>
 		{
-			UpdateAll();
 			StateChanged?.Invoke();
+			UpdateAll();
 		};
 
 		_shop.Initialize();
@@ -324,8 +324,18 @@ public sealed class GameUiController
 		string message)
 	{
 		SetMessage(message);
-		UpdateAll();
+
+
+		/*
+		 * Save the changed gameplay state BEFORE any room/UI
+		 * refresh. The overlay layout added more work to
+		 * UpdateAll(); persistence must not depend on that
+		 * presentation code finishing successfully.
+		 */
 		StateChanged?.Invoke();
+
+
+		UpdateAll();
 	}
 
 	private void ToggleMapPage()

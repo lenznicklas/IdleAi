@@ -201,8 +201,34 @@ public sealed class LabController
 			);
 
 
-		TextureButton stats =
-			_root.GetNode<TextureButton>(
+		/*
+		 * IMPORTANT:
+		 *
+		 * RoomUiController.EnableOverlayLayout() reparents
+		 * TopBar from:
+		 *
+		 * MarginContainer/VBoxContainer/TopBar
+		 *
+		 * to:
+		 *
+		 * RoomOverlayLayer/TopBar
+		 *
+		 * GameUiController.Initialize() runs before this
+		 * LabController is created, so the overlay path is
+		 * the normal runtime path here.
+		 *
+		 * Keep the old path as fallback so this controller
+		 * also remains compatible if the overlay layout is
+		 * ever disabled again.
+		 */
+		TextureButton? stats =
+			_root.GetNodeOrNull<TextureButton>(
+				"RoomOverlayLayer/TopBar/Margin/VBox/TopStats/StatsCard"
+			);
+
+
+		stats ??=
+			_root.GetNodeOrNull<TextureButton>(
 				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/StatsCard"
 			);
 
@@ -215,8 +241,18 @@ public sealed class LabController
 			Hide;
 
 
-		stats.Pressed +=
-			Hide;
+		if (stats != null)
+		{
+			stats.Pressed +=
+				Hide;
+		}
+		else
+		{
+			GD.PushWarning(
+				"LabController could not find StatsCard. "
+					+ "Lab initialization continues without the Stats close hook."
+			);
+		}
 	}
 
 

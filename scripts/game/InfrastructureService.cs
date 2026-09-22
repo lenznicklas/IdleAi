@@ -85,6 +85,10 @@ public sealed class InfrastructureService
 	}
 
 
+	// ==================================================
+	// LOAD
+	// ==================================================
+
 	public double GetCurrentLoad()
 	{
 		return GetCurrentLoad(
@@ -109,6 +113,18 @@ public sealed class InfrastructureService
 		GameState state,
 		bool includeTemporaryShopBoost)
 	{
+		/*
+		 * Kept in the method signature so all existing
+		 * callers remain compatible.
+		 *
+		 * Shop/Research/Prestige/Bot multipliers do not
+		 * change the physical infrastructure demand
+		 * anymore.
+		 */
+		_ =
+			includeTemporaryShopBoost;
+
+
 		int roomIndex =
 			GameConfig.InfrastructureRoomIndex;
 
@@ -125,7 +141,7 @@ public sealed class InfrastructureService
 		}
 
 
-		double rawTokensPerSecond =
+		double physicalTokensPerSecond =
 			0.0;
 
 
@@ -172,70 +188,27 @@ public sealed class InfrastructureService
 					);
 
 
-			double botMultiplier =
-				BotCatalog.GetMultiplier(
-					slot.BotRarity
-				);
-
-
-			if (slot.HasBot)
-			{
-				botMultiplier *=
-					state.Lab
-						.GetBotPowerMultiplier();
-			}
-
-
-			double prestigeMultiplier =
-				state.Prestige
-					.GetProductionMultiplier();
-
-
-			double researchProductionMultiplier =
-				state.Lab
-					.GetProductionMultiplier();
-
-
-			double shopProductionMultiplier =
-				includeTemporaryShopBoost
-					? state.Shop
-						.GetProductionMultiplier()
-					: 1.0
-						+ state.Shop
-							.ProductionUpgradeLevel
-						* GameConfig
-							.ShopProductionUpgradeBonus;
-
-
-			double cycleTimeMultiplier =
-				state.Lab
-					.GetCycleTimeMultiplier();
-
-
-			double speedMultiplier =
-				cycleTimeMultiplier > 0.0
-					? 1.0
-						/ cycleTimeMultiplier
-					: 1.0;
-
-
-			rawTokensPerSecond +=
+			/*
+			 * Infrastructure demand represents installed
+			 * hardware, not temporary/global production
+			 * bonuses.
+			 */
+			physicalTokensPerSecond +=
 				machine.BaseIncome
 				* levelMultiplier
-				* milestoneMultiplier
-				* botMultiplier
-				* prestigeMultiplier
-				* researchProductionMultiplier
-				* shopProductionMultiplier
-				* speedMultiplier;
+				* milestoneMultiplier;
 		}
 
 
-		return rawTokensPerSecond
+		return physicalTokensPerSecond
 			/ GameConfig
 				.InfrastructureTokensPerLoadUnit;
 	}
 
+
+	// ==================================================
+	// TEMPERATURE
+	// ==================================================
 
 	public double GetTemperatureCelsius()
 	{
@@ -285,30 +258,43 @@ public sealed class InfrastructureService
 		}
 
 
-		double ratio =
+		double idealCapacity =
 			load
-			/ coolingCapacity;
+			* GameConfig
+				.InfrastructureCoolingIdealCapacityRatio;
 
 
-		double temperature;
-
-
-		if (ratio <= 0.70)
+		if (
+			coolingCapacity
+			>= idealCapacity
+		)
 		{
-			temperature =
-				GameConfig
-					.InfrastructureIdleTemperature;
+			return GameConfig
+				.InfrastructureIdleTemperature;
 		}
-		else
-		{
-			temperature =
-				GameConfig
-					.InfrastructureIdleTemperature
-				+ (
-					ratio - 0.70
-				)
-				* 55.0;
-		}
+
+
+		double suppliedRatio =
+			Math.Clamp(
+				coolingCapacity
+				/ idealCapacity,
+				0.0,
+				1.0
+			);
+
+
+		double shortage =
+			1.0
+			- suppliedRatio;
+
+
+		double temperature =
+			GameConfig.InfrastructureIdleTemperature
+			+ shortage
+			* (
+				GameConfig.InfrastructureMaximumTemperature
+				- GameConfig.InfrastructureIdleTemperature
+			);
 
 
 		return Math.Clamp(
@@ -319,33 +305,40 @@ public sealed class InfrastructureService
 	}
 
 
+	// ==================================================
+	// PUBLIC EFFICIENCIES
+	// ==================================================
+
 	public double GetPowerEfficiency()
 	{
-		return GetPowerEfficiency(
-			_state,
-			includeTemporaryShopBoost:
-				true
-		);
+		return 1.0
+			- GetPowerPenalty(
+				_state,
+				includeTemporaryShopBoost:
+					true
+			);
 	}
 
 
 	public double GetStorageEfficiency()
 	{
-		return GetStorageEfficiency(
-			_state,
-			includeTemporaryShopBoost:
-				true
-		);
+		return 1.0
+			- GetStoragePenalty(
+				_state,
+				includeTemporaryShopBoost:
+					true
+			);
 	}
 
 
 	public double GetHeatEfficiency()
 	{
-		return GetHeatEfficiency(
-			_state,
-			includeTemporaryShopBoost:
-				true
-		);
+		return 1.0
+			- GetHeatPenalty(
+				_state,
+				includeTemporaryShopBoost:
+					true
+			);
 	}
 
 
@@ -359,6 +352,10 @@ public sealed class InfrastructureService
 		);
 	}
 
+
+	// ==================================================
+	// TOTAL PRODUCTION
+	// ==================================================
 
 	public static double GetProductionMultiplierForRoom(
 		GameState state,
@@ -379,31 +376,48 @@ public sealed class InfrastructureService
 		}
 
 
-		double power =
-			GetPowerEfficiency(
+		double powerPenalty =
+			GetPowerPenalty(
 				state,
 				includeTemporaryShopBoost
 			);
 
 
-		double storage =
-			GetStorageEfficiency(
+		double storagePenalty =
+			GetStoragePenalty(
 				state,
 				includeTemporaryShopBoost
 			);
 
 
-		double heat =
-			GetHeatEfficiency(
+		double heatPenalty =
+			GetHeatPenalty(
 				state,
 				includeTemporaryShopBoost
 			);
+
+
+		/*
+		 * Penalties are deliberately additive.
+		 *
+		 * Old model:
+		 * 0.8 * 0.8 * 0.7 = 44.8%
+		 *
+		 * New model:
+		 * 100% - individual penalties
+		 *
+		 * This makes infrastructure management relevant
+		 * without punishing the player exponentially.
+		 */
+		double totalPenalty =
+			powerPenalty
+			+ storagePenalty
+			+ heatPenalty;
 
 
 		return Math.Clamp(
-			power
-			* storage
-			* heat,
+			1.0
+			- totalPenalty,
 			GameConfig
 				.InfrastructureMinimumProductionMultiplier,
 			1.0
@@ -411,7 +425,11 @@ public sealed class InfrastructureService
 	}
 
 
-	private static double GetPowerEfficiency(
+	// ==================================================
+	// POWER
+	// ==================================================
+
+	private static double GetPowerPenalty(
 		GameState state,
 		bool includeTemporaryShopBoost)
 	{
@@ -423,7 +441,7 @@ public sealed class InfrastructureService
 
 
 		if (load <= 0.0)
-			return 1.0;
+			return 0.0;
 
 
 		double capacity =
@@ -435,26 +453,22 @@ public sealed class InfrastructureService
 			);
 
 
-		double ratio =
-			Math.Clamp(
-				capacity / load,
-				0.0,
-				1.0
-			);
-
-
-		return GameConfig
-			.InfrastructurePowerMinimumEfficiency
-			+ (
-				1.0
-				- GameConfig
-					.InfrastructurePowerMinimumEfficiency
-			)
-			* ratio;
+		return CalculateCapacityPenalty(
+			load,
+			capacity,
+			GameConfig
+				.InfrastructureFullEfficiencyCapacityRatio,
+			GameConfig
+				.InfrastructureMaximumPowerPenalty
+		);
 	}
 
 
-	private static double GetStorageEfficiency(
+	// ==================================================
+	// STORAGE
+	// ==================================================
+
+	private static double GetStoragePenalty(
 		GameState state,
 		bool includeTemporaryShopBoost)
 	{
@@ -466,7 +480,7 @@ public sealed class InfrastructureService
 
 
 		if (load <= 0.0)
-			return 1.0;
+			return 0.0;
 
 
 		double capacity =
@@ -478,26 +492,74 @@ public sealed class InfrastructureService
 			);
 
 
-		double ratio =
+		return CalculateCapacityPenalty(
+			load,
+			capacity,
+			GameConfig
+				.InfrastructureFullEfficiencyCapacityRatio,
+			GameConfig
+				.InfrastructureMaximumStoragePenalty
+		);
+	}
+
+
+	private static double CalculateCapacityPenalty(
+		double load,
+		double capacity,
+		double fullEfficiencyCapacityRatio,
+		double maximumPenalty)
+	{
+		if (load <= 0.0)
+			return 0.0;
+
+
+		double requiredForFullEfficiency =
+			load
+			* fullEfficiencyCapacityRatio;
+
+
+		if (
+			capacity
+			>= requiredForFullEfficiency
+		)
+		{
+			return 0.0;
+		}
+
+
+		if (
+			requiredForFullEfficiency
+			<= 0.0
+		)
+		{
+			return 0.0;
+		}
+
+
+		double suppliedRatio =
 			Math.Clamp(
-				capacity / load,
+				capacity
+				/ requiredForFullEfficiency,
 				0.0,
 				1.0
 			);
 
 
-		return GameConfig
-			.InfrastructureStorageMinimumEfficiency
-			+ (
-				1.0
-				- GameConfig
-					.InfrastructureStorageMinimumEfficiency
-			)
-			* ratio;
+		double shortage =
+			1.0
+			- suppliedRatio;
+
+
+		return shortage
+			* maximumPenalty;
 	}
 
 
-	private static double GetHeatEfficiency(
+	// ==================================================
+	// HEAT
+	// ==================================================
+
+	private static double GetHeatPenalty(
 		GameState state,
 		bool includeTemporaryShopBoost)
 	{
@@ -509,7 +571,7 @@ public sealed class InfrastructureService
 
 
 		if (temperature <= 55.0)
-			return 1.0;
+			return 0.0;
 
 
 		if (temperature <= 70.0)
@@ -522,8 +584,7 @@ public sealed class InfrastructureService
 				/ 15.0;
 
 
-			return 1.0
-				- 0.10
+			return 0.05
 				* t;
 		}
 
@@ -538,8 +599,8 @@ public sealed class InfrastructureService
 				/ 15.0;
 
 
-			return 0.90
-				- 0.20
+			return 0.05
+				+ 0.10
 				* t;
 		}
 
@@ -560,11 +621,19 @@ public sealed class InfrastructureService
 			);
 
 
-		return 0.70
-			- 0.20
+		return 0.15
+			+ (
+				GameConfig
+					.InfrastructureMaximumHeatPenalty
+				- 0.15
+			)
 			* hot;
 	}
 
+
+	// ==================================================
+	// UPGRADE COST
+	// ==================================================
 
 	public double GetUpgradeCost(
 		InfrastructureSystem system)
@@ -599,6 +668,10 @@ public sealed class InfrastructureService
 			);
 	}
 
+
+	// ==================================================
+	// UPGRADE
+	// ==================================================
 
 	public InfrastructureUpgradeResult Upgrade(
 		InfrastructureSystem system)

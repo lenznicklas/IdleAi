@@ -296,10 +296,17 @@ public static class GameConfig
 
 
 	/*
-	 * Data Center raw production is converted into
-	 * normalized infrastructure load units.
+	 * Infrastructure load is based on the physical
+	 * machine setup only:
 	 *
-	 * 10B raw Tokens/s = 1 load unit.
+	 * - machine tier
+	 * - machine level
+	 * - machine milestone
+	 *
+	 * Prestige, Research, Shop boosts and Bot power no
+	 * longer increase physical infrastructure load.
+	 *
+	 * 10B base Tokens/s = 1 load unit.
 	 */
 	public const double InfrastructureTokensPerLoadUnit =
 		10_000_000_000.0;
@@ -317,8 +324,21 @@ public static class GameConfig
 		10.0;
 
 
+	/*
+	 * 1.70 is intentionally much stronger than before.
+	 *
+	 * At Level 25 the capacities are approximately:
+	 *
+	 * Power   2.72M
+	 * Cooling 2.38M
+	 * Storage 3.39M
+	 *
+	 * A fully maxed Data Center has roughly 2.18M
+	 * physical load, so max infrastructure can actually
+	 * support a max room.
+	 */
 	public const double InfrastructureCapacityGrowth =
-		1.55;
+		1.70;
 
 
 	public const double InfrastructurePowerBaseUpgradeCost =
@@ -345,16 +365,44 @@ public static class GameConfig
 		95.0;
 
 
-	public const double InfrastructurePowerMinimumEfficiency =
-		0.65;
-
-
-	public const double InfrastructureStorageMinimumEfficiency =
+	/*
+	 * Power/Storage are considered fully sufficient once
+	 * capacity reaches 80% of the displayed load.
+	 *
+	 * This leaves useful headroom at max infrastructure
+	 * and prevents "everything maxed but still punished".
+	 */
+	public const double InfrastructureFullEfficiencyCapacityRatio =
 		0.80;
 
 
-	public const double InfrastructureMinimumProductionMultiplier =
+	/*
+	 * Cooling reaches its ideal temperature when cooling
+	 * capacity can cover the full physical load.
+	 */
+	public const double InfrastructureCoolingIdealCapacityRatio =
+		1.00;
+
+
+	/*
+	 * Individual penalties are additive, not multiplied.
+	 * This prevents several moderate shortages from
+	 * destroying output exponentially.
+	 */
+	public const double InfrastructureMaximumPowerPenalty =
+		0.20;
+
+
+	public const double InfrastructureMaximumStoragePenalty =
+		0.10;
+
+
+	public const double InfrastructureMaximumHeatPenalty =
 		0.25;
+
+
+	public const double InfrastructureMinimumProductionMultiplier =
+		0.50;
 
 
 	// ==================================================

@@ -126,6 +126,18 @@ public sealed class PipelineSaveData
 
 
 	public double ModelBuffer { get; set; }
+
+
+	public double ComputeCycleRemaining { get; set; }
+
+
+	public double DataCycleRemaining { get; set; }
+
+
+	public double ModelCycleRemaining { get; set; }
+
+
+	public double OutputCycleRemaining { get; set; }
 }
 
 

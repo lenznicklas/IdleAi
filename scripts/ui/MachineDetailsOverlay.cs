@@ -8,21 +8,6 @@ public sealed class MachineDetailsOverlay
 	private const ulong OutsideCloseReopenBlockMs =
 		180;
 
-	private const float OpenStartScale =
-		0.94f;
-
-	private const float OpenOvershootScale =
-		1.015f;
-
-	private const double OpenGrowDuration =
-		0.22;
-
-	private const double OpenSettleDuration =
-		0.14;
-
-	private const float OpenStartAlpha =
-		0.82f;
-
 
 	private enum UpgradeAmount
 	{
@@ -37,71 +22,95 @@ public sealed class MachineDetailsOverlay
 
 
 	private readonly Game _root;
+
 	private readonly GameState _state;
+
 	private readonly EconomyService _economy;
+
 	private readonly ProgressionService _progression;
+
 	private readonly BotService _bots;
 
 
 	private Control _overlay =
 		null!;
 
+
 	private PanelContainer _panel =
 		null!;
+
 
 	private Label _title =
 		null!;
 
+
 	private TextureRect _machineImage =
 		null!;
+
 
 	private Label _level =
 		null!;
 
+
 	private Label _production =
 		null!;
+
 
 	private Label _cycle =
 		null!;
 
+
 	private Label _upgradeInfo =
 		null!;
+
 
 	private HBoxContainer _upgradeAmountRow =
 		null!;
 
+
 	private Button _upgrade1Button =
 		null!;
+
 
 	private Button _upgrade5Button =
 		null!;
 
+
 	private Button _upgrade10Button =
 		null!;
+
 
 	private Button _upgradeMaxButton =
 		null!;
 
+
 	private Button _upgradeButton =
 		null!;
+
 
 	private TextureRect _botImage =
 		null!;
 
+
 	private Label _botName =
 		null!;
+
 
 	private Label _botMultiplier =
 		null!;
 
+
 	private Button _buyBotButton =
 		null!;
+
 
 	private Button _sellBotButton =
 		null!;
 
+
 	private Control _sellOverlay =
 		null!;
+
 
 	private Label _sellInfo =
 		null!;
@@ -137,14 +146,18 @@ public sealed class MachineDetailsOverlay
 		_root =
 			root;
 
+
 		_state =
 			state;
+
 
 		_economy =
 			economy;
 
+
 		_progression =
 			progression;
+
 
 		_bots =
 			bots;
@@ -185,8 +198,10 @@ public sealed class MachineDetailsOverlay
 		_roomIndex =
 			roomIndex;
 
+
 		_slotIndex =
 			slotIndex;
+
 
 		_upgradeAmount =
 			UpgradeAmount.One;
@@ -208,14 +223,12 @@ public sealed class MachineDetailsOverlay
 	{
 		_openTween?.Kill();
 
-		_openTween =
-			null;
-
 
 		if (_panel != null)
 		{
 			_panel.Scale =
 				Vector2.One;
+
 
 			_panel.Modulate =
 				Colors.White;
@@ -239,18 +252,11 @@ public sealed class MachineDetailsOverlay
 	}
 
 
-	// ==================================================
-	// OPEN ANIMATION
-	// ==================================================
-
 	private void PlayOpenAnimation()
 	{
 		_openTween?.Kill();
 
 
-		/*
-		 * Scale from the center of the panel.
-		 */
 		_panel.PivotOffset =
 			_panel.Size
 			/ 2.0f;
@@ -258,17 +264,17 @@ public sealed class MachineDetailsOverlay
 
 		_panel.Scale =
 			new Vector2(
-				OpenStartScale,
-				OpenStartScale
+				0.94f,
+				0.94f
 			);
 
 
 		_panel.Modulate =
 			new Color(
-				1.0f,
-				1.0f,
-				1.0f,
-				OpenStartAlpha
+				1,
+				1,
+				1,
+				0.82f
 			);
 
 
@@ -276,9 +282,6 @@ public sealed class MachineDetailsOverlay
 			_root.CreateTween();
 
 
-		/*
-		 * Scale + fade happen together.
-		 */
 		_openTween.SetParallel(
 			true
 		);
@@ -288,10 +291,10 @@ public sealed class MachineDetailsOverlay
 			_panel,
 			"scale",
 			new Vector2(
-				OpenOvershootScale,
-				OpenOvershootScale
+				1.015f,
+				1.015f
 			),
-			OpenGrowDuration
+			0.22
 		)
 		.SetTrans(
 			Tween.TransitionType.Cubic
@@ -305,27 +308,17 @@ public sealed class MachineDetailsOverlay
 			_panel,
 			"modulate:a",
 			1.0f,
-			OpenGrowDuration
-		)
-		.SetTrans(
-			Tween.TransitionType.Sine
-		)
-		.SetEase(
-			Tween.EaseType.Out
+			0.22
 		);
 
 
-		/*
-		 * Softly settle from the tiny overshoot
-		 * back to exactly 1.0.
-		 */
 		_openTween
 			.Chain()
 			.TweenProperty(
 				_panel,
 				"scale",
 				Vector2.One,
-				OpenSettleDuration
+				0.14
 			)
 			.SetTrans(
 				Tween.TransitionType.Sine
@@ -398,16 +391,30 @@ public sealed class MachineDetailsOverlay
 			);
 
 
-		double cycleReward =
-			_economy.GetCycleReward(
-				_roomIndex,
-				slot
-			);
+		bool pipelineMachine =
+			_roomIndex
+			== GameConfig.PipelineRoomIndex;
+
+
+		double cycleProduction =
+			pipelineMachine
+				? _economy
+					.GetPipelineInputCycleReward(
+						_roomIndex,
+						slot
+					)
+				: _economy
+					.GetCycleReward(
+						_roomIndex,
+						slot
+					);
 
 
 		double perSecond =
-			cycleReward
-			/ cycleDuration;
+			cycleDuration > 0.0
+				? cycleProduction
+					/ cycleDuration
+				: 0.0;
 
 
 		_title.Text =
@@ -422,17 +429,34 @@ public sealed class MachineDetailsOverlay
 			$"Level {slot.MachineLevel} / {machine.MaxLevel}";
 
 
-		_production.Text =
-			"Production: "
-			+ NumberFormatter.Format(
-				cycleReward
-			)
-			+ " Tokens / cycle"
-			+ "\nAverage: "
-			+ NumberFormatter.Format(
-				perSecond
-			)
-			+ " Tokens/s";
+		if (pipelineMachine)
+		{
+			_production.Text =
+				"Production: "
+				+ NumberFormatter.Format(
+					cycleProduction
+				)
+				+ " Pipeline Material / cycle"
+				+ "\nAverage: "
+				+ NumberFormatter.Format(
+					perSecond
+				)
+				+ " Material/s";
+		}
+		else
+		{
+			_production.Text =
+				"Production: "
+				+ NumberFormatter.Format(
+					cycleProduction
+				)
+				+ " Tokens / cycle"
+				+ "\nAverage: "
+				+ NumberFormatter.Format(
+					perSecond
+				)
+				+ " Tokens/s";
+		}
 
 
 		if (slot.IsRunning)
@@ -473,7 +497,6 @@ public sealed class MachineDetailsOverlay
 
 		UpdateUpgradeAmountButtons();
 
-
 		Refresh();
 	}
 
@@ -481,29 +504,25 @@ public sealed class MachineDetailsOverlay
 	private void UpdateUpgradeAmountButtons()
 	{
 		_upgrade1Button.Text =
-			_upgradeAmount
-				== UpgradeAmount.One
+			_upgradeAmount == UpgradeAmount.One
 				? "✓ 1x"
 				: "1x";
 
 
 		_upgrade5Button.Text =
-			_upgradeAmount
-				== UpgradeAmount.Five
+			_upgradeAmount == UpgradeAmount.Five
 				? "✓ 5x"
 				: "5x";
 
 
 		_upgrade10Button.Text =
-			_upgradeAmount
-				== UpgradeAmount.Ten
+			_upgradeAmount == UpgradeAmount.Ten
 				? "✓ 10x"
 				: "10x";
 
 
 		_upgradeMaxButton.Text =
-			_upgradeAmount
-				== UpgradeAmount.Max
+			_upgradeAmount == UpgradeAmount.Max
 				? "✓ MAX"
 				: "MAX";
 	}
@@ -564,11 +583,23 @@ public sealed class MachineDetailsOverlay
 					);
 
 
+			bool pipelineMachine =
+				_roomIndex
+				== GameConfig.PipelineRoomIndex;
+
+
 			double currentProduction =
-				_economy.GetCycleReward(
-					_roomIndex,
-					slot
-				);
+				pipelineMachine
+					? _economy
+						.GetPipelineInputCycleReward(
+							_roomIndex,
+							slot
+						)
+					: _economy
+						.GetCycleReward(
+							_roomIndex,
+							slot
+						);
 
 
 			int originalLevel =
@@ -583,10 +614,17 @@ public sealed class MachineDetailsOverlay
 
 
 			double targetProduction =
-				_economy.GetCycleReward(
-					_roomIndex,
-					slot
-				);
+				pipelineMachine
+					? _economy
+						.GetPipelineInputCycleReward(
+							_roomIndex,
+							slot
+						)
+					: _economy
+						.GetCycleReward(
+							_roomIndex,
+							slot
+						);
 
 
 			slot.MachineLevel =
@@ -614,12 +652,20 @@ public sealed class MachineDetailsOverlay
 			}
 
 
+			string productionName =
+				pipelineMachine
+					? "Material / cycle"
+					: "Production";
+
+
 			_upgradeInfo.Text =
 				"Level "
 				+ originalLevel
 				+ " → "
 				+ quote.TargetLevel
-				+ "\nProduction: "
+				+ "\n"
+				+ productionName
+				+ ": "
 				+ NumberFormatter.Format(
 					currentProduction
 				)
@@ -778,6 +824,7 @@ public sealed class MachineDetailsOverlay
 				slot
 			);
 
+
 			return;
 		}
 
@@ -894,10 +941,6 @@ public sealed class MachineDetailsOverlay
 	}
 
 
-	// ==================================================
-	// BOT ACTIONS
-	// ==================================================
-
 	private void BuyBot()
 	{
 		BotActionResult result =
@@ -1012,15 +1055,6 @@ public sealed class MachineDetailsOverlay
 		);
 
 
-		_panel =
-			CreatePanel(
-				new Vector2(
-					580,
-					900
-				)
-			);
-
-
 		CenterContainer center =
 			new();
 
@@ -1037,6 +1071,15 @@ public sealed class MachineDetailsOverlay
 		_overlay.AddChild(
 			center
 		);
+
+
+		_panel =
+			CreatePanel(
+				new Vector2(
+					580,
+					900
+				)
+			);
 
 
 		center.AddChild(
@@ -1183,6 +1226,11 @@ public sealed class MachineDetailsOverlay
 		);
 
 
+		vbox.AddChild(
+			_upgradeAmountRow
+		);
+
+
 		_upgrade1Button =
 			CreateUpgradeAmountButton(
 				"1x"
@@ -1252,11 +1300,6 @@ public sealed class MachineDetailsOverlay
 
 		_upgradeAmountRow.AddChild(
 			_upgradeMaxButton
-		);
-
-
-		vbox.AddChild(
-			_upgradeAmountRow
 		);
 
 
@@ -1387,9 +1430,6 @@ public sealed class MachineDetailsOverlay
 		UpdateUpgradeAmountButtons();
 
 
-		/*
-		 * X button LAST so it stays clickable.
-		 */
 		OverlayCloseButton.Add(
 			_panel,
 			Close
@@ -1563,7 +1603,7 @@ public sealed class MachineDetailsOverlay
 
 
 	// ==================================================
-	// FULL SCREEN OVERLAY
+	// HELPERS
 	// ==================================================
 
 	private static Control CreateFullScreenOverlay(
@@ -1657,24 +1697,6 @@ public sealed class MachineDetailsOverlay
 
 
 		return overlay;
-	}
-
-
-	// ==================================================
-	// HELPERS
-	// ==================================================
-
-	private static string FormatPercent(
-		double value)
-	{
-		return (
-			value
-			* 100
-		)
-		.ToString(
-			"0.#"
-		)
-		+ "%";
 	}
 
 
@@ -1802,7 +1824,32 @@ public sealed class MachineDetailsOverlay
 				14,
 
 			CornerRadiusBottomRight =
+				14,
+
+			ShadowColor =
+				new Color(
+					0,
+					0,
+					0,
+					0.45f
+				),
+
+			ShadowSize =
 				14
 		};
+	}
+
+
+	private static string FormatPercent(
+		double value)
+	{
+		return (
+			value
+			* 100
+		)
+		.ToString(
+			"0.#"
+		)
+		+ "%";
 	}
 }

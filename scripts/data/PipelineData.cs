@@ -49,8 +49,26 @@ public sealed class PipelineData
 
 
 	/*
+	 * Each pipeline stage runs in its own cycle.
+	 *
+	 * 0 means:
+	 * - stage is currently idle
+	 * - it will start a new cycle as soon as material is waiting
+	 */
+	public double ComputeCycleRemaining { get; set; }
+
+
+	public double DataCycleRemaining { get; set; }
+
+
+	public double ModelCycleRemaining { get; set; }
+
+
+	public double OutputCycleRemaining { get; set; }
+
+
+	/*
 	 * Runtime-only values for the UI.
-	 * They do not need to be saved.
 	 */
 	public double LastMachineInputPerSecond { get; set; }
 
@@ -143,6 +161,68 @@ public sealed class PipelineData
 	}
 
 
+	public double GetCycleRemaining(
+		PipelineStage stage)
+	{
+		return stage switch
+		{
+			PipelineStage.Compute =>
+				ComputeCycleRemaining,
+
+			PipelineStage.Data =>
+				DataCycleRemaining,
+
+			PipelineStage.Model =>
+				ModelCycleRemaining,
+
+			PipelineStage.Output =>
+				OutputCycleRemaining,
+
+			_ =>
+				0.0
+		};
+	}
+
+
+	public void SetCycleRemaining(
+		PipelineStage stage,
+		double value)
+	{
+		double safeValue =
+			System.Math.Max(
+				0.0,
+				value
+			);
+
+
+		switch (stage)
+		{
+			case PipelineStage.Compute:
+				ComputeCycleRemaining =
+					safeValue;
+				break;
+
+
+			case PipelineStage.Data:
+				DataCycleRemaining =
+					safeValue;
+				break;
+
+
+			case PipelineStage.Model:
+				ModelCycleRemaining =
+					safeValue;
+				break;
+
+
+			case PipelineStage.Output:
+				OutputCycleRemaining =
+					safeValue;
+				break;
+		}
+	}
+
+
 	public void AddRawInput(
 		double amount)
 	{
@@ -189,6 +269,22 @@ public sealed class PipelineData
 			0.0;
 
 
+		ComputeCycleRemaining =
+			0.0;
+
+
+		DataCycleRemaining =
+			0.0;
+
+
+		ModelCycleRemaining =
+			0.0;
+
+
+		OutputCycleRemaining =
+			0.0;
+
+
 		LastMachineInputPerSecond =
 			0.0;
 
@@ -224,7 +320,19 @@ public sealed class PipelineData
 				DataBuffer,
 
 			ModelBuffer =
-				ModelBuffer
+				ModelBuffer,
+
+			ComputeCycleRemaining =
+				ComputeCycleRemaining,
+
+			DataCycleRemaining =
+				DataCycleRemaining,
+
+			ModelCycleRemaining =
+				ModelCycleRemaining,
+
+			OutputCycleRemaining =
+				OutputCycleRemaining
 		};
 	}
 
@@ -285,6 +393,34 @@ public sealed class PipelineData
 			System.Math.Max(
 				0.0,
 				data.ModelBuffer
+			);
+
+
+		ComputeCycleRemaining =
+			System.Math.Max(
+				0.0,
+				data.ComputeCycleRemaining
+			);
+
+
+		DataCycleRemaining =
+			System.Math.Max(
+				0.0,
+				data.DataCycleRemaining
+			);
+
+
+		ModelCycleRemaining =
+			System.Math.Max(
+				0.0,
+				data.ModelCycleRemaining
+			);
+
+
+		OutputCycleRemaining =
+			System.Math.Max(
+				0.0,
+				data.OutputCycleRemaining
 			);
 
 

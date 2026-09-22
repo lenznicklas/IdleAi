@@ -11,6 +11,15 @@ public readonly record struct PipelineUpgradeResult(
 
 public sealed class PipelineService
 {
+	private static readonly PipelineStage[] ReverseStageOrder =
+	[
+		PipelineStage.Output,
+		PipelineStage.Model,
+		PipelineStage.Data,
+		PipelineStage.Compute
+	];
+
+
 	private readonly GameState _state;
 
 	private readonly EconomyService _economy;
@@ -76,6 +85,48 @@ public sealed class PipelineService
 				GameConfig.PipelineCapacityGrowth,
 				level - 1
 			);
+	}
+
+
+	public double GetCycleDuration(
+		PipelineStage stage)
+	{
+		return GameConfig
+			.GetPipelineCycleSeconds(
+				stage
+			);
+	}
+
+
+	public double GetCycleRemaining(
+		PipelineStage stage)
+	{
+		return GetPipeline()
+			.GetCycleRemaining(
+				stage
+			);
+	}
+
+
+	public bool IsStageRunning(
+		PipelineStage stage)
+	{
+		return GetCycleRemaining(
+			stage
+		)
+		> 0.0;
+	}
+
+
+	public double GetBatchCapacity(
+		PipelineStage stage)
+	{
+		return GetCapacity(
+			stage
+		)
+		* GetCycleDuration(
+			stage
+		);
 	}
 
 
@@ -166,23 +217,21 @@ public sealed class PipelineService
 
 
 	// ==================================================
-	// LIVE PROCESSING
+	// LIVE CYCLE PROCESSING
 	// ==================================================
 
 	/*
-	 * The pipeline is intentionally processed from the
-	 * end backwards.
+	 * Each stage now behaves like a real machine:
 	 *
-	 * That prevents newly processed material from
-	 * instantly crossing all four stages in one frame.
+	 * - material arrives in front of the stage
+	 * - a cycle starts
+	 * - the progress timer counts down
+	 * - only when the cycle finishes is a batch moved
+	 *   to the next stage
 	 *
-	 * Machines
-	 * -> raw input
-	 * -> compute
-	 * -> data
-	 * -> model
-	 * -> output
-	 * -> Tokens
+	 * Stages are updated from Output backwards so one
+	 * freshly completed batch cannot travel through
+	 * several stages in the same frame.
 	 */
 	public double Update(
 		double delta)
@@ -211,35 +260,22 @@ public sealed class PipelineService
 			GetPipeline();
 
 
-		double outputProcessed =
-			ProcessOutput(
-				pipeline,
-				delta
-			);
-
-
-		ProcessModel(
-			pipeline,
-			delta
-		);
-
-
-		ProcessData(
-			pipeline,
-			delta
-		);
-
-
-		ProcessCompute(
-			pipeline,
-			delta
-		);
-
-
 		double tokens =
-			outputProcessed
-			* GameConfig
-				.PipelineTokensPerOutputUnit;
+			0.0;
+
+
+		foreach (
+			PipelineStage stage
+			in ReverseStageOrder
+		)
+		{
+			tokens +=
+				UpdateStage(
+					pipeline,
+					stage,
+					delta
+				);
+		}
 
 
 		pipeline.LastMachineInputPerSecond =
@@ -247,123 +283,191 @@ public sealed class PipelineService
 
 
 		pipeline.LastTokenOutputPerSecond =
-			delta > 0.0
-				? tokens / delta
-				: 0.0;
+			GetSteadyTokenOutputPerSecond(
+				includeTemporaryShopBoost: true
+			);
 
 
 		return tokens;
 	}
 
 
-	private static void ProcessCompute(
+	private double UpdateStage(
 		PipelineData pipeline,
+		PipelineStage stage,
 		double delta)
 	{
-		double amount =
-			Math.Min(
-				pipeline.RawInputBuffer,
-				GetCapacity(
-					pipeline,
-					PipelineStage.Compute
-				)
-				* delta
+		double remaining =
+			pipeline.GetCycleRemaining(
+				stage
 			);
 
 
-		if (amount <= 0.0)
-			return;
+		double waiting =
+			pipeline.GetBufferBeforeStage(
+				stage
+			);
 
 
-		pipeline.RawInputBuffer -=
-			amount;
+		if (remaining <= 0.0)
+		{
+			if (waiting <= 0.0)
+			{
+				pipeline.SetCycleRemaining(
+					stage,
+					0.0
+				);
 
 
-		pipeline.ComputeBuffer +=
-			amount;
+				return 0.0;
+			}
+
+
+			remaining =
+				GetCycleDuration(
+					stage
+				);
+		}
+
+
+		remaining -=
+			delta;
+
+
+		double tokens =
+			0.0;
+
+
+		int safety =
+			0;
+
+
+		while (
+			remaining <= 0.0
+			&& safety < 100
+		)
+		{
+			safety++;
+
+
+			double processed =
+				CompleteStageCycle(
+					pipeline,
+					stage
+				);
+
+
+			if (
+				stage
+					== PipelineStage.Output
+				&& processed > 0.0
+			)
+			{
+				tokens +=
+					processed
+					* GameConfig
+						.PipelineTokensPerOutputUnit;
+			}
+
+
+			double waitingAfter =
+				pipeline.GetBufferBeforeStage(
+					stage
+				);
+
+
+			if (waitingAfter <= 0.0)
+			{
+				remaining =
+					0.0;
+
+
+				break;
+			}
+
+
+			remaining +=
+				GetCycleDuration(
+					stage
+				);
+		}
+
+
+		pipeline.SetCycleRemaining(
+			stage,
+			Math.Max(
+				0.0,
+				remaining
+			)
+		);
+
+
+		return tokens;
 	}
 
-
-	private static void ProcessData(
+	private double CompleteStageCycle(
 		PipelineData pipeline,
-		double delta)
+		PipelineStage stage)
 	{
-		double amount =
-			Math.Min(
-				pipeline.ComputeBuffer,
-				GetCapacity(
-					pipeline,
-					PipelineStage.Data
-				)
-				* delta
+		double waiting =
+			pipeline.GetBufferBeforeStage(
+				stage
 			);
 
 
-		if (amount <= 0.0)
-			return;
-
-
-		pipeline.ComputeBuffer -=
-			amount;
-
-
-		pipeline.DataBuffer +=
-			amount;
-	}
-
-
-	private static void ProcessModel(
-		PipelineData pipeline,
-		double delta)
-	{
-		double amount =
+		double processed =
 			Math.Min(
-				pipeline.DataBuffer,
-				GetCapacity(
-					pipeline,
-					PipelineStage.Model
+				waiting,
+				GetBatchCapacity(
+					stage
 				)
-				* delta
 			);
 
 
-		if (amount <= 0.0)
-			return;
-
-
-		pipeline.DataBuffer -=
-			amount;
-
-
-		pipeline.ModelBuffer +=
-			amount;
-	}
-
-
-	private static double ProcessOutput(
-		PipelineData pipeline,
-		double delta)
-	{
-		double amount =
-			Math.Min(
-				pipeline.ModelBuffer,
-				GetCapacity(
-					pipeline,
-					PipelineStage.Output
-				)
-				* delta
-			);
-
-
-		if (amount <= 0.0)
+		if (processed <= 0.0)
 			return 0.0;
 
 
-		pipeline.ModelBuffer -=
-			amount;
+		switch (stage)
+		{
+			case PipelineStage.Compute:
+				pipeline.RawInputBuffer -=
+					processed;
 
 
-		return amount;
+				pipeline.ComputeBuffer +=
+					processed;
+				break;
+
+
+			case PipelineStage.Data:
+				pipeline.ComputeBuffer -=
+					processed;
+
+
+				pipeline.DataBuffer +=
+					processed;
+				break;
+
+
+			case PipelineStage.Model:
+				pipeline.DataBuffer -=
+					processed;
+
+
+				pipeline.ModelBuffer +=
+					processed;
+				break;
+
+
+			case PipelineStage.Output:
+				pipeline.ModelBuffer -=
+					processed;
+				break;
+		}
+
+
+		return processed;
 	}
 
 
@@ -372,11 +476,15 @@ public sealed class PipelineService
 	// ==================================================
 
 	/*
-	 * Used for income display and offline income.
+	 * Used for the top bar and offline income.
 	 *
-	 * Only automated machines are included because
-	 * manual machines do not continuously produce while
-	 * the player is away.
+	 * The real live pipeline runs in visible batches,
+	 * but over a longer period the average throughput is
+	 * still limited by:
+	 *
+	 * machine input
+	 * and
+	 * every stage's capacity per second.
 	 */
 	public double GetSteadyTokenOutputPerSecond(
 		bool includeTemporaryShopBoost)
@@ -396,43 +504,23 @@ public sealed class PipelineService
 
 
 		double throughput =
-			Math.Min(
-				input,
-				GetCapacity(
-					pipeline,
-					PipelineStage.Compute
-				)
-			);
+			input;
 
 
-		throughput =
-			Math.Min(
-				throughput,
-				GetCapacity(
-					pipeline,
-					PipelineStage.Data
-				)
-			);
-
-
-		throughput =
-			Math.Min(
-				throughput,
-				GetCapacity(
-					pipeline,
-					PipelineStage.Model
-				)
-			);
-
-
-		throughput =
-			Math.Min(
-				throughput,
-				GetCapacity(
-					pipeline,
-					PipelineStage.Output
-				)
-			);
+		foreach (
+			PipelineStage stage
+			in Enum.GetValues<PipelineStage>()
+		)
+		{
+			throughput =
+				Math.Min(
+					throughput,
+					GetCapacity(
+						pipeline,
+						stage
+					)
+				);
+		}
 
 
 		return throughput

@@ -6,6 +6,14 @@ namespace IdleAi;
 
 public sealed class PipelineUiController
 {
+	private const float ContentWidth =
+		560.0f;
+
+
+	private const float StageCardHeight =
+		255.0f;
+
+
 	private static readonly PipelineStage[] StageOrder =
 	[
 		PipelineStage.Compute,
@@ -60,7 +68,11 @@ public sealed class PipelineUiController
 		null!;
 
 
-	private HBoxContainer _navigation =
+	private CenterContainer _navigationCenter =
+		null!;
+
+
+	private PanelContainer _navigationPanel =
 		null!;
 
 
@@ -103,8 +115,13 @@ public sealed class PipelineUiController
 			[];
 
 
-	private readonly Dictionary<PipelineStage, PanelContainer>
-		_cards =
+	private readonly Dictionary<PipelineStage, ProgressBar>
+		_progressBars =
+			[];
+
+
+	private readonly Dictionary<PipelineStage, Label>
+		_cycleLabels =
 			[];
 
 
@@ -171,21 +188,21 @@ public sealed class PipelineUiController
 
 
 	// ==================================================
-	// NAVIGATION
+	// TAB BAR
 	// ==================================================
 
 	private void CreateNavigation()
 	{
-		_navigation =
-			new HBoxContainer
+		_navigationCenter =
+			new CenterContainer
 			{
 				Name =
-					"PipelineNavigation",
+					"PipelineNavigationCenter",
 
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						48
+						70
 					),
 
 				SizeFlagsHorizontal =
@@ -196,20 +213,94 @@ public sealed class PipelineUiController
 			};
 
 
-		_navigation.AddThemeConstantOverride(
-			"separation",
-			8
-		);
-
-
 		_roomVBox.AddChild(
-			_navigation
+			_navigationCenter
 		);
 
 
 		_roomVBox.MoveChild(
-			_navigation,
+			_navigationCenter,
 			0
+		);
+
+
+		_navigationPanel =
+			new PanelContainer
+			{
+				Name =
+					"PipelineNavigation",
+
+				CustomMinimumSize =
+					new Vector2(
+						ContentWidth,
+						56
+					),
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
+			};
+
+
+		_navigationPanel.AddThemeStyleboxOverride(
+			"panel",
+			CreateTabBarBackgroundStyle()
+		);
+
+
+		_navigationCenter.AddChild(
+			_navigationPanel
+		);
+
+
+		MarginContainer margin =
+			new();
+
+
+		margin.AddThemeConstantOverride(
+			"margin_left",
+			5
+		);
+
+
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			5
+		);
+
+
+		margin.AddThemeConstantOverride(
+			"margin_right",
+			5
+		);
+
+
+		margin.AddThemeConstantOverride(
+			"margin_bottom",
+			5
+		);
+
+
+		_navigationPanel.AddChild(
+			margin
+		);
+
+
+		HBoxContainer row =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		row.AddThemeConstantOverride(
+			"separation",
+			6
+		);
+
+
+		margin.AddChild(
+			row
 		);
 
 
@@ -225,12 +316,12 @@ public sealed class PipelineUiController
 			);
 
 
-		_navigation.AddChild(
+		row.AddChild(
 			_machinesButton
 		);
 
 
-		_navigation.AddChild(
+		row.AddChild(
 			_pipelineButton
 		);
 
@@ -247,6 +338,8 @@ public sealed class PipelineUiController
 
 
 				ShowCorrectView();
+
+				UpdateTabStyles();
 
 				PlayHaptic();
 			};
@@ -265,11 +358,16 @@ public sealed class PipelineUiController
 
 				ShowCorrectView();
 
+				UpdateTabStyles();
+
 
 				_mobileScroll?.ScrollToTop();
 
 				PlayHaptic();
 			};
+
+
+		UpdateTabStyles();
 	}
 
 
@@ -285,7 +383,7 @@ public sealed class PipelineUiController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						44
+						46
 					),
 
 				SizeFlagsHorizontal =
@@ -303,6 +401,134 @@ public sealed class PipelineUiController
 
 
 		return button;
+	}
+
+
+	private void UpdateTabStyles()
+	{
+		ApplyTabStyle(
+			_machinesButton,
+			active:
+				!_showPipeline
+		);
+
+
+		ApplyTabStyle(
+			_pipelineButton,
+			active:
+				_showPipeline
+		);
+	}
+
+
+	private static void ApplyTabStyle(
+		Button button,
+		bool active)
+	{
+		Color accent =
+			new(
+				0.14f,
+				0.68f,
+				1.0f,
+				1.0f
+			);
+
+
+		Color background =
+			active
+				? new Color(
+					0.07f,
+					0.34f,
+					0.58f,
+					0.98f
+				)
+				: new Color(
+					0.025f,
+					0.055f,
+					0.095f,
+					0.85f
+				);
+
+
+		Color border =
+			active
+				? accent
+				: new Color(
+					0.12f,
+					0.25f,
+					0.36f,
+					0.75f
+				);
+
+
+		StyleBoxFlat normal =
+			CreateButtonStyle(
+				background,
+				border
+			);
+
+
+		StyleBoxFlat hover =
+			CreateButtonStyle(
+				active
+					? new Color(
+						0.08f,
+						0.40f,
+						0.66f,
+						1.0f
+					)
+					: new Color(
+						0.04f,
+						0.10f,
+						0.16f,
+						0.95f
+					),
+				active
+					? accent
+					: new Color(
+						0.20f,
+						0.45f,
+						0.65f,
+						0.90f
+					)
+			);
+
+
+		button.AddThemeStyleboxOverride(
+			"normal",
+			normal
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"hover",
+			hover
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"pressed",
+			normal
+		);
+
+
+		button.AddThemeColorOverride(
+			"font_color",
+			active
+				? Colors.White
+				: new Color(
+					0.62f,
+					0.74f,
+					0.84f,
+					1.0f
+				)
+		);
+
+
+		button.AddThemeColorOverride(
+			"font_hover_color",
+			Colors.White
+		);
 	}
 
 
@@ -343,44 +569,58 @@ public sealed class PipelineUiController
 		);
 
 
-		MarginContainer margin =
-			new();
-
-
-		margin.AddThemeConstantOverride(
-			"margin_left",
-			6
-		);
-
-
-		margin.AddThemeConstantOverride(
-			"margin_top",
-			14
-		);
-
-
-		margin.AddThemeConstantOverride(
-			"margin_right",
-			6
-		);
-
-
-		margin.AddThemeConstantOverride(
-			"margin_bottom",
-			70
-		);
+		CenterContainer center =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
 
 
 		_pipelineScroll.AddChild(
-			margin
+			center
+		);
+
+
+		MarginContainer outerMargin =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						ContentWidth,
+						0
+					)
+			};
+
+
+		outerMargin.AddThemeConstantOverride(
+			"margin_top",
+			12
+		);
+
+
+		outerMargin.AddThemeConstantOverride(
+			"margin_bottom",
+			80
+		);
+
+
+		center.AddChild(
+			outerMargin
 		);
 
 
 		VBoxContainer content =
 			new()
 			{
+				CustomMinimumSize =
+					new Vector2(
+						ContentWidth,
+						0
+					),
+
 				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
+					Control.SizeFlags.ShrinkCenter
 			};
 
 
@@ -390,7 +630,7 @@ public sealed class PipelineUiController
 		);
 
 
-		margin.AddChild(
+		outerMargin.AddChild(
 			content
 		);
 
@@ -433,21 +673,20 @@ public sealed class PipelineUiController
 		PanelContainer panel =
 			new()
 			{
+				CustomMinimumSize =
+					new Vector2(
+						ContentWidth,
+						150
+					),
+
 				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
+					Control.SizeFlags.ShrinkCenter
 			};
 
 
 		panel.AddThemeStyleboxOverride(
 			"panel",
-			CreatePanelStyle(
-				new Color(
-					0.18f,
-					0.60f,
-					1.0f,
-					1.0f
-				)
-			)
+			CreateSummaryStyle()
 		);
 
 
@@ -458,8 +697,8 @@ public sealed class PipelineUiController
 
 		MarginContainer margin =
 			CreateCardMargin(
-				18,
-				14
+				22,
+				16
 			);
 
 
@@ -474,7 +713,7 @@ public sealed class PipelineUiController
 
 		box.AddThemeConstantOverride(
 			"separation",
-			6
+			8
 		);
 
 
@@ -485,7 +724,7 @@ public sealed class PipelineUiController
 
 		Label title =
 			CreateLabel(
-				24,
+				25,
 				"SERVER PIPELINE"
 			);
 
@@ -502,7 +741,14 @@ public sealed class PipelineUiController
 		Label subtitle =
 			CreateLabel(
 				13,
-				"Machines feed material into the pipeline. The final stage converts it into Tokens."
+				"Machines create material. Each stage processes it in cycles until AI Output converts it into Tokens."
+			);
+
+
+		subtitle.CustomMinimumSize =
+			new Vector2(
+				0,
+				38
 			);
 
 
@@ -534,7 +780,7 @@ public sealed class PipelineUiController
 
 		stats.AddThemeConstantOverride(
 			"separation",
-			8
+			10
 		);
 
 
@@ -566,21 +812,40 @@ public sealed class PipelineUiController
 		VBoxContainer parent,
 		PipelineStage stage)
 	{
+		CenterContainer center =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						ContentWidth,
+						StageCardHeight
+					),
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		parent.AddChild(
+			center
+		);
+
+
 		PanelContainer panel =
 			new()
 			{
+				CustomMinimumSize =
+					new Vector2(
+						ContentWidth,
+						StageCardHeight
+					),
+
 				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
+					Control.SizeFlags.ShrinkCenter,
 
 				MouseFilter =
 					Control.MouseFilterEnum.Pass
 			};
-
-
-		_cards[
-			stage
-		] =
-			panel;
 
 
 		panel.AddThemeStyleboxOverride(
@@ -593,15 +858,15 @@ public sealed class PipelineUiController
 		);
 
 
-		parent.AddChild(
+		center.AddChild(
 			panel
 		);
 
 
 		MarginContainer margin =
 			CreateCardMargin(
-				14,
-				14
+				18,
+				16
 			);
 
 
@@ -613,17 +878,23 @@ public sealed class PipelineUiController
 		HBoxContainer row =
 			new()
 			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						StageCardHeight - 32
+					),
+
 				SizeFlagsHorizontal =
 					Control.SizeFlags.ExpandFill,
 
-				MouseFilter =
-					Control.MouseFilterEnum.Pass
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill
 			};
 
 
 		row.AddThemeConstantOverride(
 			"separation",
-			14
+			18
 		);
 
 
@@ -632,12 +903,28 @@ public sealed class PipelineUiController
 		);
 
 
+		CenterContainer iconCenter =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						122,
+						0
+					)
+			};
+
+
 		row.AddChild(
+			iconCenter
+		);
+
+
+		iconCenter.AddChild(
 			CreateIcon(
 				GetStageIcon(
 					stage
 				),
-				92
+				108
 			)
 		);
 
@@ -648,14 +935,14 @@ public sealed class PipelineUiController
 				SizeFlagsHorizontal =
 					Control.SizeFlags.ExpandFill,
 
-				MouseFilter =
-					Control.MouseFilterEnum.Pass
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill
 			};
 
 
 		information.AddThemeConstantOverride(
 			"separation",
-			5
+			4
 		);
 
 
@@ -666,7 +953,7 @@ public sealed class PipelineUiController
 
 		Label title =
 			CreateLabel(
-				18,
+				19,
 				PipelineService
 					.GetStageName(
 						stage
@@ -674,8 +961,19 @@ public sealed class PipelineUiController
 			);
 
 
+		title.CustomMinimumSize =
+			new Vector2(
+				0,
+				30
+			);
+
+
 		title.HorizontalAlignment =
 			HorizontalAlignment.Left;
+
+
+		title.AutowrapMode =
+			TextServer.AutowrapMode.Off;
 
 
 		information.AddChild(
@@ -686,16 +984,7 @@ public sealed class PipelineUiController
 		_levelLabels[
 			stage
 		] =
-			CreateLabel(
-				14,
-				"LEVEL 1"
-			);
-
-
-		_levelLabels[
-			stage
-		].HorizontalAlignment =
-			HorizontalAlignment.Left;
+			CreateFixedInfoLabel();
 
 
 		information.AddChild(
@@ -708,16 +997,7 @@ public sealed class PipelineUiController
 		_capacityLabels[
 			stage
 		] =
-			CreateLabel(
-				13,
-				"CAPACITY 100 /s"
-			);
-
-
-		_capacityLabels[
-			stage
-		].HorizontalAlignment =
-			HorizontalAlignment.Left;
+			CreateFixedInfoLabel();
 
 
 		_capacityLabels[
@@ -741,27 +1021,7 @@ public sealed class PipelineUiController
 		_bufferLabels[
 			stage
 		] =
-			CreateLabel(
-				13,
-				"WAITING 0"
-			);
-
-
-		_bufferLabels[
-			stage
-		].HorizontalAlignment =
-			HorizontalAlignment.Left;
-
-
-		_bufferLabels[
-			stage
-		].Modulate =
-			new Color(
-				0.86f,
-				0.90f,
-				1.0f,
-				1.0f
-			);
+			CreateFixedInfoLabel();
 
 
 		information.AddChild(
@@ -771,9 +1031,59 @@ public sealed class PipelineUiController
 		);
 
 
+		_progressBars[
+			stage
+		] =
+			CreateCycleProgressBar(
+				GetStageColor(
+					stage
+				)
+			);
+
+
+		information.AddChild(
+			_progressBars[
+				stage
+			]
+		);
+
+
+		_cycleLabels[
+			stage
+		] =
+			CreateFixedInfoLabel();
+
+
+		_cycleLabels[
+			stage
+		].HorizontalAlignment =
+			HorizontalAlignment.Center;
+
+
+		_cycleLabels[
+			stage
+		].AddThemeFontSizeOverride(
+			"font_size",
+			12
+		);
+
+
+		information.AddChild(
+			_cycleLabels[
+				stage
+			]
+		);
+
+
 		HBoxContainer upgradeRow =
 			new()
 			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						48
+					),
+
 				SizeFlagsHorizontal =
 					Control.SizeFlags.ExpandFill
 			};
@@ -793,7 +1103,7 @@ public sealed class PipelineUiController
 		upgradeRow.AddChild(
 			CreateIcon(
 				UpgradeIcon,
-				34
+				32
 			)
 		);
 
@@ -804,20 +1114,31 @@ public sealed class PipelineUiController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						50
+						46
 					),
 
 				SizeFlagsHorizontal =
 					Control.SizeFlags.ExpandFill,
 
 				FocusMode =
-					Control.FocusModeEnum.None
+					Control.FocusModeEnum.None,
+
+				ClipText =
+					true
 			};
 
 
 		button.AddThemeFontSizeOverride(
 			"font_size",
 			14
+		);
+
+
+		ApplyUpgradeButtonStyle(
+			button,
+			GetStageColor(
+				stage
+			)
 		);
 
 
@@ -846,20 +1167,144 @@ public sealed class PipelineUiController
 	}
 
 
-	private static void CreateConnector(
-		VBoxContainer parent)
+	private static Label CreateFixedInfoLabel()
 	{
-		Label arrow =
+		Label label =
 			CreateLabel(
-				25,
-				"↓"
+				13,
+				""
 			);
 
 
-		arrow.CustomMinimumSize =
+		label.CustomMinimumSize =
 			new Vector2(
 				0,
-				24
+				22
+			);
+
+
+		label.HorizontalAlignment =
+			HorizontalAlignment.Left;
+
+
+		label.AutowrapMode =
+			TextServer.AutowrapMode.Off;
+
+
+		return label;
+	}
+
+
+	private static ProgressBar CreateCycleProgressBar(
+		Color accent)
+	{
+		ProgressBar bar =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						14
+					),
+
+				MinValue =
+					0.0,
+
+				MaxValue =
+					100.0,
+
+				Value =
+					0.0,
+
+				ShowPercentage =
+					false
+			};
+
+
+		StyleBoxFlat background =
+			new()
+			{
+				BgColor =
+					new Color(
+						0.01f,
+						0.025f,
+						0.045f,
+						0.95f
+					),
+
+				CornerRadiusTopLeft =
+					7,
+
+				CornerRadiusTopRight =
+					7,
+
+				CornerRadiusBottomLeft =
+					7,
+
+				CornerRadiusBottomRight =
+					7
+			};
+
+
+		StyleBoxFlat fill =
+			new()
+			{
+				BgColor =
+					accent,
+
+				CornerRadiusTopLeft =
+					7,
+
+				CornerRadiusTopRight =
+					7,
+
+				CornerRadiusBottomLeft =
+					7,
+
+				CornerRadiusBottomRight =
+					7
+			};
+
+
+		bar.AddThemeStyleboxOverride(
+			"background",
+			background
+		);
+
+
+		bar.AddThemeStyleboxOverride(
+			"fill",
+			fill
+		);
+
+
+		return bar;
+	}
+
+
+	private static void CreateConnector(
+		VBoxContainer parent)
+	{
+		CenterContainer center =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						ContentWidth,
+						28
+					)
+			};
+
+
+		parent.AddChild(
+			center
+		);
+
+
+		Label arrow =
+			CreateLabel(
+				26,
+				"↓"
 			);
 
 
@@ -868,11 +1313,11 @@ public sealed class PipelineUiController
 				0.30f,
 				0.75f,
 				1.0f,
-				0.85f
+				0.82f
 			);
 
 
-		parent.AddChild(
+		center.AddChild(
 			arrow
 		);
 	}
@@ -974,6 +1419,8 @@ public sealed class PipelineUiController
 
 		ShowCorrectView();
 
+		UpdateTabStyles();
+
 		Refresh();
 	}
 
@@ -1001,7 +1448,7 @@ public sealed class PipelineUiController
 			== GameConfig.PipelineRoomIndex;
 
 
-		_navigation.Visible =
+		_navigationCenter.Visible =
 			serverRoom;
 
 
@@ -1020,14 +1467,6 @@ public sealed class PipelineUiController
 
 
 		_pipelineScroll.Visible =
-			_showPipeline;
-
-
-		_machinesButton.Disabled =
-			!_showPipeline;
-
-
-		_pipelineButton.Disabled =
 			_showPipeline;
 	}
 
@@ -1053,14 +1492,17 @@ public sealed class PipelineUiController
 				_service
 					.GetEstimatedMachineInputPerSecond()
 			)
-			+ " /s";
+			+ " material/s";
 
 
 		_tokenOutputLabel.Text =
 			"TOKEN OUTPUT\n+"
 			+ NumberFormatter.Format(
-				pipeline
-					.LastTokenOutputPerSecond
+				_service
+					.GetSteadyTokenOutputPerSecond(
+						includeTemporaryShopBoost:
+							true
+					)
 			)
 			+ " /s";
 
@@ -1082,16 +1524,38 @@ public sealed class PipelineUiController
 				);
 
 
+			double batchCapacity =
+				_service.GetBatchCapacity(
+					stage
+				);
+
+
 			double waiting =
 				_service.GetBufferBeforeStage(
 					stage
 				);
 
 
+			double duration =
+				_service.GetCycleDuration(
+					stage
+				);
+
+
+			double remaining =
+				_service.GetCycleRemaining(
+					stage
+				);
+
+
+			bool running =
+				remaining > 0.0;
+
+
 			_levelLabels[
 				stage
 			].Text =
-				"LEVEL "
+				"LEVEL  "
 				+ level
 				+ " / "
 				+ GameConfig.PipelineMaxLevel;
@@ -1100,11 +1564,15 @@ public sealed class PipelineUiController
 			_capacityLabels[
 				stage
 			].Text =
-				"CAPACITY  "
+				"BATCH  "
 				+ NumberFormatter.Format(
-					capacity
+					batchCapacity
 				)
-				+ " /s";
+				+ "  •  "
+				+ duration.ToString(
+					"0.0"
+				)
+				+ "s";
 
 
 			_bufferLabels[
@@ -1113,7 +1581,63 @@ public sealed class PipelineUiController
 				"WAITING  "
 				+ NumberFormatter.Format(
 					waiting
-				);
+				)
+				+ "  •  "
+				+ NumberFormatter.Format(
+					capacity
+				)
+				+ "/s";
+
+
+			if (running)
+			{
+				double progress =
+					(
+						duration
+						- remaining
+					)
+					/ duration
+					* 100.0;
+
+
+				_progressBars[
+					stage
+				].Value =
+					Math.Clamp(
+						progress,
+						0.0,
+						100.0
+					);
+
+
+				_cycleLabels[
+					stage
+				].Text =
+					"PROCESSING  •  "
+					+ Math.Max(
+						0.0,
+						remaining
+					)
+					.ToString(
+						"0.0"
+					)
+					+ "s";
+			}
+			else
+			{
+				_progressBars[
+					stage
+				].Value =
+					0.0;
+
+
+				_cycleLabels[
+					stage
+				].Text =
+					waiting > 0.0
+						? "STARTING..."
+						: "WAITING FOR INPUT";
+			}
 
 
 			Button button =
@@ -1163,6 +1687,161 @@ public sealed class PipelineUiController
 	// STYLE
 	// ==================================================
 
+	private static StyleBoxFlat CreateTabBarBackgroundStyle()
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				new Color(
+					0.012f,
+					0.030f,
+					0.055f,
+					0.96f
+				),
+
+			BorderColor =
+				new Color(
+					0.12f,
+					0.46f,
+					0.70f,
+					0.65f
+				),
+
+			BorderWidthLeft =
+				1,
+
+			BorderWidthTop =
+				1,
+
+			BorderWidthRight =
+				1,
+
+			BorderWidthBottom =
+				1,
+
+			CornerRadiusTopLeft =
+				19,
+
+			CornerRadiusTopRight =
+				19,
+
+			CornerRadiusBottomLeft =
+				19,
+
+			CornerRadiusBottomRight =
+				19,
+
+			ShadowColor =
+				new Color(
+					0,
+					0,
+					0,
+					0.28f
+				),
+
+			ShadowSize =
+				8
+		};
+	}
+
+
+	private static StyleBoxFlat CreateButtonStyle(
+		Color background,
+		Color border)
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				background,
+
+			BorderColor =
+				border,
+
+			BorderWidthLeft =
+				1,
+
+			BorderWidthTop =
+				1,
+
+			BorderWidthRight =
+				1,
+
+			BorderWidthBottom =
+				1,
+
+			CornerRadiusTopLeft =
+				15,
+
+			CornerRadiusTopRight =
+				15,
+
+			CornerRadiusBottomLeft =
+				15,
+
+			CornerRadiusBottomRight =
+				15
+		};
+	}
+
+
+	private static StyleBoxFlat CreateSummaryStyle()
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				new Color(
+					0.025f,
+					0.065f,
+					0.115f,
+					0.97f
+				),
+
+			BorderColor =
+				new Color(
+					0.18f,
+					0.62f,
+					1.0f,
+					0.80f
+				),
+
+			BorderWidthLeft =
+				2,
+
+			BorderWidthTop =
+				2,
+
+			BorderWidthRight =
+				2,
+
+			BorderWidthBottom =
+				2,
+
+			CornerRadiusTopLeft =
+				20,
+
+			CornerRadiusTopRight =
+				20,
+
+			CornerRadiusBottomLeft =
+				20,
+
+			CornerRadiusBottomRight =
+				20,
+
+			ShadowColor =
+				new Color(
+					0.05f,
+					0.45f,
+					1.0f,
+					0.16f
+				),
+
+			ShadowSize =
+				12
+		};
+	}
+
+
 	private static StyleBoxFlat CreatePanelStyle(
 		Color accent)
 	{
@@ -1170,10 +1849,10 @@ public sealed class PipelineUiController
 		{
 			BgColor =
 				new Color(
-					0.02f,
-					0.04f,
-					0.075f,
-					0.95f
+					0.018f,
+					0.038f,
+					0.070f,
+					0.98f
 				),
 
 			BorderColor =
@@ -1197,28 +1876,116 @@ public sealed class PipelineUiController
 				2,
 
 			CornerRadiusTopLeft =
-				16,
+				18,
 
 			CornerRadiusTopRight =
-				16,
+				18,
 
 			CornerRadiusBottomLeft =
-				16,
+				18,
 
 			CornerRadiusBottomRight =
-				16,
+				18,
 
 			ShadowColor =
 				new Color(
 					0,
 					0,
 					0,
-					0.30f
+					0.32f
 				),
 
 			ShadowSize =
-				8
+				9
 		};
+	}
+
+
+	private static void ApplyUpgradeButtonStyle(
+		Button button,
+		Color accent)
+	{
+		button.AddThemeColorOverride(
+			"font_color",
+			Colors.White
+		);
+
+
+		button.AddThemeColorOverride(
+			"font_disabled_color",
+			new Color(
+				0.42f,
+				0.48f,
+				0.55f,
+				1.0f
+			)
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"normal",
+			CreateButtonStyle(
+				new Color(
+					accent.R * 0.35f,
+					accent.G * 0.35f,
+					accent.B * 0.35f,
+					0.98f
+				),
+				new Color(
+					accent.R,
+					accent.G,
+					accent.B,
+					0.85f
+				)
+			)
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"hover",
+			CreateButtonStyle(
+				new Color(
+					accent.R * 0.48f,
+					accent.G * 0.48f,
+					accent.B * 0.48f,
+					1.0f
+				),
+				accent
+			)
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"pressed",
+			CreateButtonStyle(
+				new Color(
+					accent.R * 0.25f,
+					accent.G * 0.25f,
+					accent.B * 0.25f,
+					1.0f
+				),
+				accent
+			)
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"disabled",
+			CreateButtonStyle(
+				new Color(
+					0.035f,
+					0.050f,
+					0.070f,
+					0.92f
+				),
+				new Color(
+					0.15f,
+					0.20f,
+					0.26f,
+					0.70f
+				)
+			)
+		);
 	}
 
 
@@ -1310,6 +2077,37 @@ public sealed class PipelineUiController
 
 		label.SizeFlagsHorizontal =
 			Control.SizeFlags.ExpandFill;
+
+
+		StyleBoxFlat style =
+			new()
+			{
+				BgColor =
+					new Color(
+						0.01f,
+						0.03f,
+						0.055f,
+						0.82f
+					),
+
+				CornerRadiusTopLeft =
+					12,
+
+				CornerRadiusTopRight =
+					12,
+
+				CornerRadiusBottomLeft =
+					12,
+
+				CornerRadiusBottomRight =
+					12
+			};
+
+
+		label.AddThemeStyleboxOverride(
+			"normal",
+			style
+		);
 
 
 		return label;

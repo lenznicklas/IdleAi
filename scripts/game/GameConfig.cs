@@ -221,31 +221,22 @@ public static class GameConfig
 		25;
 
 
-	/*
-	 * Every Server Room machine now generates pipeline
-	 * material instead of Tokens.
-	 *
-	 * The old machine Token value is divided by this
-	 * number to create material units.
-	 *
-	 * After all four pipeline stages have processed one
-	 * unit, it is converted back into this many Tokens.
-	 *
-	 * This keeps the rough economy scale of the old
-	 * Server Room while introducing real throughput.
-	 */
 	public const double PipelineTokensPerOutputUnit =
 		10_000.0;
 
 
+	/*
+	 * Capacity is expressed as material units per second.
+	 *
+	 * In the actual simulation it is converted into a
+	 * batch:
+	 *
+	 * batch = capacity * cycle duration
+	 */
 	public const double PipelineBaseCapacity =
 		100.0;
 
 
-	/*
-	 * Stronger growth is necessary because the Server
-	 * Room machine tiers increase by very large factors.
-	 */
 	public const double PipelineCapacityGrowth =
 		1.65;
 
@@ -256,6 +247,45 @@ public static class GameConfig
 
 	public const double PipelineUpgradeCostGrowth =
 		1.65;
+
+
+	public const double PipelineComputeCycleSeconds =
+		3.0;
+
+
+	public const double PipelineDataCycleSeconds =
+		3.5;
+
+
+	public const double PipelineModelCycleSeconds =
+		4.0;
+
+
+	public const double PipelineOutputCycleSeconds =
+		4.5;
+
+
+	public static double GetPipelineCycleSeconds(
+		PipelineStage stage)
+	{
+		return stage switch
+		{
+			PipelineStage.Compute =>
+				PipelineComputeCycleSeconds,
+
+			PipelineStage.Data =>
+				PipelineDataCycleSeconds,
+
+			PipelineStage.Model =>
+				PipelineModelCycleSeconds,
+
+			PipelineStage.Output =>
+				PipelineOutputCycleSeconds,
+
+			_ =>
+				PipelineComputeCycleSeconds
+		};
+	}
 
 
 	public static double GetPipelineStageCostMultiplier(
@@ -326,7 +356,7 @@ public static class GameConfig
 
 
 	// ==================================================
-	// CYCLE
+	// MACHINE CYCLE
 	// ==================================================
 
 	public static double GetProductionCycleSeconds(

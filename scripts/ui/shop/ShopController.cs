@@ -186,7 +186,7 @@ public sealed class ShopController
 					"ShopMargin",
 
 				MouseFilter =
-					Control.MouseFilterEnum.Pass
+					Control.MouseFilterEnum.Ignore
 			};
 
 
@@ -246,9 +246,9 @@ public sealed class ShopController
 		);
 
 
-		CreateFixedHeader();
-
 		CreateScrollArea();
+
+		CreateFixedHeader();
 
 		CreateBoostSection();
 
@@ -259,6 +259,14 @@ public sealed class ShopController
 		CreateBottomSpace();
 
 		CreateMobileScrolling();
+
+
+		/*
+		 * The scroll view geometrically fills the whole
+		 * ShopMargin. Keep the fixed SHOP / DATA SHARDS
+		 * header rendered above it.
+		 */
+		_header.MoveToFront();
 	}
 
 
@@ -821,8 +829,7 @@ public sealed class ShopController
 					0.0f,
 
 				OffsetTop =
-					HeaderHeight
-					+ HeaderGap,
+					0.0f,
 
 				OffsetRight =
 					0.0f,
@@ -862,7 +869,11 @@ public sealed class ShopController
 
 		scrollMargin.AddThemeConstantOverride(
 			"margin_top",
-			10
+			(int)(
+				HeaderHeight
+				+ HeaderGap
+				+ 10
+			)
 		);
 
 

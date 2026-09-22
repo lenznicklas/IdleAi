@@ -101,6 +101,8 @@ public sealed class GameUiController
 
 		_room.EnableOverlayLayout();
 
+		SyncRoomChromeVisibility();
+
 		ApplyRoomTheme(true);
 		UpdateAll();
 	}
@@ -345,11 +347,18 @@ public sealed class GameUiController
 		if (_map.Visible)
 		{
 			_map.Hide();
+
+			SyncRoomChromeVisibility();
+
 			return;
 		}
 
 		CloseTransientOverlays();
+
 		_map.Open();
+
+		SyncRoomChromeVisibility();
+
 		_bottomBar.MoveToFront();
 	}
 
@@ -360,11 +369,18 @@ public sealed class GameUiController
 		if (_shop.Visible)
 		{
 			_shop.Hide();
+
+			SyncRoomChromeVisibility();
+
 			return;
 		}
 
 		CloseTransientOverlays();
+
 		_shop.Open();
+
+		SyncRoomChromeVisibility();
+
 		_bottomBar.MoveToFront();
 	}
 
@@ -396,7 +412,32 @@ public sealed class GameUiController
 	public void ClosePages()
 	{
 		_map.Hide();
+
 		_shop.Hide();
+
+		SyncRoomChromeVisibility();
+	}
+
+
+	private void SyncRoomChromeVisibility()
+	{
+		Control? roomChrome =
+			_root.GetNodeOrNull<Control>(
+				"RoomOverlayLayer"
+			);
+
+
+		if (roomChrome == null)
+			return;
+
+
+		bool pageVisible =
+			_map.Visible
+			|| _shop.Visible;
+
+
+		roomChrome.Visible =
+			!pageVisible;
 	}
 
 	public void UpdateAll()
@@ -412,10 +453,33 @@ public sealed class GameUiController
 			).Visible;
 
 
+		bool pageVisible =
+			_map.Visible
+			|| _shop.Visible;
+
+
 		_room.UpdateAll(
 			bringChromeToFront:
 				!modalOverlayVisible
+				&& !pageVisible
 		);
+
+
+		/*
+		 * Map/Shop are full page views.
+		 *
+		 * RoomOverlayLayer contains the TopBar and the
+		 * MACHINES / PIPELINE / INFRASTRUCTURE / QUANTUM
+		 * navigation. It must stay hidden while one of those
+		 * pages is open.
+		 *
+		 * This is especially important when a locked room is
+		 * tapped in the map: Game.OnRoomSelectedRequested()
+		 * may call UpdateAll() after an unsuccessful unlock.
+		 * Without this guard, RoomUiController would bring
+		 * the TopBar back in front of MapPage.
+		 */
+		SyncRoomChromeVisibility();
 
 
 		_pipeline.UpdateAll();

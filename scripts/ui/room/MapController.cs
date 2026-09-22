@@ -11,15 +11,15 @@ public sealed partial class MapController
 
 
 	private const float CanvasHeight =
-		1180.0f;
+		1240.0f;
 
 
 	private const float NodeWidth =
-		270.0f;
+		286.0f;
 
 
 	private const float NodeHeight =
-		178.0f;
+		205.0f;
 
 
 	private const int NavigationHapticDurationMs =
@@ -28,6 +28,66 @@ public sealed partial class MapController
 
 	private const float NavigationHapticStrength =
 		0.14f;
+
+
+	private static readonly Texture2D GarageIcon =
+		GD.Load<Texture2D>(
+			"res://assets/map/room_garage.png"
+		);
+
+
+	private static readonly Texture2D ServerRoomIcon =
+		GD.Load<Texture2D>(
+			"res://assets/map/room_server_room.png"
+		);
+
+
+	private static readonly Texture2D ServerRoomLockedIcon =
+		GD.Load<Texture2D>(
+			"res://assets/map/locked_server_room.png"
+		);
+
+
+	private static readonly Texture2D DataCenterIcon =
+		GD.Load<Texture2D>(
+			"res://assets/map/room_data_center.png"
+		);
+
+
+	private static readonly Texture2D DataCenterLockedIcon =
+		GD.Load<Texture2D>(
+			"res://assets/map/locked_data_center.png"
+		);
+
+
+	private static readonly Texture2D QuantumLabIcon =
+		GD.Load<Texture2D>(
+			"res://assets/map/room_quantum_lab.png"
+		);
+
+
+	private static readonly Texture2D QuantumLabLockedIcon =
+		GD.Load<Texture2D>(
+			"res://assets/map/locked_quantum_lab.png"
+		);
+
+
+	private static readonly Texture2D CurrentRoomIcon =
+		GD.Load<Texture2D>(
+			"res://assets/map/room_current.png"
+		);
+
+
+	private static readonly Texture2D ComingSoonIcon =
+		GD.Load<Texture2D>(
+			"res://assets/map/room_coming_soon.png"
+		);
+
+
+	private static readonly Texture2D RouteNodeIcon =
+		GD.Load<Texture2D>(
+			"res://assets/map/route_node.png"
+		);
 
 
 	private readonly Game _root;
@@ -143,7 +203,7 @@ public sealed partial class MapController
 						0.008f,
 						0.018f,
 						0.035f,
-						0.99f
+						0.995f
 					),
 
 				MouseFilter =
@@ -421,6 +481,9 @@ public sealed partial class MapController
 		_routeLayer =
 			new MapRouteLayer
 			{
+				RouteNodeTexture =
+					RouteNodeIcon,
+
 				MouseFilter =
 					Control.MouseFilterEnum.Ignore
 			};
@@ -529,7 +592,7 @@ public sealed partial class MapController
 					Control.FocusModeEnum.None,
 
 				ClipContents =
-					true
+					false
 			};
 
 
@@ -557,85 +620,24 @@ public sealed partial class MapController
 			};
 
 
-		TextureRect roomBackground =
+		TextureRect icon =
 			new()
 			{
 				Texture =
-					room.Background,
-
-				ExpandMode =
-					TextureRect.ExpandModeEnum.IgnoreSize,
-
-				StretchMode =
-					TextureRect.StretchModeEnum.KeepAspectCovered,
-
-				MouseFilter =
-					Control.MouseFilterEnum.Ignore,
-
-				Modulate =
-					new Color(
-						1,
-						1,
-						1,
-						0.52f
-					)
-			};
-
-
-		roomBackground.SetAnchorsAndOffsetsPreset(
-			Control.LayoutPreset.FullRect
-		);
-
-
-		root.AddChild(
-			roomBackground
-		);
-
-
-		ColorRect shade =
-			new()
-			{
-				Color =
-					new Color(
-						0.01f,
-						0.02f,
-						0.04f,
-						0.42f
+					GetUnlockedRoomIcon(
+						roomIndex
 					),
-
-				MouseFilter =
-					Control.MouseFilterEnum.Ignore
-			};
-
-
-		shade.SetAnchorsAndOffsetsPreset(
-			Control.LayoutPreset.FullRect
-		);
-
-
-		root.AddChild(
-			shade
-		);
-
-
-		TextureRect machine =
-			new()
-			{
-				Texture =
-					room.Machines[
-						room.Machines.Count - 1
-					].Texture,
 
 				Position =
 					new Vector2(
 						12,
-						12
+						8
 					),
 
 				Size =
 					new Vector2(
-						116,
-						116
+						158,
+						158
 					),
 
 				ExpandMode =
@@ -650,7 +652,7 @@ public sealed partial class MapController
 
 
 		root.AddChild(
-			machine
+			icon
 		);
 
 
@@ -659,14 +661,14 @@ public sealed partial class MapController
 			{
 				Position =
 					new Vector2(
-						118,
-						18
+						150,
+						22
 					),
 
 				Size =
 					new Vector2(
-						140,
-						142
+						124,
+						128
 					),
 
 				MouseFilter =
@@ -691,25 +693,25 @@ public sealed partial class MapController
 
 		infoMargin.AddThemeConstantOverride(
 			"margin_left",
-			10
+			9
 		);
 
 
 		infoMargin.AddThemeConstantOverride(
 			"margin_top",
-			10
+			9
 		);
 
 
 		infoMargin.AddThemeConstantOverride(
 			"margin_right",
-			10
+			9
 		);
 
 
 		infoMargin.AddThemeConstantOverride(
 			"margin_bottom",
-			10
+			9
 		);
 
 
@@ -748,11 +750,8 @@ public sealed partial class MapController
 
 
 		indexLabel.Modulate =
-			new Color(
-				accent.R,
-				accent.G,
-				accent.B,
-				1.0f
+			accent.Lightened(
+				0.30f
 			);
 
 
@@ -763,7 +762,7 @@ public sealed partial class MapController
 
 		Label nameLabel =
 			CreateLabel(
-				18,
+				17,
 				room.Name.ToUpperInvariant()
 			);
 
@@ -790,7 +789,7 @@ public sealed partial class MapController
 
 		Label stateLabel =
 			CreateLabel(
-				12,
+				11,
 				""
 			);
 
@@ -813,13 +812,13 @@ public sealed partial class MapController
 			{
 				Position =
 					new Vector2(
-						20,
-						138
+						26,
+						166
 					),
 
 				Size =
 					new Vector2(
-						230,
+						234,
 						34
 					),
 
@@ -853,11 +852,50 @@ public sealed partial class MapController
 		);
 
 
+		TextureRect currentMarker =
+			new()
+			{
+				Texture =
+					CurrentRoomIcon,
+
+				Position =
+					new Vector2(
+						-15,
+						-18
+					),
+
+				Size =
+					new Vector2(
+						74,
+						74
+					),
+
+				ExpandMode =
+					TextureRect.ExpandModeEnum.IgnoreSize,
+
+				StretchMode =
+					TextureRect.StretchModeEnum.KeepAspectCentered,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore,
+
+				Visible =
+					false
+			};
+
+
+		root.AddChild(
+			currentMarker
+		);
+
+
 		return new RoomNodeView(
 			root,
+			icon,
 			stateLabel,
 			badge,
-			badgeLabel
+			badgeLabel,
+			currentMarker
 		);
 	}
 
@@ -876,7 +914,7 @@ public sealed partial class MapController
 				Size =
 					new Vector2(
 						225,
-						116
+						150
 					),
 
 				MouseFilter =
@@ -917,16 +955,16 @@ public sealed partial class MapController
 					2,
 
 				CornerRadiusTopLeft =
-					20,
+					22,
 
 				CornerRadiusTopRight =
-					20,
+					22,
 
 				CornerRadiusBottomLeft =
-					20,
+					22,
 
 				CornerRadiusBottomRight =
-					20
+					22
 			}
 		);
 
@@ -954,39 +992,46 @@ public sealed partial class MapController
 		);
 
 
-		Label lockLabel =
-			CreateLabel(
-				28,
-				"◆"
-			);
+		TextureRect image =
+			new()
+			{
+				Texture =
+					ComingSoonIcon,
 
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						94
+					),
 
-		lockLabel.Modulate =
-			new Color(
-				0.45f,
-				0.52f,
-				0.62f,
-				1.0f
-			);
+				ExpandMode =
+					TextureRect.ExpandModeEnum.IgnoreSize,
+
+				StretchMode =
+					TextureRect.StretchModeEnum.KeepAspectCentered,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
 
 
 		box.AddChild(
-			lockLabel
+			image
 		);
 
 
 		Label label =
 			CreateLabel(
-				14,
-				"NEXT FRONTIER\nCOMING LATER"
+				12,
+				"NEXT FRONTIER"
 			);
 
 
 		label.Modulate =
 			new Color(
-				0.52f,
-				0.60f,
+				0.62f,
 				0.70f,
+				0.80f,
 				1.0f
 			);
 
@@ -1004,34 +1049,83 @@ public sealed partial class MapController
 		{
 			0 =>
 				new Vector2(
-					48,
-					940
+					42,
+					990
 				),
 
 			1 =>
 				new Vector2(
-					330,
-					700
+					322,
+					748
 				),
 
 			2 =>
 				new Vector2(
-					48,
-					460
+					42,
+					506
 				),
 
 			3 =>
 				new Vector2(
-					330,
-					220
+					322,
+					264
 				),
 
 			_ =>
 				new Vector2(
-					190,
-					940
+					180,
+					990
 					- roomIndex
-					* 220
+					* 225
+				)
+		};
+	}
+
+
+	// ==================================================
+	// ICONS
+	// ==================================================
+
+	private static Texture2D GetUnlockedRoomIcon(
+		int roomIndex)
+	{
+		return roomIndex switch
+		{
+			0 =>
+				GarageIcon,
+
+			1 =>
+				ServerRoomIcon,
+
+			2 =>
+				DataCenterIcon,
+
+			3 =>
+				QuantumLabIcon,
+
+			_ =>
+				ComingSoonIcon
+		};
+	}
+
+
+	private static Texture2D GetLockedRoomIcon(
+		int roomIndex)
+	{
+		return roomIndex switch
+		{
+			1 =>
+				ServerRoomLockedIcon,
+
+			2 =>
+				DataCenterLockedIcon,
+
+			3 =>
+				QuantumLabLockedIcon,
+
+			_ =>
+				GetUnlockedRoomIcon(
+					roomIndex
 				)
 		};
 	}
@@ -1047,9 +1141,16 @@ public sealed partial class MapController
 			0;
 
 
+		int count =
+			Math.Min(
+				_roomNodes.Count,
+				_state.RoomStates.Count
+			);
+
+
 		for (
 			int i = 0;
-			i < _roomNodes.Count;
+			i < count;
 			i++
 		)
 		{
@@ -1082,11 +1183,35 @@ public sealed partial class MapController
 				];
 
 
+			node.Icon.Texture =
+				unlocked
+					? GetUnlockedRoomIcon(
+						i
+					)
+					: GetLockedRoomIcon(
+						i
+					);
+
+
+			node.CurrentMarker.Visible =
+				current;
+
+
 			ApplyNodeStyle(
 				node.Root,
 				accent,
 				current,
 				!unlocked
+			);
+
+
+			node.Badge.AddThemeStyleboxOverride(
+				"panel",
+				unlocked
+					? CreateBadgeStyle(
+						accent
+					)
+					: CreateLockedBadgeStyle()
 			);
 
 
@@ -1102,10 +1227,6 @@ public sealed partial class MapController
 
 				node.BadgeLabel.Text =
 					"● CURRENT";
-
-
-				node.Badge.Modulate =
-					Colors.White;
 			}
 			else if (unlocked)
 			{
@@ -1276,7 +1397,7 @@ public sealed partial class MapController
 		double wanted =
 			roomPosition.Y
 			- _scroll.Size.Y
-			* 0.35;
+			* 0.34;
 
 
 		_scroll.ScrollVertical =
@@ -1300,16 +1421,16 @@ public sealed partial class MapController
 		Color normalBackground =
 			locked
 				? new Color(
-					0.035f,
-					0.045f,
-					0.060f,
-					0.96f
+					0.030f,
+					0.040f,
+					0.055f,
+					0.98f
 				)
 				: new Color(
-					accent.R * 0.24f,
-					accent.G * 0.24f,
-					accent.B * 0.24f,
-					0.97f
+					accent.R * 0.20f,
+					accent.G * 0.20f,
+					accent.B * 0.20f,
+					0.98f
 				);
 
 
@@ -1337,7 +1458,7 @@ public sealed partial class MapController
 				border,
 				borderWidth,
 				current
-					? 16
+					? 18
 					: 8
 			)
 		);
@@ -1351,13 +1472,13 @@ public sealed partial class MapController
 						0.05f,
 						0.06f,
 						0.08f,
-						0.98f
+						0.99f
 					)
 					: new Color(
-						accent.R * 0.38f,
-						accent.G * 0.38f,
-						accent.B * 0.38f,
-						0.98f
+						accent.R * 0.34f,
+						accent.G * 0.34f,
+						accent.B * 0.34f,
+						0.99f
 					),
 				border,
 				borderWidth,
@@ -1372,9 +1493,9 @@ public sealed partial class MapController
 				locked
 					? normalBackground
 					: new Color(
-						accent.R * 0.18f,
-						accent.G * 0.18f,
-						accent.B * 0.18f,
+						accent.R * 0.14f,
+						accent.G * 0.14f,
+						accent.B * 0.14f,
 						1.0f
 					),
 				border,
@@ -1387,9 +1508,9 @@ public sealed partial class MapController
 		button.Modulate =
 			locked
 				? new Color(
-					0.72f,
-					0.76f,
-					0.82f,
+					0.86f,
+					0.88f,
+					0.92f,
 					1.0f
 				)
 				: Colors.White;
@@ -1423,28 +1544,39 @@ public sealed partial class MapController
 				borderWidth,
 
 			CornerRadiusTopLeft =
-				24,
+				26,
 
 			CornerRadiusTopRight =
-				24,
+				26,
 
 			CornerRadiusBottomLeft =
-				24,
+				26,
 
 			CornerRadiusBottomRight =
-				24,
+				26,
 
 			ShadowColor =
 				new Color(
 					border.R,
 					border.G,
 					border.B,
-					0.22f
+					currentShadowAlpha(
+						shadowSize
+					)
 				),
 
 			ShadowSize =
 				shadowSize
 		};
+	}
+
+
+	private static float currentShadowAlpha(
+		int shadowSize)
+	{
+		return shadowSize >= 16
+			? 0.36f
+			: 0.20f;
 	}
 
 
@@ -1491,16 +1623,63 @@ public sealed partial class MapController
 	}
 
 
+	private static StyleBoxFlat CreateLockedBadgeStyle()
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				new Color(
+					0.075f,
+					0.085f,
+					0.105f,
+					0.98f
+				),
+
+			BorderColor =
+				new Color(
+					0.28f,
+					0.32f,
+					0.38f,
+					0.90f
+				),
+
+			BorderWidthLeft =
+				2,
+
+			BorderWidthTop =
+				2,
+
+			BorderWidthRight =
+				2,
+
+			BorderWidthBottom =
+				2,
+
+			CornerRadiusTopLeft =
+				17,
+
+			CornerRadiusTopRight =
+				17,
+
+			CornerRadiusBottomLeft =
+				17,
+
+			CornerRadiusBottomRight =
+				17
+		};
+	}
+
+
 	private static StyleBoxFlat CreateInfoPanelStyle()
 	{
 		return new StyleBoxFlat
 		{
 			BgColor =
 				new Color(
-					0.015f,
-					0.025f,
-					0.045f,
-					0.72f
+					0.012f,
+					0.022f,
+					0.040f,
+					0.76f
 				),
 
 			CornerRadiusTopLeft =
@@ -1625,9 +1804,11 @@ public sealed partial class MapController
 
 	private sealed record RoomNodeView(
 		Button Root,
+		TextureRect Icon,
 		Label StateLabel,
 		PanelContainer Badge,
-		Label BadgeLabel
+		Label BadgeLabel,
+		TextureRect CurrentMarker
 	);
 
 
@@ -1638,6 +1819,9 @@ public sealed partial class MapController
 	private sealed partial class MapRouteLayer
 		: Control
 	{
+		public Texture2D? RouteNodeTexture { get; set; }
+
+
 		private readonly List<Vector2>
 			_centers =
 				[];
@@ -1788,13 +1972,45 @@ public sealed partial class MapController
 						);
 
 
-					DrawCircle(
-						p,
-						active
-							? 7.0f
-							: 5.0f,
-						routeColor
-					);
+					if (RouteNodeTexture != null)
+					{
+						float size =
+							active
+								? 26.0f
+								: 20.0f;
+
+
+						Rect2 rect =
+							new(
+								p
+								- new Vector2(
+									size / 2.0f,
+									size / 2.0f
+								),
+								new Vector2(
+									size,
+									size
+								)
+							);
+
+
+						DrawTextureRect(
+							RouteNodeTexture,
+							rect,
+							false,
+							routeColor
+						);
+					}
+					else
+					{
+						DrawCircle(
+							p,
+							active
+								? 7.0f
+								: 5.0f,
+							routeColor
+						);
+					}
 				}
 			}
 		}

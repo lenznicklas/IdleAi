@@ -66,6 +66,40 @@ public static class ResearchCatalog
 
 
 	// ==================================================
+	// ENDLESS RESEARCH
+	// ==================================================
+
+	private const string EndlessHardwarePrefix =
+		"endless_hardware_";
+
+	private const string EndlessRoboticsPrefix =
+		"endless_robotics_";
+
+	private const string EndlessInfrastructurePrefix =
+		"endless_infrastructure_";
+
+
+	private const double EndlessBaseCost =
+		750.0;
+
+
+	private const double EndlessCostGrowth =
+		1.35;
+
+
+	private const double EndlessBaseDurationSeconds =
+		172_800.0;
+
+
+	private const double EndlessDurationStepSeconds =
+		21_600.0;
+
+
+	private const double EndlessMaximumDurationSeconds =
+		604_800.0;
+
+
+	// ==================================================
 	// CATALOG
 	// ==================================================
 
@@ -255,7 +289,311 @@ public static class ResearchCatalog
 		}
 
 
+		if (
+			TryParseEndlessResearchId(
+				id,
+				out ResearchBranch branch,
+				out int level
+			)
+		)
+		{
+			return CreateEndlessResearch(
+				branch,
+				level
+			);
+		}
+
+
 		return null;
+	}
+
+
+	public static bool IsEndlessResearch(
+		string id)
+	{
+		return TryParseEndlessResearchId(
+			id,
+			out _,
+			out _
+		);
+	}
+
+
+	public static ResearchDefinition GetNextEndlessResearch(
+		ResearchBranch branch,
+		LabData lab)
+	{
+		int completed =
+			GetCompletedEndlessCount(
+				lab,
+				branch
+			);
+
+
+		return CreateEndlessResearch(
+			branch,
+			completed + 1
+		);
+	}
+
+
+	private static ResearchDefinition CreateEndlessResearch(
+		ResearchBranch branch,
+		int level)
+	{
+		level =
+			Math.Max(
+				1,
+				level
+			);
+
+
+		string id =
+			GetEndlessPrefix(
+				branch
+			)
+			+ level;
+
+
+		string prerequisiteId =
+			level == 1
+				? GetFinalBaseResearchId(
+					branch
+				)
+				: GetEndlessPrefix(
+					branch
+				)
+				+ (
+					level - 1
+				);
+
+
+		double cost =
+			EndlessBaseCost
+			* Math.Pow(
+				EndlessCostGrowth,
+				level - 1
+			);
+
+
+		return branch switch
+		{
+			ResearchBranch.Hardware =>
+				new ResearchDefinition(
+					id,
+					"Hardware Optimization "
+						+ ToRomanOrNumber(
+							level
+						),
+					"+1.5% permanent production.",
+					branch,
+					cost,
+					ProductionBonus: 0.015,
+					PrerequisiteId: prerequisiteId
+				),
+
+			ResearchBranch.Robotics =>
+				new ResearchDefinition(
+					id,
+					"Bot Intelligence "
+						+ ToRomanOrNumber(
+							level
+						),
+					"+1% permanent Bot Power.",
+					branch,
+					cost,
+					BotPowerBonus: 0.01,
+					PrerequisiteId: prerequisiteId
+				),
+
+			ResearchBranch.Infrastructure =>
+				new ResearchDefinition(
+					id,
+					"Autonomous Systems "
+						+ ToRomanOrNumber(
+							level
+						),
+					"+0.5% permanent production and +0.5 percentage points offline income.",
+					branch,
+					cost,
+					ProductionBonus: 0.005,
+					OfflineIncomeBonus: 0.005,
+					PrerequisiteId: prerequisiteId
+				),
+
+			_ =>
+				new ResearchDefinition(
+					id,
+					"Endless Research "
+						+ level,
+					"+1% permanent production.",
+					branch,
+					cost,
+					ProductionBonus: 0.01,
+					PrerequisiteId: prerequisiteId
+				)
+		};
+	}
+
+
+	private static string GetEndlessPrefix(
+		ResearchBranch branch)
+	{
+		return branch switch
+		{
+			ResearchBranch.Hardware =>
+				EndlessHardwarePrefix,
+
+			ResearchBranch.Robotics =>
+				EndlessRoboticsPrefix,
+
+			ResearchBranch.Infrastructure =>
+				EndlessInfrastructurePrefix,
+
+			_ =>
+				EndlessHardwarePrefix
+		};
+	}
+
+
+	private static string GetFinalBaseResearchId(
+		ResearchBranch branch)
+	{
+		return branch switch
+		{
+			ResearchBranch.Hardware =>
+				QuantumComponentsId,
+
+			ResearchBranch.Robotics =>
+				QuantumRoboticsId,
+
+			ResearchBranch.Infrastructure =>
+				AutonomousInfrastructureId,
+
+			_ =>
+				QuantumComponentsId
+		};
+	}
+
+
+	private static bool TryParseEndlessResearchId(
+		string id,
+		out ResearchBranch branch,
+		out int level)
+	{
+		foreach (
+			ResearchBranch candidate
+			in Enum.GetValues<ResearchBranch>()
+		)
+		{
+			string prefix =
+				GetEndlessPrefix(
+					candidate
+				);
+
+
+			if (
+				!id.StartsWith(
+					prefix,
+					StringComparison.Ordinal
+				)
+			)
+			{
+				continue;
+			}
+
+
+			string number =
+				id[
+					prefix.Length..
+				];
+
+
+			if (
+				int.TryParse(
+					number,
+					out int parsed
+				)
+				&& parsed > 0
+			)
+			{
+				branch =
+					candidate;
+
+
+				level =
+					parsed;
+
+
+				return true;
+			}
+		}
+
+
+		branch =
+			ResearchBranch.Hardware;
+
+
+		level =
+			0;
+
+
+		return false;
+	}
+
+
+	private static int GetCompletedEndlessCount(
+		LabData lab,
+		ResearchBranch branch)
+	{
+		int count =
+			0;
+
+
+		string prefix =
+			GetEndlessPrefix(
+				branch
+			);
+
+
+		foreach (
+			string id
+			in lab.CompletedResearch
+		)
+		{
+			if (
+				id.StartsWith(
+					prefix,
+					StringComparison.Ordinal
+				)
+			)
+			{
+				count++;
+			}
+		}
+
+
+		return count;
+	}
+
+
+	private static string ToRomanOrNumber(
+		int level)
+	{
+		return level switch
+		{
+			1 => "I",
+			2 => "II",
+			3 => "III",
+			4 => "IV",
+			5 => "V",
+			6 => "VI",
+			7 => "VII",
+			8 => "VIII",
+			9 => "IX",
+			10 => "X",
+			_ => level.ToString()
+		};
 	}
 
 
@@ -285,6 +623,22 @@ public static class ResearchCatalog
 					research.ProductionBonus;
 			}
 		}
+
+
+		bonus +=
+			GetCompletedEndlessCount(
+				lab,
+				ResearchBranch.Hardware
+			)
+			* 0.015;
+
+
+		bonus +=
+			GetCompletedEndlessCount(
+				lab,
+				ResearchBranch.Infrastructure
+			)
+			* 0.005;
 
 
 		return bonus;
@@ -373,6 +727,14 @@ public static class ResearchCatalog
 					research.BotPowerBonus;
 			}
 		}
+
+
+		bonus +=
+			GetCompletedEndlessCount(
+				lab,
+				ResearchBranch.Robotics
+			)
+			* 0.01;
 
 
 		return bonus;
@@ -597,6 +959,14 @@ public static class ResearchCatalog
 		}
 
 
+		bonus +=
+			GetCompletedEndlessCount(
+				lab,
+				ResearchBranch.Infrastructure
+			)
+			* 0.005;
+
+
 		return Math.Clamp(
 			bonus,
 			0.0,
@@ -612,22 +982,41 @@ public static class ResearchCatalog
 	public static double GetDurationSeconds(
 		ResearchDefinition research)
 	{
+		if (
+			TryParseEndlessResearchId(
+				research.Id,
+				out _,
+				out int level
+			)
+		)
+		{
+			return Math.Min(
+				EndlessMaximumDurationSeconds,
+				EndlessBaseDurationSeconds
+				+ (
+					level - 1
+				)
+				* EndlessDurationStepSeconds
+			);
+		}
+
+
 		if (research.Cost <= 25.0)
-			return 120.0;
+			return 3_600.0;
 
 
 		if (research.Cost <= 60.0)
-			return 300.0;
+			return 10_800.0;
 
 
 		if (research.Cost <= 120.0)
-			return 900.0;
+			return 28_800.0;
 
 
 		if (research.Cost <= 250.0)
-			return 1_800.0;
+			return 64_800.0;
 
 
-		return 3_600.0;
+		return 129_600.0;
 	}
 }

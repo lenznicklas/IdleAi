@@ -323,17 +323,60 @@ internal static class LabUi
 	public static string FormatTime(
 		double seconds)
 	{
-		int total =
+		long total =
 			Math.Max(
-				0,
-				(int)Math.Ceiling(
+				0L,
+				(long)Math.Ceiling(
 					seconds
 				)
 			);
 
 
-		return
-			$"{total / 60}:{total % 60:00}";
+		long days =
+			total / 86_400;
+
+
+		long hours =
+			(
+				total % 86_400
+			)
+			/ 3_600;
+
+
+		long minutes =
+			(
+				total % 3_600
+			)
+			/ 60;
+
+
+		long secs =
+			total % 60;
+
+
+		if (days > 0)
+		{
+			return days
+				+ "d "
+				+ hours
+				+ "h";
+		}
+
+
+		if (hours > 0)
+		{
+			return hours
+				+ "h "
+				+ minutes
+				+ "m";
+		}
+
+
+		return minutes
+			+ ":"
+			+ secs.ToString(
+				"00"
+			);
 	}
 
 

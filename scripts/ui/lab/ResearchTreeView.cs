@@ -36,6 +36,13 @@ internal sealed class ResearchTreeView
 		[];
 
 
+	private readonly Dictionary<
+		ResearchBranch,
+		ResearchCardView
+	> _endlessCards =
+		[];
+
+
 	private VBoxContainer _treeHost =
 		null!;
 
@@ -240,7 +247,10 @@ internal sealed class ResearchTreeView
 						),
 
 					SizeFlagsHorizontal =
-						Control.SizeFlags.ExpandFill
+						Control.SizeFlags.ExpandFill,
+
+					FocusMode =
+						Control.FocusModeEnum.None
 				};
 
 
@@ -308,11 +318,6 @@ internal sealed class ResearchTreeView
 		);
 
 
-		/*
-		 * Requested visual distance between
-		 * HARDWARE / ROBOTICS / INFRASTRUCTURE
-		 * header and the first research card.
-		 */
 		Control headerSpacer =
 			new()
 				{
@@ -380,16 +385,60 @@ internal sealed class ResearchTreeView
 			);
 
 
-			if (
-				i
-				< researches.Count - 1
-			)
-			{
-				tree.AddChild(
-					CreateConnector()
-				);
-			}
+			tree.AddChild(
+				CreateConnector()
+			);
 		}
+
+
+		/*
+		 * One permanent "endless" slot sits at the end of
+		 * every branch. After a level finishes, this card
+		 * changes into the next generated level.
+		 */
+		ResearchDefinition endless =
+			ResearchCatalog
+				.GetNextEndlessResearch(
+					branch,
+					_state.Lab
+				);
+
+
+		ResearchCardView endlessCard =
+			new(
+				endless,
+				_startResearch
+			);
+
+
+		_endlessCards[
+			branch
+		] =
+			endlessCard;
+
+
+		tree.AddChild(
+			endlessCard.Root
+		);
+
+
+		Control bottomSpacer =
+			new()
+				{
+					CustomMinimumSize =
+						new Vector2(
+							0,
+							48
+						),
+
+					MouseFilter =
+						Control.MouseFilterEnum.Ignore
+				};
+
+
+		tree.AddChild(
+			bottomSpacer
+		);
 	}
 
 
@@ -631,116 +680,188 @@ internal sealed class ResearchTreeView
 			}
 
 
+			ApplyResearchState(
+				card,
+				research,
+				active
+			);
+		}
+
+
+		foreach (
+			ResearchBranch branch
+			in Enum.GetValues<ResearchBranch>()
+		)
+		{
 			if (
-				_state.Lab
-					.IsResearchCompleted(
-						research.Id
-					)
+				!_endlessCards.TryGetValue(
+					branch,
+					out ResearchCardView? card
+				)
 			)
 			{
-				card.Apply(
-					LabUi.ResearchCompletedIcon,
-					LabUi.CompletedColor,
-					"COMPLETED",
-					"COMPLETED",
-					true
-				);
-
 				continue;
 			}
 
 
+			ResearchDefinition endless =
+				ResearchCatalog
+					.GetNextEndlessResearch(
+						branch,
+						_state.Lab
+					);
+
+
+			/*
+			 * If the currently active research is the
+			 * endless level that just started, keep that
+			 * exact definition visible until completion.
+			 */
 			if (
 				active != null
-				&& active.Id
-				== research.Id
+				&& active.Branch == branch
+				&& ResearchCatalog.IsEndlessResearch(
+					active.Id
+				)
 			)
 			{
-				card.Apply(
-					LabUi.ResearchActiveIcon,
-					LabUi.ResearchingColor,
-					"RESEARCHING • "
-					+ LabUi.FormatTime(
-						_service
-							.GetRemainingResearchSeconds()
-					),
-					"IN PROGRESS",
-					true
-				);
-
-				continue;
+				endless =
+					active;
 			}
 
 
-			if (
-				research.PrerequisiteId
-					!= null
-				&& !_state.Lab
-					.IsResearchCompleted(
-						research.PrerequisiteId
-					)
-			)
-			{
-				card.Apply(
-					LabUi.ResearchLockedIcon,
-					LabUi.LockedColor,
-					LabUi.GetLockedText(
-						research
-					),
-					"LOCKED",
-					true
-				);
-
-				continue;
-			}
+			card.SetResearch(
+				endless
+			);
 
 
-			if (active != null)
-			{
-				card.Apply(
-					LabUi.ResearchLockedIcon,
-					LabUi.LockedColor,
-					"Lab busy • "
-					+ active.Name,
-					"BUSY",
-					true
-				);
-
-				continue;
-			}
-
-
-			bool canAfford =
-				_state.Lab.ResearchPoints
-				>= research.Cost;
-
-
-			card.Apply(
-				LabUi.ResearchActiveIcon,
-				LabUi.AvailableColor,
-
-				NumberFormatter.Format(
-					research.Cost
-				)
-				+ " RP • "
-				+ LabUi.FormatTime(
-					ResearchCatalog
-						.GetDurationSeconds(
-							research
-						)
-				),
-
-				"RESEARCH\n"
-				+ NumberFormatter.Format(
-					research.Cost
-				)
-				+ " RP",
-
-				!canAfford
+			ApplyResearchState(
+				card,
+				endless,
+				active
 			);
 		}
 
 
 		RefreshTabs();
+	}
+
+
+	private void ApplyResearchState(
+		ResearchCardView card,
+		ResearchDefinition research,
+		ResearchDefinition? active)
+	{
+		if (
+			_state.Lab
+				.IsResearchCompleted(
+					research.Id
+				)
+		)
+		{
+			card.Apply(
+				LabUi.ResearchCompletedIcon,
+				LabUi.CompletedColor,
+				"COMPLETED",
+				"COMPLETED",
+				true
+			);
+
+
+			return;
+		}
+
+
+		if (
+			active != null
+			&& active.Id
+			== research.Id
+		)
+		{
+			card.Apply(
+				LabUi.ResearchActiveIcon,
+				LabUi.ResearchingColor,
+				"RESEARCHING • "
+				+ LabUi.FormatTime(
+					_service
+						.GetRemainingResearchSeconds()
+				),
+				"IN PROGRESS",
+				true
+			);
+
+
+			return;
+		}
+
+
+		if (
+			research.PrerequisiteId
+				!= null
+			&& !_state.Lab
+				.IsResearchCompleted(
+					research.PrerequisiteId
+				)
+		)
+		{
+			card.Apply(
+				LabUi.ResearchLockedIcon,
+				LabUi.LockedColor,
+				LabUi.GetLockedText(
+					research
+				),
+				"LOCKED",
+				true
+			);
+
+
+			return;
+		}
+
+
+		if (active != null)
+		{
+			card.Apply(
+				LabUi.ResearchLockedIcon,
+				LabUi.LockedColor,
+				"Lab busy • "
+				+ active.Name,
+				"BUSY",
+				true
+			);
+
+
+			return;
+		}
+
+
+		bool canAfford =
+			_state.Lab.ResearchPoints
+			>= research.Cost;
+
+
+		card.Apply(
+			LabUi.ResearchActiveIcon,
+			LabUi.AvailableColor,
+
+			NumberFormatter.Format(
+				research.Cost
+			)
+			+ " RP • "
+			+ LabUi.FormatTime(
+				ResearchCatalog
+					.GetDurationSeconds(
+						research
+					)
+			),
+
+			"RESEARCH\n"
+			+ NumberFormatter.Format(
+				research.Cost
+			)
+			+ " RP",
+
+			!canAfford
+		);
 	}
 }

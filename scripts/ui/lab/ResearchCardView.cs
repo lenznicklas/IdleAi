@@ -5,7 +5,7 @@ namespace IdleAi;
 
 internal sealed class ResearchCardView
 {
-	public ResearchDefinition Research { get; }
+	public ResearchDefinition Research { get; private set; }
 
 
 	public Control Root { get; }
@@ -14,6 +14,10 @@ internal sealed class ResearchCardView
 	private readonly PanelContainer _panel;
 
 	private readonly TextureRect _icon;
+
+	private readonly Label _name;
+
+	private readonly Label _description;
 
 	private readonly Label _status;
 
@@ -32,12 +36,19 @@ internal sealed class ResearchCardView
 			Root,
 			_panel,
 			_icon,
+			_name,
+			_description,
 			_status,
 			_button
 		) =
 			Create(
 				startRequested
 			);
+
+
+		SetResearch(
+			research
+		);
 	}
 
 
@@ -45,6 +56,8 @@ internal sealed class ResearchCardView
 		Control,
 		PanelContainer,
 		TextureRect,
+		Label,
+		Label,
 		Label,
 		Button
 	) Create(
@@ -159,10 +172,6 @@ internal sealed class ResearchCardView
 			);
 
 
-		name.Text =
-			Research.Name;
-
-
 		text.AddChild(
 			name
 		);
@@ -172,10 +181,6 @@ internal sealed class ResearchCardView
 			LabUi.CreateLeftLabel(
 				12
 			);
-
-
-		description.Text =
-			Research.Description;
 
 
 		description.AutowrapMode =
@@ -210,7 +215,10 @@ internal sealed class ResearchCardView
 						new Vector2(
 							126,
 							54
-						)
+						),
+
+					FocusMode =
+						Control.FocusModeEnum.None
 				};
 
 
@@ -232,13 +240,38 @@ internal sealed class ResearchCardView
 		);
 
 
+
 		return (
 			outer,
 			panel,
 			icon,
+			name,
+			description,
 			status,
 			button
 		);
+	}
+
+
+	public void SetResearch(
+		ResearchDefinition research)
+	{
+		Research =
+			research;
+
+
+		if (_name != null)
+		{
+			_name.Text =
+				Research.Name;
+		}
+
+
+		if (_description != null)
+		{
+			_description.Text =
+				Research.Description;
+		}
 	}
 
 

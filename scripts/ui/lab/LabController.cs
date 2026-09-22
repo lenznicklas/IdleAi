@@ -335,10 +335,6 @@ public sealed class LabController
 			};
 
 
-		/*
-		 * Header and scroll area touch directly.
-		 * No artificial gap.
-		 */
 		main.AddThemeConstantOverride(
 			"separation",
 			0
@@ -349,10 +345,6 @@ public sealed class LabController
 			main
 		);
 
-
-		// ==================================================
-		// FIXED HEADER
-		// ==================================================
 
 		_header =
 			new LabHeaderView();
@@ -367,10 +359,6 @@ public sealed class LabController
 		);
 
 
-		// ==================================================
-		// LOCKED CONTENT
-		// ==================================================
-
 		_lockedContent =
 			CreateLockedContent();
 
@@ -379,10 +367,6 @@ public sealed class LabController
 			_lockedContent
 		);
 
-
-		// ==================================================
-		// SCROLL CONTENT
-		// ==================================================
 
 		_scroll =
 			new ScrollContainer
@@ -400,7 +384,10 @@ public sealed class LabController
 					ScrollContainer.ScrollMode.ShowNever,
 
 				ClipContents =
-					true
+					true,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
 			};
 
 
@@ -438,21 +425,16 @@ public sealed class LabController
 
 
 		/*
-		 * IMPORTANT:
+		 * Use the same two-direction rubber-band behavior
+		 * as the room pages.
 		 *
-		 * The Lab has a fixed header directly above
-		 * the ScrollContainer.
-		 *
-		 * Therefore TOP overscroll is disabled.
-		 * Otherwise pulling past the top would create
-		 * an empty strip between the Lab header and
-		 * the scrolling content.
-		 *
-		 * Bottom rubber-band remains enabled.
+		 * This fixes the Lab getting stuck after scrolling
+		 * down and makes upward/downward touch scrolling
+		 * symmetrical.
 		 */
 		_mobileScroll.Setup(
 			_scroll,
-			allowTopOverscroll: false,
+			allowTopOverscroll: true,
 			allowBottomOverscroll: true
 		);
 	}
@@ -464,7 +446,10 @@ public sealed class LabController
 			new()
 			{
 				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
+					Control.SizeFlags.ExpandFill,
+
+				SizeFlagsVertical =
+					Control.SizeFlags.ShrinkBegin
 			};
 
 

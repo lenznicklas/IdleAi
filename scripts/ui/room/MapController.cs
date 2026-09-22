@@ -84,11 +84,6 @@ public sealed partial class MapController
 		);
 
 
-	private static readonly Texture2D RouteNodeIcon =
-		GD.Load<Texture2D>(
-			"res://assets/map/route_node.png"
-		);
-
 
 	private readonly Game _root;
 
@@ -98,6 +93,10 @@ public sealed partial class MapController
 
 
 	private Control _page =
+		null!;
+
+
+	private PanelContainer _header =
 		null!;
 
 
@@ -162,6 +161,13 @@ public sealed partial class MapController
 		ClearOldMapUi();
 
 		CreateModernMapUi();
+
+
+		_page.Resized +=
+			ApplySafeArea;
+
+
+		ApplySafeArea();
 
 		Hide();
 	}
@@ -242,8 +248,8 @@ public sealed partial class MapController
 
 	private void CreateHeader()
 	{
-		PanelContainer header =
-			new()
+		_header =
+			new PanelContainer
 			{
 				CustomMinimumSize =
 					new Vector2(
@@ -253,30 +259,30 @@ public sealed partial class MapController
 			};
 
 
-		header.AnchorRight =
+		_header.AnchorRight =
 			1.0f;
 
 
-		header.OffsetLeft =
+		_header.OffsetLeft =
 			22.0f;
 
 
-		header.OffsetTop =
+		_header.OffsetTop =
 			16.0f;
 
 
-		header.OffsetRight =
+		_header.OffsetRight =
 			-22.0f;
 
 
-		header.AddThemeStyleboxOverride(
+		_header.AddThemeStyleboxOverride(
 			"panel",
 			CreateHeaderStyle()
 		);
 
 
 		_page.AddChild(
-			header
+			_header
 		);
 
 
@@ -308,7 +314,7 @@ public sealed partial class MapController
 		);
 
 
-		header.AddChild(
+		_header.AddChild(
 			margin
 		);
 
@@ -481,9 +487,6 @@ public sealed partial class MapController
 		_routeLayer =
 			new MapRouteLayer
 			{
-				RouteNodeTexture =
-					RouteNodeIcon,
-
 				MouseFilter =
 					Control.MouseFilterEnum.Ignore
 			};
@@ -1343,6 +1346,8 @@ public sealed partial class MapController
 
 	public void Open()
 	{
+		ApplySafeArea();
+
 		Refresh();
 
 
@@ -1395,6 +1400,101 @@ public sealed partial class MapController
 				0.0,
 				wanted
 			);
+	}
+
+
+	// ==================================================
+	// SAFE AREA / NOTCH
+	// ==================================================
+
+	private void ApplySafeArea()
+	{
+		if (
+			_header == null
+			|| _scroll == null
+		)
+		{
+			return;
+		}
+
+
+		float safeTop =
+			GetSafeTopInset();
+
+
+		/*
+		 * Background/grid may extend behind the notch.
+		 * Interactive/text content starts below it.
+		 */
+		_header.OffsetTop =
+			safeTop
+			+ 16.0f;
+
+
+		_scroll.OffsetTop =
+			safeTop
+			+ 138.0f;
+	}
+
+
+	private float GetSafeTopInset()
+	{
+		string os =
+			OS.GetName();
+
+
+		if (
+			os != "Android"
+			&& os != "iOS"
+		)
+		{
+			return 0.0f;
+		}
+
+
+		Rect2I safeArea =
+			DisplayServer.GetDisplaySafeArea();
+
+
+		Vector2I windowSize =
+			DisplayServer.WindowGetSize();
+
+
+		Rect2 viewportRect =
+			_root.GetViewport()
+				.GetVisibleRect();
+
+
+		if (
+			windowSize.X <= 0
+			|| windowSize.Y <= 0
+			|| safeArea.Size.X <= 0
+			|| safeArea.Size.Y <= 0
+		)
+		{
+			return 34.0f;
+		}
+
+
+		float scaleY =
+			viewportRect.Size.Y
+			/ windowSize.Y;
+
+
+		float top =
+			safeArea.Position.Y
+			* scaleY;
+
+
+		/*
+		 * Some Android devices report a safe inset that
+		 * is slightly too small, so keep the same
+		 * minimum fallback used by MobileUiAdapter.
+		 */
+		return MathF.Max(
+			top,
+			26.0f
+		);
 	}
 
 
@@ -1845,9 +1945,6 @@ public sealed partial class MapController
 	private sealed partial class MapRouteLayer
 		: Control
 	{
-		public Texture2D? RouteNodeTexture { get; set; }
-
-
 		private readonly List<Vector2>
 			_centers =
 				[];
@@ -1979,65 +2076,6 @@ public sealed partial class MapController
 					true
 				);
 
-
-				for (
-					int dot = 1;
-					dot <= 4;
-					dot++
-				)
-				{
-					float t =
-						dot
-						/ 5.0f;
-
-
-					Vector2 p =
-						from.Lerp(
-							to,
-							t
-						);
-
-
-					if (RouteNodeTexture != null)
-					{
-						float size =
-							active
-								? 14.0f
-								: 11.0f;
-
-
-						Rect2 rect =
-							new(
-								p
-								- new Vector2(
-									size / 2.0f,
-									size / 2.0f
-								),
-								new Vector2(
-									size,
-									size
-								)
-							);
-
-
-						DrawTextureRect(
-							RouteNodeTexture,
-							rect,
-							false,
-							routeColor
-						);
-					}
-					else
-					{
-						DrawCircle(
-							p,
-							active
-								? 5.0f
-								: 4.0f,
-							routeColor
-						);
-					}
-				}
 			}
 		}
 	}

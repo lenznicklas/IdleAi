@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 
 namespace IdleAi;
 
@@ -34,6 +35,10 @@ public sealed class RoomUiController
 		null!;
 
 
+	private VBoxContainer _roomVBox =
+		null!;
+
+
 	private ScrollContainer _scroll =
 		null!;
 
@@ -48,6 +53,13 @@ public sealed class RoomUiController
 
 	private MobileScrollController _mobileScroll =
 		null!;
+
+
+	private readonly List<Control> _topSpacers =
+		[];
+
+
+	private bool _pipelineButtonsHooked;
 
 
 	public event Action<int>? SlotActionRequested;
@@ -120,6 +132,12 @@ public sealed class RoomUiController
 		_mainLayout =
 			_root.GetNode<VBoxContainer>(
 				"MarginContainer/VBoxContainer"
+			);
+
+
+		_roomVBox =
+			_root.GetNode<VBoxContainer>(
+				"MarginContainer/VBoxContainer/RoomPanel/RoomVBox"
 			);
 
 
@@ -324,6 +342,11 @@ public sealed class RoomUiController
 				};
 
 
+			_topSpacers.Add(
+				spacer
+			);
+
+
 			_slotGrid.AddChild(
 				spacer
 			);
@@ -357,6 +380,443 @@ public sealed class RoomUiController
 				spacer
 			);
 		}
+	}
+
+
+	// ==================================================
+	// SPECIAL ROOM NAVIGATION
+	// ==================================================
+
+	private void UpdateSpecialRoomLayout()
+	{
+		float machineTopPadding =
+			_state.CurrentRoomIndex == 0
+				? TopSlotPadding
+				: 0.0f;
+
+
+		foreach (
+			Control spacer
+			in _topSpacers
+		)
+		{
+			spacer.CustomMinimumSize =
+				new Vector2(
+					0,
+					machineTopPadding
+				);
+		}
+
+
+		SetNavigationHeight(
+			"PipelineNavigationCenter",
+			56.0f
+		);
+
+
+		SetNavigationHeight(
+			"InfrastructureNavigationCenter",
+			56.0f
+		);
+
+
+		SetNavigationHeight(
+			"QuantumNavigationCenter",
+			56.0f
+		);
+
+
+		RemoveSpecialViewTopMargin(
+			"PipelineScroll"
+		);
+
+
+		RemoveSpecialViewTopMargin(
+			"InfrastructureScroll"
+		);
+
+
+		RemoveSpecialViewTopMargin(
+			"QuantumScroll"
+		);
+
+
+		HookPipelineButtons();
+
+
+		Callable
+			.From(
+				ApplyPipelineTabTheme
+			)
+			.CallDeferred();
+	}
+
+
+	private void SetNavigationHeight(
+		string nodeName,
+		float height)
+	{
+		CenterContainer? navigation =
+			_roomVBox.GetNodeOrNull<CenterContainer>(
+				nodeName
+			);
+
+
+		if (navigation == null)
+			return;
+
+
+		navigation.CustomMinimumSize =
+			new Vector2(
+				0,
+				height
+			);
+	}
+
+
+	private void RemoveSpecialViewTopMargin(
+		string scrollName)
+	{
+		ScrollContainer? specialScroll =
+			_roomVBox.GetNodeOrNull<ScrollContainer>(
+				scrollName
+			);
+
+
+		if (
+			specialScroll == null
+			|| specialScroll.GetChildCount() == 0
+		)
+		{
+			return;
+		}
+
+
+		Control? first =
+			specialScroll.GetChild(
+				0
+			)
+			as Control;
+
+
+		if (
+			first == null
+			|| first.GetChildCount() == 0
+		)
+		{
+			return;
+		}
+
+
+		MarginContainer? margin =
+			first.GetChild(
+				0
+			)
+			as MarginContainer;
+
+
+		if (margin == null)
+			return;
+
+
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			0
+		);
+	}
+
+
+	private void HookPipelineButtons()
+	{
+		if (_pipelineButtonsHooked)
+			return;
+
+
+		Control? navigation =
+			_roomVBox.GetNodeOrNull<Control>(
+				"PipelineNavigationCenter"
+			);
+
+
+		if (navigation == null)
+			return;
+
+
+		foreach (
+			Node node
+			in navigation.FindChildren(
+				"*",
+				"Button",
+				true,
+				false
+			)
+		)
+		{
+			if (node is not Button button)
+				continue;
+
+
+			button.Pressed +=
+				() =>
+					Callable
+						.From(
+							ApplyPipelineTabTheme
+						)
+						.CallDeferred();
+		}
+
+
+		_pipelineButtonsHooked =
+			true;
+	}
+
+
+	private void ApplyPipelineTabTheme()
+	{
+		Control? navigation =
+			_roomVBox.GetNodeOrNull<Control>(
+				"PipelineNavigationCenter"
+			);
+
+
+		ScrollContainer? pipelineScroll =
+			_roomVBox.GetNodeOrNull<ScrollContainer>(
+				"PipelineScroll"
+			);
+
+
+		if (
+			navigation == null
+			|| pipelineScroll == null
+		)
+		{
+			return;
+		}
+
+
+		Color accent =
+			RoomThemePalette.GetAccentColor(
+				GameConfig.PipelineRoomIndex
+			);
+
+
+		bool pipelineActive =
+			pipelineScroll.Visible;
+
+
+		foreach (
+			Node node
+			in navigation.FindChildren(
+				"*",
+				"Button",
+				true,
+				false
+			)
+		)
+		{
+			if (node is not Button button)
+				continue;
+
+
+			bool active =
+				button.Text == "PIPELINE"
+					? pipelineActive
+					: !pipelineActive;
+
+
+			ApplyRedNavigationStyle(
+				button,
+				accent,
+				active
+			);
+		}
+
+
+		PanelContainer? panel =
+			navigation.GetNodeOrNull<PanelContainer>(
+				"PipelineNavigation"
+			);
+
+
+		if (panel != null)
+		{
+			panel.AddThemeStyleboxOverride(
+				"panel",
+				CreateNavigationPanelStyle(
+					accent
+				)
+			);
+		}
+	}
+
+
+	private static void ApplyRedNavigationStyle(
+		Button button,
+		Color accent,
+		bool active)
+	{
+		Color background =
+			active
+				? accent.Darkened(
+					0.18f
+				)
+				: accent.Darkened(
+					0.62f
+				);
+
+
+		Color border =
+			active
+				? accent.Lightened(
+					0.10f
+				)
+				: new Color(
+					accent.R,
+					accent.G,
+					accent.B,
+					0.56f
+				);
+
+
+		button.AddThemeStyleboxOverride(
+			"normal",
+			CreateNavigationButtonStyle(
+				background,
+				border
+			)
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"hover",
+			CreateNavigationButtonStyle(
+				active
+					? accent.Darkened(
+						0.08f
+					)
+					: accent.Darkened(
+						0.44f
+					),
+				accent
+			)
+		);
+
+
+		button.AddThemeStyleboxOverride(
+			"pressed",
+			CreateNavigationButtonStyle(
+				accent.Darkened(
+					0.28f
+				),
+				accent
+			)
+		);
+
+
+		button.AddThemeColorOverride(
+			"font_color",
+			active
+				? Colors.White
+				: new Color(
+					0.86f,
+					0.82f,
+					0.83f,
+					1.0f
+				)
+		);
+
+
+		button.AddThemeColorOverride(
+			"font_hover_color",
+			Colors.White
+		);
+	}
+
+
+	private static StyleBoxFlat CreateNavigationButtonStyle(
+		Color background,
+		Color border)
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				background,
+
+			BorderColor =
+				border,
+
+			BorderWidthLeft =
+				1,
+
+			BorderWidthTop =
+				1,
+
+			BorderWidthRight =
+				1,
+
+			BorderWidthBottom =
+				1,
+
+			CornerRadiusTopLeft =
+				15,
+
+			CornerRadiusTopRight =
+				15,
+
+			CornerRadiusBottomLeft =
+				15,
+
+			CornerRadiusBottomRight =
+				15
+		};
+	}
+
+
+	private static StyleBoxFlat CreateNavigationPanelStyle(
+		Color accent)
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				new Color(
+					accent.R * 0.10f,
+					accent.G * 0.10f,
+					accent.B * 0.10f,
+					0.97f
+				),
+
+			BorderColor =
+				new Color(
+					accent.R,
+					accent.G,
+					accent.B,
+					0.62f
+				),
+
+			BorderWidthLeft =
+				1,
+
+			BorderWidthTop =
+				1,
+
+			BorderWidthRight =
+				1,
+
+			BorderWidthBottom =
+				1,
+
+			CornerRadiusTopLeft =
+				19,
+
+			CornerRadiusTopRight =
+				19,
+
+			CornerRadiusBottomLeft =
+				19,
+
+			CornerRadiusBottomRight =
+				19
+		};
 	}
 
 
@@ -472,6 +932,9 @@ public sealed class RoomUiController
 		);
 
 
+		UpdateSpecialRoomLayout();
+
+
 		int count =
 			Math.Min(
 				8,
@@ -491,10 +954,6 @@ public sealed class RoomUiController
 				);
 
 
-			/*
-			 * Cycle bar and unlock button use the active
-			 * room's color theme.
-			 */
 			view.ApplyRoomTheme(
 				_state.CurrentRoomIndex
 			);

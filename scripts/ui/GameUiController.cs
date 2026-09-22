@@ -393,7 +393,21 @@ public sealed class GameUiController
 	{
 		ResetRoomScrollIfRoomChanged();
 
-		_room.UpdateAll();
+
+		bool modalOverlayVisible =
+			_details.Visible
+			|| _stats.Visible
+			|| _root.GetNode<Control>(
+				"PrestigeConfirmOverlay"
+			).Visible;
+
+
+		_room.UpdateAll(
+			bringChromeToFront:
+				!modalOverlayVisible
+		);
+
+
 		_pipeline.UpdateAll();
 		_infrastructure.UpdateAll();
 		_quantum.UpdateAll();

@@ -38,7 +38,7 @@ public sealed class RoomUiController
 
 
 	private const float BottomBarHeight =
-		116.0f;
+		174.0f;
 
 
 	private const float BottomContentGap =
@@ -1323,7 +1323,8 @@ public sealed class RoomUiController
 	// UPDATE
 	// ==================================================
 
-	public void UpdateAll()
+	public void UpdateAll(
+		bool bringChromeToFront = true)
 	{
 		_background.Texture =
 			_state.CurrentRoom.Background;
@@ -1338,9 +1339,18 @@ public sealed class RoomUiController
 		{
 			ApplyOverlayLayoutMetrics();
 
-			_overlayLayer.MoveToFront();
 
-			_bottomBar.MoveToFront();
+			/*
+			 * Modal detail overlays must remain above the
+			 * fixed room chrome. During normal gameplay the
+			 * chrome stays on top of the scrolling content.
+			 */
+			if (bringChromeToFront)
+			{
+				_overlayLayer.MoveToFront();
+
+				_bottomBar.MoveToFront();
+			}
 		}
 
 

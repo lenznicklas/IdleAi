@@ -6,7 +6,7 @@ namespace IdleAi;
 public partial class MobileUiAdapter : Node
 {
 	private const float BottomBarHeight =
-		116.0f;
+		174.0f;
 
 
 	private const int MainHorizontalPadding =
@@ -585,15 +585,8 @@ public partial class MobileUiAdapter : Node
 
 
 		/*
-		 * THIS IS THE FIX:
-		 *
 		 * SHOP and the Data-Shard bar are moved below
 		 * the phone's notch / status area.
-		 *
-		 * Only the real safe area + a tiny 6 px visual
-		 * padding is used.
-		 *
-		 * The background itself still starts at y = 0.
 		 */
 		margin.AddThemeConstantOverride(
 			"margin_top",
@@ -660,6 +653,7 @@ public partial class MobileUiAdapter : Node
 			{
 				margin =
 					found;
+
 
 				break;
 			}
@@ -918,10 +912,6 @@ public partial class MobileUiAdapter : Node
 			* scaleY;
 
 
-		/*
-		 * Minimum fallback for Android phones where
-		 * the reported safe area is slightly too small.
-		 */
 		top =
 			MathF.Max(
 				top,

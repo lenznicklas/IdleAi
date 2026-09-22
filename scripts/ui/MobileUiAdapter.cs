@@ -630,38 +630,88 @@ public partial class MobileUiAdapter : Node
 			return;
 
 
+		/*
+		 * Lab background/page remains fullscreen.
+		 *
+		 * The LabMargin is the usable content viewport and
+		 * ends above BottomBar, but starts at the physical
+		 * top edge so LabScroll can extend behind the notch.
+		 */
+		lab.AnchorLeft =
+			0.0f;
+
+
+		lab.AnchorTop =
+			0.0f;
+
+
+		lab.AnchorRight =
+			1.0f;
+
+
+		lab.AnchorBottom =
+			1.0f;
+
+
+		lab.OffsetLeft =
+			0.0f;
+
+
+		lab.OffsetTop =
+			0.0f;
+
+
+		lab.OffsetRight =
+			0.0f;
+
+
 		lab.OffsetBottom =
-			-(
-				BottomBarHeight
-				+ safe.Bottom
-			);
+			0.0f;
 
 
 		MarginContainer? margin =
-			null;
-
-
-		foreach (
-			Node child
-			in lab.GetChildren()
-		)
-		{
-			if (
-				child
-				is MarginContainer found
-			)
-			{
-				margin =
-					found;
-
-
-				break;
-			}
-		}
+			_root.GetNodeOrNull<MarginContainer>(
+				"LabPage/LabMargin"
+			);
 
 
 		if (margin == null)
 			return;
+
+
+		margin.AnchorLeft =
+			0.0f;
+
+
+		margin.AnchorTop =
+			0.0f;
+
+
+		margin.AnchorRight =
+			1.0f;
+
+
+		margin.AnchorBottom =
+			1.0f;
+
+
+		margin.OffsetLeft =
+			0.0f;
+
+
+		margin.OffsetTop =
+			0.0f;
+
+
+		margin.OffsetRight =
+			0.0f;
+
+
+		margin.OffsetBottom =
+			-(
+				BottomBarHeight
+				+ safe.Bottom
+			);
 
 
 		margin.AddThemeConstantOverride(
@@ -673,11 +723,16 @@ public partial class MobileUiAdapter : Node
 		);
 
 
+		/*
+		 * Do NOT apply safe.Top to LabMargin.
+		 *
+		 * The fixed Lab header handles the notch itself.
+		 * Keeping this at zero lets LabScroll reach the
+		 * physical top edge of the display.
+		 */
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			Ceil(
-				safe.Top
-			)
+			0
 		);
 
 

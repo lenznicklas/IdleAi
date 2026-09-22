@@ -198,6 +198,26 @@ public sealed class GameUiController
 
 		_topBar.StatsRequested += OpenStats;
 		_topBar.Initialize();
+
+
+		TextureButton tokenCard =
+			_root.GetNode<TextureButton>(
+				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/TokenCard"
+			);
+
+
+		TextureButton levelCard =
+			_root.GetNode<TextureButton>(
+				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/LevelCard"
+			);
+
+
+		tokenCard.Pressed +=
+			BringTopBarInfoPopupsToFront;
+
+
+		levelCard.Pressed +=
+			BringTopBarInfoPopupsToFront;
 	}
 
 	private void CreateBottomBarController()
@@ -384,6 +404,56 @@ public sealed class GameUiController
 		_bottomBar.MoveToFront();
 	}
 
+	private async void BringTopBarInfoPopupsToFront()
+	{
+		/*
+		 * TokenPopup / LevelPopup are root-level siblings of
+		 * RoomOverlayLayer. Since the room TopBar is itself
+		 * inside RoomOverlayLayer and that layer is normally
+		 * moved to the front, the info popups could render
+		 * behind the TopBar.
+		 *
+		 * Wait one frame because TopBarController shows and
+		 * positions the popup asynchronously, then explicitly
+		 * move the visible info popup to the highest level.
+		 */
+		await _root.ToSignal(
+			_root.GetTree(),
+			SceneTree.SignalName.ProcessFrame
+		);
+
+
+		PanelContainer? tokenPopup =
+			_root.GetNodeOrNull<PanelContainer>(
+				"TokenPopup"
+			);
+
+
+		if (
+			tokenPopup != null
+			&& tokenPopup.Visible
+		)
+		{
+			tokenPopup.MoveToFront();
+		}
+
+
+		PanelContainer? levelPopup =
+			_root.GetNodeOrNull<PanelContainer>(
+				"LevelPopup"
+			);
+
+
+		if (
+			levelPopup != null
+			&& levelPopup.Visible
+		)
+		{
+			levelPopup.MoveToFront();
+		}
+	}
+
+
 	private void OpenStats()
 	{
 		ClosePages();
@@ -431,9 +501,17 @@ public sealed class GameUiController
 			return;
 
 
+		bool labVisible =
+			_root.GetNodeOrNull<Control>(
+				"LabPage"
+			)?.Visible
+			== true;
+
+
 		bool pageVisible =
 			_map.Visible
-			|| _shop.Visible;
+			|| _shop.Visible
+			|| labVisible;
 
 
 		roomChrome.Visible =
@@ -453,9 +531,17 @@ public sealed class GameUiController
 			).Visible;
 
 
+		bool labVisible =
+			_root.GetNodeOrNull<Control>(
+				"LabPage"
+			)?.Visible
+			== true;
+
+
 		bool pageVisible =
 			_map.Visible
-			|| _shop.Visible;
+			|| _shop.Visible
+			|| labVisible;
 
 
 		_room.UpdateAll(

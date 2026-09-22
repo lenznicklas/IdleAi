@@ -13,6 +13,18 @@ public sealed class LabController
 		78.0f;
 
 
+	private const float LabHeaderHeight =
+		184.0f;
+
+
+	private const float LabHeaderGap =
+		10.0f;
+
+
+	private const float LabHeaderExtraTopPadding =
+		6.0f;
+
+
 	private const int NavigationHapticDurationMs =
 		12;
 
@@ -36,11 +48,23 @@ public sealed class LabController
 		null!;
 
 
+	private MarginContainer _pageMargin =
+		null!;
+
+
+	private Control _layoutRoot =
+		null!;
+
+
 	private Control _lockedContent =
 		null!;
 
 
 	private ScrollContainer _scroll =
+		null!;
+
+
+	private MarginContainer _scrollMargin =
 		null!;
 
 
@@ -107,6 +131,13 @@ public sealed class LabController
 		CreateBottomBarButton();
 
 		CreatePage();
+
+
+		_root.GetViewport().SizeChanged +=
+			ApplyOverlayMetrics;
+
+
+		ApplyOverlayMetrics();
 
 		ConnectExistingNavigation();
 
@@ -273,13 +304,9 @@ public sealed class LabController
 			};
 
 
-		_page.SetAnchorsPreset(
+		_page.SetAnchorsAndOffsetsPreset(
 			Control.LayoutPreset.FullRect
 		);
-
-
-		_page.OffsetBottom =
-			-88;
 
 
 		_root.AddChild(
@@ -325,96 +352,110 @@ public sealed class LabController
 
 	private void CreateContent()
 	{
-		MarginContainer margin =
-			new();
+		_pageMargin =
+			new MarginContainer
+			{
+				Name =
+					"LabMargin",
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
+			};
 
 
-		margin.SetAnchorsAndOffsetsPreset(
+		_pageMargin.SetAnchorsAndOffsetsPreset(
 			Control.LayoutPreset.FullRect
 		);
 
 
-		margin.AddThemeConstantOverride(
+		_pageMargin.AddThemeConstantOverride(
 			"margin_left",
 			18
 		);
 
 
-		margin.AddThemeConstantOverride(
+		_pageMargin.AddThemeConstantOverride(
 			"margin_top",
 			0
 		);
 
 
-		margin.AddThemeConstantOverride(
+		_pageMargin.AddThemeConstantOverride(
 			"margin_right",
 			18
 		);
 
 
-		margin.AddThemeConstantOverride(
+		_pageMargin.AddThemeConstantOverride(
 			"margin_bottom",
 			0
 		);
 
 
 		_page.AddChild(
-			margin
+			_pageMargin
 		);
 
 
-		VBoxContainer main =
-			new()
+		_layoutRoot =
+			new Control
 			{
+				Name =
+					"LayoutRoot",
+
 				SizeFlagsHorizontal =
 					Control.SizeFlags.ExpandFill,
 
 				SizeFlagsVertical =
-					Control.SizeFlags.ExpandFill
+					Control.SizeFlags.ExpandFill,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
 			};
 
 
-		main.AddThemeConstantOverride(
-			"separation",
-			0
+		_pageMargin.AddChild(
+			_layoutRoot
 		);
 
 
-		margin.AddChild(
-			main
-		);
-
-
-		_header =
-			new LabHeaderView();
-
-
-		_header.BuyRequested +=
-			BuyResearchPoints;
-
-
-		main.AddChild(
-			_header.Root
-		);
-
-
-		_lockedContent =
-			CreateLockedContent();
-
-
-		main.AddChild(
-			_lockedContent
-		);
-
-
+		/*
+		 * The ScrollContainer is created FIRST and fills the
+		 * complete LabMargin from the physical top of the
+		 * display down to the area above BottomBar.
+		 *
+		 * The Lab header is added afterwards and therefore
+		 * behaves like the fixed SHOP / DATA SHARDS overlay.
+		 */
 		_scroll =
 			new ScrollContainer
 			{
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
+				Name =
+					"LabScroll",
 
-				SizeFlagsVertical =
-					Control.SizeFlags.ExpandFill,
+				AnchorLeft =
+					0.0f,
+
+				AnchorTop =
+					0.0f,
+
+				AnchorRight =
+					1.0f,
+
+				AnchorBottom =
+					1.0f,
+
+				OffsetLeft =
+					0.0f,
+
+				OffsetTop =
+					0.0f,
+
+				OffsetRight =
+					0.0f,
+
+				OffsetBottom =
+					0.0f,
 
 				HorizontalScrollMode =
 					ScrollContainer.ScrollMode.Disabled,
@@ -430,17 +471,118 @@ public sealed class LabController
 			};
 
 
-		main.AddChild(
+		_layoutRoot.AddChild(
 			_scroll
 		);
 
 
+		_scrollMargin =
+			new MarginContainer
+			{
+				Name =
+					"ScrollMargin",
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		_scrollMargin.AddThemeConstantOverride(
+			"margin_top",
+			0
+		);
+
+
+		_scrollMargin.AddThemeConstantOverride(
+			"margin_bottom",
+			28
+		);
+
+
 		_scroll.AddChild(
+			_scrollMargin
+		);
+
+
+		_scrollMargin.AddChild(
 			CreateUnlockedContent()
 		);
 
 
+		/*
+		 * Locked content is a normal full-page layer below
+		 * the fixed Lab header. It is only visible until the
+		 * Lab has been unlocked.
+		 */
+		_lockedContent =
+			CreateLockedContent();
+
+
+		_lockedContent.AnchorLeft =
+			0.0f;
+
+
+		_lockedContent.AnchorTop =
+			0.0f;
+
+
+		_lockedContent.AnchorRight =
+			1.0f;
+
+
+		_lockedContent.AnchorBottom =
+			1.0f;
+
+
+		_layoutRoot.AddChild(
+			_lockedContent
+		);
+
+
+		_header =
+			new LabHeaderView();
+
+
+		_header.Root.Name =
+			"FixedLabHeader";
+
+
+		_header.Root.AnchorLeft =
+			0.0f;
+
+
+		_header.Root.AnchorTop =
+			0.0f;
+
+
+		_header.Root.AnchorRight =
+			1.0f;
+
+
+		_header.Root.AnchorBottom =
+			0.0f;
+
+
+		_header.Root.CustomMinimumSize =
+			Vector2.Zero;
+
+
+		_header.BuyRequested +=
+			BuyResearchPoints;
+
+
+		_layoutRoot.AddChild(
+			_header.Root
+		);
+
+
 		CreateMobileScrolling();
+
+
+		ApplyOverlayMetrics();
+
+
+		_header.Root.MoveToFront();
 	}
 
 
@@ -475,6 +617,145 @@ public sealed class LabController
 			_scroll,
 			allowTopOverscroll: true,
 			allowBottomOverscroll: true
+		);
+	}
+
+
+	// ==================================================
+	// OVERLAY METRICS / SAFE AREA
+	// ==================================================
+
+	private void ApplyOverlayMetrics()
+	{
+		if (
+			_header == null
+			|| _scrollMargin == null
+			|| _lockedContent == null
+		)
+		{
+			return;
+		}
+
+
+		float safeTop =
+			GetSafeTopInset();
+
+
+		float headerTop =
+			safeTop
+			+ LabHeaderExtraTopPadding;
+
+
+		float headerBottom =
+			headerTop
+			+ LabHeaderHeight;
+
+
+		/*
+		 * Only the fixed Lab header respects the top safe
+		 * inset. The ScrollContainer itself stays at y = 0,
+		 * so research cards can scroll behind the notch and
+		 * behind the header just like Shop content.
+		 */
+		_header.Root.OffsetLeft =
+			0.0f;
+
+
+		_header.Root.OffsetTop =
+			headerTop;
+
+
+		_header.Root.OffsetRight =
+			0.0f;
+
+
+		_header.Root.OffsetBottom =
+			headerBottom;
+
+
+		_scrollMargin.AddThemeConstantOverride(
+			"margin_top",
+			(int)MathF.Ceiling(
+				headerBottom
+				+ LabHeaderGap
+				+ 10.0f
+			)
+		);
+
+
+		_lockedContent.OffsetLeft =
+			0.0f;
+
+
+		_lockedContent.OffsetTop =
+			headerBottom
+			+ LabHeaderGap;
+
+
+		_lockedContent.OffsetRight =
+			0.0f;
+
+
+		_lockedContent.OffsetBottom =
+			0.0f;
+
+
+		_header.Root.MoveToFront();
+	}
+
+
+	private float GetSafeTopInset()
+	{
+		string os =
+			OS.GetName();
+
+
+		if (
+			os != "Android"
+			&& os != "iOS"
+		)
+		{
+			return 0.0f;
+		}
+
+
+		Rect2I safeArea =
+			DisplayServer.GetDisplaySafeArea();
+
+
+		Vector2I windowSize =
+			DisplayServer.WindowGetSize();
+
+
+		Rect2 viewportRect =
+			_root.GetViewport()
+				.GetVisibleRect();
+
+
+		if (
+			windowSize.X <= 0
+			|| windowSize.Y <= 0
+			|| safeArea.Size.X <= 0
+			|| safeArea.Size.Y <= 0
+		)
+		{
+			return 34.0f;
+		}
+
+
+		float scaleY =
+			viewportRect.Size.Y
+			/ windowSize.Y;
+
+
+		float top =
+			safeArea.Position.Y
+			* scaleY;
+
+
+		return MathF.Max(
+			top,
+			26.0f
 		);
 	}
 
@@ -787,12 +1068,22 @@ public sealed class LabController
 		HideOtherPages();
 
 
+		ApplyOverlayMetrics();
+
 		Refresh();
 
 
 		_page.Show();
 
 		_page.MoveToFront();
+
+
+		SetRegularRoomChromeVisible(
+			false
+		);
+
+
+		_header.Root.MoveToFront();
 
 
 		_root.GetNode<Control>(
@@ -840,6 +1131,43 @@ public sealed class LabController
 
 
 		_page?.Hide();
+
+
+		bool anotherPageVisible =
+			_root.GetNodeOrNull<Control>(
+				"MapPage"
+			)?.Visible
+			== true
+			|| _root.GetNodeOrNull<Control>(
+				"ShopPage"
+			)?.Visible
+			== true;
+
+
+		if (!anotherPageVisible)
+		{
+			SetRegularRoomChromeVisible(
+				true
+			);
+		}
+	}
+
+
+	private void SetRegularRoomChromeVisible(
+		bool visible)
+	{
+		Control? roomChrome =
+			_root.GetNodeOrNull<Control>(
+				"RoomOverlayLayer"
+			);
+
+
+		if (roomChrome == null)
+			return;
+
+
+		roomChrome.Visible =
+			visible;
 	}
 
 

@@ -11,15 +11,15 @@ public sealed partial class MapController
 
 
 	private const float CanvasHeight =
-		1240.0f;
+		1180.0f;
 
 
 	private const float NodeWidth =
-		286.0f;
+		270.0f;
 
 
 	private const float NodeHeight =
-		205.0f;
+		178.0f;
 
 
 	private const int NavigationHapticDurationMs =
@@ -203,7 +203,7 @@ public sealed partial class MapController
 						0.008f,
 						0.018f,
 						0.035f,
-						0.995f
+						0.99f
 					),
 
 				MouseFilter =
@@ -248,7 +248,7 @@ public sealed partial class MapController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						118
+						112
 					)
 			};
 
@@ -286,25 +286,25 @@ public sealed partial class MapController
 
 		margin.AddThemeConstantOverride(
 			"margin_left",
-			22
+			20
 		);
 
 
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			14
+			12
 		);
 
 
 		margin.AddThemeConstantOverride(
 			"margin_right",
-			22
+			20
 		);
 
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
-			14
+			12
 		);
 
 
@@ -330,7 +330,7 @@ public sealed partial class MapController
 
 		Label title =
 			CreateLabel(
-				30,
+				27,
 				"ROOM NETWORK"
 			);
 
@@ -359,7 +359,7 @@ public sealed partial class MapController
 
 		Label subtitle =
 			CreateLabel(
-				14,
+				12,
 				"EXPLORE • BUILD • UNLOCK • AUTOMATE"
 			);
 
@@ -388,7 +388,7 @@ public sealed partial class MapController
 
 		_progressLabel =
 			CreateLabel(
-				14,
+				12,
 				""
 			);
 
@@ -431,7 +431,7 @@ public sealed partial class MapController
 
 
 		_scroll.OffsetTop =
-			148.0f;
+			138.0f;
 
 
 		_scroll.OffsetBottom =
@@ -592,7 +592,7 @@ public sealed partial class MapController
 					Control.FocusModeEnum.None,
 
 				ClipContents =
-					false
+					true
 			};
 
 
@@ -620,24 +620,40 @@ public sealed partial class MapController
 			};
 
 
+		Control iconHolder =
+			new()
+			{
+				Position =
+					new Vector2(
+						12,
+						27
+					),
+
+				Size =
+					new Vector2(
+						96,
+						96
+					),
+
+				ClipContents =
+					true,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+
+		root.AddChild(
+			iconHolder
+		);
+
+
 		TextureRect icon =
 			new()
 			{
 				Texture =
 					GetUnlockedRoomIcon(
 						roomIndex
-					),
-
-				Position =
-					new Vector2(
-						12,
-						8
-					),
-
-				Size =
-					new Vector2(
-						158,
-						158
 					),
 
 				ExpandMode =
@@ -651,7 +667,12 @@ public sealed partial class MapController
 			};
 
 
-		root.AddChild(
+		icon.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+
+		iconHolder.AddChild(
 			icon
 		);
 
@@ -661,14 +682,14 @@ public sealed partial class MapController
 			{
 				Position =
 					new Vector2(
-						150,
-						22
+						116,
+						18
 					),
 
 				Size =
 					new Vector2(
-						124,
-						128
+						142,
+						116
 					),
 
 				MouseFilter =
@@ -693,7 +714,7 @@ public sealed partial class MapController
 
 		infoMargin.AddThemeConstantOverride(
 			"margin_left",
-			9
+			10
 		);
 
 
@@ -705,7 +726,7 @@ public sealed partial class MapController
 
 		infoMargin.AddThemeConstantOverride(
 			"margin_right",
-			9
+			10
 		);
 
 
@@ -726,7 +747,7 @@ public sealed partial class MapController
 
 		infoBox.AddThemeConstantOverride(
 			"separation",
-			5
+			3
 		);
 
 
@@ -737,7 +758,7 @@ public sealed partial class MapController
 
 		Label indexLabel =
 			CreateLabel(
-				11,
+				10,
 				"ROOM "
 				+ (
 					roomIndex + 1
@@ -751,7 +772,7 @@ public sealed partial class MapController
 
 		indexLabel.Modulate =
 			accent.Lightened(
-				0.30f
+				0.28f
 			);
 
 
@@ -762,7 +783,7 @@ public sealed partial class MapController
 
 		Label nameLabel =
 			CreateLabel(
-				17,
+				16,
 				room.Name.ToUpperInvariant()
 			);
 
@@ -778,7 +799,7 @@ public sealed partial class MapController
 		nameLabel.CustomMinimumSize =
 			new Vector2(
 				0,
-				50
+				45
 			);
 
 
@@ -789,7 +810,7 @@ public sealed partial class MapController
 
 		Label stateLabel =
 			CreateLabel(
-				11,
+				10,
 				""
 			);
 
@@ -812,14 +833,14 @@ public sealed partial class MapController
 			{
 				Position =
 					new Vector2(
-						26,
-						166
+						28,
+						139
 					),
 
 				Size =
 					new Vector2(
-						234,
-						34
+						214,
+						30
 					),
 
 				MouseFilter =
@@ -842,7 +863,7 @@ public sealed partial class MapController
 
 		Label badgeLabel =
 			CreateLabel(
-				12,
+				11,
 				""
 			);
 
@@ -860,14 +881,14 @@ public sealed partial class MapController
 
 				Position =
 					new Vector2(
-						-15,
-						-18
+						8,
+						7
 					),
 
 				Size =
 					new Vector2(
-						74,
-						74
+						38,
+						38
 					),
 
 				ExpandMode =
@@ -907,14 +928,14 @@ public sealed partial class MapController
 			{
 				Position =
 					new Vector2(
-						82,
-						18
+						93,
+						26
 					),
 
 				Size =
 					new Vector2(
-						225,
-						150
+						205,
+						106
 					),
 
 				MouseFilter =
@@ -924,48 +945,7 @@ public sealed partial class MapController
 
 		node.AddThemeStyleboxOverride(
 			"panel",
-			new StyleBoxFlat
-			{
-				BgColor =
-					new Color(
-						0.035f,
-						0.050f,
-						0.070f,
-						0.92f
-					),
-
-				BorderColor =
-					new Color(
-						0.25f,
-						0.32f,
-						0.40f,
-						0.60f
-					),
-
-				BorderWidthLeft =
-					2,
-
-				BorderWidthTop =
-					2,
-
-				BorderWidthRight =
-					2,
-
-				BorderWidthBottom =
-					2,
-
-				CornerRadiusTopLeft =
-					22,
-
-				CornerRadiusTopRight =
-					22,
-
-				CornerRadiusBottomLeft =
-					22,
-
-				CornerRadiusBottomRight =
-					22
-			}
+			CreateFutureNodeStyle()
 		);
 
 
@@ -974,7 +954,7 @@ public sealed partial class MapController
 		);
 
 
-		VBoxContainer box =
+		HBoxContainer row =
 			new()
 			{
 				Alignment =
@@ -982,13 +962,19 @@ public sealed partial class MapController
 			};
 
 
-		box.SetAnchorsAndOffsetsPreset(
+		row.SetAnchorsAndOffsetsPreset(
 			Control.LayoutPreset.FullRect
 		);
 
 
+		row.AddThemeConstantOverride(
+			"separation",
+			8
+		);
+
+
 		node.AddChild(
-			box
+			row
 		);
 
 
@@ -1000,8 +986,8 @@ public sealed partial class MapController
 
 				CustomMinimumSize =
 					new Vector2(
-						0,
-						94
+						62,
+						62
 					),
 
 				ExpandMode =
@@ -1015,16 +1001,20 @@ public sealed partial class MapController
 			};
 
 
-		box.AddChild(
+		row.AddChild(
 			image
 		);
 
 
 		Label label =
 			CreateLabel(
-				12,
-				"NEXT FRONTIER"
+				11,
+				"NEXT FRONTIER\nCOMING LATER"
 			);
+
+
+		label.HorizontalAlignment =
+			HorizontalAlignment.Left;
 
 
 		label.Modulate =
@@ -1036,7 +1026,7 @@ public sealed partial class MapController
 			);
 
 
-		box.AddChild(
+		row.AddChild(
 			label
 		);
 	}
@@ -1049,34 +1039,34 @@ public sealed partial class MapController
 		{
 			0 =>
 				new Vector2(
-					42,
-					990
+					48,
+					940
 				),
 
 			1 =>
 				new Vector2(
-					322,
-					748
+					330,
+					700
 				),
 
 			2 =>
 				new Vector2(
-					42,
-					506
+					48,
+					460
 				),
 
 			3 =>
 				new Vector2(
-					322,
-					264
+					330,
+					220
 				),
 
 			_ =>
 				new Vector2(
-					180,
-					990
+					190,
+					940
 					- roomIndex
-					* 225
+					* 220
 				)
 		};
 	}
@@ -1397,7 +1387,7 @@ public sealed partial class MapController
 		double wanted =
 			roomPosition.Y
 			- _scroll.Size.Y
-			* 0.34;
+			* 0.35;
 
 
 		_scroll.ScrollVertical =
@@ -1421,16 +1411,16 @@ public sealed partial class MapController
 		Color normalBackground =
 			locked
 				? new Color(
-					0.030f,
-					0.040f,
-					0.055f,
-					0.98f
+					0.035f,
+					0.045f,
+					0.060f,
+					0.96f
 				)
 				: new Color(
-					accent.R * 0.20f,
-					accent.G * 0.20f,
-					accent.B * 0.20f,
-					0.98f
+					accent.R * 0.24f,
+					accent.G * 0.24f,
+					accent.B * 0.24f,
+					0.97f
 				);
 
 
@@ -1458,7 +1448,7 @@ public sealed partial class MapController
 				border,
 				borderWidth,
 				current
-					? 18
+					? 16
 					: 8
 			)
 		);
@@ -1472,13 +1462,13 @@ public sealed partial class MapController
 						0.05f,
 						0.06f,
 						0.08f,
-						0.99f
+						0.98f
 					)
 					: new Color(
-						accent.R * 0.34f,
-						accent.G * 0.34f,
-						accent.B * 0.34f,
-						0.99f
+						accent.R * 0.38f,
+						accent.G * 0.38f,
+						accent.B * 0.38f,
+						0.98f
 					),
 				border,
 				borderWidth,
@@ -1493,9 +1483,9 @@ public sealed partial class MapController
 				locked
 					? normalBackground
 					: new Color(
-						accent.R * 0.14f,
-						accent.G * 0.14f,
-						accent.B * 0.14f,
+						accent.R * 0.18f,
+						accent.G * 0.18f,
+						accent.B * 0.18f,
 						1.0f
 					),
 				border,
@@ -1508,9 +1498,9 @@ public sealed partial class MapController
 		button.Modulate =
 			locked
 				? new Color(
-					0.86f,
+					0.82f,
+					0.84f,
 					0.88f,
-					0.92f,
 					1.0f
 				)
 				: Colors.White;
@@ -1544,39 +1534,28 @@ public sealed partial class MapController
 				borderWidth,
 
 			CornerRadiusTopLeft =
-				26,
+				24,
 
 			CornerRadiusTopRight =
-				26,
+				24,
 
 			CornerRadiusBottomLeft =
-				26,
+				24,
 
 			CornerRadiusBottomRight =
-				26,
+				24,
 
 			ShadowColor =
 				new Color(
 					border.R,
 					border.G,
 					border.B,
-					currentShadowAlpha(
-						shadowSize
-					)
+					0.22f
 				),
 
 			ShadowSize =
 				shadowSize
 		};
-	}
-
-
-	private static float currentShadowAlpha(
-		int shadowSize)
-	{
-		return shadowSize >= 16
-			? 0.36f
-			: 0.20f;
 	}
 
 
@@ -1609,16 +1588,16 @@ public sealed partial class MapController
 				2,
 
 			CornerRadiusTopLeft =
-				17,
+				15,
 
 			CornerRadiusTopRight =
-				17,
+				15,
 
 			CornerRadiusBottomLeft =
-				17,
+				15,
 
 			CornerRadiusBottomRight =
-				17
+				15
 		};
 	}
 
@@ -1656,16 +1635,16 @@ public sealed partial class MapController
 				2,
 
 			CornerRadiusTopLeft =
-				17,
+				15,
 
 			CornerRadiusTopRight =
-				17,
+				15,
 
 			CornerRadiusBottomLeft =
-				17,
+				15,
 
 			CornerRadiusBottomRight =
-				17
+				15
 		};
 	}
 
@@ -1676,10 +1655,10 @@ public sealed partial class MapController
 		{
 			BgColor =
 				new Color(
-					0.012f,
-					0.022f,
-					0.040f,
-					0.76f
+					0.015f,
+					0.025f,
+					0.045f,
+					0.78f
 				),
 
 			CornerRadiusTopLeft =
@@ -1693,6 +1672,53 @@ public sealed partial class MapController
 
 			CornerRadiusBottomRight =
 				14
+		};
+	}
+
+
+	private static StyleBoxFlat CreateFutureNodeStyle()
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				new Color(
+					0.035f,
+					0.050f,
+					0.070f,
+					0.92f
+				),
+
+			BorderColor =
+				new Color(
+					0.25f,
+					0.32f,
+					0.40f,
+					0.60f
+				),
+
+			BorderWidthLeft =
+				2,
+
+			BorderWidthTop =
+				2,
+
+			BorderWidthRight =
+				2,
+
+			BorderWidthBottom =
+				2,
+
+			CornerRadiusTopLeft =
+				20,
+
+			CornerRadiusTopRight =
+				20,
+
+			CornerRadiusBottomLeft =
+				20,
+
+			CornerRadiusBottomRight =
+				20
 		};
 	}
 
@@ -1937,8 +1963,8 @@ public sealed partial class MapController
 						0.18f
 					),
 					active
-						? 18.0f
-						: 10.0f,
+						? 16.0f
+						: 9.0f,
 					true
 				);
 
@@ -1948,8 +1974,8 @@ public sealed partial class MapController
 					to,
 					routeColor,
 					active
-						? 7.0f
-						: 4.0f,
+						? 6.0f
+						: 3.5f,
 					true
 				);
 
@@ -1976,8 +2002,8 @@ public sealed partial class MapController
 					{
 						float size =
 							active
-								? 26.0f
-								: 20.0f;
+								? 14.0f
+								: 11.0f;
 
 
 						Rect2 rect =
@@ -2006,8 +2032,8 @@ public sealed partial class MapController
 						DrawCircle(
 							p,
 							active
-								? 7.0f
-								: 5.0f,
+								? 5.0f
+								: 4.0f,
 							routeColor
 						);
 					}

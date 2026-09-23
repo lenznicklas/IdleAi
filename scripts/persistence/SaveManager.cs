@@ -183,7 +183,7 @@ public partial class SaveManager : Node
 			new(
 				path,
 				FileMode.Create,
-				FileAccess.Write,
+				System.IO.FileAccess.Write,
 				FileShare.None
 			);
 

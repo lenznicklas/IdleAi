@@ -11,6 +11,9 @@ public static class BotSkinCatalog
 	public const string NatureOvergrownSkinId =
 		"nature_overgrown";
 
+	public const string SteampunkSkinId =
+		"steampunk";
+
 
 	private static readonly IReadOnlyList<SkinDefinition>
 		Skins =
@@ -45,6 +48,45 @@ public static class BotSkinCatalog
 						BotRarity.Legendary,
 						LoadTexture(
 							"res://assets/bots/nature_overgrown_skin/legendary.png"
+						)
+					}
+				}
+			),
+
+			new SkinDefinition(
+				SteampunkSkinId,
+				"Steampunk",
+				"Brass, copper, gears, pipes and industrial Victorian machinery.",
+				SkinTarget.Bots,
+				50.0,
+				new Dictionary<BotRarity, Texture2D?>
+				{
+					{
+						BotRarity.Common,
+						LoadTexture(
+							"res://assets/bot/steampunk_skin/common.png",
+							"res://assets/bots/steampunk_skin/common.png"
+						)
+					},
+					{
+						BotRarity.Rare,
+						LoadTexture(
+							"res://assets/bot/steampunk_skin/rare.png",
+							"res://assets/bots/steampunk_skin/rare.png"
+						)
+					},
+					{
+						BotRarity.Epic,
+						LoadTexture(
+							"res://assets/bot/steampunk_skin/epic.png",
+							"res://assets/bots/steampunk_skin/epic.png"
+						)
+					},
+					{
+						BotRarity.Legendary,
+						LoadTexture(
+							"res://assets/bot/steampunk_skin/legendary.png",
+							"res://assets/bots/steampunk_skin/legendary.png"
 						)
 					}
 				}
@@ -110,20 +152,29 @@ public static class BotSkinCatalog
 
 
 	private static Texture2D? LoadTexture(
-		string path)
+		params string[] paths)
 	{
-		if (!ResourceLoader.Exists(path))
+		foreach (
+			string path
+				in paths
+		)
 		{
-			GD.PushWarning(
-				"Bot skin texture not found: "
-				+ path
-			);
+			if (!ResourceLoader.Exists(path))
+				continue;
 
-			return null;
+			return GD.Load<Texture2D>(
+				path
+			);
 		}
 
-		return GD.Load<Texture2D>(
-			path
+		GD.PushWarning(
+			"Bot skin texture not found. Tried: "
+			+ string.Join(
+				", ",
+				paths
+			)
 		);
+
+		return null;
 	}
 }

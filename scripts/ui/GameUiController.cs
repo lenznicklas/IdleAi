@@ -442,6 +442,8 @@ public sealed class GameUiController
 
 	private void ToggleMapPage()
 	{
+		_skinShop?.CloseCollection();
+
 		_shop.Hide();
 
 		if (_map.Visible)
@@ -474,6 +476,8 @@ public sealed class GameUiController
 
 		if (_shop.Visible)
 		{
+			_skinShop?.CloseCollection();
+
 			_shop.Hide();
 
 			SyncRoomChromeVisibility();
@@ -482,6 +486,8 @@ public sealed class GameUiController
 		}
 
 		CloseTransientOverlays();
+
+		_skinShop?.CloseCollection();
 
 		_shop.Open();
 
@@ -554,6 +560,8 @@ public sealed class GameUiController
 	public void ClosePages()
 	{
 		_map.Hide();
+
+		_skinShop?.CloseCollection();
 
 		/*
 		 * Safe before lazy initialization because ShopController

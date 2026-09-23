@@ -6,6 +6,13 @@ namespace IdleAi;
 
 public sealed class BotSkinShopController
 {
+	private const float MainShopBottomPadding =
+		180.0f;
+
+	private const float CollectionBottomPadding =
+		150.0f;
+
+
 	private readonly Game _root;
 
 	private readonly GameState _state;
@@ -13,9 +20,43 @@ public sealed class BotSkinShopController
 	private readonly BotSkinService _service;
 
 
+	private Control _shopPage =
+		null!;
+
+	private MarginContainer _shopMargin =
+		null!;
+
+	private Control _mainLayout =
+		null!;
+
 	private VBoxContainer _content =
 		null!;
 
+
+	private Label _collectionEntryStatus =
+		null!;
+
+	private Button _collectionEntryButton =
+		null!;
+
+
+	private VBoxContainer _collectionRoot =
+		null!;
+
+	private ScrollContainer _collectionScroll =
+		null!;
+
+	private VBoxContainer _collectionContent =
+		null!;
+
+	private Label _collectionShardLabel =
+		null!;
+
+	private MobileScrollController _collectionMobileScroll =
+		null!;
+
+
+	private SkinCardView? _defaultCard;
 
 	private readonly Dictionary<string, SkinCardView>
 		_cards =
@@ -27,6 +68,11 @@ public sealed class BotSkinShopController
 	public event Action<string>? MessageRequested;
 
 	public event Action? StateChanged;
+
+
+	public bool CollectionVisible =>
+		_collectionRoot != null
+		&& _collectionRoot.Visible;
 
 
 	public BotSkinShopController(
@@ -47,12 +93,24 @@ public sealed class BotSkinShopController
 
 	public void Initialize()
 	{
+		_shopPage =
+			_root.GetNode<Control>(
+				"ShopPage"
+			);
+
+		_shopMargin =
+			_root.GetNode<MarginContainer>(
+				"ShopPage/ShopMargin"
+			);
+
+		_mainLayout =
+			_root.GetNode<Control>(
+				"ShopPage/ShopMargin/LayoutRoot"
+			);
+
 		_content =
-			_root.GetNodeOrNull<VBoxContainer>(
+			_root.GetNode<VBoxContainer>(
 				"ShopPage/ShopMargin/LayoutRoot/Scroll/ScrollMargin/Content"
-			)
-			?? throw new InvalidOperationException(
-				"Shop Content container was not found."
 			);
 
 		RemoveComingSoonCosmeticPlaceholder();
@@ -60,7 +118,375 @@ public sealed class BotSkinShopController
 		Node? bottomSpace =
 			DetachBottomSpacer();
 
-		CreateSectionHeader();
+		CreateMainShopEntry();
+
+		if (bottomSpace != null)
+		{
+			if (bottomSpace is Control control)
+			{
+				control.CustomMinimumSize =
+					new Vector2(
+						0,
+						MainShopBottomPadding
+					);
+			}
+
+			_content.AddChild(
+				bottomSpace
+			);
+		}
+		else
+		{
+			AddSpacer(
+				_content,
+				MainShopBottomPadding
+			);
+		}
+
+		CreateCollectionPage();
+
+		Refresh();
+	}
+
+
+	private void CreateMainShopEntry()
+	{
+		CreateSectionHeader(
+			_content,
+			"BOT SKINS",
+			"Choose which visual bot pack is active."
+		);
+
+		_collectionEntryStatus =
+			ShopUi.CreateMutedLabel(
+				13
+			);
+
+		_collectionEntryButton =
+			CreateMainShopCard(
+				ShopUi.Cosmetics,
+				"BOT SKIN COLLECTION",
+				"Browse owned packs, buy new skins and choose the active bot appearance.",
+				_collectionEntryStatus,
+				ShopUi.Purple,
+				OpenCollection
+			);
+
+		_collectionEntryButton.Text =
+			"OPEN COLLECTION";
+	}
+
+
+	private Button CreateMainShopCard(
+		Texture2D iconTexture,
+		string title,
+		string description,
+		Label status,
+		Color accent,
+		Action pressed)
+	{
+		PanelContainer panel =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
+			};
+
+		StyleBoxFlat panelStyle =
+			ShopUi.CreatePanelStyle();
+
+		panelStyle.BorderColor =
+			new Color(
+				accent.R,
+				accent.G,
+				accent.B,
+				0.62f
+			);
+
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			panelStyle
+		);
+
+		_content.AddChild(
+			panel
+		);
+
+		MarginContainer margin =
+			CreateCardMargin();
+
+		panel.AddChild(
+			margin
+		);
+
+		HBoxContainer row =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+		row.AddThemeConstantOverride(
+			"separation",
+			14
+		);
+
+		margin.AddChild(
+			row
+		);
+
+		PanelContainer iconPanel =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						102,
+						102
+					),
+
+				SizeFlagsVertical =
+					Control.SizeFlags.ShrinkCenter,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+		iconPanel.AddThemeStyleboxOverride(
+			"panel",
+			CreatePreviewFrameStyle(
+				accent,
+				0.12f,
+				0.56f
+			)
+		);
+
+		row.AddChild(
+			iconPanel
+		);
+
+		TextureRect icon =
+			new()
+			{
+				Texture =
+					iconTexture,
+
+				ExpandMode =
+					TextureRect.ExpandModeEnum.IgnoreSize,
+
+				StretchMode =
+					TextureRect.StretchModeEnum.KeepAspectCentered,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+		icon.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+		icon.OffsetLeft =
+			10;
+
+		icon.OffsetTop =
+			10;
+
+		icon.OffsetRight =
+			-10;
+
+		icon.OffsetBottom =
+			-10;
+
+		iconPanel.AddChild(
+			icon
+		);
+
+		VBoxContainer info =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+		info.AddThemeConstantOverride(
+			"separation",
+			5
+		);
+
+		row.AddChild(
+			info
+		);
+
+		Label titleLabel =
+			ShopUi.CreateLabel(
+				19
+			);
+
+		titleLabel.Text =
+			title;
+
+		titleLabel.HorizontalAlignment =
+			HorizontalAlignment.Left;
+
+		titleLabel.AddThemeColorOverride(
+			"font_color",
+			accent
+		);
+
+		info.AddChild(
+			titleLabel
+		);
+
+		Label descriptionLabel =
+			ShopUi.CreateMutedLabel(
+				13
+			);
+
+		descriptionLabel.Text =
+			description;
+
+		descriptionLabel.HorizontalAlignment =
+			HorizontalAlignment.Left;
+
+		info.AddChild(
+			descriptionLabel
+		);
+
+		status.HorizontalAlignment =
+			HorizontalAlignment.Left;
+
+		status.CustomMinimumSize =
+			new Vector2(
+				0,
+				28
+			);
+
+		info.AddChild(
+			status
+		);
+
+		Button button =
+			CreateActionButton();
+
+		button.Pressed +=
+			pressed;
+
+		info.AddChild(
+			button
+		);
+
+		return button;
+	}
+
+
+	private void CreateCollectionPage()
+	{
+		_collectionRoot =
+			new VBoxContainer
+			{
+				Name =
+					"BotSkinCollection",
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
+
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill
+			};
+
+		_collectionRoot.AddThemeConstantOverride(
+			"separation",
+			8
+		);
+
+		_shopMargin.AddChild(
+			_collectionRoot
+		);
+
+		AddSpacer(
+			_collectionRoot,
+			GetSafeTopInset()
+			+ 8.0f
+		);
+
+		CreateCollectionHeader();
+
+		_collectionScroll =
+			new ScrollContainer
+			{
+				Name =
+					"BotSkinCollectionScroll",
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
+
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill,
+
+				HorizontalScrollMode =
+					ScrollContainer.ScrollMode.Disabled,
+
+				VerticalScrollMode =
+					ScrollContainer.ScrollMode.ShowNever,
+
+				ClipContents =
+					true
+			};
+
+		_collectionRoot.AddChild(
+			_collectionScroll
+		);
+
+		MarginContainer scrollMargin =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+		scrollMargin.AddThemeConstantOverride(
+			"margin_left",
+			2
+		);
+
+		scrollMargin.AddThemeConstantOverride(
+			"margin_top",
+			8
+		);
+
+		scrollMargin.AddThemeConstantOverride(
+			"margin_right",
+			2
+		);
+
+		scrollMargin.AddThemeConstantOverride(
+			"margin_bottom",
+			(int)CollectionBottomPadding
+		);
+
+		_collectionScroll.AddChild(
+			scrollMargin
+		);
+
+		_collectionContent =
+			new VBoxContainer
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+		_collectionContent.AddThemeConstantOverride(
+			"separation",
+			16
+		);
+
+		scrollMargin.AddChild(
+			_collectionContent
+		);
+
+		CreateDefaultSkinCard();
 
 		foreach (
 			SkinDefinition skin
@@ -80,126 +506,50 @@ public sealed class BotSkinShopController
 			);
 		}
 
-		if (bottomSpace != null)
-		{
-			_content.AddChild(
-				bottomSpace
-			);
-		}
+		_collectionMobileScroll =
+			new MobileScrollController
+			{
+				Name =
+					"BotSkinCollectionMobileScroll"
+			};
 
-		Refresh();
+		_shopPage.AddChild(
+			_collectionMobileScroll
+		);
+
+		_collectionMobileScroll.Setup(
+			_collectionScroll,
+			allowTopOverscroll:
+				true,
+			allowBottomOverscroll:
+				true
+		);
+
+		_collectionRoot.Hide();
 	}
 
 
-	public void Refresh()
-	{
-		foreach (
-			SkinDefinition skin
-				in BotSkinCatalog.GetAll()
-		)
-		{
-			if (
-				!_cards.TryGetValue(
-					skin.Id,
-					out SkinCardView? card
-				)
-			)
-			{
-				continue;
-			}
-
-			bool owned =
-				_service.IsOwned(
-					skin.Id
-				);
-
-			bool equipped =
-				_service.IsEquipped(
-					skin.Id
-				);
-
-			if (!owned)
-			{
-				card.Status.Text =
-					"NOT OWNED";
-
-				card.Status.AddThemeColorOverride(
-					"font_color",
-					ShopUi.TextSecondary
-				);
-
-				card.Button.Text =
-					"BUY  •  "
-					+ NumberFormatter.Format(
-						skin.Cost
-					)
-					+ " SHARDS";
-
-				card.Button.Disabled =
-					_state.Shop.DataShards
-					< skin.Cost;
-
-				continue;
-			}
-
-			if (equipped)
-			{
-				card.Status.Text =
-					"● EQUIPPED  •  ALL BOT RARITIES";
-
-				card.Status.AddThemeColorOverride(
-					"font_color",
-					ShopUi.Green
-				);
-
-				card.Button.Text =
-					"USE DEFAULT BOT SKIN";
-
-				card.Button.Disabled =
-					false;
-
-				continue;
-			}
-
-			card.Status.Text =
-				"OWNED  •  READY TO EQUIP";
-
-			card.Status.AddThemeColorOverride(
-				"font_color",
-				ShopUi.Gold
-			);
-
-			card.Button.Text =
-				"EQUIP";
-
-			card.Button.Disabled =
-				false;
-		}
-	}
-
-
-	// ==================================================
-	// UI
-	// ==================================================
-
-	private void CreateSectionHeader()
+	private void CreateCollectionHeader()
 	{
 		PanelContainer panel =
 			new()
 			{
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						122
+					),
 
-				MouseFilter =
-					Control.MouseFilterEnum.Ignore
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
 			};
 
 		panel.AddThemeStyleboxOverride(
 			"panel",
-			ShopUi.CreateSectionStyle()
+			ShopUi.CreateShardPanelStyle()
 		);
 
-		_content.AddChild(
+		_collectionRoot.AddChild(
 			panel
 		);
 
@@ -208,22 +558,22 @@ public sealed class BotSkinShopController
 
 		margin.AddThemeConstantOverride(
 			"margin_left",
-			14
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_right",
-			14
+			16
 		);
 
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			8
+			12
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_right",
+			16
 		);
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
-			8
+			12
 		);
 
 		panel.AddChild(
@@ -235,105 +585,221 @@ public sealed class BotSkinShopController
 
 		box.AddThemeConstantOverride(
 			"separation",
-			1
+			8
 		);
 
 		margin.AddChild(
 			box
 		);
 
+		HBoxContainer topRow =
+			new();
+
+		topRow.AddThemeConstantOverride(
+			"separation",
+			10
+		);
+
+		box.AddChild(
+			topRow
+		);
+
+		Button backButton =
+			new()
+			{
+				Text =
+					"‹ SHOP",
+
+				CustomMinimumSize =
+					new Vector2(
+						112,
+						46
+					),
+
+				FocusMode =
+					Control.FocusModeEnum.None
+			};
+
+		ShopUi.ApplyPrimaryButtonStyle(
+			backButton
+		);
+
+		backButton.Pressed +=
+			CloseCollection;
+
+		topRow.AddChild(
+			backButton
+		);
+
 		Label title =
 			ShopUi.CreateLabel(
-				19
+				24
 			);
 
 		title.Text =
-			"BOT SKINS";
+			"BOT SKIN COLLECTION";
+
+		title.SizeFlagsHorizontal =
+			Control.SizeFlags.ExpandFill;
 
 		title.HorizontalAlignment =
 			HorizontalAlignment.Left;
 
-		title.AddThemeColorOverride(
-			"font_color",
-			ShopUi.Purple
-		);
-
-		box.AddChild(
+		topRow.AddChild(
 			title
 		);
 
-		Label subtitle =
-			ShopUi.CreateMutedLabel(
-				12
+		_collectionShardLabel =
+			ShopUi.CreateLabel(
+				16
 			);
 
-		subtitle.Text =
-			"Permanent visual packs. No gameplay advantage.";
+		_collectionShardLabel.HorizontalAlignment =
+			HorizontalAlignment.Right;
 
-		subtitle.HorizontalAlignment =
-			HorizontalAlignment.Left;
+		_collectionShardLabel.AddThemeColorOverride(
+			"font_color",
+			ShopUi.Gold
+		);
 
 		box.AddChild(
-			subtitle
+			_collectionShardLabel
 		);
+	}
+
+
+	private void CreateDefaultSkinCard()
+	{
+		_defaultCard =
+			CreateCollectionCard(
+				"default",
+				"DEFAULT",
+				"Original bot appearance.",
+				0.0,
+				new Dictionary<BotRarity, Texture2D?>
+				{
+					{
+						BotRarity.Common,
+						BotCatalog.Get(
+							BotRarity.Common
+						).DefaultTexture
+					},
+					{
+						BotRarity.Rare,
+						BotCatalog.Get(
+							BotRarity.Rare
+						).DefaultTexture
+					},
+					{
+						BotRarity.Epic,
+						BotCatalog.Get(
+							BotRarity.Epic
+						).DefaultTexture
+					},
+					{
+						BotRarity.Legendary,
+						BotCatalog.Get(
+							BotRarity.Legendary
+						).DefaultTexture
+					}
+				},
+				() =>
+					HandleSkinResult(
+						_service.UseDefault()
+					)
+			);
 	}
 
 
 	private void CreateSkinCard(
 		SkinDefinition skin)
 	{
+		Dictionary<BotRarity, Texture2D?> textures =
+			new()
+			{
+				{
+					BotRarity.Common,
+						skin.GetBotTexture(
+							BotRarity.Common
+						)
+				},
+				{
+					BotRarity.Rare,
+						skin.GetBotTexture(
+							BotRarity.Rare
+						)
+				},
+				{
+					BotRarity.Epic,
+						skin.GetBotTexture(
+							BotRarity.Epic
+						)
+				},
+				{
+					BotRarity.Legendary,
+						skin.GetBotTexture(
+							BotRarity.Legendary
+						)
+				}
+			};
+
+		SkinCardView card =
+			CreateCollectionCard(
+				skin.Id,
+				skin.Name.ToUpperInvariant(),
+				skin.Description,
+				skin.Cost,
+				textures,
+				() =>
+					OnSkinPressed(
+						skin
+					)
+			);
+
+		_cards[
+			skin.Id
+		] =
+			card;
+	}
+
+
+	private SkinCardView CreateCollectionCard(
+		string id,
+		string name,
+		string description,
+		double cost,
+		IReadOnlyDictionary<BotRarity, Texture2D?> textures,
+		Action pressed)
+	{
 		PanelContainer panel =
 			new()
 			{
 				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
-
-				MouseFilter =
-					Control.MouseFilterEnum.Pass
+					Control.SizeFlags.ExpandFill
 			};
 
-		StyleBoxFlat style =
+		StyleBoxFlat panelStyle =
 			ShopUi.CreatePanelStyle();
 
-		style.BorderColor =
+		panelStyle.BorderColor =
 			new Color(
 				ShopUi.Purple.R,
 				ShopUi.Purple.G,
 				ShopUi.Purple.B,
-				0.68f
+				0.66f
 			);
 
 		panel.AddThemeStyleboxOverride(
 			"panel",
-			style
+			panelStyle
 		);
 
-		_content.AddChild(
+		_collectionContent.AddChild(
 			panel
 		);
 
 		MarginContainer margin =
-			new();
-
-		margin.AddThemeConstantOverride(
-			"margin_left",
-			16
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_top",
-			16
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_right",
-			16
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_bottom",
-			16
-		);
+			CreateCardMargin();
 
 		panel.AddChild(
 			margin
@@ -348,7 +814,7 @@ public sealed class BotSkinShopController
 
 		box.AddThemeConstantOverride(
 			"separation",
-			10
+			9
 		);
 
 		margin.AddChild(
@@ -361,7 +827,7 @@ public sealed class BotSkinShopController
 			);
 
 		title.Text =
-			skin.Name.ToUpperInvariant();
+			name;
 
 		title.AddThemeColorOverride(
 			"font_color",
@@ -372,19 +838,19 @@ public sealed class BotSkinShopController
 			title
 		);
 
-		Label description =
+		Label descriptionLabel =
 			ShopUi.CreateMutedLabel(
 				13
 			);
 
-		description.Text =
-			skin.Description;
+		descriptionLabel.Text =
+			description;
 
 		box.AddChild(
-			description
+			descriptionLabel
 		);
 
-		HBoxContainer previews =
+		HBoxContainer previewRow =
 			new()
 			{
 				CustomMinimumSize =
@@ -397,37 +863,41 @@ public sealed class BotSkinShopController
 					BoxContainer.AlignmentMode.Center
 			};
 
-		previews.AddThemeConstantOverride(
+		previewRow.AddThemeConstantOverride(
 			"separation",
 			8
 		);
 
 		box.AddChild(
-			previews
+			previewRow
 		);
 
 		AddPreview(
-			previews,
-			skin,
-			BotRarity.Common
+			previewRow,
+			textures[
+				BotRarity.Common
+			]
 		);
 
 		AddPreview(
-			previews,
-			skin,
-			BotRarity.Rare
+			previewRow,
+			textures[
+				BotRarity.Rare
+			]
 		);
 
 		AddPreview(
-			previews,
-			skin,
-			BotRarity.Epic
+			previewRow,
+			textures[
+				BotRarity.Epic
+			]
 		);
 
 		AddPreview(
-			previews,
-			skin,
-			BotRarity.Legendary
+			previewRow,
+			textures[
+				BotRarity.Legendary
+			]
 		);
 
 		Label rarityLabel =
@@ -457,47 +927,33 @@ public sealed class BotSkinShopController
 			status
 		);
 
-		Button actionButton =
-			new()
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						52
-					),
+		Button button =
+			CreateActionButton();
 
-				FocusMode =
-					Control.FocusModeEnum.None
+		button.Pressed +=
+			() =>
+			{
+				if (CollectionActionBlocked())
+					return;
+
+				pressed();
 			};
 
-		ShopUi.ApplyPrimaryButtonStyle(
-			actionButton
-		);
-
-		actionButton.Pressed +=
-			() =>
-				OnSkinPressed(
-					skin
-				);
-
 		box.AddChild(
-			actionButton
+			button
 		);
 
-		_cards[
-			skin.Id
-		] =
-			new SkinCardView(
-				status,
-				actionButton
-			);
+		return new SkinCardView(
+			status,
+			button,
+			cost
+		);
 	}
 
 
 	private static void AddPreview(
 		HBoxContainer parent,
-		SkinDefinition skin,
-		BotRarity rarity)
+		Texture2D? texture)
 	{
 		PanelContainer frame =
 			new()
@@ -512,53 +968,13 @@ public sealed class BotSkinShopController
 					Control.MouseFilterEnum.Ignore
 			};
 
-		StyleBoxFlat frameStyle =
-			new()
-			{
-				BgColor =
-					new Color(
-						ShopUi.Purple.R,
-						ShopUi.Purple.G,
-						ShopUi.Purple.B,
-						0.10f
-					),
-
-				BorderColor =
-					new Color(
-						ShopUi.Purple.R,
-						ShopUi.Purple.G,
-						ShopUi.Purple.B,
-						0.38f
-					),
-
-				BorderWidthLeft =
-					1,
-
-				BorderWidthTop =
-					1,
-
-				BorderWidthRight =
-					1,
-
-				BorderWidthBottom =
-					1,
-
-				CornerRadiusTopLeft =
-					12,
-
-				CornerRadiusTopRight =
-					12,
-
-				CornerRadiusBottomLeft =
-					12,
-
-				CornerRadiusBottomRight =
-					12
-			};
-
 		frame.AddThemeStyleboxOverride(
 			"panel",
-			frameStyle
+			CreatePreviewFrameStyle(
+				ShopUi.Purple,
+				0.10f,
+				0.38f
+			)
 		);
 
 		parent.AddChild(
@@ -569,9 +985,7 @@ public sealed class BotSkinShopController
 			new()
 			{
 				Texture =
-					skin.GetBotTexture(
-						rarity
-					),
+					texture,
 
 				ExpandMode =
 					TextureRect.ExpandModeEnum.IgnoreSize,
@@ -605,9 +1019,35 @@ public sealed class BotSkinShopController
 	}
 
 
-	// ==================================================
-	// ACTION
-	// ==================================================
+	public void OpenCollection()
+	{
+		Refresh();
+
+		_collectionMobileScroll.ResetMotion();
+
+		_collectionScroll.ScrollVertical =
+			0;
+
+		_mainLayout.Hide();
+
+		_collectionRoot.Show();
+
+		_collectionRoot.MoveToFront();
+	}
+
+
+	public void CloseCollection()
+	{
+		if (_collectionRoot == null)
+			return;
+
+		_collectionMobileScroll?.ResetMotion();
+
+		_collectionRoot.Hide();
+
+		_mainLayout?.Show();
+	}
+
 
 	private void OnSkinPressed(
 		SkinDefinition skin)
@@ -625,15 +1065,6 @@ public sealed class BotSkinShopController
 					skin.Id
 				);
 		}
-		else if (
-			_service.IsEquipped(
-				skin.Id
-			)
-		)
-		{
-			result =
-				_service.UseDefault();
-		}
 		else
 		{
 			result =
@@ -642,12 +1073,26 @@ public sealed class BotSkinShopController
 				);
 		}
 
+		HandleSkinResult(
+			result
+		);
+	}
+
+
+	private void HandleSkinResult(
+		BotSkinResult result)
+	{
 		MessageRequested?.Invoke(
 			result.Message
 		);
 
 		if (result.Changed)
 		{
+			Input.VibrateHandheld(
+				14,
+				0.12f
+			);
+
 			StateChanged?.Invoke();
 		}
 
@@ -655,9 +1100,218 @@ public sealed class BotSkinShopController
 	}
 
 
-	// ==================================================
-	// REMOVE OLD PLACEHOLDER
-	// ==================================================
+	public void Refresh()
+	{
+		if (
+			_collectionEntryStatus == null
+			|| _collectionEntryButton == null
+		)
+		{
+			return;
+		}
+
+		string activeName =
+			GetActiveSkinName();
+
+		int ownedPacks =
+			1;
+
+		foreach (
+			SkinDefinition skin
+				in BotSkinCatalog.GetAll()
+		)
+		{
+			if (
+				_service.IsOwned(
+					skin.Id
+				)
+			)
+			{
+				ownedPacks++;
+			}
+		}
+
+		_collectionEntryStatus.Text =
+			"ACTIVE: "
+			+ activeName.ToUpperInvariant()
+			+ "   •   "
+			+ ownedPacks
+			+ " OWNED";
+
+		_collectionEntryStatus.AddThemeColorOverride(
+			"font_color",
+			ShopUi.Green
+		);
+
+		_collectionEntryButton.Text =
+			"OPEN COLLECTION";
+
+		_collectionEntryButton.Disabled =
+			false;
+
+		if (_collectionShardLabel != null)
+		{
+			_collectionShardLabel.Text =
+				"DATA SHARDS: "
+				+ NumberFormatter.Format(
+					_state.Shop.DataShards
+				);
+		}
+
+		RefreshDefaultCard();
+
+		foreach (
+			SkinDefinition skin
+				in BotSkinCatalog.GetAll()
+		)
+		{
+			if (
+				!_cards.TryGetValue(
+					skin.Id,
+					out SkinCardView? card
+				)
+			)
+			{
+				continue;
+			}
+
+			bool owned =
+				_service.IsOwned(
+					skin.Id
+				);
+
+			bool equipped =
+				_service.IsEquipped(
+					skin.Id
+				);
+
+			if (equipped)
+			{
+				SetCardActive(
+					card
+				);
+
+				continue;
+			}
+
+			if (owned)
+			{
+				card.Status.Text =
+					"OWNED  •  READY TO EQUIP";
+
+				card.Status.AddThemeColorOverride(
+					"font_color",
+					ShopUi.Gold
+				);
+
+				card.Button.Text =
+					"EQUIP";
+
+				card.Button.Disabled =
+					false;
+
+				continue;
+			}
+
+			card.Status.Text =
+				"NOT OWNED";
+
+			card.Status.AddThemeColorOverride(
+				"font_color",
+				ShopUi.TextSecondary
+			);
+
+			card.Button.Text =
+				"BUY  •  "
+				+ NumberFormatter.Format(
+					skin.Cost
+				)
+				+ " SHARDS";
+
+			card.Button.Disabled =
+				_state.Shop.DataShards
+				< skin.Cost;
+		}
+	}
+
+
+	private void RefreshDefaultCard()
+	{
+		if (_defaultCard == null)
+			return;
+
+		if (
+			_service.IsEquipped(
+				BotSkinCatalog.DefaultSkinId
+			)
+		)
+		{
+			SetCardActive(
+				_defaultCard
+			);
+
+			return;
+		}
+
+		_defaultCard.Status.Text =
+			"OWNED  •  ORIGINAL APPEARANCE";
+
+		_defaultCard.Status.AddThemeColorOverride(
+			"font_color",
+			ShopUi.Gold
+		);
+
+		_defaultCard.Button.Text =
+			"EQUIP";
+
+		_defaultCard.Button.Disabled =
+			false;
+	}
+
+
+	private static void SetCardActive(
+		SkinCardView card)
+	{
+		card.Status.Text =
+			"● ACTIVE";
+
+		card.Status.AddThemeColorOverride(
+			"font_color",
+			ShopUi.Green
+		);
+
+		card.Button.Text =
+			"ACTIVE";
+
+		card.Button.Disabled =
+			true;
+	}
+
+
+	private string GetActiveSkinName()
+	{
+		if (
+			_service.IsEquipped(
+				BotSkinCatalog.DefaultSkinId
+			)
+		)
+		{
+			return "Default";
+		}
+
+		if (
+			BotSkinCatalog.TryGet(
+				_service.EquippedBotSkinId,
+				out SkinDefinition skin
+			)
+		)
+		{
+			return skin.Name;
+		}
+
+		return "Default";
+	}
+
 
 	private void RemoveComingSoonCosmeticPlaceholder()
 	{
@@ -749,6 +1403,286 @@ public sealed class BotSkinShopController
 	}
 
 
+	private static MarginContainer CreateCardMargin()
+	{
+		MarginContainer margin =
+			new();
+
+		margin.AddThemeConstantOverride(
+			"margin_left",
+			14
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			14
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_right",
+			14
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_bottom",
+			14
+		);
+
+		return margin;
+	}
+
+
+	private static Button CreateActionButton()
+	{
+		Button button =
+			new()
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						52
+					),
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
+
+				FocusMode =
+					Control.FocusModeEnum.None
+			};
+
+		ShopUi.ApplyPrimaryButtonStyle(
+			button
+		);
+
+		return button;
+	}
+
+
+	private static void CreateSectionHeader(
+		VBoxContainer parent,
+		string title,
+		string subtitle)
+	{
+		PanelContainer panel =
+			new()
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			ShopUi.CreateSectionStyle()
+		);
+
+		parent.AddChild(
+			panel
+		);
+
+		MarginContainer margin =
+			new();
+
+		margin.AddThemeConstantOverride(
+			"margin_left",
+			14
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_right",
+			14
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			8
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_bottom",
+			8
+		);
+
+		panel.AddChild(
+			margin
+		);
+
+		VBoxContainer box =
+			new();
+
+		box.AddThemeConstantOverride(
+			"separation",
+			1
+		);
+
+		margin.AddChild(
+			box
+		);
+
+		Label titleLabel =
+			ShopUi.CreateLabel(
+				19
+			);
+
+		titleLabel.Text =
+			title;
+
+		titleLabel.HorizontalAlignment =
+			HorizontalAlignment.Left;
+
+		titleLabel.AddThemeColorOverride(
+			"font_color",
+			ShopUi.Purple
+		);
+
+		box.AddChild(
+			titleLabel
+		);
+
+		Label subtitleLabel =
+			ShopUi.CreateMutedLabel(
+				12
+			);
+
+		subtitleLabel.Text =
+			subtitle;
+
+		subtitleLabel.HorizontalAlignment =
+			HorizontalAlignment.Left;
+
+		box.AddChild(
+			subtitleLabel
+		);
+	}
+
+
+	private static StyleBoxFlat CreatePreviewFrameStyle(
+		Color accent,
+		float backgroundAlpha,
+		float borderAlpha)
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				new Color(
+					accent.R,
+					accent.G,
+					accent.B,
+					backgroundAlpha
+				),
+
+			BorderColor =
+				new Color(
+					accent.R,
+					accent.G,
+					accent.B,
+					borderAlpha
+				),
+
+			BorderWidthLeft =
+				2,
+
+			BorderWidthTop =
+				2,
+
+			BorderWidthRight =
+				2,
+
+			BorderWidthBottom =
+				2,
+
+			CornerRadiusTopLeft =
+				16,
+
+			CornerRadiusTopRight =
+				16,
+
+			CornerRadiusBottomLeft =
+				16,
+
+			CornerRadiusBottomRight =
+				16
+		};
+	}
+
+
+	private static void AddSpacer(
+		Container parent,
+		float height)
+	{
+		parent.AddChild(
+			new Control
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						height
+					),
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			}
+		);
+	}
+
+
+	private bool CollectionActionBlocked()
+	{
+		return _collectionMobileScroll != null
+			&& _collectionMobileScroll.ShouldSuppressTap;
+	}
+
+
+	private float GetSafeTopInset()
+	{
+		string os =
+			OS.GetName();
+
+		if (
+			os != "Android"
+			&& os != "iOS"
+		)
+		{
+			return 0.0f;
+		}
+
+		Rect2I safeArea =
+			DisplayServer.GetDisplaySafeArea();
+
+		Vector2I windowSize =
+			DisplayServer.WindowGetSize();
+
+		Rect2 viewportRect =
+			_root.GetViewport()
+				.GetVisibleRect();
+
+		if (
+			windowSize.X <= 0
+			|| windowSize.Y <= 0
+			|| safeArea.Size.X <= 0
+			|| safeArea.Size.Y <= 0
+		)
+		{
+			return 34.0f;
+		}
+
+		float scaleY =
+			viewportRect.Size.Y
+			/ windowSize.Y;
+
+		float top =
+			safeArea.Position.Y
+			* scaleY;
+
+		return MathF.Max(
+			top,
+			26.0f
+		);
+	}
+
+
 	private static bool ContainsButtonText(
 		Node node,
 		string text)
@@ -836,16 +1770,22 @@ public sealed class BotSkinShopController
 
 		public Button Button { get; }
 
+		public double Cost { get; }
+
 
 		public SkinCardView(
 			Label status,
-			Button button)
+			Button button,
+			double cost)
 		{
 			Status =
 				status;
 
 			Button =
 				button;
+
+			Cost =
+				cost;
 		}
 	}
 }

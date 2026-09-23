@@ -70,6 +70,9 @@ public sealed class BotSkinShopController
 	private MobileScrollController _collectionMobileScroll =
 		null!;
 
+	private SkinPreviewOverlay _previewOverlay =
+		null!;
+
 
 	private SkinCardView? _defaultCard;
 
@@ -157,6 +160,13 @@ public sealed class BotSkinShopController
 				MainShopBottomPadding
 			);
 		}
+
+		_previewOverlay =
+			new SkinPreviewOverlay(
+				_root
+			);
+
+		_previewOverlay.Initialize();
 
 		CreateCollectionPage();
 
@@ -988,28 +998,36 @@ public sealed class BotSkinShopController
 			previewRow,
 			textures[
 				BotRarity.Common
-			]
+			],
+			name
+				+ " • COMMON"
 		);
 
 		AddPreview(
 			previewRow,
 			textures[
 				BotRarity.Rare
-			]
+			],
+			name
+				+ " • RARE"
 		);
 
 		AddPreview(
 			previewRow,
 			textures[
 				BotRarity.Epic
-			]
+			],
+			name
+				+ " • EPIC"
 		);
 
 		AddPreview(
 			previewRow,
 			textures[
 				BotRarity.Legendary
-			]
+			],
+			name
+				+ " • LEGENDARY"
 		);
 
 		Label rarityLabel =
@@ -1063,9 +1081,10 @@ public sealed class BotSkinShopController
 	}
 
 
-	private static void AddPreview(
+private void AddPreview(
 		HBoxContainer parent,
-		Texture2D? texture)
+		Texture2D? texture,
+		string previewTitle)
 	{
 		PanelContainer frame =
 			new()
@@ -1077,7 +1096,7 @@ public sealed class BotSkinShopController
 					),
 
 				MouseFilter =
-					Control.MouseFilterEnum.Ignore
+					Control.MouseFilterEnum.Pass
 			};
 
 		frame.AddThemeStyleboxOverride(
@@ -1093,46 +1112,73 @@ public sealed class BotSkinShopController
 			frame
 		);
 
-		TextureRect image =
+		TextureButton imageButton =
 			new()
 			{
-				Texture =
+				TextureNormal =
 					texture,
 
-				ExpandMode =
-					TextureRect.ExpandModeEnum.IgnoreSize,
+				IgnoreTextureSize =
+					true,
 
 				StretchMode =
-					TextureRect.StretchModeEnum.KeepAspectCentered,
+					TextureButton.StretchModeEnum.KeepAspectCentered,
 
-				MouseFilter =
-					Control.MouseFilterEnum.Ignore
+				FocusMode =
+					Control.FocusModeEnum.None,
+
+				Disabled =
+					texture == null,
+
+				TooltipText =
+					texture != null
+						? "Tap to enlarge"
+						: ""
 			};
 
-		image.SetAnchorsAndOffsetsPreset(
+		imageButton.SetAnchorsAndOffsetsPreset(
 			Control.LayoutPreset.FullRect
 		);
 
-		image.OffsetLeft =
+		imageButton.OffsetLeft =
 			5;
 
-		image.OffsetTop =
+		imageButton.OffsetTop =
 			5;
 
-		image.OffsetRight =
+		imageButton.OffsetRight =
 			-5;
 
-		image.OffsetBottom =
+		imageButton.OffsetBottom =
 			-5;
+
+		imageButton.Pressed +=
+			() =>
+			{
+				if (
+					texture == null
+					|| CollectionActionBlocked()
+				)
+				{
+					return;
+				}
+
+				_previewOverlay.Open(
+					texture,
+					previewTitle
+				);
+			};
 
 		frame.AddChild(
-			image
+			imageButton
 		);
 	}
 
 
 	public void OpenCollection()
 	{
+		_previewOverlay?.Close();
+
 		ApplyCollectionOverlayMetrics();
 
 		Refresh();
@@ -1156,6 +1202,8 @@ public sealed class BotSkinShopController
 	{
 		if (_collectionRoot == null)
 			return;
+
+		_previewOverlay?.Close();
 
 		_collectionMobileScroll?.ResetMotion();
 

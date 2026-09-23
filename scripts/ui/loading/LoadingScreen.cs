@@ -8,7 +8,6 @@ public partial class LoadingScreen : Control
 	private const string GameScenePath =
 		"res://game.tscn";
 
-
 	// ==================================================
 	// TIMING
 	// ==================================================
@@ -16,18 +15,14 @@ public partial class LoadingScreen : Control
 	private const double MinimumDisplayTime =
 		1.4;
 
-
 	private const double ProgressSmoothSpeed =
 		5.0;
-
 
 	private const double UiFadeInDuration =
 		0.55;
 
-
 	private const double SceneFadeDuration =
 		0.55;
-
 
 	// ==================================================
 	// BACKGROUND ANIMATION
@@ -36,18 +31,14 @@ public partial class LoadingScreen : Control
 	private const double BackgroundAnimationSpeed =
 		0.65;
 
-
 	private const float BackgroundBaseScale =
 		1.035f;
-
 
 	private const float BackgroundScaleAmount =
 		0.012f;
 
-
 	private const double GlowAnimationSpeed =
 		1.25;
-
 
 	// ==================================================
 	// NODES
@@ -56,45 +47,33 @@ public partial class LoadingScreen : Control
 	private TextureRect _background =
 		null!;
 
-
 	private ColorRect _atmosphere =
 		null!;
-
 
 	private VBoxContainer _loadingUi =
 		null!;
 
-
 	private ProgressBar _progressBar =
 		null!;
-
 
 	private Label _percentLabel =
 		null!;
 
-
 	private Label _statusLabel =
 		null!;
-
 
 	// ==================================================
 	// STATE
 	// ==================================================
 
 	private double _elapsed;
-
 	private double _animationTime;
 
-
 	private double _targetProgress;
-
 	private double _displayProgress;
 
-
 	private bool _loadFinished;
-
 	private bool _transitionStarted;
-
 
 	// ==================================================
 	// READY
@@ -107,57 +86,43 @@ public partial class LoadingScreen : Control
 				"Background"
 			);
 
-
 		_atmosphere =
 			GetNode<ColorRect>(
 				"Atmosphere"
 			);
-
 
 		_loadingUi =
 			GetNode<VBoxContainer>(
 				"LoadingUi"
 			);
 
-
 		_progressBar =
 			GetNode<ProgressBar>(
 				"LoadingUi/ProgressBar"
 			);
-
 
 		_percentLabel =
 			GetNode<Label>(
 				"LoadingUi/PercentLabel"
 			);
 
-
 		_statusLabel =
 			GetNode<Label>(
 				"LoadingUi/StatusLabel"
 			);
 
-
 		_progressBar.Value =
 			0.0;
-
 
 		_percentLabel.Text =
 			"0%";
 
-
 		_statusLabel.Text =
 			"INITIALIZING AI...";
 
-
-		/*
-		 * Background is slightly larger than the viewport
-		 * so the breathing animation never exposes an edge.
-		 */
 		_background.Scale =
 			Vector2.One
 			* BackgroundBaseScale;
-
 
 		_loadingUi.Modulate =
 			new Color(
@@ -167,12 +132,10 @@ public partial class LoadingScreen : Control
 				0
 			);
 
-
 		StartUiFadeIn();
 
 		StartLoading();
 	}
-
 
 	// ==================================================
 	// UI INTRO
@@ -183,7 +146,6 @@ public partial class LoadingScreen : Control
 		Tween tween =
 			CreateTween();
 
-
 		tween.TweenProperty(
 			_loadingUi,
 			"modulate:a",
@@ -191,7 +153,6 @@ public partial class LoadingScreen : Control
 			UiFadeInDuration
 		);
 	}
-
 
 	// ==================================================
 	// LOADING
@@ -204,12 +165,10 @@ public partial class LoadingScreen : Control
 				GameScenePath
 			);
 
-
 		if (error != Error.Ok)
 		{
 			_statusLabel.Text =
 				"LOADING ERROR";
-
 
 			GD.PushError(
 				"Could not start loading game scene: "
@@ -217,7 +176,6 @@ public partial class LoadingScreen : Control
 			);
 		}
 	}
-
 
 	// ==================================================
 	// PROCESS
@@ -229,19 +187,14 @@ public partial class LoadingScreen : Control
 		_elapsed +=
 			delta;
 
-
 		_animationTime +=
 			delta;
 
-
 		UpdateBackgroundAnimation();
-
 		UpdateAtmosphereAnimation();
-
 
 		if (_transitionStarted)
 			return;
-
 
 		UpdateLoadingState();
 
@@ -251,7 +204,6 @@ public partial class LoadingScreen : Control
 
 		TryEnterGame();
 	}
-
 
 	// ==================================================
 	// BACKGROUND ANIMATION
@@ -269,14 +221,9 @@ public partial class LoadingScreen : Control
 			return;
 		}
 
-
-		/*
-		 * Keep the scale centered.
-		 */
 		_background.PivotOffset =
 			_background.Size
 			/ 2.0f;
-
 
 		double wave =
 			(
@@ -288,7 +235,6 @@ public partial class LoadingScreen : Control
 			)
 			* 0.5;
 
-
 		float scale =
 			BackgroundBaseScale
 			+ (
@@ -296,14 +242,12 @@ public partial class LoadingScreen : Control
 				* BackgroundScaleAmount
 			);
 
-
 		_background.Scale =
 			new Vector2(
 				scale,
 				scale
 			);
 	}
-
 
 	private void UpdateAtmosphereAnimation()
 	{
@@ -317,7 +261,6 @@ public partial class LoadingScreen : Control
 			return;
 		}
 
-
 		double wave =
 			(
 				Math.Sin(
@@ -328,7 +271,6 @@ public partial class LoadingScreen : Control
 			)
 			* 0.5;
 
-
 		float alpha =
 			0.035f
 			+ (
@@ -336,19 +278,15 @@ public partial class LoadingScreen : Control
 				* 0.045f
 			);
 
-
 		Color color =
 			_atmosphere.Color;
-
 
 		color.A =
 			alpha;
 
-
 		_atmosphere.Color =
 			color;
 	}
-
 
 	// ==================================================
 	// LOAD STATE
@@ -361,21 +299,17 @@ public partial class LoadingScreen : Control
 			_targetProgress =
 				1.0;
 
-
 			return;
 		}
 
-
 		Godot.Collections.Array progress =
 			new();
-
 
 		ResourceLoader.ThreadLoadStatus status =
 			ResourceLoader.LoadThreadedGetStatus(
 				GameScenePath,
 				progress
 			);
-
 
 		if (progress.Count > 0)
 		{
@@ -387,32 +321,26 @@ public partial class LoadingScreen : Control
 				);
 		}
 
-
 		switch (status)
 		{
 			case ResourceLoader.ThreadLoadStatus.InProgress:
 				UpdateStatusText();
 				break;
 
-
 			case ResourceLoader.ThreadLoadStatus.Loaded:
 				_loadFinished =
 					true;
 
-
 				_targetProgress =
 					1.0;
-
 
 				_statusLabel.Text =
 					"AI READY";
 				break;
 
-
 			case ResourceLoader.ThreadLoadStatus.Failed:
 				_statusLabel.Text =
 					"LOADING FAILED";
-
 
 				GD.PushError(
 					"Failed to load "
@@ -420,11 +348,9 @@ public partial class LoadingScreen : Control
 				);
 				break;
 
-
 			case ResourceLoader.ThreadLoadStatus.InvalidResource:
 				_statusLabel.Text =
 					"INVALID RESOURCE";
-
 
 				GD.PushError(
 					"Invalid resource: "
@@ -433,7 +359,6 @@ public partial class LoadingScreen : Control
 				break;
 		}
 	}
-
 
 	// ==================================================
 	// VISUAL PROGRESS
@@ -446,7 +371,6 @@ public partial class LoadingScreen : Control
 			_targetProgress
 			- _displayProgress;
 
-
 		_displayProgress +=
 			difference
 			* Math.Min(
@@ -455,11 +379,6 @@ public partial class LoadingScreen : Control
 				* delta
 			);
 
-
-		/*
-		 * Let the final few percent finish smoothly
-		 * once the actual resource has loaded.
-		 */
 		if (
 			_loadFinished
 			&& _displayProgress < 1.0
@@ -470,7 +389,6 @@ public partial class LoadingScreen : Control
 				* delta;
 		}
 
-
 		_displayProgress =
 			Math.Clamp(
 				_displayProgress,
@@ -478,15 +396,12 @@ public partial class LoadingScreen : Control
 				1.0
 			);
 
-
 		double percent =
 			_displayProgress
 			* 100.0;
 
-
 		_progressBar.Value =
 			percent;
-
 
 		_percentLabel.Text =
 			Math.Round(
@@ -494,7 +409,6 @@ public partial class LoadingScreen : Control
 			)
 			+ "%";
 	}
-
 
 	// ==================================================
 	// STATUS TEXT
@@ -529,7 +443,6 @@ public partial class LoadingScreen : Control
 		}
 	}
 
-
 	// ==================================================
 	// ENTER GAME
 	// ==================================================
@@ -548,22 +461,25 @@ public partial class LoadingScreen : Control
 			return;
 		}
 
-
 		_transitionStarted =
 			true;
-
 
 		BeginSceneTransition();
 	}
 
-
 	/*
-	 * Instead of immediately calling ChangeSceneToPacked(),
-	 * the Game scene is instantiated behind the loading
-	 * screen first.
+	 * IMPORTANT:
 	 *
-	 * Then this whole loading screen fades away and reveals
-	 * the already initialized game underneath it.
+	 * Do not manually AddChild(game) to SceneTree.Root and assign
+	 * CurrentScene afterwards. That creates a short period in which
+	 * two scene roots are alive at once and the new Game scene runs
+	 * _Ready() while the LoadingScreen is still the official scene.
+	 *
+	 * This is especially fragile during a cold Android start.
+	 *
+	 * We still use threaded loading, but the actual transition is now
+	 * performed by SceneTree.ChangeSceneToPacked(), which lets Godot
+	 * own the full scene lifecycle.
 	 */
 	private async void BeginSceneTransition()
 	{
@@ -573,63 +489,53 @@ public partial class LoadingScreen : Control
 			)
 			as PackedScene;
 
-
 		if (packedGame == null)
 		{
 			_statusLabel.Text =
 				"LOADING FAILED";
 
-
 			GD.PushError(
 				"Loaded resource is not a PackedScene."
 			);
 
-
 			_transitionStarted =
 				false;
-
 
 			return;
 		}
 
+		_statusLabel.Text =
+			"AI READY";
 
-		Node game =
-			packedGame.Instantiate();
+		_percentLabel.Text =
+			"100%";
 
+		_progressBar.Value =
+			100.0;
 
-		Window root =
-			GetTree().Root;
+		Tween fadeTween =
+			CreateTween();
 
-
-		root.AddChild(
-			game
-		);
-
-
-		/*
-		 * The game was added after us, which would normally
-		 * render it above the LoadingScreen.
-		 *
-		 * Move the LoadingScreen back to the very front.
-		 */
-		root.MoveChild(
+		fadeTween.TweenProperty(
 			this,
-			root.GetChildCount() - 1
+			"modulate:a",
+			0.0f,
+			SceneFadeDuration
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.InOut
 		);
 
-
-		/*
-		 * Give the new Game scene one frame to initialize
-		 * all UI, save data, backgrounds etc.
-		 */
 		await ToSignal(
-			GetTree(),
-			SceneTree.SignalName.ProcessFrame
+			fadeTween,
+			Tween.SignalName.Finished
 		);
-
 
 		if (
-			!IsInstanceValid(
+			!GodotObject.IsInstanceValid(
 				this
 			)
 		)
@@ -637,56 +543,26 @@ public partial class LoadingScreen : Control
 			return;
 		}
 
+		Error changeError =
+			GetTree().ChangeSceneToPacked(
+				packedGame
+			);
+
+		if (changeError == Error.Ok)
+			return;
+
+		GD.PushError(
+			"Could not change to game scene: "
+			+ changeError
+		);
+
+		Modulate =
+			Colors.White;
 
 		_statusLabel.Text =
-			"AI READY";
+			"LOADING FAILED";
 
-
-		_percentLabel.Text =
-			"100%";
-
-
-		_progressBar.Value =
-			100.0;
-
-
-		Tween fadeTween =
-			CreateTween();
-
-
-		fadeTween.TweenProperty(
-			this,
-			"modulate:a",
-			0.0f,
-			SceneFadeDuration
-		);
-
-
-		await ToSignal(
-			fadeTween,
-			Tween.SignalName.Finished
-		);
-
-
-		if (
-			game == null
-			|| !IsInstanceValid(
-				game
-			)
-		)
-		{
-			return;
-		}
-
-
-		/*
-		 * Make the newly instantiated scene the official
-		 * current scene before removing the LoadingScreen.
-		 */
-		GetTree().CurrentScene =
-			game;
-
-
-		QueueFree();
+		_transitionStarted =
+			false;
 	}
 }

@@ -14,13 +14,10 @@ public static class BotCatalog
 
 					new BotDefinition(
 						BotRarity.Common,
-
 						"Common Bot",
-
 						1.0,
-
 						GD.Load<Texture2D>(
-                            "res://assets/bots/common.png"
+							"res://assets/bots/common.png"
 						)
 					)
 				},
@@ -30,13 +27,10 @@ public static class BotCatalog
 
 					new BotDefinition(
 						BotRarity.Rare,
-
 						"Rare Bot",
-
 						1.2,
-
 						GD.Load<Texture2D>(
-                            "res://assets/bots/rare.png"
+							"res://assets/bots/rare.png"
 						)
 					)
 				},
@@ -46,13 +40,10 @@ public static class BotCatalog
 
 					new BotDefinition(
 						BotRarity.Epic,
-
 						"Epic Bot",
-
 						1.4,
-
 						GD.Load<Texture2D>(
-                            "res://assets/bots/epic.png"
+							"res://assets/bots/epic.png"
 						)
 					)
 				},
@@ -62,17 +53,18 @@ public static class BotCatalog
 
 					new BotDefinition(
 						BotRarity.Legendary,
-
 						"Legendary Bot",
-
 						1.5,
-
 						GD.Load<Texture2D>(
-                            "res://assets/bots/legendary.png"
+							"res://assets/bots/legendary.png"
 						)
 					)
 				}
 			};
+
+
+	public static string ActiveSkinId { get; private set; } =
+		BotSkinCatalog.DefaultSkinId;
 
 
 	public static BotDefinition Get(
@@ -90,9 +82,67 @@ public static class BotCatalog
 		if (!rarity.HasValue)
 			return 1.0;
 
-
 		return Get(
 			rarity.Value
 		).ProductionMultiplier;
+	}
+
+
+	public static void ApplySkin(
+		string? skinId)
+	{
+		if (
+			string.IsNullOrWhiteSpace(
+				skinId
+			)
+			|| skinId
+				.Equals(
+					BotSkinCatalog.DefaultSkinId,
+					System.StringComparison.OrdinalIgnoreCase
+				)
+			|| !BotSkinCatalog.TryGet(
+				skinId,
+				out SkinDefinition _
+			)
+		)
+		{
+			ResetTextures();
+
+			ActiveSkinId =
+				BotSkinCatalog.DefaultSkinId;
+
+			return;
+		}
+
+		foreach (
+			KeyValuePair<BotRarity, BotDefinition> entry
+				in Bots
+		)
+		{
+			Texture2D? texture =
+				BotSkinCatalog.GetBotTexture(
+					skinId,
+					entry.Key
+				);
+
+			entry.Value.SetTexture(
+				texture
+			);
+		}
+
+		ActiveSkinId =
+			skinId;
+	}
+
+
+	private static void ResetTextures()
+	{
+		foreach (
+			BotDefinition bot
+				in Bots.Values
+		)
+		{
+			bot.ResetTexture();
+		}
 	}
 }

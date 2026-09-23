@@ -10,7 +10,9 @@ public sealed class BotDefinition
 
 	public double ProductionMultiplier { get; }
 
-	public Texture2D Texture { get; }
+	public Texture2D DefaultTexture { get; }
+
+	public Texture2D Texture { get; private set; }
 
 
 	public BotDefinition(
@@ -28,7 +30,26 @@ public sealed class BotDefinition
 		ProductionMultiplier =
 			productionMultiplier;
 
+		DefaultTexture =
+			texture;
+
 		Texture =
 			texture;
+	}
+
+
+	public void SetTexture(
+		Texture2D? texture)
+	{
+		Texture =
+			texture
+			?? DefaultTexture;
+	}
+
+
+	public void ResetTexture()
+	{
+		Texture =
+			DefaultTexture;
 	}
 }

@@ -21,6 +21,7 @@ public sealed class GameUiController
 	private readonly PipelineService _pipelineService;
 	private readonly InfrastructureService _infrastructureService;
 	private readonly QuantumService _quantumService;
+	private readonly BotSkinService _skinService;
 
 	private RoomUiController _room = null!;
 	private PipelineUiController _pipeline = null!;
@@ -33,6 +34,9 @@ public sealed class GameUiController
 	private PrestigeOverlayController _prestige = null!;
 	private MachineDetailsOverlay _details = null!;
 	private ShopController _shop = null!;
+	private BotSkinShopController? _skinShop;
+
+	private bool _shopInitialized;
 
 	private int _lastThemeRoom = -1;
 	private int _lastDisplayedRoom = -1;
@@ -66,6 +70,16 @@ public sealed class GameUiController
 		_pipelineService = pipelineService;
 		_infrastructureService = infrastructureService;
 		_quantumService = quantumService;
+
+		/*
+		 * Cosmetic data is loaded before the room UI is built.
+		 * BotCatalog therefore already exposes the equipped
+		 * textures when MachineSlot / MachineDetails render.
+		 */
+		_skinService =
+			new BotSkinService(
+				_state
+			);
 	}
 
 	public void Initialize()
@@ -83,9 +97,11 @@ public sealed class GameUiController
 		 * 3. Only then RoomUiController reparents the room
 		 *    content and chrome into the new overlay layout.
 		 *
-		 * Cached Control references remain valid after Reparent,
-		 * so Pipeline / Infrastructure / Quantum do not need to
-		 * know about the new hierarchy.
+		 * ShopController is intentionally NOT initialized here.
+		 * Its initialization starts AdMob. On Android cold starts
+		 * that extra native initialization is unnecessary during
+		 * the loading -> game transition, so the shop is lazily
+		 * initialized the first time the player opens it.
 		 */
 		CreateRoomController();
 		CreatePipelineController();
@@ -199,22 +215,18 @@ public sealed class GameUiController
 		_topBar.StatsRequested += OpenStats;
 		_topBar.Initialize();
 
-
 		TextureButton tokenCard =
 			_root.GetNode<TextureButton>(
 				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/TokenCard"
 			);
-
 
 		TextureButton levelCard =
 			_root.GetNode<TextureButton>(
 				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/LevelCard"
 			);
 
-
 		tokenCard.Pressed +=
 			BringTopBarInfoPopupsToFront;
-
 
 		levelCard.Pressed +=
 			BringTopBarInfoPopupsToFront;
@@ -249,23 +261,15 @@ public sealed class GameUiController
 					&& roomIndex
 						< _state.RoomStates.Count;
 
-
 				bool wasUnlocked =
 					validRoom
 					&& _state.RoomStates[
 						roomIndex
 					].Unlocked;
 
-
-				/*
-				 * Game handles the request synchronously.
-				 * After it returns we can tell whether this
-				 * exact tap unlocked a new room.
-				 */
 				RoomSelectedRequested?.Invoke(
 					roomIndex
 				);
-
 
 				bool isUnlocked =
 					validRoom
@@ -273,14 +277,12 @@ public sealed class GameUiController
 						roomIndex
 					].Unlocked;
 
-
 				bool enteredUnlockedRoom =
 					validRoom
 					&& !wasUnlocked
 					&& isUnlocked
 					&& _state.CurrentRoomIndex
 						== roomIndex;
-
 
 				if (enteredUnlockedRoom)
 				{
@@ -343,7 +345,50 @@ public sealed class GameUiController
 			UpdateAll();
 		};
 
+		/*
+		 * Do not call _shop.Initialize() here.
+		 * It initializes the native AdMob SDK. We delay this
+		 * until the player opens the shop for the first time.
+		 */
+	}
+
+	private void EnsureShopInitialized()
+	{
+		if (_shopInitialized)
+			return;
+
 		_shop.Initialize();
+
+		_skinShop =
+			new BotSkinShopController(
+				_root,
+				_state,
+				_skinService
+			);
+
+		_skinShop.MessageRequested +=
+			SetMessage;
+
+		_skinShop.StateChanged +=
+			() =>
+			{
+				/*
+				 * BotSkinService already persisted cosmetic
+				 * ownership/equipment. This event saves the
+				 * Data Shard deduction through the normal game
+				 * save and refreshes every visible bot texture.
+				 */
+				StateChanged?.Invoke();
+
+				UpdateAll();
+
+				_skinShop?.Refresh();
+			};
+
+		_skinShop.Initialize();
+
+		_shopInitialized =
+			true;
 	}
 
 	private void CreateMachineDetails()
@@ -390,15 +435,7 @@ public sealed class GameUiController
 	{
 		SetMessage(message);
 
-
-		/*
-		 * Save the changed gameplay state BEFORE any room/UI
-		 * refresh. The overlay layout added more work to
-		 * UpdateAll(); persistence must not depend on that
-		 * presentation code finishing successfully.
-		 */
 		StateChanged?.Invoke();
-
 
 		UpdateAll();
 	}
@@ -429,6 +466,12 @@ public sealed class GameUiController
 	{
 		_map.Hide();
 
+		/*
+		 * First shop open is the only place where AdMob and
+		 * the dynamic shop UI are initialized.
+		 */
+		EnsureShopInitialized();
+
 		if (_shop.Visible)
 		{
 			_shop.Hide();
@@ -442,6 +485,8 @@ public sealed class GameUiController
 
 		_shop.Open();
 
+		_skinShop?.Refresh();
+
 		SyncRoomChromeVisibility();
 
 		_bottomBar.MoveToFront();
@@ -449,28 +494,15 @@ public sealed class GameUiController
 
 	private async void BringTopBarInfoPopupsToFront()
 	{
-		/*
-		 * TokenPopup / LevelPopup are root-level siblings of
-		 * RoomOverlayLayer. Since the room TopBar is itself
-		 * inside RoomOverlayLayer and that layer is normally
-		 * moved to the front, the info popups could render
-		 * behind the TopBar.
-		 *
-		 * Wait one frame because TopBarController shows and
-		 * positions the popup asynchronously, then explicitly
-		 * move the visible info popup to the highest level.
-		 */
 		await _root.ToSignal(
 			_root.GetTree(),
 			SceneTree.SignalName.ProcessFrame
 		);
 
-
 		PanelContainer? tokenPopup =
 			_root.GetNodeOrNull<PanelContainer>(
 				"TokenPopup"
 			);
-
 
 		if (
 			tokenPopup != null
@@ -480,12 +512,10 @@ public sealed class GameUiController
 			tokenPopup.MoveToFront();
 		}
 
-
 		PanelContainer? levelPopup =
 			_root.GetNodeOrNull<PanelContainer>(
 				"LevelPopup"
 			);
-
 
 		if (
 			levelPopup != null
@@ -495,7 +525,6 @@ public sealed class GameUiController
 			levelPopup.MoveToFront();
 		}
 	}
-
 
 	private void OpenStats()
 	{
@@ -526,11 +555,14 @@ public sealed class GameUiController
 	{
 		_map.Hide();
 
+		/*
+		 * Safe before lazy initialization because ShopController
+		 * uses null-conditional access in Hide().
+		 */
 		_shop.Hide();
 
 		SyncRoomChromeVisibility();
 	}
-
 
 	private void SyncRoomChromeVisibility()
 	{
@@ -539,10 +571,8 @@ public sealed class GameUiController
 				"RoomOverlayLayer"
 			);
 
-
 		if (roomChrome == null)
 			return;
-
 
 		bool labVisible =
 			_root.GetNodeOrNull<Control>(
@@ -550,12 +580,10 @@ public sealed class GameUiController
 			)?.Visible
 			== true;
 
-
 		bool pageVisible =
 			_map.Visible
 			|| _shop.Visible
 			|| labVisible;
-
 
 		roomChrome.Visible =
 			!pageVisible;
@@ -565,7 +593,6 @@ public sealed class GameUiController
 	{
 		ResetRoomScrollIfRoomChanged();
 
-
 		bool modalOverlayVisible =
 			_details.Visible
 			|| _stats.Visible
@@ -573,19 +600,16 @@ public sealed class GameUiController
 				"PrestigeConfirmOverlay"
 			).Visible;
 
-
 		bool labVisible =
 			_root.GetNodeOrNull<Control>(
 				"LabPage"
 			)?.Visible
 			== true;
 
-
 		bool pageVisible =
 			_map.Visible
 			|| _shop.Visible
 			|| labVisible;
-
 
 		_room.UpdateAll(
 			bringChromeToFront:
@@ -593,23 +617,7 @@ public sealed class GameUiController
 				&& !pageVisible
 		);
 
-
-		/*
-		 * Map/Shop are full page views.
-		 *
-		 * RoomOverlayLayer contains the TopBar and the
-		 * MACHINES / PIPELINE / INFRASTRUCTURE / QUANTUM
-		 * navigation. It must stay hidden while one of those
-		 * pages is open.
-		 *
-		 * This is especially important when a locked room is
-		 * tapped in the map: Game.OnRoomSelectedRequested()
-		 * may call UpdateAll() after an unsuccessful unlock.
-		 * Without this guard, RoomUiController would bring
-		 * the TopBar back in front of MapPage.
-		 */
 		SyncRoomChromeVisibility();
-
 
 		_pipeline.UpdateAll();
 		_infrastructure.UpdateAll();
@@ -621,7 +629,12 @@ public sealed class GameUiController
 
 		_topBar.UpdateValues();
 		_map.Refresh();
+
+		/*
+		 * Refresh is safe before lazy initialization.
+		 */
 		_shop.Refresh();
+		_skinShop?.Refresh();
 
 		ApplyRoomTheme();
 
@@ -640,7 +653,9 @@ public sealed class GameUiController
 		if (currentRoom == _lastDisplayedRoom)
 			return;
 
-		_lastDisplayedRoom = currentRoom;
+		_lastDisplayedRoom =
+			currentRoom;
+
 		_room.ScrollToTop();
 	}
 
@@ -653,7 +668,10 @@ public sealed class GameUiController
 		_quantum.UpdateRuntime();
 
 		if (_shop.Visible)
+		{
 			_shop.Refresh();
+			_skinShop?.Refresh();
+		}
 
 		if (_details.Visible)
 			_details.Refresh();
@@ -676,18 +694,28 @@ public sealed class GameUiController
 			return;
 		}
 
-		_lastThemeRoom = roomIndex;
+		_lastThemeRoom =
+			roomIndex;
 
 		RoomThemeTextures theme =
-			RoomThemePalette.Create(roomIndex);
+			RoomThemePalette.Create(
+				roomIndex
+			);
 
-		_topBar.ApplyTheme(theme);
-		_bottomBar.ApplyTheme(theme);
+		_topBar.ApplyTheme(
+			theme
+		);
+
+		_bottomBar.ApplyTheme(
+			theme
+		);
 	}
 
 	public void SetMessage(
 		string message)
 	{
-		_bottomBar.SetMessage(message);
+		_bottomBar.SetMessage(
+			message
+		);
 	}
 }

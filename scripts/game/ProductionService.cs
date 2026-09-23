@@ -2,12 +2,10 @@ using System;
 
 namespace IdleAi;
 
-
 public readonly record struct ManualStartResult(
 	bool Started,
 	string Message
 );
-
 
 public readonly record struct ProductionCompletionResult(
 	int CompletedCycles,
@@ -16,48 +14,27 @@ public readonly record struct ProductionCompletionResult(
 	double PipelineInputProduced
 );
 
-
 public sealed class ProductionService
 {
-	private const double ResearchPointDropChance =
-		0.0025;
-
-
-	private const int ResearchPointDropAmount =
-		1;
-
-
 	private readonly GameState _state;
-
 	private readonly EconomyService _economy;
-
 	private readonly PipelineService _pipeline;
-
 
 	public ProductionService(
 		GameState state,
 		EconomyService economy,
 		PipelineService pipeline)
 	{
-		_state =
-			state;
-
-
-		_economy =
-			economy;
-
-
-		_pipeline =
-			pipeline;
+		_state = state;
+		_economy = economy;
+		_pipeline = pipeline;
 	}
-
 
 	public double Update(
 		double delta)
 	{
 		double earned =
 			0.0;
-
 
 		for (
 			int roomIndex = 0;
@@ -70,10 +47,8 @@ public sealed class ProductionService
 					roomIndex
 				];
 
-
 			if (!room.Unlocked)
 				continue;
-
 
 			foreach (
 				SlotData slot
@@ -82,7 +57,6 @@ public sealed class ProductionService
 			{
 				if (!slot.Unlocked)
 					continue;
-
 
 				if (
 					slot.HasBot
@@ -94,18 +68,14 @@ public sealed class ProductionService
 					);
 				}
 
-
 				if (!slot.IsRunning)
 					continue;
-
 
 				slot.CycleRemaining -=
 					delta;
 
-
 				int safety =
 					0;
-
 
 				while (
 					slot.CycleRemaining <= 0.0
@@ -114,7 +84,6 @@ public sealed class ProductionService
 				{
 					safety++;
 
-
 					ProductionCompletionResult result =
 						CompleteCycle(
 							roomIndex,
@@ -122,10 +91,8 @@ public sealed class ProductionService
 							preserveOvershoot: true
 						);
 
-
 					earned +=
 						result.Earned;
-
 
 					if (!slot.HasBot)
 						break;
@@ -133,10 +100,8 @@ public sealed class ProductionService
 			}
 		}
 
-
 		return earned;
 	}
-
 
 	public ProductionCompletionResult
 		CompleteAllRunningCyclesInstantly()
@@ -144,18 +109,14 @@ public sealed class ProductionService
 		int completedCycles =
 			0;
 
-
 		int researchPointsAwarded =
 			0;
-
 
 		double earned =
 			0.0;
 
-
 		double pipelineInputProduced =
 			0.0;
-
 
 		for (
 			int roomIndex = 0;
@@ -168,10 +129,8 @@ public sealed class ProductionService
 					roomIndex
 				];
 
-
 			if (!room.Unlocked)
 				continue;
-
 
 			foreach (
 				SlotData slot
@@ -186,7 +145,6 @@ public sealed class ProductionService
 					continue;
 				}
 
-
 				ProductionCompletionResult result =
 					CompleteCycle(
 						roomIndex,
@@ -194,24 +152,19 @@ public sealed class ProductionService
 						preserveOvershoot: false
 					);
 
-
 				completedCycles +=
 					result.CompletedCycles;
-
 
 				researchPointsAwarded +=
 					result.ResearchPointsAwarded;
 
-
 				earned +=
 					result.Earned;
-
 
 				pipelineInputProduced +=
 					result.PipelineInputProduced;
 			}
 		}
-
 
 		return new ProductionCompletionResult(
 			completedCycles,
@@ -220,7 +173,6 @@ public sealed class ProductionService
 			pipelineInputProduced
 		);
 	}
-
 
 	private ProductionCompletionResult CompleteCycle(
 		int roomIndex,
@@ -240,14 +192,11 @@ public sealed class ProductionService
 			);
 		}
 
-
 		double earned =
 			0.0;
 
-
 		double pipelineInputProduced =
 			0.0;
-
 
 		if (
 			roomIndex
@@ -260,7 +209,6 @@ public sealed class ProductionService
 						roomIndex,
 						slot
 					);
-
 
 			_pipeline.AddMachineInput(
 				pipelineInputProduced
@@ -275,10 +223,8 @@ public sealed class ProductionService
 				);
 		}
 
-
 		int researchPoints =
 			TryAwardResearchPoint();
-
 
 		if (slot.HasBot)
 		{
@@ -286,7 +232,6 @@ public sealed class ProductionService
 				_economy.GetCycleDuration(
 					slot
 				);
-
 
 			if (preserveOvershoot)
 			{
@@ -299,7 +244,6 @@ public sealed class ProductionService
 					duration;
 			}
 
-
 			slot.IsRunning =
 				true;
 		}
@@ -308,11 +252,9 @@ public sealed class ProductionService
 			slot.CycleRemaining =
 				0.0;
 
-
 			slot.IsRunning =
 				false;
 		}
-
 
 		return new ProductionCompletionResult(
 			1,
@@ -322,33 +264,27 @@ public sealed class ProductionService
 		);
 	}
 
-
 	private int TryAwardResearchPoint()
 	{
 		if (!_state.Lab.Unlocked)
 			return 0;
 
-
 		double roll =
 			Random.Shared.NextDouble();
 
-
 		if (
 			roll
-			>= ResearchPointDropChance
+			>= GameConfig.ResearchPointDropChance
 		)
 		{
 			return 0;
 		}
 
-
 		_state.Lab.ResearchPoints +=
-			ResearchPointDropAmount;
+			GameConfig.ResearchPointDropAmount;
 
-
-		return ResearchPointDropAmount;
+		return GameConfig.ResearchPointDropAmount;
 	}
-
 
 	public ManualStartResult TryStartManual(
 		int roomIndex,
@@ -365,12 +301,10 @@ public sealed class ProductionService
 			);
 		}
 
-
 		RoomState room =
 			_state.RoomStates[
 				roomIndex
 			];
-
 
 		if (
 			slotIndex < 0
@@ -383,12 +317,10 @@ public sealed class ProductionService
 			);
 		}
 
-
 		SlotData slot =
 			room.Slots[
 				slotIndex
 			];
-
 
 		if (!slot.Unlocked)
 		{
@@ -398,7 +330,6 @@ public sealed class ProductionService
 			);
 		}
 
-
 		if (slot.HasBot)
 		{
 			return new ManualStartResult(
@@ -406,7 +337,6 @@ public sealed class ProductionService
 				"This machine is automated."
 			);
 		}
-
 
 		if (slot.IsRunning)
 		{
@@ -416,18 +346,15 @@ public sealed class ProductionService
 			);
 		}
 
-
 		StartCycle(
 			slot
 		);
-
 
 		return new ManualStartResult(
 			true,
 			"Machine started."
 		);
 	}
-
 
 	public void PrepareAfterLoad()
 	{
@@ -449,26 +376,38 @@ public sealed class ProductionService
 					continue;
 				}
 
+				/*
+				 * GetCycleDuration also restores RuntimeCycleDuration, but unlike
+				 * the old implementation we keep a valid saved CycleRemaining.
+				 */
+				double duration =
+					_economy.GetCycleDuration(
+						slot
+					);
 
 				slot.IsRunning =
 					true;
 
-
-				slot.CycleRemaining =
-					_economy.GetCycleDuration(
-						slot
-					);
+				if (
+					!double.IsFinite(
+						slot.CycleRemaining
+					)
+					|| slot.CycleRemaining <= 0.0
+					|| slot.CycleRemaining > duration
+				)
+				{
+					slot.CycleRemaining =
+						duration;
+				}
 			}
 		}
 	}
-
 
 	private void StartCycle(
 		SlotData slot)
 	{
 		slot.IsRunning =
 			true;
-
 
 		slot.CycleRemaining =
 			_economy.GetCycleDuration(

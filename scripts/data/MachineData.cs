@@ -22,7 +22,9 @@ public sealed class MachineData
 	public bool IsInfiniteLevel =>
 		TierUpgradeCost <= 0.0;
 
-	public Texture2D Texture { get; }
+	public Texture2D DefaultTexture { get; }
+
+	public Texture2D Texture { get; private set; }
 
 
 	public MachineData(
@@ -36,24 +38,38 @@ public sealed class MachineData
 		MachineName =
 			machineName;
 
-
 		BaseIncome =
 			baseIncome;
-
 
 		BaseUpgradeCost =
 			baseUpgradeCost;
 
-
 		TierUpgradeCost =
 			tierUpgradeCost;
-
 
 		_maxLevel =
 			maxLevel;
 
+		DefaultTexture =
+			texture;
 
 		Texture =
 			texture;
+	}
+
+
+	public void SetTexture(
+		Texture2D? texture)
+	{
+		Texture =
+			texture
+			?? DefaultTexture;
+	}
+
+
+	public void ResetTexture()
+	{
+		Texture =
+			DefaultTexture;
 	}
 }

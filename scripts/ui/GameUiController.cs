@@ -22,6 +22,7 @@ public sealed class GameUiController
 	private readonly InfrastructureService _infrastructureService;
 	private readonly QuantumService _quantumService;
 	private readonly BotSkinService _skinService;
+	private readonly MachineSkinService _machineSkinService;
 
 	private RoomUiController _room = null!;
 	private PipelineUiController _pipeline = null!;
@@ -35,6 +36,7 @@ public sealed class GameUiController
 	private MachineDetailsOverlay _details = null!;
 	private ShopController _shop = null!;
 	private BotSkinShopController? _skinShop;
+	private MachineSkinShopController? _machineSkinShop;
 
 	private bool _shopInitialized;
 
@@ -80,6 +82,11 @@ public sealed class GameUiController
 			new BotSkinService(
 				_state
 			);
+
+		_machineSkinService =
+			new MachineSkinService(
+				_state
+			);
 	}
 
 	public void Initialize()
@@ -97,11 +104,10 @@ public sealed class GameUiController
 		 * 3. Only then RoomUiController reparents the room
 		 *    content and chrome into the new overlay layout.
 		 *
-		 * ShopController is intentionally NOT initialized here.
-		 * Its initialization starts AdMob. On Android cold starts
-		 * that extra native initialization is unnecessary during
-		 * the loading -> game transition, so the shop is lazily
-		 * initialized the first time the player opens it.
+		 * ShopController is intentionally initialized lazily.
+		 * The fixed ShopController no longer initializes AdMob
+		 * merely by opening the shop; rewarded ads initialize only
+		 * when the player explicitly requests a video.
 		 */
 		CreateRoomController();
 		CreatePipelineController();
@@ -346,9 +352,9 @@ public sealed class GameUiController
 		};
 
 		/*
-		 * Do not call _shop.Initialize() here.
-		 * It initializes the native AdMob SDK. We delay this
-		 * until the player opens the shop for the first time.
+		 * Build the dynamic Shop UI only on the first shop open.
+		 * Rewarded AdMob initialization is handled separately by
+		 * ShopController when the player requests a video.
 		 */
 	}
 
@@ -383,9 +389,38 @@ public sealed class GameUiController
 				UpdateAll();
 
 				_skinShop?.Refresh();
+		_machineSkinShop?.Refresh();
 			};
 
 		_skinShop.Initialize();
+
+		_machineSkinShop =
+			new MachineSkinShopController(
+				_root,
+				_state,
+				_machineSkinService
+			);
+
+		_machineSkinShop.MessageRequested +=
+			SetMessage;
+
+		_machineSkinShop.StateChanged +=
+			() =>
+			{
+				/*
+				 * MachineSkinService persists ownership/equipment
+				 * separately. StateChanged saves the Data Shard
+				 * purchase through the normal game save and
+				 * UpdateAll immediately redraws slots/details.
+				 */
+				StateChanged?.Invoke();
+
+				UpdateAll();
+
+				_machineSkinShop?.Refresh();
+			};
+
+		_machineSkinShop.Initialize();
 
 		_shopInitialized =
 			true;
@@ -443,6 +478,7 @@ public sealed class GameUiController
 	private void ToggleMapPage()
 	{
 		_skinShop?.CloseCollection();
+		_machineSkinShop?.CloseCollection();
 
 		_shop.Hide();
 
@@ -469,14 +505,16 @@ public sealed class GameUiController
 		_map.Hide();
 
 		/*
-		 * First shop open is the only place where AdMob and
-		 * the dynamic shop UI are initialized.
+		 * First shop open builds the dynamic shop and both
+		 * cosmetic collections. AdMob itself is not touched
+		 * until the rewarded-video button is pressed.
 		 */
 		EnsureShopInitialized();
 
 		if (_shop.Visible)
 		{
 			_skinShop?.CloseCollection();
+		_machineSkinShop?.CloseCollection();
 
 			_shop.Hide();
 
@@ -488,10 +526,12 @@ public sealed class GameUiController
 		CloseTransientOverlays();
 
 		_skinShop?.CloseCollection();
+		_machineSkinShop?.CloseCollection();
 
 		_shop.Open();
 
 		_skinShop?.Refresh();
+		_machineSkinShop?.Refresh();
 
 		SyncRoomChromeVisibility();
 
@@ -562,6 +602,7 @@ public sealed class GameUiController
 		_map.Hide();
 
 		_skinShop?.CloseCollection();
+		_machineSkinShop?.CloseCollection();
 
 		/*
 		 * Safe before lazy initialization because ShopController
@@ -643,6 +684,7 @@ public sealed class GameUiController
 		 */
 		_shop.Refresh();
 		_skinShop?.Refresh();
+		_machineSkinShop?.Refresh();
 
 		ApplyRoomTheme();
 
@@ -679,6 +721,7 @@ public sealed class GameUiController
 		{
 			_shop.Refresh();
 			_skinShop?.Refresh();
+		_machineSkinShop?.Refresh();
 		}
 
 		if (_details.Visible)

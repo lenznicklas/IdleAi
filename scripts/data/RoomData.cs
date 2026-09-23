@@ -9,7 +9,9 @@ public sealed class RoomData
 
 	public Texture2D Background { get; }
 
-	public Texture2D EmptyTexture { get; }
+	public Texture2D DefaultEmptyTexture { get; }
+
+	public Texture2D EmptyTexture { get; private set; }
 
 	public IReadOnlyList<MachineData> Machines { get; }
 
@@ -23,10 +25,46 @@ public sealed class RoomData
 		IReadOnlyList<MachineData> machines,
 		double unlockCost)
 	{
-		Name = name;
-		Background = background;
-		EmptyTexture = emptyTexture;
-		Machines = machines;
-		UnlockCost = unlockCost;
+		Name =
+			name;
+
+		Background =
+			background;
+
+		DefaultEmptyTexture =
+			emptyTexture;
+
+		EmptyTexture =
+			emptyTexture;
+
+		Machines =
+			machines;
+
+		UnlockCost =
+			unlockCost;
+	}
+
+
+	public void SetEmptyTexture(
+		Texture2D? texture)
+	{
+		EmptyTexture =
+			texture
+			?? DefaultEmptyTexture;
+	}
+
+
+	public void ResetMachineTextures()
+	{
+		EmptyTexture =
+			DefaultEmptyTexture;
+
+		foreach (
+			MachineData machine
+				in Machines
+		)
+		{
+			machine.ResetTexture();
+		}
 	}
 }

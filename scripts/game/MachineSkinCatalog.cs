@@ -11,33 +11,73 @@ public static class MachineSkinCatalog
 	public const string Room1RetroSkinId =
 		"room_1_retro";
 
+	public const string Room2RetroSkinId =
+		"room_2_retro";
+
+	public const string Room3RetroSkinId =
+		"room_3_retro";
+
+	public const string Room4RetroSkinId =
+		"room_4_retro";
+
 
 	private static readonly IReadOnlyList<MachineSkinDefinition>
 		Skins =
 		[
-			new MachineSkinDefinition(
-				Room1RetroSkinId,
-				"Retro",
-				"Classic retro-computing look for all Garage machines and the empty slot.",
-				0,
-				50.0,
-				LoadTexture(
-					"res://assets/machines/room_1/skin_retro/empty.png"
-				),
-				[
-					LoadTexture(
-						"res://assets/machines/room_1/skin_retro/machine1.png"
-					),
-					LoadTexture(
-						"res://assets/machines/room_1/skin_retro/machine2.png"
-					),
-					LoadTexture(
-						"res://assets/machines/room_1/skin_retro/machine3.png"
-					),
-					LoadTexture(
-						"res://assets/machines/room_1/skin_retro/machine4.png"
-					)
-				]
+			CreateRetroSkin(
+				roomIndex:
+					0,
+
+				skinId:
+					Room1RetroSkinId,
+
+				roomFolder:
+					"room_1",
+
+				roomName:
+					"Garage"
+			),
+
+			CreateRetroSkin(
+				roomIndex:
+					1,
+
+				skinId:
+					Room2RetroSkinId,
+
+				roomFolder:
+					"room_2",
+
+				roomName:
+					"Server Room"
+			),
+
+			CreateRetroSkin(
+				roomIndex:
+					2,
+
+				skinId:
+					Room3RetroSkinId,
+
+				roomFolder:
+					"room_3",
+
+				roomName:
+					"Data Center"
+			),
+
+			CreateRetroSkin(
+				roomIndex:
+					3,
+
+				skinId:
+					Room4RetroSkinId,
+
+				roomFolder:
+					"room_4",
+
+				roomName:
+					"Quantum Lab"
 			)
 		];
 
@@ -56,7 +96,10 @@ public static class MachineSkinCatalog
 				in Skins
 		)
 		{
-			if (skin.RoomIndex == roomIndex)
+			if (
+				skin.RoomIndex
+				== roomIndex
+			)
 			{
 				yield return skin;
 			}
@@ -94,17 +137,88 @@ public static class MachineSkinCatalog
 	}
 
 
+	// ==================================================
+	// RETRO PACKS
+	// ==================================================
+
+	private static MachineSkinDefinition CreateRetroSkin(
+		int roomIndex,
+		string skinId,
+		string roomFolder,
+		string roomName)
+	{
+		string basePath =
+			"res://assets/machines/"
+			+ roomFolder
+			+ "/skin_retro/";
+
+
+		return new MachineSkinDefinition(
+			skinId,
+
+			"Retro",
+
+			"Retro machine pack for "
+				+ roomName
+				+ ". Replaces all four machines and the empty slot.",
+
+			roomIndex,
+
+			50.0,
+
+			LoadTexture(
+				basePath
+					+ "empty.png"
+			),
+
+			[
+				LoadTexture(
+					basePath
+						+ "machine1.png"
+				),
+
+				LoadTexture(
+					basePath
+						+ "machine2.png"
+				),
+
+				LoadTexture(
+					basePath
+						+ "machine3.png"
+				),
+
+				LoadTexture(
+					basePath
+						+ "machine4.png"
+				)
+			]
+		);
+	}
+
+
+	// ==================================================
+	// SAFE TEXTURE LOADING
+	// ==================================================
+
 	private static Texture2D? LoadTexture(
 		string path)
 	{
 		/*
-		 * Skin packs are allowed to be unfinished while you
-		 * are creating their artwork. Missing textures never
-		 * crash startup/shop; IsComplete simply keeps the pack
-		 * disabled until all five PNGs exist.
+		 * Missing cosmetic artwork must never crash the game.
+		 *
+		 * MachineSkinDefinition.IsComplete keeps the pack
+		 * disabled in the Shop until all five PNG files are
+		 * available.
 		 */
 		if (!ResourceLoader.Exists(path))
+		{
+			GD.PushWarning(
+				"Machine skin texture not found: "
+					+ path
+			);
+
 			return null;
+		}
 
 		return GD.Load<Texture2D>(
 			path

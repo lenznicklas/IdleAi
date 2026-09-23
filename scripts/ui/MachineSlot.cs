@@ -10,98 +10,44 @@ public partial class MachineSlot : Control
 			"res://assets/background/border.png"
 		);
 
-
 	private static readonly Texture2D StartTexture =
 		GD.Load<Texture2D>(
 			"res://assets/ui/button.png"
 		);
 
-
 	public event Action<int>? UnlockPressed;
-
 	public event Action<int>? ManualStartPressed;
-
 	public event Action<int>? DetailsPressed;
-
 	public event Action<int>? EmptyPressed;
 
-
 	private int _slotIndex;
-
 	private bool _isLocked;
 
-
-	private Label _titleLabel =
-		null!;
-
-
-	private Control _machineHolder =
-		null!;
-
-
-	private Control _machineVisual =
-		null!;
-
-
-	private TextureButton _machineButton =
-		null!;
-
-
-	private Label _levelLabel =
-		null!;
-
-
-	private Control _actionHolder =
-		null!;
-
-
-	private TextureButton _startButton =
-		null!;
-
-
-	private Control _botVisual =
-		null!;
-
-
-	private TextureButton _botButton =
-		null!;
-
-
-	private ProgressBar _progressBar =
-		null!;
-
-
-	private Label _statusLabel =
-		null!;
-
-
-	private Button _unlockButton =
-		null!;
-
+	private Label _titleLabel = null!;
+	private Control _machineHolder = null!;
+	private Control _machineVisual = null!;
+	private TextureButton _machineButton = null!;
+	private Label _levelLabel = null!;
+	private Control _actionHolder = null!;
+	private TextureButton _startButton = null!;
+	private Control _botVisual = null!;
+	private TextureButton _botButton = null!;
+	private ProgressBar _progressBar = null!;
+	private Label _statusLabel = null!;
+	private Button _unlockButton = null!;
 
 	private Tween? _machineTween;
-
 	private Tween? _machineReturnTween;
-
 	private Tween? _emptyPulseTween;
-
+	private Tween? _startButtonTween;
 
 	private bool _machineAnimationRunning;
-
-
 	private Vector2 _machineBasePosition;
 
-
 	private Tween? _botTween;
-
 	private Tween? _botReturnTween;
-
-
 	private bool _botAnimationRunning;
-
-
 	private Vector2 _botBasePosition;
-
 
 	// ==================================================
 	// SETUP
@@ -113,30 +59,24 @@ public partial class MachineSlot : Control
 		_slotIndex =
 			index;
 
-
 		CustomMinimumSize =
 			new Vector2(
 				0,
 				340
 			);
 
-
 		SizeFlagsHorizontal =
 			SizeFlags.ExpandFill;
-
 
 		SizeFlagsVertical =
 			SizeFlags.Fill;
 
-
 		CreateUi();
-
 
 		ApplyRoomTheme(
 			0
 		);
 	}
-
 
 	// ==================================================
 	// ROOM THEME
@@ -150,24 +90,20 @@ public partial class MachineSlot : Control
 				roomIndex
 			);
 
-
 		Color accentDark =
 			accent.Darkened(
 				0.42f
 			);
-
 
 		Color accentHover =
 			accent.Lightened(
 				0.10f
 			);
 
-
 		Color accentPressed =
 			accent.Darkened(
 				0.18f
 			);
-
 
 		StyleBoxFlat progressBackground =
 			new()
@@ -193,7 +129,6 @@ public partial class MachineSlot : Control
 					9
 			};
 
-
 		StyleBoxFlat progressFill =
 			new()
 			{
@@ -213,18 +148,15 @@ public partial class MachineSlot : Control
 					9
 			};
 
-
 		_progressBar.AddThemeStyleboxOverride(
 			"background",
 			progressBackground
 		);
 
-
 		_progressBar.AddThemeStyleboxOverride(
 			"fill",
 			progressFill
 		);
-
 
 		_unlockButton.AddThemeStyleboxOverride(
 			"normal",
@@ -234,7 +166,6 @@ public partial class MachineSlot : Control
 			)
 		);
 
-
 		_unlockButton.AddThemeStyleboxOverride(
 			"hover",
 			CreateRoundedButtonStyle(
@@ -243,7 +174,6 @@ public partial class MachineSlot : Control
 			)
 		);
 
-
 		_unlockButton.AddThemeStyleboxOverride(
 			"pressed",
 			CreateRoundedButtonStyle(
@@ -251,7 +181,6 @@ public partial class MachineSlot : Control
 				accent
 			)
 		);
-
 
 		_unlockButton.AddThemeStyleboxOverride(
 			"disabled",
@@ -271,24 +200,20 @@ public partial class MachineSlot : Control
 			)
 		);
 
-
 		_unlockButton.AddThemeColorOverride(
 			"font_color",
 			Colors.White
 		);
-
 
 		_unlockButton.AddThemeColorOverride(
 			"font_hover_color",
 			Colors.White
 		);
 
-
 		_unlockButton.AddThemeColorOverride(
 			"font_pressed_color",
 			Colors.White
 		);
-
 
 		_unlockButton.AddThemeColorOverride(
 			"font_disabled_color",
@@ -301,7 +226,6 @@ public partial class MachineSlot : Control
 		);
 	}
 
-
 	private static Color GetRoomAccentColor(
 		int roomIndex)
 	{
@@ -310,7 +234,6 @@ public partial class MachineSlot : Control
 				roomIndex
 			);
 	}
-
 
 	private static StyleBoxFlat CreateRoundedButtonStyle(
 		Color background,
@@ -362,7 +285,6 @@ public partial class MachineSlot : Control
 		};
 	}
 
-
 	// ==================================================
 	// UI
 	// ==================================================
@@ -372,92 +294,74 @@ public partial class MachineSlot : Control
 		MarginContainer margin =
 			new();
 
-
 		margin.SetAnchorsAndOffsetsPreset(
 			LayoutPreset.FullRect
 		);
-
 
 		margin.AddThemeConstantOverride(
 			"margin_left",
 			12
 		);
 
-
 		margin.AddThemeConstantOverride(
 			"margin_top",
 			10
 		);
-
 
 		margin.AddThemeConstantOverride(
 			"margin_right",
 			12
 		);
 
-
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
 			10
 		);
 
-
 		AddChild(
 			margin
 		);
 
-
 		VBoxContainer vbox =
 			new();
-
 
 		vbox.SizeFlagsHorizontal =
 			SizeFlags.ExpandFill;
 
-
 		vbox.SizeFlagsVertical =
 			SizeFlags.ExpandFill;
-
 
 		vbox.AddThemeConstantOverride(
 			"separation",
 			6
 		);
 
-
 		margin.AddChild(
 			vbox
 		);
-
 
 		CreateTitle(
 			vbox
 		);
 
-
 		CreateMachineArea(
 			vbox
 		);
-
 
 		CreateInfoRow(
 			vbox
 		);
 
-
 		CreateProgressArea(
 			vbox
 		);
-
 
 		CreateUnlockButton(
 			vbox
 		);
 
-
 		CreateBorder();
 	}
-
 
 	// ==================================================
 	// TITLE
@@ -485,18 +389,15 @@ public partial class MachineSlot : Control
 					$"Slot {_slotIndex + 1}"
 			};
 
-
 		_titleLabel.AddThemeFontSizeOverride(
 			"font_size",
 			17
 		);
 
-
 		parent.AddChild(
 			_titleLabel
 		);
 	}
-
 
 	// ==================================================
 	// MACHINE
@@ -515,29 +416,23 @@ public partial class MachineSlot : Control
 					)
 			};
 
-
 		_machineHolder.SizeFlagsHorizontal =
 			SizeFlags.ExpandFill;
-
 
 		parent.AddChild(
 			_machineHolder
 		);
 
-
 		_machineVisual =
 			new Control();
-
 
 		_machineVisual.SetAnchorsAndOffsetsPreset(
 			LayoutPreset.FullRect
 		);
 
-
 		_machineHolder.AddChild(
 			_machineVisual
 		);
-
 
 		_machineButton =
 			new TextureButton
@@ -550,25 +445,20 @@ public partial class MachineSlot : Control
 						.KeepAspectCentered
 			};
 
-
 		_machineButton.SetAnchorsAndOffsetsPreset(
 			LayoutPreset.FullRect
 		);
 
-
 		_machineButton.Pressed +=
 			OnMachinePressed;
-
 
 		_machineVisual.AddChild(
 			_machineButton
 		);
 
-
 		_machineBasePosition =
 			Vector2.Zero;
 	}
-
 
 	private void OnMachinePressed()
 	{
@@ -578,16 +468,13 @@ public partial class MachineSlot : Control
 				_slotIndex
 			);
 
-
 			return;
 		}
-
 
 		DetailsPressed?.Invoke(
 			_slotIndex
 		);
 	}
-
 
 	// ==================================================
 	// EMPTY SLOT PULSE
@@ -598,22 +485,17 @@ public partial class MachineSlot : Control
 		if (!_isLocked)
 			return;
 
-
 		_emptyPulseTween?.Kill();
-
 
 		_machineVisual.PivotOffset =
 			_machineVisual.Size
 			/ 2.0f;
 
-
 		_machineVisual.Scale =
 			Vector2.One;
 
-
 		_emptyPulseTween =
 			CreateTween();
-
 
 		_emptyPulseTween.TweenProperty(
 			_machineVisual,
@@ -631,7 +513,6 @@ public partial class MachineSlot : Control
 			Tween.EaseType.Out
 		);
 
-
 		_emptyPulseTween.TweenProperty(
 			_machineVisual,
 			"scale",
@@ -647,7 +528,6 @@ public partial class MachineSlot : Control
 		.SetEase(
 			Tween.EaseType.InOut
 		);
-
 
 		_emptyPulseTween.TweenProperty(
 			_machineVisual,
@@ -665,7 +545,6 @@ public partial class MachineSlot : Control
 			Tween.EaseType.InOut
 		);
 
-
 		_emptyPulseTween.TweenProperty(
 			_machineVisual,
 			"scale",
@@ -679,7 +558,6 @@ public partial class MachineSlot : Control
 			Tween.EaseType.Out
 		);
 	}
-
 
 	// ==================================================
 	// INFO ROW
@@ -698,15 +576,12 @@ public partial class MachineSlot : Control
 					)
 			};
 
-
 		infoRow.SizeFlagsHorizontal =
 			SizeFlags.ExpandFill;
-
 
 		parent.AddChild(
 			infoRow
 		);
-
 
 		_levelLabel =
 			new Label
@@ -727,11 +602,9 @@ public partial class MachineSlot : Control
 					"Lv. 1"
 			};
 
-
 		infoRow.AddChild(
 			_levelLabel
 		);
-
 
 		_actionHolder =
 			new Control
@@ -743,11 +616,9 @@ public partial class MachineSlot : Control
 					)
 			};
 
-
 		infoRow.AddChild(
 			_actionHolder
 		);
-
 
 		_startButton =
 			new TextureButton
@@ -763,37 +634,27 @@ public partial class MachineSlot : Control
 						.KeepAspectCentered
 			};
 
-
 		_startButton.SetAnchorsAndOffsetsPreset(
 			LayoutPreset.FullRect
 		);
 
-
 		_startButton.Pressed +=
-			() =>
-				ManualStartPressed?.Invoke(
-					_slotIndex
-				);
-
+			OnStartButtonPressed;
 
 		_actionHolder.AddChild(
 			_startButton
 		);
 
-
 		_botVisual =
 			new Control();
-
 
 		_botVisual.SetAnchorsAndOffsetsPreset(
 			LayoutPreset.FullRect
 		);
 
-
 		_actionHolder.AddChild(
 			_botVisual
 		);
-
 
 		_botButton =
 			new TextureButton
@@ -806,22 +667,17 @@ public partial class MachineSlot : Control
 						.KeepAspectCentered
 			};
 
-
 		_botButton.AnchorLeft =
 			0.08f;
-
 
 		_botButton.AnchorTop =
 			0.08f;
 
-
 		_botButton.AnchorRight =
 			0.92f;
 
-
 		_botButton.AnchorBottom =
 			0.92f;
-
 
 		_botButton.Pressed +=
 			() =>
@@ -829,19 +685,119 @@ public partial class MachineSlot : Control
 					_slotIndex
 				);
 
-
 		_botVisual.AddChild(
 			_botButton
 		);
 
-
 		_botBasePosition =
 			Vector2.Zero;
-
 
 		_botVisual.Hide();
 	}
 
+	private void OnStartButtonPressed()
+	{
+		if (
+			_isLocked
+			|| _startButton.Disabled
+			|| !_startButton.Visible
+		)
+		{
+			return;
+		}
+
+		PlayStartButtonPressAnimation();
+
+		ManualStartPressed?.Invoke(
+			_slotIndex
+		);
+	}
+
+	private void PlayStartButtonPressAnimation()
+	{
+		_startButtonTween?.Kill();
+
+		_startButton.PivotOffset =
+			_startButton.Size
+			/ 2.0f;
+
+		_startButton.Scale =
+			Vector2.One;
+
+		_startButton.Modulate =
+			Colors.White;
+
+		_startButtonTween =
+			CreateTween();
+
+		_startButtonTween.TweenProperty(
+			_startButton,
+			"scale",
+			new Vector2(
+				0.80f,
+				0.80f
+			),
+			0.055
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.In
+		);
+
+		_startButtonTween
+			.Parallel()
+			.TweenProperty(
+				_startButton,
+				"modulate",
+				new Color(
+					0.72f,
+					0.82f,
+					1.0f,
+					1.0f
+				),
+				0.055
+			);
+
+		_startButtonTween.TweenProperty(
+			_startButton,
+			"scale",
+			new Vector2(
+				1.10f,
+				1.10f
+			),
+			0.10
+		)
+		.SetTrans(
+			Tween.TransitionType.Back
+		)
+		.SetEase(
+			Tween.EaseType.Out
+		);
+
+		_startButtonTween
+			.Parallel()
+			.TweenProperty(
+				_startButton,
+				"modulate",
+				Colors.White,
+				0.10
+			);
+
+		_startButtonTween.TweenProperty(
+			_startButton,
+			"scale",
+			Vector2.One,
+			0.085
+		)
+		.SetTrans(
+			Tween.TransitionType.Sine
+		)
+		.SetEase(
+			Tween.EaseType.Out
+		);
+	}
 
 	// ==================================================
 	// PROGRESS
@@ -872,11 +828,9 @@ public partial class MachineSlot : Control
 					false
 			};
 
-
 		parent.AddChild(
 			_progressBar
 		);
-
 
 		_statusLabel =
 			new Label
@@ -897,18 +851,15 @@ public partial class MachineSlot : Control
 					"READY"
 			};
 
-
 		_statusLabel.AddThemeFontSizeOverride(
 			"font_size",
 			12
 		);
 
-
 		parent.AddChild(
 			_statusLabel
 		);
 	}
-
 
 	// ==================================================
 	// UNLOCK BUTTON
@@ -930,19 +881,16 @@ public partial class MachineSlot : Control
 					Control.FocusModeEnum.None
 			};
 
-
 		_unlockButton.Pressed +=
 			() =>
 				UnlockPressed?.Invoke(
 					_slotIndex
 				);
 
-
 		parent.AddChild(
 			_unlockButton
 		);
 	}
-
 
 	// ==================================================
 	// DISPLAY
@@ -953,51 +901,44 @@ public partial class MachineSlot : Control
 		Texture2D emptyTexture)
 	{
 		StopMachineAnimation();
-
 		StopBotAnimation();
 
-
 		_emptyPulseTween?.Kill();
-
+		_startButtonTween?.Kill();
 
 		_machineVisual.Scale =
 			Vector2.One;
 
+		_startButton.Scale =
+			Vector2.One;
+
+		_startButton.Modulate =
+			Colors.White;
 
 		_isLocked =
 			true;
 
-
 		_titleLabel.Text =
 			$"Slot {_slotIndex + 1}";
-
 
 		_machineButton.TextureNormal =
 			emptyTexture;
 
-
 		_machineButton.Disabled =
 			false;
-
 
 		_levelLabel.Text =
 			"LOCKED";
 
-
 		_actionHolder.Hide();
-
 		_progressBar.Hide();
-
 		_statusLabel.Hide();
 
-
 		_unlockButton.Show();
-
 
 		_unlockButton.Text =
 			$"Unlock\n{unlockCost} Tokens";
 	}
-
 
 	public void ShowMachine(
 		MachineData machine,
@@ -1006,69 +947,60 @@ public partial class MachineSlot : Control
 	{
 		_emptyPulseTween?.Kill();
 
-
 		_machineVisual.Scale =
 			Vector2.One;
-
 
 		_isLocked =
 			false;
 
-
 		_unlockButton.Hide();
-
 		_actionHolder.Show();
-
 
 		_machineButton.Disabled =
 			false;
 
-
 		_machineButton.TextureNormal =
 			machine.Texture;
-
 
 		_titleLabel.Text =
 			machine.MachineName;
 
-
 		_levelLabel.Text =
 			$"Lv. {slot.MachineLevel}";
 
-
 		_progressBar.Show();
-
 		_statusLabel.Show();
-
 
 		if (bot == null)
 		{
 			StopBotAnimation();
 
 			_botVisual.Hide();
-
 			_startButton.Show();
 		}
 		else
 		{
+			_startButtonTween?.Kill();
+
+			_startButton.Scale =
+				Vector2.One;
+
+			_startButton.Modulate =
+				Colors.White;
+
 			_startButton.Hide();
-
 			_botVisual.Show();
-
 
 			_botButton.TextureNormal =
 				bot.Texture;
 
-
 			StartBotAnimation();
 		}
-
 
 		UpdateRuntime(
 			slot
 		);
 	}
-
 
 	// ==================================================
 	// RUNTIME
@@ -1080,7 +1012,6 @@ public partial class MachineSlot : Control
 		if (!slot.Unlocked)
 			return;
 
-
 		double cycleDuration =
 			slot.RuntimeCycleDuration > 0.0
 				? slot.RuntimeCycleDuration
@@ -1089,11 +1020,9 @@ public partial class MachineSlot : Control
 						slot.MachineTier
 					);
 
-
 		if (slot.IsRunning)
 		{
 			StartMachineAnimation();
-
 
 			double progress =
 				(
@@ -1103,14 +1032,12 @@ public partial class MachineSlot : Control
 				/ cycleDuration
 				* 100.0;
 
-
 			_progressBar.Value =
 				Math.Clamp(
 					progress,
 					0.0,
 					100.0
 				);
-
 
 			string time =
 				Math.Max(
@@ -1120,7 +1047,6 @@ public partial class MachineSlot : Control
 				.ToString(
 					"F1"
 				);
-
 
 			if (slot.HasBot)
 			{
@@ -1133,27 +1059,26 @@ public partial class MachineSlot : Control
 					$"{time}s";
 			}
 
-
+			/*
+			 * Important: a manual machine stays clickable while
+			 * the cycle is running. Further presses smoothly
+			 * advance the cycle by 0.5 seconds.
+			 */
 			_startButton.Disabled =
-				true;
-
+				slot.HasBot;
 
 			return;
 		}
 
-
 		StopMachineAnimation();
-
 
 		_progressBar.Value =
 			100.0;
-
 
 		if (slot.HasBot)
 		{
 			_statusLabel.Text =
 				"AUTO";
-
 
 			_startButton.Disabled =
 				true;
@@ -1163,12 +1088,10 @@ public partial class MachineSlot : Control
 			_statusLabel.Text =
 				"READY";
 
-
 			_startButton.Disabled =
 				false;
 		}
 	}
-
 
 	// ==================================================
 	// MACHINE ANIMATION
@@ -1179,19 +1102,14 @@ public partial class MachineSlot : Control
 		if (_machineAnimationRunning)
 			return;
 
-
 		_machineAnimationRunning =
 			true;
 
-
 		_machineReturnTween?.Kill();
-
 		_machineTween?.Kill();
-
 
 		_machineVisual.Position =
 			_machineBasePosition;
-
 
 		float movement =
 			(float)GD.RandRange(
@@ -1199,20 +1117,16 @@ public partial class MachineSlot : Control
 				5.0
 			);
 
-
 		double duration =
 			GD.RandRange(
 				0.55,
 				0.75
 			);
 
-
 		_machineTween =
 			CreateTween();
 
-
 		_machineTween.SetLoops();
-
 
 		_machineTween.TweenProperty(
 			_machineVisual,
@@ -1231,7 +1145,6 @@ public partial class MachineSlot : Control
 			Tween.EaseType.InOut
 		);
 
-
 		_machineTween.TweenProperty(
 			_machineVisual,
 			"position",
@@ -1249,7 +1162,6 @@ public partial class MachineSlot : Control
 			Tween.EaseType.InOut
 		);
 
-
 		_machineTween.TweenProperty(
 			_machineVisual,
 			"position",
@@ -1257,7 +1169,6 @@ public partial class MachineSlot : Control
 			duration
 		);
 	}
-
 
 	private void StopMachineAnimation()
 	{
@@ -1269,21 +1180,16 @@ public partial class MachineSlot : Control
 					_machineBasePosition;
 			}
 
-
 			return;
 		}
-
 
 		_machineAnimationRunning =
 			false;
 
-
 		_machineTween?.Kill();
-
 
 		_machineReturnTween =
 			CreateTween();
-
 
 		_machineReturnTween.TweenProperty(
 			_machineVisual,
@@ -1292,7 +1198,6 @@ public partial class MachineSlot : Control
 			0.15
 		);
 	}
-
 
 	// ==================================================
 	// BOT ANIMATION
@@ -1303,27 +1208,20 @@ public partial class MachineSlot : Control
 		if (_botAnimationRunning)
 			return;
 
-
 		_botAnimationRunning =
 			true;
 
-
 		_botReturnTween?.Kill();
-
 		_botTween?.Kill();
-
 
 		_botVisual.Position =
 			_botBasePosition;
 
-
 		_botVisual.Rotation =
 			0.0f;
 
-
 		_botVisual.Scale =
 			Vector2.One;
-
 
 		_botVisual.PivotOffset =
 			new Vector2(
@@ -1331,13 +1229,11 @@ public partial class MachineSlot : Control
 				29
 			);
 
-
 		float x =
 			(float)GD.RandRange(
 				2.0,
 				4.0
 			);
-
 
 		float y =
 			(float)GD.RandRange(
@@ -1345,12 +1241,10 @@ public partial class MachineSlot : Control
 				5.0
 			);
 
-
 		float rotation =
 			Mathf.DegToRad(
 				3.0f
 			);
-
 
 		double duration =
 			GD.RandRange(
@@ -1358,13 +1252,10 @@ public partial class MachineSlot : Control
 				1.15
 			);
 
-
 		_botTween =
 			CreateTween();
 
-
 		_botTween.SetLoops();
-
 
 		_botTween.TweenProperty(
 			_botVisual,
@@ -1377,7 +1268,6 @@ public partial class MachineSlot : Control
 			duration
 		);
 
-
 		_botTween
 			.Parallel()
 			.TweenProperty(
@@ -1386,7 +1276,6 @@ public partial class MachineSlot : Control
 				rotation,
 				duration
 			);
-
 
 		_botTween
 			.Parallel()
@@ -1400,7 +1289,6 @@ public partial class MachineSlot : Control
 				duration
 			);
 
-
 		_botTween.TweenProperty(
 			_botVisual,
 			"position",
@@ -1412,7 +1300,6 @@ public partial class MachineSlot : Control
 			duration * 1.35
 		);
 
-
 		_botTween
 			.Parallel()
 			.TweenProperty(
@@ -1421,7 +1308,6 @@ public partial class MachineSlot : Control
 				-rotation,
 				duration * 1.35
 			);
-
 
 		_botTween
 			.Parallel()
@@ -1432,14 +1318,12 @@ public partial class MachineSlot : Control
 				duration * 1.35
 			);
 
-
 		_botTween.TweenProperty(
 			_botVisual,
 			"position",
 			_botBasePosition,
 			duration
 		);
-
 
 		_botTween
 			.Parallel()
@@ -1451,28 +1335,22 @@ public partial class MachineSlot : Control
 			);
 	}
 
-
 	private void StopBotAnimation()
 	{
 		if (!_botAnimationRunning)
 			return;
 
-
 		_botAnimationRunning =
 			false;
 
-
 		_botTween?.Kill();
-
 
 		_botReturnTween =
 			CreateTween();
 
-
 		_botReturnTween.SetParallel(
 			true
 		);
-
 
 		_botReturnTween.TweenProperty(
 			_botVisual,
@@ -1481,14 +1359,12 @@ public partial class MachineSlot : Control
 			0.15
 		);
 
-
 		_botReturnTween.TweenProperty(
 			_botVisual,
 			"rotation",
 			0.0f,
 			0.15
 		);
-
 
 		_botReturnTween.TweenProperty(
 			_botVisual,
@@ -1497,7 +1373,6 @@ public partial class MachineSlot : Control
 			0.15
 		);
 	}
-
 
 	// ==================================================
 	// BORDER
@@ -1518,36 +1393,28 @@ public partial class MachineSlot : Control
 					MouseFilterEnum.Ignore
 			};
 
-
 		border.SetAnchorsAndOffsetsPreset(
 			LayoutPreset.FullRect
 		);
 
-
 		border.PatchMarginLeft =
 			20;
-
 
 		border.PatchMarginTop =
 			20;
 
-
 		border.PatchMarginRight =
 			20;
 
-
 		border.PatchMarginBottom =
 			20;
-
 
 		AddChild(
 			border
 		);
 
-
 		border.MoveToFront();
 	}
-
 
 	// ==================================================
 	// EXIT
@@ -1556,13 +1423,10 @@ public partial class MachineSlot : Control
 	public override void _ExitTree()
 	{
 		_machineTween?.Kill();
-
 		_machineReturnTween?.Kill();
-
 		_emptyPulseTween?.Kill();
-
+		_startButtonTween?.Kill();
 		_botTween?.Kill();
-
 		_botReturnTween?.Kill();
 	}
 }

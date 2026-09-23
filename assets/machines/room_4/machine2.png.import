@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bgls3i7dofq7a"
-path="res://.godot/imported/neural_core.png-b63b321281dfb2c918479d9109dfbb11.ctex"
+uid="uid://conpe2xuqywvj"
+path="res://.godot/imported/machine2.png-54eb6f2e9ca097eb5a2f11db3d1bf2b5.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/machines/neural_core.png"
-dest_files=["res://.godot/imported/neural_core.png-b63b321281dfb2c918479d9109dfbb11.ctex"]
+source_file="res://assets/machines/room_4/machine2.png"
+dest_files=["res://.godot/imported/machine2.png-54eb6f2e9ca097eb5a2f11db3d1bf2b5.ctex"]
 
 [params]
 

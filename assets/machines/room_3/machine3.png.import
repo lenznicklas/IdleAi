@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c4utp6mbfg3ph"
-path="res://.godot/imported/gpu_cluster.png-19b0c5bee58c9e63f6665a3de1e3981f.ctex"
+uid="uid://mxjugqmv8jp8"
+path="res://.godot/imported/machine3.png-e847c3f68f245493b75e4207988cba27.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/machines/gpu_cluster.png"
-dest_files=["res://.godot/imported/gpu_cluster.png-19b0c5bee58c9e63f6665a3de1e3981f.ctex"]
+source_file="res://assets/machines/room_3/machine3.png"
+dest_files=["res://.godot/imported/machine3.png-e847c3f68f245493b75e4207988cba27.ctex"]
 
 [params]
 

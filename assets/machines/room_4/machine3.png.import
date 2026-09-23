@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://cxebbs32rg110"
-path="res://.godot/imported/quantum_server.png-67af8da5dd5b3193d0e9f714edd42b9a.ctex"
+uid="uid://bs1ypkcvf3wpx"
+path="res://.godot/imported/machine3.png-bda5966bdba977bc7087d60894f89956.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/machines/quantum_server.png"
-dest_files=["res://.godot/imported/quantum_server.png-67af8da5dd5b3193d0e9f714edd42b9a.ctex"]
+source_file="res://assets/machines/room_4/machine3.png"
+dest_files=["res://.godot/imported/machine3.png-bda5966bdba977bc7087d60894f89956.ctex"]
 
 [params]
 

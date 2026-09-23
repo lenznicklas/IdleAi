@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bekcjaraanfdx"
-path="res://.godot/imported/empty.png-c11c98338b99274884dd9af6748b037a.ctex"
+uid="uid://b2aikfrex4np1"
+path="res://.godot/imported/machine3.png-30a70cd082167b20ed7765da4667565d.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/machines/empty.png"
-dest_files=["res://.godot/imported/empty.png-c11c98338b99274884dd9af6748b037a.ctex"]
+source_file="res://assets/machines/room_1/machine3.png"
+dest_files=["res://.godot/imported/machine3.png-30a70cd082167b20ed7765da4667565d.ctex"]
 
 [params]
 

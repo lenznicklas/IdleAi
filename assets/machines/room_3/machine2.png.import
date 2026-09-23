@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://c5m7ar4rjgilu"
-path="res://.godot/imported/quantum_cluster.png-8c690af5a8bb8202145dadc54ea67cbd.ctex"
+uid="uid://cwahdvwmxn1un"
+path="res://.godot/imported/machine2.png-fde56add9db76d28fe5e509d93ceace2.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/machines/quantum_cluster.png"
-dest_files=["res://.godot/imported/quantum_cluster.png-8c690af5a8bb8202145dadc54ea67cbd.ctex"]
+source_file="res://assets/machines/room_3/machine2.png"
+dest_files=["res://.godot/imported/machine2.png-fde56add9db76d28fe5e509d93ceace2.ctex"]
 
 [params]
 

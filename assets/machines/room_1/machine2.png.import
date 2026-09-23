@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://77h7btcxnxk1"
-path="res://.godot/imported/ai_supercomputer.png-ab125cf80f9fc98038ea2e82204ef075.ctex"
+uid="uid://byou6m6kti7hv"
+path="res://.godot/imported/machine2.png-2e5a8a395faacc41f842194f55bf57d0.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/machines/ai_supercomputer.png"
-dest_files=["res://.godot/imported/ai_supercomputer.png-ab125cf80f9fc98038ea2e82204ef075.ctex"]
+source_file="res://assets/machines/room_1/machine2.png"
+dest_files=["res://.godot/imported/machine2.png-2e5a8a395faacc41f842194f55bf57d0.ctex"]
 
 [params]
 

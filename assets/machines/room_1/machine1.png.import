@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dekh8gkcmixm7"
-path="res://.godot/imported/rack_server.png-2e1b26fe8dc82e8cc600b7703e1e5540.ctex"
+uid="uid://dup1n7e4w3bl4"
+path="res://.godot/imported/machine1.png-e91ea4e54d9e8fb0e54bc5f4b7689afe.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/machines/rack_server.png"
-dest_files=["res://.godot/imported/rack_server.png-2e1b26fe8dc82e8cc600b7703e1e5540.ctex"]
+source_file="res://assets/machines/room_1/machine1.png"
+dest_files=["res://.godot/imported/machine1.png-e91ea4e54d9e8fb0e54bc5f4b7689afe.ctex"]
 
 [params]
 

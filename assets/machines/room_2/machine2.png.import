@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bhvg7hoim27gq"
-path="res://.godot/imported/planetary_ai.png-141ff098abcba9eabcbffa3e20593838.ctex"
+uid="uid://cer6xorodk4yn"
+path="res://.godot/imported/machine2.png-a916146d9927c5f7644b832373b6a8f7.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/machines/planetary_ai.png"
-dest_files=["res://.godot/imported/planetary_ai.png-141ff098abcba9eabcbffa3e20593838.ctex"]
+source_file="res://assets/machines/room_2/machine2.png"
+dest_files=["res://.godot/imported/machine2.png-a916146d9927c5f7644b832373b6a8f7.ctex"]
 
 [params]
 

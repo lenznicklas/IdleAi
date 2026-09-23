@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bnh5n12ey3ya4"
-path="res://.godot/imported/exascale_supercomputer.png-843a5d8f371d3e3b32a5f528af321d6b.ctex"
+uid="uid://dfvok6pqptegr"
+path="res://.godot/imported/machine3.png-e17012a2fbca8ba5bda884d793ffbf08.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/machines/exascale_supercomputer.png"
-dest_files=["res://.godot/imported/exascale_supercomputer.png-843a5d8f371d3e3b32a5f528af321d6b.ctex"]
+source_file="res://assets/machines/room_2/machine3.png"
+dest_files=["res://.godot/imported/machine3.png-e17012a2fbca8ba5bda884d793ffbf08.ctex"]
 
 [params]
 

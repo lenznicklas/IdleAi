@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bfk06u3dbfwxk"
-path="res://.godot/imported/data_center_pod.png-8bfec0b6ebef7200defccb5d9a9c7d07.ctex"
+uid="uid://c11om50fv6jq6"
+path="res://.godot/imported/machine4.png-ce45720d08aba82c8343b5b37107f8af.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/machines/data_center_pod.png"
-dest_files=["res://.godot/imported/data_center_pod.png-8bfec0b6ebef7200defccb5d9a9c7d07.ctex"]
+source_file="res://assets/machines/room_1/machine4.png"
+dest_files=["res://.godot/imported/machine4.png-ce45720d08aba82c8343b5b37107f8af.ctex"]
 
 [params]
 

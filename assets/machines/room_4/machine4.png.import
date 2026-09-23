@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://bfhs0116ysb3v"
-path="res://.godot/imported/ai_compute_cluster.png-350c80ce4c2f8083d39a8a6b8cd80dd8.ctex"
+uid="uid://cceijp8qy4msu"
+path="res://.godot/imported/machine4.png-201cec51cbaf56a12badd0c3127ae740.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/machines/ai_compute_cluster.png"
-dest_files=["res://.godot/imported/ai_compute_cluster.png-350c80ce4c2f8083d39a8a6b8cd80dd8.ctex"]
+source_file="res://assets/machines/room_4/machine4.png"
+dest_files=["res://.godot/imported/machine4.png-201cec51cbaf56a12badd0c3127ae740.ctex"]
 
 [params]
 

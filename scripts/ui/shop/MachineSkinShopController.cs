@@ -8,10 +8,19 @@ namespace IdleAi;
 public sealed class MachineSkinShopController
 {
 	private const float MainShopBottomPadding =
-		180.0f;
+		240.0f;
+
+	private const float CollectionHeaderHeight =
+		122.0f;
+
+	private const float CollectionHeaderTopPadding =
+		8.0f;
+
+	private const float CollectionHeaderGap =
+		12.0f;
 
 	private const float CollectionBottomPadding =
-		180.0f;
+		260.0f;
 
 
 	private readonly Game _root;
@@ -36,10 +45,16 @@ public sealed class MachineSkinShopController
 	private Button _entryButton =
 		null!;
 
-	private VBoxContainer _collectionRoot =
+	private Control _collectionRoot =
 		null!;
 
 	private ScrollContainer _collectionScroll =
+		null!;
+
+	private MarginContainer _collectionScrollMargin =
+		null!;
+
+	private PanelContainer _collectionHeader =
 		null!;
 
 	private VBoxContainer _collectionContent =
@@ -347,8 +362,20 @@ public sealed class MachineSkinShopController
 
 	private void CreateCollectionPage()
 	{
+		/*
+		 * The collection uses a true overlay layout:
+		 *
+		 * - ScrollContainer fills the complete ShopMargin from
+		 *   the physical top edge down to the usable bottom.
+		 * - The collection header floats above that scroll view.
+		 * - Scroll content receives top padding equal to the
+		 *   safe area + fixed header height.
+		 *
+		 * This matches the main Shop/Lab behavior and prevents
+		 * the header from consuming ScrollContainer height.
+		 */
 		_collectionRoot =
-			new VBoxContainer
+			new Control
 			{
 				Name =
 					"MachineSkinCollection",
@@ -357,25 +384,19 @@ public sealed class MachineSkinShopController
 					Control.SizeFlags.ExpandFill,
 
 				SizeFlagsVertical =
-					Control.SizeFlags.ExpandFill
+					Control.SizeFlags.ExpandFill,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
 			};
 
-		_collectionRoot.AddThemeConstantOverride(
-			"separation",
-			8
+		_collectionRoot.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
 		);
 
 		_shopMargin.AddChild(
 			_collectionRoot
 		);
-
-		AddSpacer(
-			_collectionRoot,
-			GetSafeTopInset()
-				+ 8.0f
-		);
-
-		CreateCollectionHeader();
 
 		_collectionScroll =
 			new ScrollContainer
@@ -383,11 +404,29 @@ public sealed class MachineSkinShopController
 				Name =
 					"MachineSkinCollectionScroll",
 
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
+				AnchorLeft =
+					0.0f,
 
-				SizeFlagsVertical =
-					Control.SizeFlags.ExpandFill,
+				AnchorTop =
+					0.0f,
+
+				AnchorRight =
+					1.0f,
+
+				AnchorBottom =
+					1.0f,
+
+				OffsetLeft =
+					0.0f,
+
+				OffsetTop =
+					0.0f,
+
+				OffsetRight =
+					0.0f,
+
+				OffsetBottom =
+					0.0f,
 
 				HorizontalScrollMode =
 					ScrollContainer.ScrollMode.Disabled,
@@ -396,32 +435,35 @@ public sealed class MachineSkinShopController
 					ScrollContainer.ScrollMode.ShowNever,
 
 				ClipContents =
-					true
+					true,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
 			};
 
 		_collectionRoot.AddChild(
 			_collectionScroll
 		);
 
-		MarginContainer scrollMargin =
-			new()
+		_collectionScrollMargin =
+			new MarginContainer
 			{
 				SizeFlagsHorizontal =
 					Control.SizeFlags.ExpandFill
 			};
 
-		scrollMargin.AddThemeConstantOverride(
-			"margin_top",
-			8
+		_collectionScrollMargin.AddThemeConstantOverride(
+			"margin_left",
+			2
 		);
 
-		scrollMargin.AddThemeConstantOverride(
-			"margin_bottom",
-			(int)CollectionBottomPadding
+		_collectionScrollMargin.AddThemeConstantOverride(
+			"margin_right",
+			2
 		);
 
 		_collectionScroll.AddChild(
-			scrollMargin
+			_collectionScrollMargin
 		);
 
 		_collectionContent =
@@ -436,7 +478,7 @@ public sealed class MachineSkinShopController
 			16
 		);
 
-		scrollMargin.AddChild(
+		_collectionScrollMargin.AddChild(
 			_collectionContent
 		);
 
@@ -450,6 +492,12 @@ public sealed class MachineSkinShopController
 				roomIndex
 			);
 		}
+
+		/*
+		 * Add the fixed header AFTER the ScrollContainer so it
+		 * renders above the scrolling cards.
+		 */
+		CreateCollectionHeader();
 
 		_collectionMobileScroll =
 			new MobileScrollController
@@ -470,38 +518,52 @@ public sealed class MachineSkinShopController
 				true
 		);
 
+		ApplyCollectionOverlayMetrics();
+
+		_root.GetViewport().SizeChanged +=
+			ApplyCollectionOverlayMetrics;
+
 		_collectionRoot.Hide();
 	}
 
 
 	private void CreateCollectionHeader()
 	{
-		PanelContainer panel =
-			new()
+		_collectionHeader =
+			new PanelContainer
 			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						122
-					),
+				Name =
+					"CollectionHeaderOverlay",
 
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
+				AnchorLeft =
+					0.0f,
+
+				AnchorTop =
+					0.0f,
+
+				AnchorRight =
+					1.0f,
+
+				AnchorBottom =
+					0.0f,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Stop
 			};
 
-		panel.AddThemeStyleboxOverride(
+		_collectionHeader.AddThemeStyleboxOverride(
 			"panel",
 			ShopUi.CreateShardPanelStyle()
 		);
 
 		_collectionRoot.AddChild(
-			panel
+			_collectionHeader
 		);
 
 		MarginContainer margin =
 			CreateCardMargin();
 
-		panel.AddChild(
+		_collectionHeader.AddChild(
 			margin
 		);
 
@@ -517,19 +579,19 @@ public sealed class MachineSkinShopController
 			box
 		);
 
-		HBoxContainer top =
+		HBoxContainer topRow =
 			new();
 
-		top.AddThemeConstantOverride(
+		topRow.AddThemeConstantOverride(
 			"separation",
 			10
 		);
 
 		box.AddChild(
-			top
+			topRow
 		);
 
-		Button back =
+		Button backButton =
 			new()
 			{
 				Text =
@@ -546,14 +608,14 @@ public sealed class MachineSkinShopController
 			};
 
 		ShopUi.ApplyPrimaryButtonStyle(
-			back
+			backButton
 		);
 
-		back.Pressed +=
+		backButton.Pressed +=
 			CloseCollection;
 
-		top.AddChild(
-			back
+		topRow.AddChild(
+			backButton
 		);
 
 		Label title =
@@ -570,7 +632,7 @@ public sealed class MachineSkinShopController
 		title.HorizontalAlignment =
 			HorizontalAlignment.Left;
 
-		top.AddChild(
+		topRow.AddChild(
 			title
 		);
 
@@ -590,6 +652,66 @@ public sealed class MachineSkinShopController
 		box.AddChild(
 			_collectionShardLabel
 		);
+	}
+
+
+	private void ApplyCollectionOverlayMetrics()
+	{
+		if (
+			_collectionHeader == null
+			|| _collectionScrollMargin == null
+		)
+		{
+			return;
+		}
+
+		float safeTop =
+			GetSafeTopInset();
+
+		float headerTop =
+			safeTop
+				+ CollectionHeaderTopPadding;
+
+		_collectionHeader.OffsetLeft =
+			0.0f;
+
+		_collectionHeader.OffsetTop =
+			headerTop;
+
+		_collectionHeader.OffsetRight =
+			0.0f;
+
+		_collectionHeader.OffsetBottom =
+			headerTop
+				+ CollectionHeaderHeight;
+
+		/*
+		 * The ScrollContainer itself starts at y=0. Only its
+		 * CONTENT receives padding, so swiping/overscroll can
+		 * extend all the way behind the fixed header/notch.
+		 */
+		_collectionScrollMargin.AddThemeConstantOverride(
+			"margin_top",
+			(int)MathF.Ceiling(
+				headerTop
+					+ CollectionHeaderHeight
+					+ CollectionHeaderGap
+			)
+		);
+
+		/*
+		 * Extra end room lets the final skin card move clearly
+		 * above the navigation bar instead of stopping exactly
+		 * on the lower edge of the usable viewport.
+		 */
+		_collectionScrollMargin.AddThemeConstantOverride(
+			"margin_bottom",
+			(int)MathF.Ceiling(
+				CollectionBottomPadding
+			)
+		);
+
+		_collectionHeader.MoveToFront();
 	}
 
 
@@ -1001,6 +1123,8 @@ public sealed class MachineSkinShopController
 
 	public void OpenCollection()
 	{
+		ApplyCollectionOverlayMetrics();
+
 		Refresh();
 
 		_collectionMobileScroll?.ResetMotion();
@@ -1013,6 +1137,8 @@ public sealed class MachineSkinShopController
 		_collectionRoot.Show();
 
 		_collectionRoot.MoveToFront();
+
+		_collectionHeader.MoveToFront();
 	}
 
 

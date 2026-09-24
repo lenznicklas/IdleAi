@@ -6,36 +6,17 @@ namespace IdleAi;
 public sealed class PrestigeOverlayController
 {
 	private readonly Game _root;
-
 	private readonly GameState _state;
-
 	private readonly PrestigeService _prestige;
 
-
-	private Control _overlay =
-		null!;
-
-
-	private PanelContainer _panel =
-		null!;
-
-
-	private Label _info =
-		null!;
-
-
-	private Button _confirm =
-		null!;
-
-
-	private Button _oldCancel =
-		null!;
-
+	private Control _overlay = null!;
+	private PanelContainer _panel = null!;
+	private Label _info = null!;
+	private Button _confirm = null!;
+	private Button _oldCancel = null!;
 
 	public event Action? Confirmed;
-
 	public event Action? Cancelled;
-
 
 	public bool Visible =>
 		_overlay.Visible;
@@ -46,22 +27,11 @@ public sealed class PrestigeOverlayController
 		GameState state,
 		PrestigeService prestige)
 	{
-		_root =
-			root;
-
-
-		_state =
-			state;
-
-
-		_prestige =
-			prestige;
+		_root = root;
+		_state = state;
+		_prestige = prestige;
 	}
 
-
-	// ==================================================
-	// INITIALIZE
-	// ==================================================
 
 	public void Initialize()
 	{
@@ -70,64 +40,44 @@ public sealed class PrestigeOverlayController
 				"PrestigeConfirmOverlay"
 			);
 
-
 		_panel =
 			_root.GetNode<PanelContainer>(
 				"PrestigeConfirmOverlay/Panel"
 			);
-
 
 		_info =
 			_root.GetNode<Label>(
 				"PrestigeConfirmOverlay/Panel/Margin/VBox/InfoLabel"
 			);
 
-
 		_confirm =
 			_root.GetNode<Button>(
 				"PrestigeConfirmOverlay/Panel/Margin/VBox/ConfirmButton"
 			);
-
 
 		_oldCancel =
 			_root.GetNode<Button>(
 				"PrestigeConfirmOverlay/Panel/Margin/VBox/CancelButton"
 			);
 
-
 		_confirm.Pressed +=
 			Confirm;
 
-
-		/*
-		 * Remove old bottom CANCEL button.
-		 */
 		_oldCancel.Hide();
-
 
 		_oldCancel.MouseFilter =
 			Control.MouseFilterEnum.Ignore;
 
-
-		/*
-		 * New X icon in top-right corner.
-		 */
 		OverlayCloseButton.Add(
 			_panel,
 			Cancel
 		);
 
-
 		ConfigureOutsideClose();
-
 
 		Hide();
 	}
 
-
-	// ==================================================
-	// OUTSIDE CLOSE
-	// ==================================================
 
 	private void ConfigureOutsideClose()
 	{
@@ -135,7 +85,6 @@ public sealed class PrestigeOverlayController
 			_root.GetNode<ColorRect>(
 				"PrestigeConfirmOverlay/Dim"
 			);
-
 
 		dim.GuiInput +=
 			@event =>
@@ -145,7 +94,6 @@ public sealed class PrestigeOverlayController
 						is InputEventScreenTouch touch
 					&& !touch.Pressed;
 
-
 				released |=
 					@event
 						is InputEventMouseButton mouse
@@ -153,14 +101,11 @@ public sealed class PrestigeOverlayController
 					&& mouse.ButtonIndex
 						== MouseButton.Left;
 
-
 				if (!released)
 					return;
 
-
 				dim.GetViewport()
 					.SetInputAsHandled();
-
 
 				Callable
 					.From(
@@ -171,67 +116,71 @@ public sealed class PrestigeOverlayController
 	}
 
 
-	// ==================================================
-	// OPEN
-	// ==================================================
-
 	public bool Open()
 	{
-		long reward =
-			_prestige.GetAvailableAiCores();
-
-
-		if (reward <= 0)
+		if (!_prestige.CanPrestige())
 			return false;
 
 
-		long coresAfter;
+		int nextPrestige =
+			_state.Prestige.PrestigeCount
+				== int.MaxValue
+					? int.MaxValue
+					: _state.Prestige.PrestigeCount
+						+ 1;
 
 
-		if (
-			long.MaxValue
-			- _state.Prestige.AiCores
-			< reward
-		)
-		{
-			coresAfter =
-				long.MaxValue;
-		}
-		else
-		{
-			coresAfter =
-				_state.Prestige.AiCores
-				+ reward;
-		}
+		double currentMultiplier =
+			_prestige.GetProductionMultiplier();
 
 
-		double multiplier =
-			PrestigeData
-				.GetProductionMultiplierForCores(
-					coresAfter
-				);
+		double nextMultiplier =
+			_prestige
+				.GetProductionMultiplierAfterNextPrestige();
+
+
+		int shardReward =
+			_prestige.GetDataShardReward();
 
 
 		_info.Text =
-			$"You gain +{reward} AI Cores.\n\n"
-			+ $"AI Cores after prestige: {coresAfter}\n"
-			+ $"Production after prestige: x{multiplier:F3}\n"
-			+ $"Maximum prestige production: x{GameConfig.PrestigeMaximumProductionMultiplier:F1}";
+			"PRESTIGE #"
+				+ nextPrestige
+				+ "\n\n"
+				+ "Reward: +"
+				+ shardReward
+				+ " Data Shards\n"
+				+ "Permanent production: x"
+				+ currentMultiplier.ToString(
+					"F2"
+				)
+				+ "  →  x"
+				+ nextMultiplier.ToString(
+					"F2"
+				)
+				+ "\nMaximum prestige production: x"
+				+ GameConfig
+					.PrestigeMaximumProductionMultiplier
+					.ToString(
+						"F1"
+					)
+				+ "\n\nPrestige resets Tokens, rooms, machines, bots and room systems."
+				+ "\nShop upgrades, Research, skins and Data Shards stay.";
+
+
+		_confirm.Text =
+			"PRESTIGE  •  +"
+				+ shardReward
+				+ " SHARDS";
 
 
 		_overlay.Show();
 
-
 		_overlay.MoveToFront();
-
 
 		return true;
 	}
 
-
-	// ==================================================
-	// CLOSE
-	// ==================================================
 
 	public void Hide()
 	{
@@ -243,7 +192,6 @@ public sealed class PrestigeOverlayController
 	{
 		Hide();
 
-
 		Confirmed?.Invoke();
 	}
 
@@ -251,7 +199,6 @@ public sealed class PrestigeOverlayController
 	private void Cancel()
 	{
 		Hide();
-
 
 		Cancelled?.Invoke();
 	}

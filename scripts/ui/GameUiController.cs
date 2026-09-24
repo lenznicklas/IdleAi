@@ -128,7 +128,51 @@ public sealed class GameUiController
 
 		ApplyRoomTheme(true);
 		UpdateAll();
+
+		/*
+		 * The Shop used to build its complete dynamic UI only when
+		 * the player tapped SHOP for the first time. That made the
+		 * first open noticeably slower than every later open.
+		 *
+		 * Prewarm it shortly after startup while it is still hidden.
+		 * Waiting two frames lets the actual game appear first.
+		 */
+		PrewarmShopAfterStartup();
 	}
+
+	private async void PrewarmShopAfterStartup()
+	{
+		await _root.ToSignal(
+			_root.GetTree(),
+			SceneTree.SignalName.ProcessFrame
+		);
+
+		await _root.ToSignal(
+			_root.GetTree(),
+			SceneTree.SignalName.ProcessFrame
+		);
+
+		if (
+			_shopInitialized
+			|| !GodotObject.IsInstanceValid(
+				_root
+			)
+		)
+		{
+			return;
+		}
+
+		EnsureShopInitialized();
+
+		/*
+		 * ShopController.Initialize() already hides the page.
+		 * Keep it explicit so prewarming can never flash the Shop.
+		 */
+		_shop.Hide();
+
+		SyncRoomChromeVisibility();
+	}
+
 
 	private void CreateRoomController()
 	{

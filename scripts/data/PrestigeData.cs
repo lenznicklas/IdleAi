@@ -4,40 +4,53 @@ namespace IdleAi;
 
 public sealed class PrestigeData
 {
+	/*
+	 * LEGACY SAVE COMPATIBILITY ONLY
+	 *
+	 * Older Idle AI saves contain AiCores.
+	 * Keep the property so old save files can still be loaded without
+	 * migration problems, but it is no longer displayed, awarded or used
+	 * for the prestige production multiplier.
+	 */
 	public long AiCores { get; set; }
+
 
 	public int PrestigeCount { get; set; }
 
 
+	private const double PrestigeCountSoftcap =
+		20.0;
+
+
 	public double GetProductionMultiplier()
 	{
-		return GetProductionMultiplierForCores(
-			AiCores
+		return GetProductionMultiplierForPrestigeCount(
+			PrestigeCount
 		);
 	}
 
 
-	public static double GetProductionMultiplierForCores(
-		long cores)
+	public static double GetProductionMultiplierForPrestigeCount(
+		int prestigeCount)
 	{
-		if (cores <= 0)
+		if (prestigeCount <= 0)
 			return 1.0;
 
 
 		double progress =
 			1.0
 			- Math.Exp(
-				-cores
-				/ GameConfig.PrestigeCoreSoftcap
+				-prestigeCount
+					/ PrestigeCountSoftcap
 			);
 
 
 		return 1.0
 			+ progress
-			* (
-				GameConfig.PrestigeMaximumProductionMultiplier
-				- 1.0
-			);
+				* (
+					GameConfig.PrestigeMaximumProductionMultiplier
+						- 1.0
+				);
 	}
 
 
@@ -45,7 +58,7 @@ public sealed class PrestigeData
 	{
 		return (
 			GetProductionMultiplier()
-			- 1.0
+				- 1.0
 		)
 		* 100.0;
 	}

@@ -25,21 +25,6 @@ public sealed class GooglePlayBillingService
 		"inapp";
 
 
-	/*
-	 * You described the Play Console product as
-	 * "data_shard_100 with id 10001".
-	 *
-	 * Google Play purchases are started with the Product ID.
-	 * To make this work with either interpretation, both values
-	 * are queried. Whichever one Google actually returns is used.
-	 */
-	public const string PreferredProductId =
-		"data_shard_100";
-
-	public const string AlternateProductId =
-		"10001";
-
-
 	private const string LedgerPath =
 		"user://idle_ai_iap_ledger.json";
 
@@ -60,7 +45,26 @@ public sealed class GooglePlayBillingService
 		2;
 
 
+	private sealed class ProductRuntimeInfo
+	{
+		public string FormattedPrice { get; init; } =
+			"";
+
+		public string PurchaseOptionId { get; init; } =
+			"";
+	}
+
+
 	private GodotObject? _billing;
+
+
+	private readonly Dictionary<
+		string,
+		ProductRuntimeInfo
+	> _products =
+		new(
+			StringComparer.Ordinal
+		);
 
 
 	private readonly HashSet<string>
@@ -93,13 +97,7 @@ public sealed class GooglePlayBillingService
 	private bool _purchaseFlowActive;
 
 
-	private string _activeProductId =
-		"";
-
-	private string _purchaseOptionId =
-		"";
-
-	private string _formattedPrice =
+	private string _purchaseFlowProductId =
 		"";
 
 
@@ -123,170 +121,220 @@ public sealed class GooglePlayBillingService
 		_connected;
 
 
-	public bool HasProduct =>
-		!string.IsNullOrWhiteSpace(
-			_activeProductId
-		);
-
-
 	public bool PurchaseFlowActive =>
 		_purchaseFlowActive;
 
 
-	public bool CanPurchase =>
-		IsAvailable
-		&& _connected
-		&& HasProduct
-		&& !_purchaseFlowActive
-		&& _consumingPurchaseTokens.Count == 0;
-
-
-	public string ActiveProductId =>
-		_activeProductId;
-
-
-	public string FormattedPrice =>
-		_formattedPrice;
-
-
-	public string StatusText
-	{
-		get
-		{
-			if (OS.GetName() != "Android")
-			{
-				return
-					"GOOGLE PLAY BILLING IS AVAILABLE IN THE ANDROID BUILD";
-			}
-
-
-			if (_billing == null)
-			{
-				return
-					"GOOGLE PLAY BILLING PLUGIN NOT FOUND";
-			}
-
-
-			if (!_connected)
-			{
-				return
-					"CONNECTING TO GOOGLE PLAY...";
-			}
-
-
-			if (_purchaseFlowActive)
-			{
-				return
-					"PURCHASE IN PROGRESS...";
-			}
-
-
-			if (_consumingPurchaseTokens.Count > 0)
-			{
-				return
-					"FINALIZING PURCHASE...";
-			}
-
-
-			if (_queryingProducts)
-			{
-				return
-					"LOADING GOOGLE PLAY PRICE...";
-			}
-
-
-			if (!HasProduct)
-			{
-				return
-					"PRODUCT NOT AVAILABLE FROM GOOGLE PLAY";
-			}
-
-
-			if (
-				!string.IsNullOrWhiteSpace(
-					_formattedPrice
-				)
-			)
-			{
-				return
-					"100 DATA SHARDS  •  "
-					+ _formattedPrice;
-			}
-
-
-			return
-				"100 DATA SHARDS  •  GOOGLE PLAY READY";
-		}
-	}
-
-
-	public string ButtonText
-	{
-		get
-		{
-			if (!IsAvailable)
-			{
-				return
-					"ANDROID / GOOGLE PLAY ONLY";
-			}
-
-
-			if (!_connected)
-			{
-				return
-					"CONNECTING...";
-			}
-
-
-			if (_purchaseFlowActive)
-			{
-				return
-					"PURCHASE IN PROGRESS...";
-			}
-
-
-			if (_consumingPurchaseTokens.Count > 0)
-			{
-				return
-					"FINALIZING...";
-			}
-
-
-			if (_queryingProducts)
-			{
-				return
-					"LOADING PRICE...";
-			}
-
-
-			if (!HasProduct)
-			{
-				return
-					"PRODUCT UNAVAILABLE";
-			}
-
-
-			if (
-				!string.IsNullOrWhiteSpace(
-					_formattedPrice
-				)
-			)
-			{
-				return
-					"BUY  •  "
-					+ _formattedPrice;
-			}
-
-
-			return
-				"BUY  •  100 SHARDS";
-		}
-	}
+	public string PurchaseFlowProductId =>
+		_purchaseFlowProductId;
 
 
 	public GooglePlayBillingService()
 	{
 		LoadLedger();
+	}
+
+
+	// ==================================================
+	// PUBLIC PRODUCT STATE
+	// ==================================================
+
+	public bool HasProduct(
+		string productId)
+	{
+		return _products.ContainsKey(
+			productId
+		);
+	}
+
+
+	public bool CanPurchase(
+		string productId)
+	{
+		return
+			IsAvailable
+			&& _connected
+			&& HasProduct(
+				productId
+			)
+			&& !_purchaseFlowActive
+			&& _consumingPurchaseTokens.Count == 0;
+	}
+
+
+	public string GetFormattedPrice(
+		string productId)
+	{
+		return
+			_products.TryGetValue(
+				productId,
+				out ProductRuntimeInfo? info
+			)
+				? info.FormattedPrice
+				: "";
+	}
+
+
+	public string GetStatusText(
+		string productId)
+	{
+		if (OS.GetName() != "Android")
+		{
+			return
+				"GOOGLE PLAY BILLING IS AVAILABLE IN THE ANDROID BUILD";
+		}
+
+
+		if (_billing == null)
+		{
+			return
+				"GOOGLE PLAY BILLING PLUGIN NOT FOUND";
+		}
+
+
+		if (!_connected)
+		{
+			return
+				"CONNECTING TO GOOGLE PLAY...";
+		}
+
+
+		if (_purchaseFlowActive)
+		{
+			return
+				_purchaseFlowProductId.Equals(
+					productId,
+					StringComparison.Ordinal
+				)
+					? "PURCHASE IN PROGRESS..."
+					: "WAITING FOR CURRENT PURCHASE...";
+		}
+
+
+		if (_consumingPurchaseTokens.Count > 0)
+		{
+			return
+				"FINALIZING PURCHASE...";
+		}
+
+
+		if (
+			_queryingProducts
+			&& !HasProduct(
+				productId
+			)
+		)
+		{
+			return
+				"LOADING GOOGLE PLAY PRICE...";
+		}
+
+
+		if (!HasProduct(productId))
+		{
+			return
+				"PRODUCT NOT AVAILABLE FROM GOOGLE PLAY";
+		}
+
+
+		string price =
+			GetFormattedPrice(
+				productId
+			);
+
+
+		if (
+			!string.IsNullOrWhiteSpace(
+				price
+			)
+		)
+		{
+			return
+				"GOOGLE PLAY  •  "
+				+ price;
+		}
+
+
+		return
+			"GOOGLE PLAY READY";
+	}
+
+
+	public string GetButtonText(
+		string productId)
+	{
+		if (!IsAvailable)
+		{
+			return
+				"ANDROID / GOOGLE PLAY ONLY";
+		}
+
+
+		if (!_connected)
+		{
+			return
+				"CONNECTING...";
+		}
+
+
+		if (_purchaseFlowActive)
+		{
+			return
+				_purchaseFlowProductId.Equals(
+					productId,
+					StringComparison.Ordinal
+				)
+					? "PURCHASE IN PROGRESS..."
+					: "PLEASE WAIT...";
+		}
+
+
+		if (_consumingPurchaseTokens.Count > 0)
+		{
+			return
+				"FINALIZING...";
+		}
+
+
+		if (
+			_queryingProducts
+			&& !HasProduct(
+				productId
+			)
+		)
+		{
+			return
+				"LOADING PRICE...";
+		}
+
+
+		if (!HasProduct(productId))
+		{
+			return
+				"PRODUCT UNAVAILABLE";
+		}
+
+
+		string price =
+			GetFormattedPrice(
+				productId
+			);
+
+
+		if (
+			!string.IsNullOrWhiteSpace(
+				price
+			)
+		)
+		{
+			return
+				"BUY  •  "
+				+ price;
+		}
+
+
+		return
+			"BUY";
 	}
 
 
@@ -305,9 +353,9 @@ public sealed class GooglePlayBillingService
 
 
 		/*
-		 * The native Android singleton does not exist in the
-		 * desktop editor. Keeping this Android-only means the
-		 * Shop remains usable while testing the game on PC.
+		 * Google Play Billing only exists in Android builds.
+		 * Keeping desktop safe lets the normal Godot editor run
+		 * the Shop without the native Android singleton.
 		 */
 		if (OS.GetName() != "Android")
 		{
@@ -351,8 +399,8 @@ public sealed class GooglePlayBillingService
 
 		/*
 		 * BillingClient.gd normally calls initPlugin() in its
-		 * constructor. This C# integration talks directly to the
-		 * exact same native singleton, so we initialize it here.
+		 * constructor. The C# integration talks directly to the
+		 * same native singleton.
 		 */
 		_billing.Call(
 			"initPlugin"
@@ -441,6 +489,10 @@ public sealed class GooglePlayBillingService
 			false;
 
 
+		_purchaseFlowProductId =
+			"";
+
+
 		QueryProducts();
 
 		QueryOwnedPurchases();
@@ -458,6 +510,10 @@ public sealed class GooglePlayBillingService
 
 		_purchaseFlowActive =
 			false;
+
+
+		_purchaseFlowProductId =
+			"";
 
 
 		_queryingProducts =
@@ -478,6 +534,10 @@ public sealed class GooglePlayBillingService
 
 		_purchaseFlowActive =
 			false;
+
+
+		_purchaseFlowProductId =
+			"";
 
 
 		_queryingProducts =
@@ -520,25 +580,12 @@ public sealed class GooglePlayBillingService
 			true;
 
 
-		_activeProductId =
-			"";
-
-
-		_purchaseOptionId =
-			"";
-
-
-		_formattedPrice =
-			"";
+		_products.Clear();
 
 
 		_billing.Call(
 			"queryProductDetails",
-			new string[]
-			{
-				PreferredProductId,
-				AlternateProductId
-			},
+			IapCatalog.GetProductIds(),
 			ProductTypeInApp
 		);
 
@@ -612,14 +659,6 @@ public sealed class GooglePlayBillingService
 			detailsValue.AsGodotArray();
 
 
-		GodotDictionary? preferred =
-			null;
-
-
-		GodotDictionary? alternate =
-			null;
-
-
 		foreach (
 			Variant value
 				in details
@@ -646,98 +685,72 @@ public sealed class GooglePlayBillingService
 
 
 			if (
-				productId.Equals(
-					PreferredProductId,
-					StringComparison.Ordinal
+				!IapCatalog.TryGet(
+					productId,
+					out _
 				)
 			)
 			{
-				preferred =
-					product;
+				continue;
 			}
-			else if (
-				productId.Equals(
-					AlternateProductId,
-					StringComparison.Ordinal
-				)
-			)
-			{
-				alternate =
-					product;
-			}
+
+
+			ProductRuntimeInfo runtime =
+				ReadOneTimeOffer(
+					product
+				);
+
+
+			_products[
+				productId
+			] =
+				runtime;
+
+
+			GD.Print(
+				"Google Play product ready: ",
+				productId,
+				" | price=",
+				runtime.FormattedPrice,
+				" | purchaseOptionId=",
+				runtime.PurchaseOptionId
+			);
 		}
 
 
-		GodotDictionary? selected =
-			preferred
-			?? alternate;
-
-
-		if (selected == null)
+		foreach (
+			IapProductDefinition definition
+				in IapCatalog.GetAll()
+		)
 		{
-			_activeProductId =
-				"";
-
-
-			GD.PushWarning(
-				"Google Play did not return product details for "
-					+ PreferredProductId
-					+ " or "
-					+ AlternateProductId
-					+ "."
-			);
-
-
-			Changed?.Invoke();
-
-			return;
+			if (
+				!_products.ContainsKey(
+					definition.ProductId
+				)
+			)
+			{
+				GD.PushWarning(
+					"Google Play did not return product details for "
+						+ definition.ProductId
+				);
+			}
 		}
-
-
-		_activeProductId =
-			GetString(
-				selected,
-				"product_id"
-			);
-
-
-		ReadOneTimeOffer(
-			selected
-		);
-
-
-		GD.Print(
-			"Google Play product ready: ",
-			_activeProductId,
-			" | price=",
-			_formattedPrice,
-			" | purchaseOptionId=",
-			_purchaseOptionId
-		);
 
 
 		Changed?.Invoke();
 	}
 
 
-	private void ReadOneTimeOffer(
+	private static ProductRuntimeInfo ReadOneTimeOffer(
 		GodotDictionary product)
 	{
-		_purchaseOptionId =
-			"";
-
-
-		_formattedPrice =
-			"";
-
-
 		if (
 			!product.ContainsKey(
 				"one_time_purchase_offer_details_list"
 			)
 		)
 		{
-			return;
+			return new ProductRuntimeInfo();
 		}
 
 
@@ -752,7 +765,7 @@ public sealed class GooglePlayBillingService
 				!= Variant.Type.Array
 		)
 		{
-			return;
+			return new ProductRuntimeInfo();
 		}
 
 
@@ -761,7 +774,9 @@ public sealed class GooglePlayBillingService
 
 
 		if (offers.Count == 0)
-			return;
+		{
+			return new ProductRuntimeInfo();
+		}
 
 
 		GodotDictionary? firstOffer =
@@ -801,6 +816,10 @@ public sealed class GooglePlayBillingService
 				);
 
 
+			/*
+			 * Prefer the normal/base purchase option over a
+			 * limited promotional offer.
+			 */
 			if (
 				string.IsNullOrWhiteSpace(
 					offerId
@@ -821,21 +840,31 @@ public sealed class GooglePlayBillingService
 
 
 		if (selected == null)
-			return;
+		{
+			return new ProductRuntimeInfo();
+		}
 
 
-		_formattedPrice =
-			GetString(
-				selected,
-				"formatted_price"
-			);
+		return new ProductRuntimeInfo
+		{
+			FormattedPrice =
+				GetString(
+					selected,
+					"formatted_price"
+				),
 
 
-		_purchaseOptionId =
-			GetString(
-				selected,
-				"purchase_option_id"
-			);
+			/*
+			 * This is the purchase-option ID returned by Google.
+			 * For your first pack this can be "10001". It is NOT
+			 * treated as a separate product ID.
+			 */
+			PurchaseOptionId =
+				GetString(
+					selected,
+					"purchase_option_id"
+				)
+		};
 	}
 
 
@@ -843,8 +872,24 @@ public sealed class GooglePlayBillingService
 	// PURCHASE
 	// ==================================================
 
-	public void Purchase()
+	public void Purchase(
+		string productId)
 	{
+		if (
+			!IapCatalog.TryGet(
+				productId,
+				out IapProductDefinition definition
+			)
+		)
+		{
+			MessageRequested?.Invoke(
+				"Unknown Data Shard product."
+			);
+
+			return;
+		}
+
+
 		if (_billing == null)
 		{
 			MessageRequested?.Invoke(
@@ -878,7 +923,12 @@ public sealed class GooglePlayBillingService
 		}
 
 
-		if (!HasProduct)
+		if (
+			!_products.TryGetValue(
+				productId,
+				out ProductRuntimeInfo? product
+			)
+		)
 		{
 			QueryProducts();
 
@@ -898,8 +948,8 @@ public sealed class GooglePlayBillingService
 		Variant resultValue =
 			_billing.Call(
 				"purchase",
-				_activeProductId,
-				_purchaseOptionId,
+				productId,
+				product.PurchaseOptionId,
 				"",
 				false
 			);
@@ -936,6 +986,10 @@ public sealed class GooglePlayBillingService
 				true;
 
 
+			_purchaseFlowProductId =
+				definition.ProductId;
+
+
 			Changed?.Invoke();
 
 			return;
@@ -950,7 +1004,9 @@ public sealed class GooglePlayBillingService
 
 
 		GD.PushWarning(
-			"Could not launch Google Play purchase: "
+			"Could not launch Google Play purchase for "
+				+ productId
+				+ ": "
 				+ responseCode
 				+ " "
 				+ debugMessage
@@ -965,6 +1021,10 @@ public sealed class GooglePlayBillingService
 		);
 
 
+		_purchaseFlowProductId =
+			"";
+
+
 		Changed?.Invoke();
 	}
 
@@ -974,6 +1034,10 @@ public sealed class GooglePlayBillingService
 	{
 		_purchaseFlowActive =
 			false;
+
+
+		_purchaseFlowProductId =
+			"";
 
 
 		int responseCode =
@@ -1200,9 +1264,7 @@ public sealed class GooglePlayBillingService
 		)
 		{
 			/*
-			 * The Shards for this exact token have already been
-			 * granted. If Google still reports it as owned, only
-			 * retry consumption; never grant a second time.
+			 * Already rewarded. Only retry consumption.
 			 */
 			ConsumePurchase(
 				token
@@ -1241,7 +1303,7 @@ public sealed class GooglePlayBillingService
 	}
 
 
-	private bool TryGetSupportedProductId(
+	private static bool TryGetSupportedProductId(
 		GodotDictionary purchase,
 		out string productId)
 	{
@@ -1285,13 +1347,9 @@ public sealed class GooglePlayBillingService
 		)
 		{
 			if (
-				id.Equals(
-					PreferredProductId,
-					StringComparison.Ordinal
-				)
-				|| id.Equals(
-					AlternateProductId,
-					StringComparison.Ordinal
+				IapCatalog.TryGet(
+					id,
+					out _
 				)
 			)
 			{
@@ -1311,15 +1369,6 @@ public sealed class GooglePlayBillingService
 	// GRANT + CONSUME
 	// ==================================================
 
-	/*
-	 * IapShopController calls this only after:
-	 *
-	 * 1. ShopService granted the Shards.
-	 * 2. GameUiController.StateChanged triggered Game.SaveGame().
-	 *
-	 * The token is persisted in this separate ledger before the
-	 * Google Play consumable is consumed.
-	 */
 	public void CompleteConsumableGrant(
 		string purchaseToken)
 	{
@@ -1429,11 +1478,6 @@ public sealed class GooglePlayBillingService
 		}
 		else
 		{
-			/*
-			 * Reward is already saved and the token remains in
-			 * the ledger. A later queryPurchases() can therefore
-			 * retry consume without granting the Shards again.
-			 */
 			GD.PushWarning(
 				"Google Play consume failed: "
 					+ GetString(
@@ -1444,7 +1488,7 @@ public sealed class GooglePlayBillingService
 
 
 			MessageRequested?.Invoke(
-				"100 Shards were saved. Google Play will finalize the purchase automatically."
+				"Purchased Shards were saved. Google Play will finalize the purchase automatically."
 			);
 		}
 
@@ -1625,7 +1669,7 @@ public sealed class GooglePlayBillingService
 			}
 			catch
 			{
-				// Keep the original save error as the useful one.
+				// Keep the original error as the useful one.
 			}
 		}
 	}

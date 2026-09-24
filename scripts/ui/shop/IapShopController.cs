@@ -1,28 +1,15 @@
 using Godot;
 
 using System;
+using System.Collections.Generic;
 
 namespace IdleAi;
 
 
 public sealed class IapShopController
 {
-	private const int DataShardReward =
-		100;
-
-
 	private const float MainShopBottomPadding =
-		240.0f;
-
-
-	private static readonly Texture2D? HundredShardsIcon =
-		ResourceLoader.Exists(
-			"res://assets/shop/hundred_shards.png"
-		)
-			? GD.Load<Texture2D>(
-				"res://assets/shop/hundred_shards.png"
-			)
-			: null;
+		260.0f;
 
 
 	private readonly Game _root;
@@ -39,12 +26,22 @@ public sealed class IapShopController
 		null!;
 
 
-	private Label _status =
-		null!;
+	private readonly Dictionary<
+		string,
+		Label
+	> _statusLabels =
+		new(
+			StringComparer.Ordinal
+		);
 
 
-	private Button _buyButton =
-		null!;
+	private readonly Dictionary<
+		string,
+		Button
+	> _buyButtons =
+		new(
+			StringComparer.Ordinal
+		);
 
 
 	public event Action<string>? MessageRequested;
@@ -144,22 +141,24 @@ public sealed class IapShopController
 	{
 		CreateSectionHeader(
 			"DATA SHARD PACKS",
-			"Buy Data Shards securely through Google Play."
+			"Choose a pack. Prices are loaded directly from Google Play."
 		);
 
 
-		_status =
-			ShopUi.CreateMutedLabel(
-				13
+		foreach (
+			IapProductDefinition product
+				in IapCatalog.GetAll()
+		)
+		{
+			CreatePurchaseCard(
+				product
 			);
-
-
-		_buyButton =
-			CreatePurchaseCard();
+		}
 	}
 
 
-	private Button CreatePurchaseCard()
+	private void CreatePurchaseCard(
+		IapProductDefinition product)
 	{
 		PanelContainer panel =
 			new()
@@ -281,8 +280,9 @@ public sealed class IapShopController
 			new()
 			{
 				Texture =
-					HundredShardsIcon
-					?? ShopUi.DataShard,
+					LoadProductIcon(
+						product.ImagePath
+					),
 
 
 				ExpandMode =
@@ -350,7 +350,10 @@ public sealed class IapShopController
 
 
 		title.Text =
-			"100 DATA SHARDS";
+			FormatShardAmount(
+				product.ShardAmount
+			)
+			+ " DATA SHARDS";
 
 
 		title.HorizontalAlignment =
@@ -368,14 +371,39 @@ public sealed class IapShopController
 		);
 
 
+		Label packName =
+			ShopUi.CreateLabel(
+				14
+			);
+
+
+		packName.Text =
+			product.DisplayName;
+
+
+		packName.HorizontalAlignment =
+			HorizontalAlignment.Left;
+
+
+		packName.AddThemeColorOverride(
+			"font_color",
+			ShopUi.TextPrimary
+		);
+
+
+		info.AddChild(
+			packName
+		);
+
+
 		Label description =
 			ShopUi.CreateMutedLabel(
-				13
+				12
 			);
 
 
 		description.Text =
-			"Permanent currency pack. Can be purchased repeatedly.";
+			product.Description;
 
 
 		description.HorizontalAlignment =
@@ -387,11 +415,17 @@ public sealed class IapShopController
 		);
 
 
-		_status.HorizontalAlignment =
+		Label status =
+			ShopUi.CreateMutedLabel(
+				13
+			);
+
+
+		status.HorizontalAlignment =
 			HorizontalAlignment.Left;
 
 
-		_status.CustomMinimumSize =
+		status.CustomMinimumSize =
 			new Vector2(
 				0,
 				30
@@ -399,7 +433,7 @@ public sealed class IapShopController
 
 
 		info.AddChild(
-			_status
+			status
 		);
 
 
@@ -427,8 +461,15 @@ public sealed class IapShopController
 		);
 
 
+		string productId =
+			product.ProductId;
+
+
 		button.Pressed +=
-			OnBuyPressed;
+			() =>
+				OnBuyPressed(
+					productId
+				);
 
 
 		info.AddChild(
@@ -436,7 +477,16 @@ public sealed class IapShopController
 		);
 
 
-		return button;
+		_statusLabels[
+			productId
+		] =
+			status;
+
+
+		_buyButtons[
+			productId
+		] =
+			button;
 	}
 
 
@@ -594,11 +644,42 @@ public sealed class IapShopController
 	}
 
 
+	private static Texture2D LoadProductIcon(
+		string path)
+	{
+		if (
+			ResourceLoader.Exists(
+				path
+			)
+		)
+		{
+			Texture2D? texture =
+				GD.Load<Texture2D>(
+					path
+				);
+
+
+			if (texture != null)
+				return texture;
+		}
+
+
+		GD.PushWarning(
+			"IAP Shop icon not found: "
+				+ path
+		);
+
+
+		return ShopUi.DataShard;
+	}
+
+
 	// ==================================================
 	// PURCHASE
 	// ==================================================
 
-	private void OnBuyPressed()
+	private void OnBuyPressed(
+		string productId)
 	{
 		Input.VibrateHandheld(
 			10,
@@ -606,7 +687,9 @@ public sealed class IapShopController
 		);
 
 
-		_billing.Purchase();
+		_billing.Purchase(
+			productId
+		);
 
 
 		Refresh();
@@ -618,6 +701,22 @@ public sealed class IapShopController
 		string purchaseToken,
 		int quantity)
 	{
+		if (
+			!IapCatalog.TryGet(
+				productId,
+				out IapProductDefinition product
+			)
+		)
+		{
+			GD.PushError(
+				"Paid Google Play purchase returned unknown product: "
+					+ productId
+			);
+
+			return;
+		}
+
+
 		int safeQuantity =
 			Math.Max(
 				1,
@@ -626,7 +725,7 @@ public sealed class IapShopController
 
 
 		int reward =
-			DataShardReward
+			product.ShardAmount
 			* safeQuantity;
 
 
@@ -653,15 +752,16 @@ public sealed class IapShopController
 
 
 		/*
-		 * The Game object subscribes to this event and immediately
-		 * writes the normal save including the new DataShards.
+		 * Game is subscribed to GameUiController.StateChanged and
+		 * immediately writes the normal game save.
 		 */
 		StateChanged?.Invoke();
 
 
 		/*
-		 * Only after the game save was requested do we mark the
-		 * token processed and consume the Google Play item.
+		 * After the reward save is requested, record the token and
+		 * consume the Google Play purchase so this consumable can
+		 * be bought again.
 		 */
 		_billing.CompleteConsumableGrant(
 			purchaseToken
@@ -699,48 +799,76 @@ public sealed class IapShopController
 
 	public void Refresh()
 	{
-		if (
-			_status == null
-			|| _buyButton == null
+		foreach (
+			IapProductDefinition product
+				in IapCatalog.GetAll()
 		)
 		{
-			return;
+			if (
+				!_statusLabels.TryGetValue(
+					product.ProductId,
+					out Label? status
+				)
+				|| !_buyButtons.TryGetValue(
+					product.ProductId,
+					out Button? button
+				)
+			)
+			{
+				continue;
+			}
+
+
+			status.Text =
+				_billing.GetStatusText(
+					product.ProductId
+				);
+
+
+			if (
+				_billing.CanPurchase(
+					product.ProductId
+				)
+			)
+			{
+				status.AddThemeColorOverride(
+					"font_color",
+					ShopUi.Green
+				);
+			}
+			else if (
+				_billing.PurchaseFlowActive
+				&& _billing.PurchaseFlowProductId.Equals(
+					product.ProductId,
+					StringComparison.Ordinal
+				)
+			)
+			{
+				status.AddThemeColorOverride(
+					"font_color",
+					ShopUi.Gold
+				);
+			}
+			else
+			{
+				status.AddThemeColorOverride(
+					"font_color",
+					ShopUi.TextSecondary
+				);
+			}
+
+
+			button.Text =
+				_billing.GetButtonText(
+					product.ProductId
+				);
+
+
+			button.Disabled =
+				!_billing.CanPurchase(
+					product.ProductId
+				);
 		}
-
-
-		_status.Text =
-			_billing.StatusText;
-
-
-		if (_billing.CanPurchase)
-		{
-			_status.AddThemeColorOverride(
-				"font_color",
-				ShopUi.Green
-			);
-		}
-		else if (_billing.PurchaseFlowActive)
-		{
-			_status.AddThemeColorOverride(
-				"font_color",
-				ShopUi.Gold
-			);
-		}
-		else
-		{
-			_status.AddThemeColorOverride(
-				"font_color",
-				ShopUi.TextSecondary
-			);
-		}
-
-
-		_buyButton.Text =
-			_billing.ButtonText;
-
-
-		_buyButton.Disabled =
-			!_billing.CanPurchase;
 	}
 
 
@@ -796,5 +924,21 @@ public sealed class IapShopController
 					Control.MouseFilterEnum.Ignore
 			}
 		);
+	}
+
+
+	private static string FormatShardAmount(
+		int amount)
+	{
+		return amount switch
+		{
+			>= 1000 =>
+				amount.ToString(
+					"#,0"
+				),
+
+			_ =>
+				amount.ToString()
+		};
 	}
 }

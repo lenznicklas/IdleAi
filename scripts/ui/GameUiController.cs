@@ -35,6 +35,7 @@ public sealed class GameUiController
 	private PrestigeOverlayController _prestige = null!;
 	private MachineDetailsOverlay _details = null!;
 	private ShopController _shop = null!;
+	private IapShopController? _iapShop;
 	private BotSkinShopController? _skinShop;
 	private MachineSkinShopController? _machineSkinShop;
 
@@ -365,6 +366,37 @@ public sealed class GameUiController
 
 		_shop.Initialize();
 
+		/*
+		 * Google Play Billing lives in its own Shop controller.
+		 * This keeps the existing AdMob / skin Shop code isolated.
+		 */
+		_iapShop =
+			new IapShopController(
+				_root,
+				_state,
+				_shopService
+			);
+
+		_iapShop.MessageRequested +=
+			SetMessage;
+
+		_iapShop.StateChanged +=
+			() =>
+			{
+				/*
+				 * Game subscribes to GameUiController.StateChanged
+				 * with SaveGame(), so the newly purchased Shards
+				 * are persisted before the consumable is finalized.
+				 */
+				StateChanged?.Invoke();
+
+				UpdateAll();
+
+				_iapShop?.Refresh();
+			};
+
+		_iapShop.Initialize();
+
 		_skinShop =
 			new BotSkinShopController(
 				_root,
@@ -530,6 +562,7 @@ public sealed class GameUiController
 
 		_shop.Open();
 
+		_iapShop?.Refresh();
 		_skinShop?.Refresh();
 		_machineSkinShop?.Refresh();
 
@@ -683,6 +716,7 @@ public sealed class GameUiController
 		 * Refresh is safe before lazy initialization.
 		 */
 		_shop.Refresh();
+		_iapShop?.Refresh();
 		_skinShop?.Refresh();
 		_machineSkinShop?.Refresh();
 

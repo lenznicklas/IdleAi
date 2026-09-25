@@ -350,8 +350,13 @@ public sealed class LevelRewardsOverlayController
 		 * Defensive: keep both the transparent close layer and the actual
 		 * button above every panel child.
 		 */
-		closeButton.GetParent()
-			.MoveToFront();
+		if (
+			closeButton.GetParent()
+				is Control closeLayer
+		)
+		{
+			closeLayer.MoveToFront();
+		}
 
 		closeButton.MoveToFront();
 	}

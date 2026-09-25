@@ -133,11 +133,6 @@ public sealed class LevelRewardsOverlayController
 			_panel
 		);
 
-		OverlayCloseButton.Add(
-			_panel,
-			Hide
-		);
-
 		MarginContainer margin =
 			new();
 
@@ -334,6 +329,31 @@ public sealed class LevelRewardsOverlayController
 		_mobileScroll.Setup(
 			_scroll
 		);
+
+		/*
+		 * IMPORTANT:
+		 *
+		 * Add the close layer LAST.
+		 *
+		 * PanelContainer is a Container. If the X is added before the
+		 * Margin/Scroll content, that later content becomes the topmost
+		 * input target. The X can still be visible, but taps are swallowed
+		 * by the content sitting above its layer.
+		 */
+		TextureButton closeButton =
+			OverlayCloseButton.Add(
+				_panel,
+				Hide
+			);
+
+		/*
+		 * Defensive: keep both the transparent close layer and the actual
+		 * button above every panel child.
+		 */
+		closeButton.GetParent()
+			.MoveToFront();
+
+		closeButton.MoveToFront();
 	}
 
 	public void Open()

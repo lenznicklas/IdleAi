@@ -32,15 +32,10 @@ public sealed class ProgressionService
 		_state =
 			state;
 
-
 		_economy =
 			economy;
 	}
 
-
-	// ==================================================
-	// SLOT ACTION
-	// ==================================================
 
 	public ProgressionResult HandleSlotAction(
 		int slotIndex)
@@ -48,10 +43,8 @@ public sealed class ProgressionService
 		int roomIndex =
 			_state.CurrentRoomIndex;
 
-
 		RoomState roomState =
 			_state.CurrentRoomState;
-
 
 		if (
 			slotIndex < 0
@@ -64,12 +57,10 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		SlotData slot =
 			roomState.Slots[
 				slotIndex
 			];
-
 
 		if (!slot.Unlocked)
 		{
@@ -79,7 +70,6 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		return UpgradeSlot(
 			roomIndex,
 			slot,
@@ -87,10 +77,6 @@ public sealed class ProgressionService
 		);
 	}
 
-
-	// ==================================================
-	// SLOT UNLOCK
-	// ==================================================
 
 	public double GetSlotUnlockCost(
 		int roomIndex,
@@ -101,7 +87,6 @@ public sealed class ProgressionService
 				roomIndex
 			);
 
-
 		if (
 			slotIndex < 0
 			|| slotIndex >= costs.Length
@@ -109,7 +94,6 @@ public sealed class ProgressionService
 		{
 			return 0.0;
 		}
-
 
 		return costs[
 			slotIndex
@@ -130,13 +114,11 @@ public sealed class ProgressionService
 				slotIndex
 			];
 
-
 		double cost =
 			GetSlotUnlockCost(
 				roomIndex,
 				slotIndex
 			);
-
 
 		if (_state.Tokens < cost)
 		{
@@ -146,30 +128,27 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		_state.Tokens -=
 			cost;
-
 
 		_state.Stats.AddSlotSpending(
 			cost
 		);
 
-
 		slot.Unlocked =
 			true;
-
 
 		slot.MachineTier =
 			0;
 
-
 		slot.MachineLevel =
 			1;
 
-
+		/*
+		 * Legacy machine Shard milestone data is intentionally no longer
+		 * rewarded. Free Data Shards now only come from the Level Reward Road.
+		 */
 		slot.ResetDataShardMilestones();
-
 
 		return new ProgressionResult(
 			true,
@@ -177,10 +156,6 @@ public sealed class ProgressionService
 		);
 	}
 
-
-	// ==================================================
-	// DEFAULT SINGLE UPGRADE
-	// ==================================================
 
 	private ProgressionResult UpgradeSlot(
 		int roomIndex,
@@ -192,12 +167,10 @@ public sealed class ProgressionService
 				roomIndex
 			];
 
-
 		MachineData machine =
 			room.Machines[
 				slot.MachineTier
 			];
-
 
 		if (
 			slot.MachineLevel
@@ -211,7 +184,6 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		return UpgradeMachineTier(
 			roomIndex,
 			slot,
@@ -220,10 +192,6 @@ public sealed class ProgressionService
 		);
 	}
 
-
-	// ==================================================
-	// UPGRADE QUOTE
-	// ==================================================
 
 	public MachineUpgradeQuote GetMachineUpgradeQuote(
 		int roomIndex,
@@ -243,12 +211,10 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		RoomState roomState =
 			_state.RoomStates[
 				roomIndex
 			];
-
 
 		if (
 			slotIndex < 0
@@ -263,12 +229,10 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		SlotData slot =
 			roomState.Slots[
 				slotIndex
 			];
-
 
 		if (!slot.Unlocked)
 		{
@@ -280,7 +244,6 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		MachineData machine =
 			_state.Rooms[
 				roomIndex
@@ -288,14 +251,12 @@ public sealed class ProgressionService
 				slot.MachineTier
 			];
 
-
 		int remainingLevels =
 			Math.Max(
 				0,
 				machine.MaxLevel
-				- slot.MachineLevel
+					- slot.MachineLevel
 			);
-
 
 		if (remainingLevels <= 0)
 		{
@@ -306,11 +267,6 @@ public sealed class ProgressionService
 				false
 			);
 		}
-
-
-		// ==================================================
-		// MAX
-		// ==================================================
 
 		if (requestedLevels <= 0)
 		{
@@ -323,7 +279,6 @@ public sealed class ProgressionService
 						_state.Tokens
 					);
 
-
 			double cost =
 				_economy
 					.GetLevelUpgradeCostForLevels(
@@ -333,23 +288,20 @@ public sealed class ProgressionService
 						affordableLevels
 					);
 
-
 			return new MachineUpgradeQuote(
 				affordableLevels,
 				slot.MachineLevel
-				+ affordableLevels,
+					+ affordableLevels,
 				cost,
 				affordableLevels > 0
 			);
 		}
-
 
 		int levels =
 			Math.Min(
 				requestedLevels,
 				remainingLevels
 			);
-
 
 		double fixedCost =
 			_economy
@@ -360,7 +312,6 @@ public sealed class ProgressionService
 					levels
 				);
 
-
 		return new MachineUpgradeQuote(
 			levels,
 			slot.MachineLevel
@@ -368,14 +319,10 @@ public sealed class ProgressionService
 			fixedCost,
 			levels > 0
 				&& _state.Tokens
-				>= fixedCost
+					>= fixedCost
 		);
 	}
 
-
-	// ==================================================
-	// MULTI LEVEL UPGRADE
-	// ==================================================
 
 	public ProgressionResult UpgradeMachineLevels(
 		int roomIndex,
@@ -389,7 +336,6 @@ public sealed class ProgressionService
 				requestedLevels
 			);
 
-
 		if (quote.Levels <= 0)
 		{
 			return new ProgressionResult(
@@ -400,7 +346,6 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		if (!quote.CanAfford)
 		{
 			return new ProgressionResult(
@@ -409,14 +354,12 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		SlotData slot =
 			_state.RoomStates[
 				roomIndex
 			].Slots[
 				slotIndex
 			];
-
 
 		MachineData machine =
 			_state.Rooms[
@@ -425,22 +368,14 @@ public sealed class ProgressionService
 				slot.MachineTier
 			];
 
-
 		int upgradedLevels =
 			0;
-
 
 		int totalResearchPoints =
 			0;
 
-
-		int totalDataShards =
-			0;
-
-
 		double totalSpent =
 			0.0;
-
 
 		for (
 			int i = 0;
@@ -456,35 +391,24 @@ public sealed class ProgressionService
 						slotIndex
 					);
 
-
 			if (_state.Tokens < cost)
 				break;
-
 
 			_state.Tokens -=
 				cost;
 
-
 			totalSpent +=
 				cost;
 
-
 			slot.MachineLevel++;
 
-
 			upgradedLevels++;
-
-
-			// ==================================================
-			// RESEARCH POINT REWARD
-			// ==================================================
 
 			int researchReward =
 				GameConfig
 					.GetMilestoneResearchPoints(
 						slot.MachineLevel
 					);
-
 
 			if (
 				researchReward > 0
@@ -494,40 +418,15 @@ public sealed class ProgressionService
 				_state.Lab.ResearchPoints +=
 					researchReward;
 
-
 				totalResearchPoints +=
 					researchReward;
 			}
 
-
-			// ==================================================
-			// DATA SHARD REWARD
-			// ==================================================
-
-			int shardReward =
-				GameConfig
-					.GetMilestoneDataShards(
-						slot.MachineLevel
-					);
-
-
-			if (
-				shardReward > 0
-				&& slot.ClaimDataShardMilestone(
-					slot.MachineTier,
-					slot.MachineLevel
-				)
-			)
-			{
-				_state.Shop.DataShards +=
-					shardReward;
-
-
-				totalDataShards +=
-					shardReward;
-			}
+			/*
+			 * No Data Shards are granted here anymore.
+			 * Reaching total levels unlocks claimable Level Reward Road cards.
+			 */
 		}
-
 
 		if (upgradedLevels <= 0)
 		{
@@ -537,12 +436,10 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		_state.Stats.AddMachineSpending(
 			machine.MachineName,
 			totalSpent
 		);
-
 
 		string message =
 			upgradedLevels == 1
@@ -556,20 +453,11 @@ public sealed class ProgressionService
 					+ " levels → Level "
 					+ slot.MachineLevel;
 
-
 		if (totalResearchPoints > 0)
 		{
 			message +=
 				$" +{totalResearchPoints} RP!";
 		}
-
-
-		if (totalDataShards > 0)
-		{
-			message +=
-				$" +{totalDataShards} Data Shards!";
-		}
-
 
 		return new ProgressionResult(
 			true,
@@ -577,10 +465,6 @@ public sealed class ProgressionService
 		);
 	}
 
-
-	// ==================================================
-	// TIER UPGRADE
-	// ==================================================
 
 	private ProgressionResult UpgradeMachineTier(
 		int roomIndex,
@@ -593,10 +477,9 @@ public sealed class ProgressionService
 				roomIndex
 			];
 
-
 		if (
 			slot.MachineTier
-			>= room.Machines.Count - 1
+				>= room.Machines.Count - 1
 		)
 		{
 			return new ProgressionResult(
@@ -605,14 +488,12 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		double cost =
 			_economy.GetTierUpgradeCost(
 				roomIndex,
 				slot,
 				slotIndex
 			);
-
 
 		if (_state.Tokens < cost)
 		{
@@ -622,29 +503,23 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		_state.Tokens -=
 			cost;
-
 
 		_state.Stats.AddMachineSpending(
 			machine.MachineName,
 			cost
 		);
 
-
 		slot.MachineTier++;
-
 
 		slot.MachineLevel =
 			1;
-
 
 		MachineData newMachine =
 			room.Machines[
 				slot.MachineTier
 			];
-
 
 		return new ProgressionResult(
 			true,
@@ -652,10 +527,6 @@ public sealed class ProgressionService
 		);
 	}
 
-
-	// ==================================================
-	// ROOM UNLOCK
-	// ==================================================
 
 	public double GetRoomUnlockCost(
 		int roomIndex)
@@ -668,12 +539,10 @@ public sealed class ProgressionService
 			return 0.0;
 		}
 
-
 		double baseCost =
 			_state.Rooms[
 				roomIndex
 			].UnlockCost;
-
 
 		return baseCost
 			* _state.Lab
@@ -695,12 +564,10 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		RoomState roomState =
 			_state.RoomStates[
 				roomIndex
 			];
-
 
 		if (roomState.Unlocked)
 		{
@@ -710,12 +577,10 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		double cost =
 			GetRoomUnlockCost(
 				roomIndex
 			);
-
 
 		if (_state.Tokens < cost)
 		{
@@ -725,98 +590,46 @@ public sealed class ProgressionService
 			);
 		}
 
-
 		_state.Tokens -=
 			cost;
-
 
 		_state.Stats.AddSlotSpending(
 			cost
 		);
 
-
 		roomState.Unlocked =
 			true;
-
 
 		roomState.Slots[0].Unlocked =
 			true;
 
-
 		roomState.Slots[0].MachineTier =
 			0;
-
 
 		roomState.Slots[0].MachineLevel =
 			1;
 
-
 		roomState.Slots[0]
 			.ResetDataShardMilestones();
 
-
-		double shardReward =
-			0.0;
-
-
 		/*
-		 * Room unlock reward is GLOBAL/PERMANENT.
-		 *
-		 * Prestige may lock the room again, but the
-		 * player does not receive another +15 when
-		 * unlocking it in a later Prestige run.
+		 * No room-unlock Data Shards anymore.
+		 * Keep the legacy flag true so old reward logic can never fire again.
 		 */
-		if (
-			!roomState
-				.DataShardUnlockRewardClaimed
-		)
-		{
-			roomState
-				.DataShardUnlockRewardClaimed =
-				true;
-
-
-			shardReward =
-				GameConfig
-					.RoomUnlockDataShardReward;
-
-
-			_state.Shop.DataShards +=
-				shardReward;
-		}
-
-
-		string message =
-			$"{_state.Rooms[roomIndex].Name} unlocked!";
-
-
-		if (shardReward > 0.0)
-		{
-			message +=
-				" +"
-				+ NumberFormatter.Format(
-					shardReward
-				)
-				+ " Data Shards!";
-		}
-
+		roomState.DataShardUnlockRewardClaimed =
+			true;
 
 		return new ProgressionResult(
 			true,
-			message
+			$"{_state.Rooms[roomIndex].Name} unlocked!"
 		);
 	}
 
-
-	// ==================================================
-	// TOTAL LEVEL
-	// ==================================================
 
 	public int GetTotalLevel()
 	{
 		int total =
 			0;
-
 
 		for (
 			int roomIndex = 0;
@@ -833,23 +646,20 @@ public sealed class ProgressionService
 				continue;
 			}
 
-
 			RoomData room =
 				_state.Rooms[
 					roomIndex
 				];
 
-
 			foreach (
 				SlotData slot
-				in _state.RoomStates[
-					roomIndex
-				].Slots
+					in _state.RoomStates[
+						roomIndex
+					].Slots
 			)
 			{
 				if (!slot.Unlocked)
 					continue;
-
 
 				for (
 					int tier = 0;
@@ -863,12 +673,10 @@ public sealed class ProgressionService
 						].MaxLevel;
 				}
 
-
 				total +=
 					slot.MachineLevel;
 			}
 		}
-
 
 		return total;
 	}
@@ -887,10 +695,6 @@ public sealed class ProgressionService
 			);
 	}
 
-
-	// ==================================================
-	// MESSAGE
-	// ==================================================
 
 	private static string GetUpgradeMessage(
 		MachineData machine,

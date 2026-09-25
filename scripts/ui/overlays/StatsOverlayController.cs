@@ -459,10 +459,6 @@ public sealed class StatsOverlayController
 			_prestige.CanPrestige();
 
 
-		int shardReward =
-			_prestige.GetDataShardReward();
-
-
 		_prestigeCount.Text =
 			"Prestiges: "
 				+ _state.Prestige.PrestigeCount;
@@ -489,9 +485,6 @@ public sealed class StatsOverlayController
 					+ NumberFormatter.Format(
 						_state.RunEarnedTokens
 					)
-					+ "\nReward: +"
-					+ shardReward
-					+ " Data Shards"
 					+ "\nAfter prestige: x"
 					+ nextMultiplier.ToString(
 						"F2"
@@ -500,9 +493,7 @@ public sealed class StatsOverlayController
 
 
 			_prestigeButton.Text =
-				"PRESTIGE  •  +"
-					+ shardReward
-					+ " SHARDS";
+				"PRESTIGE";
 
 
 			_prestigeButton.Disabled =
@@ -525,10 +516,7 @@ public sealed class StatsOverlayController
 				+ NumberFormatter.Format(
 					remaining
 				)
-				+ " Tokens"
-				+ "\nReward: +"
-				+ shardReward
-				+ " Data Shards";
+				+ " Tokens";
 
 
 		_prestigeButton.Text =

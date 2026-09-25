@@ -8,77 +8,67 @@ public sealed class ShopData
 	public double DataShards { get; set; } =
 		GameConfig.InitialDataShards;
 
+	/*
+	 * Permanent reward-road progress.
+	 *
+	 * Example:
+	 * 0   -> nothing claimed yet
+	 * 150 -> Level 150 reward claimed
+	 * 300 -> Level 150 + 300 claimed
+	 *
+	 * This survives Prestige so the same free Shards cannot be farmed again.
+	 */
+	public int HighestClaimedLevelReward { get; set; }
 
 	public long ProductionBoostEndUnix { get; set; }
 
 	public long BotLuckBoostEndUnix { get; set; }
 
-
 	public int ProductionUpgradeLevel { get; set; }
 
 	public int OfflineUpgradeLevel { get; set; }
-
-
-	// ==================================================
-	// TEMPORARY BOOSTS
-	// ==================================================
 
 	public bool ProductionBoostActive =>
 		ProductionBoostEndUnix
 		> GetCurrentUnixTime();
 
-
 	public bool BotLuckBoostActive =>
 		BotLuckBoostEndUnix
 		> GetCurrentUnixTime();
-
 
 	public double GetProductionBoostRemainingSeconds()
 	{
 		return Math.Max(
 			0,
 			ProductionBoostEndUnix
-			- GetCurrentUnixTime()
+				- GetCurrentUnixTime()
 		);
 	}
-
 
 	public double GetBotLuckRemainingSeconds()
 	{
 		return Math.Max(
 			0,
 			BotLuckBoostEndUnix
-			- GetCurrentUnixTime()
+				- GetCurrentUnixTime()
 		);
 	}
-
-
-	// ==================================================
-	// PRODUCTION
-	// ==================================================
 
 	public double GetProductionMultiplier()
 	{
 		double permanent =
 			1.0
-			+ ProductionUpgradeLevel
-			* GameConfig.ShopProductionUpgradeBonus;
-
+				+ ProductionUpgradeLevel
+					* GameConfig.ShopProductionUpgradeBonus;
 
 		double temporary =
 			ProductionBoostActive
 				? GameConfig.ShopTemporaryProductionMultiplier
 				: 1.0;
 
-
 		return permanent
 			* temporary;
 	}
-
-
-	// ==================================================
-	// OFFLINE
-	// ==================================================
 
 	public double GetOfflineIncomeBonus()
 	{
@@ -86,22 +76,12 @@ public sealed class ShopData
 			* GameConfig.ShopOfflineUpgradeBonus;
 	}
 
-
-	// ==================================================
-	// BOT LUCK
-	// ==================================================
-
 	public double GetBotLuckMultiplier()
 	{
 		return BotLuckBoostActive
 			? GameConfig.ShopBotLuckMultiplier
 			: 1.0;
 	}
-
-
-	// ==================================================
-	// TIME
-	// ==================================================
 
 	private static long GetCurrentUnixTime()
 	{

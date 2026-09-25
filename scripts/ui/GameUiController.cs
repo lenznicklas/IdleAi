@@ -23,6 +23,7 @@ public sealed class GameUiController
 	private readonly QuantumService _quantumService;
 	private readonly BotSkinService _skinService;
 	private readonly MachineSkinService _machineSkinService;
+	private readonly LevelRewardService _levelRewardService;
 
 	private RoomUiController _room = null!;
 	private PipelineUiController _pipeline = null!;
@@ -33,6 +34,7 @@ public sealed class GameUiController
 	private MapController _map = null!;
 	private StatsOverlayController _stats = null!;
 	private PrestigeOverlayController _prestige = null!;
+	private LevelRewardsOverlayController _levelRewards = null!;
 	private MachineDetailsOverlay _details = null!;
 	private ShopController _shop = null!;
 	private IapShopController? _iapShop;
@@ -88,6 +90,12 @@ public sealed class GameUiController
 			new MachineSkinService(
 				_state
 			);
+
+		_levelRewardService =
+			new LevelRewardService(
+				_state,
+				_progression
+			);
 	}
 
 	public void Initialize()
@@ -115,6 +123,7 @@ public sealed class GameUiController
 		CreateInfrastructureController();
 		CreateQuantumController();
 		CreateTopBarController();
+		CreateLevelRewardsController();
 		CreateBottomBarController();
 		CreateMapController();
 		CreateStatsController();
@@ -260,10 +269,12 @@ public sealed class GameUiController
 			new TopBarController(
 				_root,
 				_state,
-				_progression
+				_progression,
+				_levelRewardService
 			);
 
 		_topBar.StatsRequested += OpenStats;
+		_topBar.LevelRewardsRequested += OpenLevelRewards;
 		_topBar.Initialize();
 
 		TextureButton tokenCard =
@@ -271,17 +282,34 @@ public sealed class GameUiController
 				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/TokenCard"
 			);
 
-		TextureButton levelCard =
-			_root.GetNode<TextureButton>(
-				"MarginContainer/VBoxContainer/TopBar/Margin/VBox/TopStats/LevelCard"
-			);
-
 		tokenCard.Pressed +=
 			BringTopBarInfoPopupsToFront;
-
-		levelCard.Pressed +=
-			BringTopBarInfoPopupsToFront;
 	}
+
+	private void CreateLevelRewardsController()
+	{
+		_levelRewards =
+			new LevelRewardsOverlayController(
+				_root,
+				_levelRewardService
+			);
+
+		_levelRewards.MessageRequested +=
+			SetMessage;
+
+		_levelRewards.StateChanged +=
+			() =>
+			{
+				StateChanged?.Invoke();
+
+				UpdateAll();
+
+				_levelRewards.Refresh();
+			};
+
+		_levelRewards.Initialize();
+	}
+
 
 	private void CreateBottomBarController()
 	{
@@ -649,8 +677,22 @@ public sealed class GameUiController
 		}
 	}
 
+	private void OpenLevelRewards()
+	{
+		ClosePages();
+
+		_details.Close();
+		_stats.Hide();
+		_prestige.Hide();
+		_topBar.HidePopups();
+
+		_levelRewards.Open();
+	}
+
+
 	private void OpenStats()
 	{
+		_levelRewards.Hide();
 		ClosePages();
 		_details.Close();
 		_topBar.HidePopups();
@@ -671,12 +713,14 @@ public sealed class GameUiController
 		_details.Close();
 		_stats.Hide();
 		_prestige.Hide();
+		_levelRewards.Hide();
 		_topBar.HidePopups();
 	}
 
 	public void ClosePages()
 	{
 		_map.Hide();
+		_levelRewards?.Hide();
 
 		_skinShop?.CloseCollection();
 		_machineSkinShop?.CloseCollection();
@@ -722,6 +766,7 @@ public sealed class GameUiController
 		bool modalOverlayVisible =
 			_details.Visible
 			|| _stats.Visible
+			|| _levelRewards.Visible
 			|| _root.GetNode<Control>(
 				"PrestigeConfirmOverlay"
 			).Visible;
@@ -768,6 +813,9 @@ public sealed class GameUiController
 
 		if (_stats.Visible)
 			_stats.Refresh();
+
+		if (_levelRewards.Visible)
+			_levelRewards.Refresh();
 
 		if (_details.Visible)
 			_details.Refresh();

@@ -35,6 +35,8 @@ public sealed class SaveGameData
 	// SHOP
 	public double DataShards { get; set; }
 
+	public int HighestClaimedLevelReward { get; set; }
+
 	public long ShopProductionBoostEndUnix { get; set; }
 
 	public long ShopBotLuckBoostEndUnix { get; set; }
@@ -132,6 +134,10 @@ public sealed class SlotSaveData
 
 	public int MachineLevel { get; set; } = 1;
 
+	/*
+	 * Legacy field retained so old saves stay readable.
+	 * Level-road rewards no longer use per-machine Shard milestones.
+	 */
 	public List<int> ClaimedDataShardMilestones { get; set; } = [];
 
 	public BotRarity? BotRarity { get; set; }

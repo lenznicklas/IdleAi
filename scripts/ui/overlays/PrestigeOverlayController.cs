@@ -139,17 +139,10 @@ public sealed class PrestigeOverlayController
 				.GetProductionMultiplierAfterNextPrestige();
 
 
-		int shardReward =
-			_prestige.GetDataShardReward();
-
-
 		_info.Text =
 			"PRESTIGE #"
 				+ nextPrestige
 				+ "\n\n"
-				+ "Reward: +"
-				+ shardReward
-				+ " Data Shards\n"
 				+ "Permanent production: x"
 				+ currentMultiplier.ToString(
 					"F2"
@@ -169,9 +162,7 @@ public sealed class PrestigeOverlayController
 
 
 		_confirm.Text =
-			"PRESTIGE  •  +"
-				+ shardReward
-				+ " SHARDS";
+			"CONFIRM PRESTIGE";
 
 
 		_overlay.Show();

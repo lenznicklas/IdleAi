@@ -2,7 +2,6 @@ namespace IdleAi;
 
 public readonly record struct PrestigeResult(
 	bool Success,
-	int DataShardsGained,
 	string Message
 );
 
@@ -12,13 +11,7 @@ public sealed class PrestigeService
 	private const double RequiredRunTokens =
 		1_000_000_000_000_000_000.0;
 
-
-	private const int DataShardReward =
-		10;
-
-
 	private readonly GameState _state;
-
 
 	public PrestigeService(
 		GameState state)
@@ -27,18 +20,10 @@ public sealed class PrestigeService
 			state;
 	}
 
-
 	public double GetRequiredRunTokens()
 	{
 		return RequiredRunTokens;
 	}
-
-
-	public int GetDataShardReward()
-	{
-		return DataShardReward;
-	}
-
 
 	public bool CanPrestige()
 	{
@@ -46,20 +31,17 @@ public sealed class PrestigeService
 			>= RequiredRunTokens;
 	}
 
-
 	public double GetProductionMultiplier()
 	{
 		return _state.Prestige
 			.GetProductionMultiplier();
 	}
 
-
 	public double GetProductionBonusPercent()
 	{
 		return _state.Prestige
 			.GetProductionBonusPercent();
 	}
-
 
 	public double GetProductionMultiplierAfterNextPrestige()
 	{
@@ -70,13 +52,11 @@ public sealed class PrestigeService
 					: _state.Prestige.PrestigeCount
 						+ 1;
 
-
 		return PrestigeData
 			.GetProductionMultiplierForPrestigeCount(
 				nextCount
 			);
 	}
-
 
 	public PrestigeResult Prestige()
 	{
@@ -89,10 +69,8 @@ public sealed class PrestigeService
 						- _state.RunEarnedTokens
 				);
 
-
 			return new PrestigeResult(
 				false,
-				0,
 				"Earn "
 					+ NumberFormatter.Format(
 						remaining
@@ -100,7 +78,6 @@ public sealed class PrestigeService
 					+ " more Tokens this run to prestige."
 			);
 		}
-
 
 		if (
 			_state.Prestige.PrestigeCount
@@ -110,21 +87,15 @@ public sealed class PrestigeService
 			_state.Prestige.PrestigeCount++;
 		}
 
-
-		_state.Shop.DataShards +=
-			DataShardReward;
-
-
+		/*
+		 * No Data Shards here anymore.
+		 * Free Shards are exclusive to the Level Reward Road.
+		 */
 		ResetNormalProgress();
-
 
 		return new PrestigeResult(
 			true,
-			DataShardReward,
-			"Prestige complete! +"
-				+ DataShardReward
-				+ " Data Shards"
-				+ "  •  Permanent production x"
+			"Prestige complete! Permanent production x"
 				+ GetProductionMultiplier()
 					.ToString(
 						"F2"
@@ -132,20 +103,16 @@ public sealed class PrestigeService
 		);
 	}
 
-
 	private void ResetNormalProgress()
 	{
 		_state.Tokens =
 			0.0;
 
-
 		_state.RunEarnedTokens =
 			0.0;
 
-
 		_state.CurrentRoomIndex =
 			0;
-
 
 		for (
 			int roomIndex = 0;
@@ -158,17 +125,12 @@ public sealed class PrestigeService
 					roomIndex
 				];
 
-
 			room.Unlocked =
 				roomIndex == 0;
 
-
 			room.Pipeline.Reset();
-
 			room.Infrastructure.Reset();
-
 			room.Quantum.Reset();
-
 
 			for (
 				int slotIndex = 0;
@@ -181,38 +143,29 @@ public sealed class PrestigeService
 						slotIndex
 					];
 
-
 				slot.Unlocked =
 					roomIndex == 0
-						&& slotIndex == 0;
-
+					&& slotIndex == 0;
 
 				slot.MachineTier =
 					0;
 
-
 				slot.MachineLevel =
 					1;
 
-
 				slot.ResetDataShardMilestones();
-
 
 				slot.BotRarity =
 					null;
 
-
 				slot.BotPurchasePrice =
 					0.0;
-
 
 				slot.IsRunning =
 					false;
 
-
 				slot.CycleRemaining =
 					0.0;
-
 
 				slot.RuntimeCycleDuration =
 					0.0;

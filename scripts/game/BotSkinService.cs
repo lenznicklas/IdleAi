@@ -75,6 +75,46 @@ public sealed class BotSkinService
 	}
 
 
+	public BotSkinResult UnlockSecretSkin(
+		string skinId)
+	{
+		if (
+			!BotSkinCatalog.IsSecret(
+				skinId
+			)
+			|| !BotSkinCatalog.TryGet(
+				skinId,
+				out SkinDefinition skin
+			)
+		)
+		{
+			return new BotSkinResult(
+				false,
+				"Invalid secret skin."
+			);
+		}
+
+		if (IsOwned(skin.Id))
+		{
+			return new BotSkinResult(
+				false,
+				"Secret skin already unlocked."
+			);
+		}
+
+		_ownedSkinIds.Add(
+			skin.Id
+		);
+
+		Save();
+
+		return new BotSkinResult(
+			true,
+			"Secret KORPO Bot Skin unlocked!"
+		);
+	}
+
+
 	public BotSkinResult BuyAndEquip(
 		string skinId)
 	{
@@ -95,6 +135,18 @@ public sealed class BotSkinService
 		{
 			return Equip(
 				skinId
+			);
+		}
+
+		if (
+			BotSkinCatalog.IsSecret(
+				skinId
+			)
+		)
+		{
+			return new BotSkinResult(
+				false,
+				"This secret skin cannot be purchased."
 			);
 		}
 

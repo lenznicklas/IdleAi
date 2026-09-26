@@ -40,6 +40,9 @@ public sealed class GameUiController
 	private IapShopController? _iapShop;
 	private BotSkinShopController? _skinShop;
 	private MachineSkinShopController? _machineSkinShop;
+	private SecretKorpoSkinController? _secretKorpoSkin;
+	private MachineDetailsPreviewBinder _machineDetailsPreview =
+		null!;
 
 	private bool _shopInitialized;
 
@@ -493,7 +496,8 @@ public sealed class GameUiController
 				UpdateAll();
 
 				_skinShop?.Refresh();
-		_machineSkinShop?.Refresh();
+				_machineSkinShop?.Refresh();
+				_secretKorpoSkin?.Refresh();
 			};
 
 		_skinShop.Initialize();
@@ -526,6 +530,33 @@ public sealed class GameUiController
 
 		_machineSkinShop.Initialize();
 
+		/*
+		 * This controller is intentionally initialized LAST so its code
+		 * field is physically the final Shop section, below IAPs and both
+		 * skin collections.
+		 */
+		_secretKorpoSkin =
+			new SecretKorpoSkinController(
+				_root,
+				_skinService
+			);
+
+		_secretKorpoSkin.MessageRequested +=
+			SetMessage;
+
+		_secretKorpoSkin.StateChanged +=
+			() =>
+			{
+				StateChanged?.Invoke();
+
+				UpdateAll();
+
+				_skinShop?.Refresh();
+				_secretKorpoSkin?.Refresh();
+			};
+
+		_secretKorpoSkin.Initialize();
+
 		_shopInitialized =
 			true;
 	}
@@ -544,6 +575,13 @@ public sealed class GameUiController
 		_details.Initialize();
 		_details.StateChanged +=
 			OnDetailsStateChanged;
+
+		_machineDetailsPreview =
+			new MachineDetailsPreviewBinder(
+				_root
+			);
+
+		_machineDetailsPreview.Initialize();
 	}
 
 	private void OpenMachineDetails(
@@ -808,6 +846,7 @@ public sealed class GameUiController
 		_iapShop?.Refresh();
 		_skinShop?.Refresh();
 		_machineSkinShop?.Refresh();
+		_secretKorpoSkin?.Refresh();
 
 		ApplyRoomTheme();
 

@@ -7,6 +7,8 @@ public sealed class SkinPreviewOverlay
 {
 	private readonly Game _root;
 
+	private readonly string _overlayName;
+
 	private Control _overlay =
 		null!;
 
@@ -24,6 +26,8 @@ public sealed class SkinPreviewOverlay
 
 	private Tween? _openTween;
 
+	private ulong _blockCloseUntil;
+
 
 	public bool Visible =>
 		_overlay != null
@@ -31,10 +35,14 @@ public sealed class SkinPreviewOverlay
 
 
 	public SkinPreviewOverlay(
-		Game root)
+		Game root,
+		string overlayName = "SkinPreviewOverlay")
 	{
 		_root =
 			root;
+
+		_overlayName =
+			overlayName;
 	}
 
 
@@ -58,6 +66,10 @@ public sealed class SkinPreviewOverlay
 
 		_image.Texture =
 			texture;
+
+		_blockCloseUntil =
+			Time.GetTicksMsec()
+				+ 120;
 
 		_overlay.Show();
 
@@ -99,7 +111,7 @@ public sealed class SkinPreviewOverlay
 			new Control
 			{
 				Name =
-					"SkinPreviewOverlay",
+					_overlayName,
 
 				MouseFilter =
 					Control.MouseFilterEnum.Stop,
@@ -376,6 +388,14 @@ public sealed class SkinPreviewOverlay
 	private void OnOverlayInput(
 		InputEvent @event)
 	{
+		if (
+			Time.GetTicksMsec()
+				< _blockCloseUntil
+		)
+		{
+			return;
+		}
+
 		bool released =
 			false;
 

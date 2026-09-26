@@ -20,6 +20,9 @@ public static class BotSkinCatalog
 	public const string MilitarySkinId =
 		"military";
 
+	public const string KorpoSkinId =
+		"korpo_skin";
+
 
 	private static readonly IReadOnlyList<SkinDefinition>
 		Skins =
@@ -74,6 +77,41 @@ public static class BotSkinCatalog
 		];
 
 
+	/*
+	 * Secret skin:
+	 *
+	 * Intentionally NOT part of Skins / GetAll().
+	 * BotSkinShopController therefore cannot show it before the code
+	 * has been redeemed. It is still reachable through TryGet() so
+	 * ownership, equipping and save loading work normally.
+	 */
+	private static readonly SkinDefinition KorpoSkin =
+		CreateSkin(
+			KorpoSkinId,
+
+			"Korpo",
+
+			"A secret Korpo bot pack with colored cap and band styling.",
+
+			0.0,
+
+			"res://assets/bots/korpo_skin/"
+		);
+
+
+	public static bool IsSecret(
+		string? skinId)
+	{
+		return !string.IsNullOrWhiteSpace(
+				skinId
+			)
+			&& KorpoSkinId.Equals(
+				skinId,
+				System.StringComparison.OrdinalIgnoreCase
+			);
+	}
+
+
 	public static IReadOnlyList<SkinDefinition> GetAll()
 	{
 		return Skins;
@@ -101,6 +139,19 @@ public static class BotSkinCatalog
 
 				return true;
 			}
+		}
+
+		if (
+			KorpoSkin.Id.Equals(
+				skinId,
+				System.StringComparison.OrdinalIgnoreCase
+			)
+		)
+		{
+			definition =
+				KorpoSkin;
+
+			return true;
 		}
 
 		definition =

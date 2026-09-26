@@ -24,6 +24,7 @@ public sealed class GameUiController
 	private readonly BotSkinService _skinService;
 	private readonly MachineSkinService _machineSkinService;
 	private readonly LevelRewardService _levelRewardService;
+	private readonly GameSettingsService _settingsService;
 
 	private RoomUiController _room = null!;
 	private PipelineUiController _pipeline = null!;
@@ -35,6 +36,7 @@ public sealed class GameUiController
 	private StatsOverlayController _stats = null!;
 	private PrestigeOverlayController _prestige = null!;
 	private LevelRewardsOverlayController _levelRewards = null!;
+	private SettingsOverlayController _settingsOverlay = null!;
 	private MachineDetailsOverlay _details = null!;
 	private ShopController _shop = null!;
 	private IapShopController? _iapShop;
@@ -99,6 +101,16 @@ public sealed class GameUiController
 				_state,
 				_progression
 			);
+
+		/*
+		 * Settings are stored independently from gameplay saves so audio and
+		 * haptic preferences survive Prestige and save migrations.
+		 * Construction also starts score.wav when sound is enabled.
+		 */
+		_settingsService =
+			new GameSettingsService(
+				_root
+			);
 	}
 
 	public void Initialize()
@@ -128,6 +140,7 @@ public sealed class GameUiController
 		CreateTopBarController();
 		CreateLevelRewardsController();
 		CreateBottomBarController();
+		CreateSettingsController();
 		CreateMapController();
 		CreateStatsController();
 		CreatePrestigeController();
@@ -323,8 +336,22 @@ public sealed class GameUiController
 
 		_bottomBar.MapRequested += ToggleMapPage;
 		_bottomBar.ShopRequested += ToggleShopPage;
+		_bottomBar.SettingsRequested += OpenSettings;
 		_bottomBar.Initialize();
 	}
+
+
+	private void CreateSettingsController()
+	{
+		_settingsOverlay =
+			new SettingsOverlayController(
+				_root,
+				_settingsService
+			);
+
+		_settingsOverlay.Initialize();
+	}
+
 
 	private void CreateMapController()
 	{
@@ -715,8 +742,23 @@ public sealed class GameUiController
 		}
 	}
 
+	private void OpenSettings()
+	{
+		ClosePages();
+
+		_details.Close();
+		_stats.Hide();
+		_prestige.Hide();
+		_levelRewards.Hide();
+		_topBar.HidePopups();
+
+		_settingsOverlay.Open();
+	}
+
+
 	private void OpenLevelRewards()
 	{
+		_settingsOverlay.Hide();
 		ClosePages();
 
 		_details.Close();
@@ -730,6 +772,7 @@ public sealed class GameUiController
 
 	private void OpenStats()
 	{
+		_settingsOverlay.Hide();
 		_levelRewards.Hide();
 		ClosePages();
 		_details.Close();
@@ -752,6 +795,7 @@ public sealed class GameUiController
 		_stats.Hide();
 		_prestige.Hide();
 		_levelRewards.Hide();
+		_settingsOverlay.Hide();
 		_topBar.HidePopups();
 	}
 
@@ -759,6 +803,7 @@ public sealed class GameUiController
 	{
 		_map.Hide();
 		_levelRewards?.Hide();
+		_settingsOverlay?.Hide();
 
 		_skinShop?.CloseCollection();
 		_machineSkinShop?.CloseCollection();
@@ -805,6 +850,7 @@ public sealed class GameUiController
 			_details.Visible
 			|| _stats.Visible
 			|| _levelRewards.Visible
+			|| _settingsOverlay.Visible
 			|| _root.GetNode<Control>(
 				"PrestigeConfirmOverlay"
 			).Visible;
@@ -855,6 +901,9 @@ public sealed class GameUiController
 
 		if (_levelRewards.Visible)
 			_levelRewards.Refresh();
+
+		if (_settingsOverlay.Visible)
+			_settingsOverlay.Refresh();
 
 		if (_details.Visible)
 			_details.Refresh();

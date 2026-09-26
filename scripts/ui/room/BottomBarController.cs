@@ -13,6 +13,10 @@ public sealed class BottomBarController
 		0.12f;
 
 
+	private const string SettingsIconPath =
+		"res://assets/ui/settings.png";
+
+
 	private readonly Game _root;
 
 
@@ -32,6 +36,10 @@ public sealed class BottomBarController
 		null!;
 
 
+	private TextureButton _settingsButton =
+		null!;
+
+
 	private Label _message =
 		null!;
 
@@ -39,6 +47,8 @@ public sealed class BottomBarController
 	public event Action? MapRequested;
 
 	public event Action? ShopRequested;
+
+	public event Action? SettingsRequested;
 
 
 	public BottomBarController(
@@ -85,12 +95,115 @@ public sealed class BottomBarController
 			);
 
 
+		CreateSettingsButton();
+
+
 		_mapButton.Pressed +=
 			OnMapPressed;
 
 
 		_shopButton.Pressed +=
 			OnShopPressed;
+
+
+		_settingsButton.Pressed +=
+			OnSettingsPressed;
+	}
+
+
+	private void CreateSettingsButton()
+	{
+		HBoxContainer row =
+			_root.GetNode<HBoxContainer>(
+				"BottomBar/Margin/HBox"
+			);
+
+
+		Texture2D? settingsTexture =
+			ResourceLoader.Exists(
+				SettingsIconPath
+			)
+				? GD.Load<Texture2D>(
+					SettingsIconPath
+				)
+				: null;
+
+
+		_settingsButton =
+			new TextureButton
+			{
+				Name =
+					"SettingsButton",
+
+				CustomMinimumSize =
+					new Vector2(
+						72,
+						0
+					),
+
+				SizeFlagsVertical =
+					Control.SizeFlags.ExpandFill,
+
+				TextureNormal =
+					settingsTexture,
+
+				IgnoreTextureSize =
+					true,
+
+				StretchMode =
+					TextureButton.StretchModeEnum.KeepAspectCentered,
+
+				FocusMode =
+					Control.FocusModeEnum.None,
+
+				TooltipText =
+					"Settings"
+			};
+
+
+		row.AddChild(
+			_settingsButton
+		);
+
+
+		/*
+		 * settings.png is expected locally. Keep a readable fallback if the
+		 * asset has not been copied/imported yet.
+		 */
+		if (settingsTexture == null)
+		{
+			Label fallback =
+				new()
+				{
+					Text =
+						"⚙",
+
+					MouseFilter =
+						Control.MouseFilterEnum.Ignore,
+
+					HorizontalAlignment =
+						HorizontalAlignment.Center,
+
+					VerticalAlignment =
+						VerticalAlignment.Center
+				};
+
+
+			fallback.AddThemeFontSizeOverride(
+				"font_size",
+				32
+			);
+
+
+			fallback.SetAnchorsAndOffsetsPreset(
+				Control.LayoutPreset.FullRect
+			);
+
+
+			_settingsButton.AddChild(
+				fallback
+			);
+		}
 	}
 
 
@@ -113,6 +226,15 @@ public sealed class BottomBarController
 
 
 		ShopRequested?.Invoke();
+	}
+
+
+	private void OnSettingsPressed()
+	{
+		PlayNavigationHaptic();
+
+
+		SettingsRequested?.Invoke();
 	}
 
 

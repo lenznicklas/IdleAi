@@ -3,9 +3,9 @@ namespace IdleAi;
 /// <summary>
 /// Firebase values for Idle AI.
 ///
-/// Project id and Web API key were generated from the project's
-/// google-services.json. The Play Games web client id must be the exact same
-/// "Web application" OAuth client that is configured in:
+/// These values come from the Firebase Android app registered in the same
+/// Google Cloud project as Idle AI Play Games Services. The Play Games web
+/// client id must be the exact same Web application OAuth client configured in:
 /// Firebase Authentication -> Play Games
 /// and
 /// Play Console -> Play Games Services -> Game server credential.
@@ -16,19 +16,22 @@ namespace IdleAi;
 public static class FirebaseConfig
 {
 	public const string ProjectId =
-		"idle-ai-empire-57f8d";
+		"idle-ai-empire";
+
+	public const string ProjectNumber =
+		"750491737070";
 
 	public const string WebApiKey =
-		"AIzaSyBid-iP6CAYMXrHT5GiFDCuEoZgXXx1mJs";
+		"AIzaSyBvFRNihylakIMg8SkFf_Vhidnqg7bh9SU";
 
 	public const string AndroidPackageName =
 		"com.lenznicklas.idleai";
 
 	public const string MobileSdkAppId =
-		"1:720727343504:android:8f7fbac37db798db3bf315";
+		"1:750491737070:android:9f2c65ebccf2c5214f8cff";
 
 	public const string PlayGamesWebClientId =
-		"750491737070-1g8ngv995rs4q56rlq70qmus841jrsel.apps.googleusercontent.com";
+		"750491737070-8m7mgojsbenc5h0vlcmocp9h3qur2e99.apps.googleusercontent.com";
 
 	public const string AuthRequestUri =
 		"http://localhost";

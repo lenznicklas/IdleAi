@@ -29,6 +29,9 @@ public sealed partial class FirebaseAliasService : Node
 	private const string PlayGamesProviderId =
 		"playgames.google.com";
 
+	private const double ServerAuthTimeoutSeconds =
+		15.0;
+
 	private const int MinimumUsernameLength =
 		3;
 
@@ -59,6 +62,8 @@ public sealed partial class FirebaseAliasService : Node
 	private GodotObject? _playGames;
 
 	private Timer? _tokenRefreshTimer;
+
+	private Timer? _serverAuthTimeoutTimer;
 
 	private bool _initialized;
 
@@ -199,6 +204,15 @@ public sealed partial class FirebaseAliasService : Node
 		if (_playGames == null)
 			return;
 
+		GD.Print(
+			"Firebase aliases: project=",
+			FirebaseConfig.ProjectId,
+			" | projectNumber=",
+			FirebaseConfig.ProjectNumber,
+			" | PlayGamesWebClient=",
+			FirebaseConfig.PlayGamesWebClientId
+		);
+
 		ConnectPlayGamesSignals();
 
 		_tokenRefreshTimer =
@@ -219,6 +233,26 @@ public sealed partial class FirebaseAliasService : Node
 
 		AddChild(
 			_tokenRefreshTimer
+		);
+
+		_serverAuthTimeoutTimer =
+			new Timer
+			{
+				Name =
+					"FirebaseServerAuthTimeout",
+
+				OneShot =
+					true,
+
+				WaitTime =
+					ServerAuthTimeoutSeconds
+			};
+
+		_serverAuthTimeoutTimer.Timeout +=
+			OnServerAuthTimeout;
+
+		AddChild(
+			_serverAuthTimeoutTimer
 		);
 
 		/*
@@ -338,12 +372,16 @@ public sealed partial class FirebaseAliasService : Node
 				false
 			);
 
+			_serverAuthTimeoutTimer?.Start();
+
 			GD.Print(
 				"Firebase aliases: requested Play Games server auth code."
 			);
 		}
 		catch (Exception exception)
 		{
+			_serverAuthTimeoutTimer?.Stop();
+
 			_firebaseSignInRequested =
 				false;
 
@@ -355,9 +393,28 @@ public sealed partial class FirebaseAliasService : Node
 	}
 
 
+	private void OnServerAuthTimeout()
+	{
+		if (!_firebaseSignInRequested)
+		{
+			return;
+		}
+
+		_firebaseSignInRequested =
+			false;
+
+		ReportStatus(
+			"Firebase sign-in timed out while requesting Play Games server access. "
+			+ "Check the Play Games Game server credential/Web client ID and try again."
+		);
+	}
+
+
 	private void OnServerSideAccessRequested(
 		string serverAuthCode)
 	{
+		_serverAuthTimeoutTimer?.Stop();
+
 		_firebaseSignInRequested =
 			false;
 
@@ -844,7 +901,7 @@ public sealed partial class FirebaseAliasService : Node
 
 			UsernameSaveFinished?.Invoke(
 				false,
-				"Still connecting to Firebase. Try again in a moment."
+				"Firebase is not connected yet. Wait for the connection message, then try again."
 			);
 
 			return;

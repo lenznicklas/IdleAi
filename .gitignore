@@ -6,3 +6,4 @@ object/
 export/
 *.aab
 idleai-release.keystore
+google-services.json

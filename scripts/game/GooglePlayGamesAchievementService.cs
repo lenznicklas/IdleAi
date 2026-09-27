@@ -38,6 +38,17 @@ public sealed class GooglePlayGamesAchievementService
 		"CgkI7res5usVEAIQBw";
 
 
+	// ==================================================
+	// LEADERBOARD IDS - GOOGLE PLAY CONSOLE
+	// ==================================================
+
+	public const string HighestTotalLevelLeaderboardId =
+		"CgkI7res5usVEAIQCA";
+
+	public const string MostPrestigesLeaderboardId =
+		"CgkI7res5usVEAIQCQ";
+
+
 	private const ulong AuthenticationRetryMilliseconds =
 		30_000;
 
@@ -66,6 +77,14 @@ public sealed class GooglePlayGamesAchievementService
 	private bool _manualSignInAttempted;
 
 	private ulong _nextAuthenticationCheckAt;
+
+	private long _lastSubmittedLevel =
+		-1;
+
+	private long _lastSubmittedPrestiges =
+		-1;
+
+	private string? _pendingLeaderboardToShow;
 
 
 	public bool IsAvailable =>
@@ -190,6 +209,14 @@ public sealed class GooglePlayGamesAchievementService
 				OnAchievementsLoaded
 			)
 		);
+
+
+		_plugin.Connect(
+			"scoreSubmitted",
+			Callable.From<bool, string>(
+				OnScoreSubmitted
+			)
+		);
 	}
 
 
@@ -219,6 +246,24 @@ public sealed class GooglePlayGamesAchievementService
 				"loadAchievements",
 				true
 			);
+
+
+			if (
+				!string.IsNullOrWhiteSpace(
+					_pendingLeaderboardToShow
+				)
+			)
+			{
+				string leaderboardId =
+					_pendingLeaderboardToShow;
+
+				_pendingLeaderboardToShow =
+					null;
+
+				ShowLeaderboard(
+					leaderboardId
+				);
+			}
 
 
 			return;
@@ -656,6 +701,271 @@ public sealed class GooglePlayGamesAchievementService
 					+ exception.Message
 			);
 		}
+	}
+
+
+	// ==================================================
+	// LEADERBOARDS
+	// ==================================================
+
+	public void SyncLeaderboards(
+		GameState state,
+		ProgressionService progression)
+	{
+		if (!_initialized)
+		{
+			Initialize();
+		}
+
+
+		if (
+			_plugin == null
+			|| !_authenticated
+		)
+		{
+			return;
+		}
+
+
+		long totalLevel =
+			progression.GetTotalLevel();
+
+
+		long prestigeCount =
+			Math.Max(
+				0,
+				state.Prestige.PrestigeCount
+			);
+
+
+		/*
+		 * Google Play is configured with "larger is better".
+		 *
+		 * We only submit when the local value changed during this app
+		 * session. Google itself keeps the player's best score, so a
+		 * Prestige that temporarily lowers the current total level can
+		 * never overwrite a previously higher level score.
+		 */
+		if (
+			totalLevel
+			!= _lastSubmittedLevel
+		)
+		{
+			SubmitScore(
+				HighestTotalLevelLeaderboardId,
+				totalLevel
+			);
+
+
+			_lastSubmittedLevel =
+				totalLevel;
+		}
+
+
+		if (
+			prestigeCount
+			!= _lastSubmittedPrestiges
+		)
+		{
+			SubmitScore(
+				MostPrestigesLeaderboardId,
+				prestigeCount
+			);
+
+
+			_lastSubmittedPrestiges =
+				prestigeCount;
+		}
+	}
+
+
+	private void SubmitScore(
+		string leaderboardId,
+		long score)
+	{
+		if (
+			_plugin == null
+			|| !_authenticated
+			|| score < 0
+		)
+		{
+			return;
+		}
+
+
+		try
+		{
+			_plugin.Call(
+				"submitScore",
+				leaderboardId,
+				score
+			);
+
+
+			GD.Print(
+				"Google Play leaderboard score submitted: ",
+				GetLeaderboardName(
+					leaderboardId
+				),
+				" = ",
+				score
+			);
+		}
+		catch (Exception exception)
+		{
+			GD.PushWarning(
+				"Google Play leaderboard score submission failed: "
+					+ exception.Message
+			);
+		}
+	}
+
+
+	private void OnScoreSubmitted(
+		bool submitted,
+		string leaderboardId)
+	{
+		if (submitted)
+		{
+			GD.Print(
+				"Google Play leaderboard confirmed: ",
+				GetLeaderboardName(
+					leaderboardId
+				)
+			);
+
+
+			return;
+		}
+
+
+		GD.PushWarning(
+			"Google Play leaderboard score was not confirmed: "
+				+ leaderboardId
+		);
+
+
+		/*
+		 * Allow a retry on the next synchronization tick.
+		 */
+		if (
+			leaderboardId
+			== HighestTotalLevelLeaderboardId
+		)
+		{
+			_lastSubmittedLevel =
+				-1;
+		}
+
+
+		if (
+			leaderboardId
+			== MostPrestigesLeaderboardId
+		)
+		{
+			_lastSubmittedPrestiges =
+				-1;
+		}
+	}
+
+
+	public void ShowLevelLeaderboard()
+	{
+		ShowLeaderboardOrSignIn(
+			HighestTotalLevelLeaderboardId
+		);
+	}
+
+
+	public void ShowPrestigeLeaderboard()
+	{
+		ShowLeaderboardOrSignIn(
+			MostPrestigesLeaderboardId
+		);
+	}
+
+
+	private void ShowLeaderboardOrSignIn(
+		string leaderboardId)
+	{
+		if (!_initialized)
+		{
+			Initialize();
+		}
+
+
+		if (_plugin == null)
+		{
+			GD.PushWarning(
+				"Google Play Games is not available on this device/build."
+			);
+
+			return;
+		}
+
+
+		if (_authenticated)
+		{
+			ShowLeaderboard(
+				leaderboardId
+			);
+
+
+			return;
+		}
+
+
+		/*
+		 * Remember what the player wanted. The authentication callback opens
+		 * it immediately after a successful sign-in.
+		 */
+		_pendingLeaderboardToShow =
+			leaderboardId;
+
+
+		_manualSignInAttempted =
+			true;
+
+
+		_plugin.Call(
+			"signIn"
+		);
+	}
+
+
+	private void ShowLeaderboard(
+		string leaderboardId)
+	{
+		if (
+			_plugin == null
+			|| !_authenticated
+		)
+		{
+			return;
+		}
+
+
+		_plugin.Call(
+			"showLeaderboard",
+			leaderboardId
+		);
+	}
+
+
+	private static string GetLeaderboardName(
+		string leaderboardId)
+	{
+		return leaderboardId switch
+		{
+			HighestTotalLevelLeaderboardId =>
+				"Highest Total Level",
+
+			MostPrestigesLeaderboardId =>
+				"Most Prestiges",
+
+			_ =>
+				leaderboardId
+		};
 	}
 
 

@@ -20,6 +20,9 @@ public partial class Game
 	private Timer?
 		_playGamesAchievementTimer;
 
+	private StatsLeaderboardButtonsController?
+		_statsLeaderboardButtons;
+
 
 	public override void _EnterTree()
 	{
@@ -78,6 +81,23 @@ public partial class Game
 		AddChild(
 			_playGamesAchievementTimer
 		);
+
+
+		/*
+		 * Stats already exists in the scene. This controller inserts the two
+		 * Google Play buttons as the first section of the existing Stats VBox,
+		 * without replacing StatsOverlayController.cs.
+		 */
+		_statsLeaderboardButtons =
+			new StatsLeaderboardButtonsController(
+				this,
+				_state,
+				_progression,
+				_playGamesAchievements
+			);
+
+
+		_statsLeaderboardButtons.Initialize();
 	}
 
 
@@ -102,5 +122,14 @@ public partial class Game
 			_state,
 			_progression
 		);
+
+
+		_playGamesAchievements.SyncLeaderboards(
+			_state,
+			_progression
+		);
+
+
+		_statsLeaderboardButtons?.Refresh();
 	}
 }

@@ -21,7 +21,7 @@ namespace IdleAi;
 ///
 /// No OAuth client secret is embedded in the app.
 /// </summary>
-public sealed class FirebaseAliasService : Node
+public sealed partial class FirebaseAliasService : Node
 {
 	private const string PlayGamesPluginName =
 		"GodotPlayGameServices";
@@ -1606,7 +1606,7 @@ public sealed class FirebaseAliasService : Node
 		string requestBody,
 		Action<long, string> completed)
 	{
-		HTTPRequest request =
+		HttpRequest request =
 			new()
 			{
 				UseThreads =

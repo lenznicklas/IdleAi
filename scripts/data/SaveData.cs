@@ -11,6 +11,12 @@ public sealed class SaveGameData
 
 	public double RunEarnedTokens { get; set; }
 
+	/*
+	 * Added in SaveVersion 21.
+	 * Keeps Total Level permanent across Prestige while machines still reset.
+	 */
+	public int LifetimeLevelBase { get; set; }
+
 	public long LastSaveUnix { get; set; }
 
 	public double IncomePerSecond { get; set; }

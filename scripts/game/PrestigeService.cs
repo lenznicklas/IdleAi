@@ -79,6 +79,17 @@ public sealed class PrestigeService
 			);
 		}
 
+		/*
+		 * Capture the exact visible Total Level BEFORE resetting anything.
+		 * Machines/rooms still reset normally, but the permanent base is
+		 * recalculated afterwards so GetTotalLevel() returns this same value.
+		 */
+		int totalLevelBeforePrestige =
+			ProgressionService
+				.CalculateTotalLevel(
+					_state
+				);
+
 		if (
 			_state.Prestige.PrestigeCount
 				< int.MaxValue
@@ -87,15 +98,29 @@ public sealed class PrestigeService
 			_state.Prestige.PrestigeCount++;
 		}
 
-		/*
-		 * No Data Shards here anymore.
-		 * Free Shards are exclusive to the Level Reward Road.
-		 */
 		ResetNormalProgress();
+
+		int resetRunLevel =
+			ProgressionService
+				.CalculateCurrentRunLevel(
+					_state
+				);
+
+		_state.LifetimeLevelBase =
+			System.Math.Max(
+				0,
+				totalLevelBeforePrestige
+					- resetRunLevel
+			);
 
 		return new PrestigeResult(
 			true,
-			"Prestige complete! Permanent production x"
+			"Prestige complete! Total Level remains "
+				+ ProgressionService
+					.CalculateTotalLevel(
+						_state
+					)
+				+ ". Permanent production x"
 				+ GetProductionMultiplier()
 					.ToString(
 						"F2"

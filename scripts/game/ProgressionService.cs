@@ -144,10 +144,6 @@ public sealed class ProgressionService
 		slot.MachineLevel =
 			1;
 
-		/*
-		 * Legacy machine Shard milestone data is intentionally no longer
-		 * rewarded. Free Data Shards now only come from the Level Reward Road.
-		 */
 		slot.ResetDataShardMilestones();
 
 		return new ProgressionResult(
@@ -421,11 +417,6 @@ public sealed class ProgressionService
 				totalResearchPoints +=
 					researchReward;
 			}
-
-			/*
-			 * No Data Shards are granted here anymore.
-			 * Reaching total levels unlocks claimable Level Reward Road cards.
-			 */
 		}
 
 		if (upgradedLevels <= 0)
@@ -612,10 +603,6 @@ public sealed class ProgressionService
 		roomState.Slots[0]
 			.ResetDataShardMilestones();
 
-		/*
-		 * No room-unlock Data Shards anymore.
-		 * Keep the legacy flag true so old reward logic can never fire again.
-		 */
 		roomState.DataShardUnlockRewardClaimed =
 			true;
 
@@ -626,19 +613,58 @@ public sealed class ProgressionService
 	}
 
 
+	/// <summary>
+	/// Visible Total Level. It is the permanent level base from previous
+	/// prestiges plus the actual levels in the current run.
+	/// </summary>
 	public int GetTotalLevel()
 	{
-		int total =
+		return CalculateTotalLevel(
+			_state
+		);
+	}
+
+
+	public static int CalculateTotalLevel(
+		GameState state)
+	{
+		long total =
+			(long)Math.Max(
+				0,
+				state.LifetimeLevelBase
+			)
+			+ CalculateCurrentRunLevel(
+				state
+			);
+
+		return total >= int.MaxValue
+			? int.MaxValue
+			: (int)total;
+	}
+
+
+	/// <summary>
+	/// Calculates only the currently installed/unlocked machine levels. This is
+	/// the old GetTotalLevel calculation and is intentionally public so
+	/// PrestigeService can preserve the exact visible Total Level while
+	/// resetting the run.
+	/// </summary>
+	public static int CalculateCurrentRunLevel(
+		GameState state)
+	{
+		long total =
 			0;
 
 		for (
 			int roomIndex = 0;
-			roomIndex < _state.Rooms.Count;
+			roomIndex < state.Rooms.Count
+				&& roomIndex
+					< state.RoomStates.Count;
 			roomIndex++
 		)
 		{
 			if (
-				!_state.RoomStates[
+				!state.RoomStates[
 					roomIndex
 				].Unlocked
 			)
@@ -647,13 +673,13 @@ public sealed class ProgressionService
 			}
 
 			RoomData room =
-				_state.Rooms[
+				state.Rooms[
 					roomIndex
 				];
 
 			foreach (
 				SlotData slot
-					in _state.RoomStates[
+					in state.RoomStates[
 						roomIndex
 					].Slots
 			)
@@ -663,7 +689,9 @@ public sealed class ProgressionService
 
 				for (
 					int tier = 0;
-					tier < slot.MachineTier;
+					tier < slot.MachineTier
+						&& tier
+							< room.Machines.Count;
 					tier++
 				)
 				{
@@ -671,14 +699,31 @@ public sealed class ProgressionService
 						room.Machines[
 							tier
 						].MaxLevel;
+
+					if (
+						total >= int.MaxValue
+					)
+					{
+						return int.MaxValue;
+					}
 				}
 
 				total +=
-					slot.MachineLevel;
+					Math.Max(
+						0,
+						slot.MachineLevel
+					);
+
+				if (
+					total >= int.MaxValue
+				)
+				{
+					return int.MaxValue;
+				}
 			}
 		}
 
-		return total;
+		return (int)total;
 	}
 
 

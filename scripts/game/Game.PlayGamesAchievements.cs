@@ -4,21 +4,22 @@ namespace IdleAi;
 
 
 /*
- * Game.cs is already declared as "partial", so Play Games can be integrated
- * without replacing the large existing Game.cs file.
- *
- * Godot calls _EnterTree() before the existing Game._Ready(). We defer setup
- * by one idle step, then use a small Timer to synchronize achievement
- * conditions with Google Play Games.
+ * Play Games + Firebase alias integration lives in this partial Game class so
+ * the large main Game.cs stays focused on gameplay.
  */
 public partial class Game
 {
 	private GooglePlayGamesAchievementService?
 		_playGamesAchievements;
 
+	private FirebaseAliasService?
+		_firebaseAliases;
 
 	private Timer?
 		_playGamesAchievementTimer;
+
+	private UsernameSetupOverlayController?
+		_usernameSetupOverlay;
 
 	private LeaderboardOverlayController?
 		_leaderboardOverlay;
@@ -29,11 +30,6 @@ public partial class Game
 
 	public override void _EnterTree()
 	{
-		/*
-		 * Do not add child nodes while the parent is still entering the tree.
-		 * Deferred setup also means the normal Game._Ready() has time to
-		 * create/load GameState before the first synchronization tick.
-		 */
 		Callable
 			.From(
 				InitializePlayGamesAchievements
@@ -46,16 +42,35 @@ public partial class Game
 	{
 		if (
 			_playGamesAchievements
-			!= null
+				!= null
 		)
 		{
 			return;
 		}
 
 
+		/*
+		 * Connect FirebaseAliasService first so it can capture the raw
+		 * topScoresLoaded/scoreLoaded JSON and cache Play Games player IDs
+		 * before the visible leaderboard needs them. The UI also handles the
+		 * reverse callback order, so this is only an extra safety measure.
+		 */
+		_firebaseAliases =
+			new FirebaseAliasService
+			{
+				Name =
+					"FirebaseAliasService"
+			};
+
+		AddChild(
+			_firebaseAliases
+		);
+
+		_firebaseAliases.Initialize();
+
+
 		_playGamesAchievements =
 			new GooglePlayGamesAchievementService();
-
 
 		_playGamesAchievements.Initialize();
 
@@ -76,34 +91,34 @@ public partial class Game
 					true
 			};
 
-
 		_playGamesAchievementTimer.Timeout +=
 			SyncPlayGamesAchievements;
-
 
 		AddChild(
 			_playGamesAchievementTimer
 		);
 
 
-		/*
-		 * Native Idle AI leaderboard overlay. Google Play still provides all
-		 * leaderboard data; only the presentation remains inside the game.
-		 */
+		_usernameSetupOverlay =
+			new UsernameSetupOverlayController(
+				this,
+				_firebaseAliases
+			);
+
+		_usernameSetupOverlay.Initialize();
+
+
 		_leaderboardOverlay =
 			new LeaderboardOverlayController(
 				this,
-				_playGamesAchievements
+				_playGamesAchievements,
+				_firebaseAliases,
+				_usernameSetupOverlay
 			);
-
 
 		_leaderboardOverlay.Initialize();
 
 
-		/*
-		 * Stats already exists in the scene. This controller inserts the two
-		 * leaderboard cards as the first section of the existing Stats VBox.
-		 */
 		_statsLeaderboardButtons =
 			new StatsLeaderboardButtonsController(
 				this,
@@ -112,17 +127,12 @@ public partial class Game
 				_leaderboardOverlay
 			);
 
-
 		_statsLeaderboardButtons.Initialize();
 	}
 
 
 	private void SyncPlayGamesAchievements()
 	{
-		/*
-		 * The timer may tick very early on a slow device.
-		 * The existing Game._Ready() initializes these fields.
-		 */
 		if (
 			_playGamesAchievements
 				== null
@@ -133,18 +143,15 @@ public partial class Game
 			return;
 		}
 
-
 		_playGamesAchievements.SyncAchievements(
 			_state,
 			_progression
 		);
 
-
 		_playGamesAchievements.SyncLeaderboards(
 			_state,
 			_progression
 		);
-
 
 		_statsLeaderboardButtons?.Refresh();
 	}

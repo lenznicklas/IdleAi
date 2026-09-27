@@ -6,7 +6,7 @@ namespace IdleAi;
 
 public partial class Game : Control
 {
-	private const int SaveVersion = 20;
+	private const int SaveVersion = 21;
 	private const double AutosaveIntervalSeconds = 10.0;
 
 	private readonly record struct GameLoadResult(
@@ -145,10 +145,6 @@ public partial class Game : Control
 			_state.Shop
 				.ProductionBoostEndUnix;
 
-		/*
-		 * Mobile operating systems may kill the suspended process at any time.
-		 * Save immediately when Android/iOS sends PAUSED.
-		 */
 		SaveGame();
 
 		GD.Print(
@@ -189,11 +185,6 @@ public partial class Game : Control
 			return;
 		}
 
-		/*
-		 * Reuse exactly the same offline-income/research calculation used
-		 * after a cold app start. Only the fields used by that calculation
-		 * need to be present in this transient snapshot.
-		 */
 		SaveGameData suspendedSnapshot =
 			new()
 			{
@@ -620,6 +611,7 @@ public partial class Game : Control
 				SaveVersion = SaveVersion,
 				Tokens = _state.Tokens,
 				RunEarnedTokens = _state.RunEarnedTokens,
+				LifetimeLevelBase = _state.LifetimeLevelBase,
 				LastSaveUnix = GetCurrentUnixTime(),
 				IncomePerSecond =
 					_economy
@@ -674,7 +666,11 @@ public partial class Game : Control
 		if (saveOk)
 		{
 			GD.Print(
-				"Idle AI SAVE | levelRewardClaim=",
+				"Idle AI SAVE | totalLevel=",
+				_progression.GetTotalLevel(),
+				" | lifetimeBase=",
+				_state.LifetimeLevelBase,
+				" | levelRewardClaim=",
 				_state.Shop.HighestClaimedLevelReward,
 				" | dataShards=",
 				_state.Shop.DataShards
@@ -711,6 +707,13 @@ public partial class Game : Control
 
 		_state.Tokens = save.Tokens;
 		_state.RunEarnedTokens = save.RunEarnedTokens;
+		_state.LifetimeLevelBase =
+			save.SaveVersion >= 21
+				? Math.Max(
+					0,
+					save.LifetimeLevelBase
+				)
+				: 0;
 		_state.Prestige.AiCores = save.AiCores;
 		_state.Prestige.PrestigeCount = save.PrestigeCount;
 		_state.Lab.Unlocked = save.LabUnlocked;
@@ -742,6 +745,8 @@ public partial class Game : Control
 		GD.Print(
 			"Idle AI LOAD | saveVersion=",
 			save.SaveVersion,
+			" | lifetimeBase=",
+			_state.LifetimeLevelBase,
 			" | levelRewardClaim=",
 			_state.Shop.HighestClaimedLevelReward,
 			" | dataShards=",
@@ -877,6 +882,43 @@ public partial class Game : Control
 		{
 			_state.Stats.LoadFromSaveData(
 				save.Stats
+			);
+		}
+
+		/*
+		 * Migration for pre-v21 saves:
+		 *
+		 * Older saves did not remember the exact amount lost at previous
+		 * prestiges. We cannot reconstruct that exact historical value, but
+		 * the Level Reward Road remembers the highest claimed 150-level
+		 * milestone. Use it as a safe lower bound so an old player is never
+		 * migrated below a reward level they had already reached.
+		 */
+		if (
+			save.SaveVersion < 21
+			&& _state.Prestige.PrestigeCount > 0
+			&& _state.Shop.HighestClaimedLevelReward > 0
+		)
+		{
+			int currentRunLevel =
+				ProgressionService
+					.CalculateCurrentRunLevel(
+						_state
+					);
+
+			_state.LifetimeLevelBase =
+				Math.Max(
+					0,
+					_state.Shop
+						.HighestClaimedLevelReward
+						- currentRunLevel
+				);
+
+			GD.Print(
+				"Idle AI MIGRATION v21 | totalLevelFloor=",
+				_state.Shop.HighestClaimedLevelReward,
+				" | lifetimeBase=",
+				_state.LifetimeLevelBase
 			);
 		}
 

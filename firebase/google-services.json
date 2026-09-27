@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "720727343504",
+    "project_id": "idle-ai-empire-57f8d",
+    "storage_bucket": "idle-ai-empire-57f8d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:720727343504:android:8f7fbac37db798db3bf315",
+        "android_client_info": {
+          "package_name": "com.lenznicklas.idleai"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBid-iP6CAYMXrHT5GiFDCuEoZgXXx1mJs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

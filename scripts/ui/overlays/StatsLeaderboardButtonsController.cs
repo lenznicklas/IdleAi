@@ -22,7 +22,7 @@ public sealed class StatsLeaderboardButtonsController
 
 	private readonly ProgressionService _progression;
 
-	private readonly GooglePlayGamesAchievementService _playGames;
+	private readonly LeaderboardOverlayController _leaderboardOverlay;
 
 
 	private VBoxContainer _statsVBox =
@@ -45,7 +45,7 @@ public sealed class StatsLeaderboardButtonsController
 		Game root,
 		GameState state,
 		ProgressionService progression,
-		GooglePlayGamesAchievementService playGames)
+		LeaderboardOverlayController leaderboardOverlay)
 	{
 		_root =
 			root;
@@ -56,8 +56,8 @@ public sealed class StatsLeaderboardButtonsController
 		_progression =
 			progression;
 
-		_playGames =
-			playGames;
+		_leaderboardOverlay =
+			leaderboardOverlay;
 	}
 
 
@@ -417,7 +417,7 @@ public sealed class StatsLeaderboardButtonsController
 			new Button
 			{
 				Text =
-					"OPEN LEADERBOARD",
+					"VIEW LEADERBOARD",
 
 				CustomMinimumSize =
 					new Vector2(
@@ -483,13 +483,13 @@ public sealed class StatsLeaderboardButtonsController
 
 		_levelButton.TooltipText =
 			available
-				? "Open the Google Play Highest Total Level leaderboard."
+				? "View the Highest Total Level leaderboard in Idle AI."
 				: "Google Play leaderboards are available in the Android build.";
 
 
 		_prestigeButton.TooltipText =
 			available
-				? "Open the Google Play Most Prestiges leaderboard."
+				? "View the Most Prestiges leaderboard in Idle AI."
 				: "Google Play leaderboards are available in the Android build.";
 	}
 
@@ -502,7 +502,7 @@ public sealed class StatsLeaderboardButtonsController
 		);
 
 
-		_playGames.ShowLevelLeaderboard();
+		_leaderboardOverlay.OpenLevel();
 	}
 
 
@@ -514,6 +514,6 @@ public sealed class StatsLeaderboardButtonsController
 		);
 
 
-		_playGames.ShowPrestigeLeaderboard();
+		_leaderboardOverlay.OpenPrestiges();
 	}
 }

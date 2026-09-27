@@ -6,6 +6,15 @@ using System.Text.Json;
 namespace IdleAi;
 
 
+public sealed record GooglePlayLeaderboardEntry(
+	long Rank,
+	string DisplayRank,
+	long RawScore,
+	string DisplayScore,
+	string PlayerName
+);
+
+
 public sealed class GooglePlayGamesAchievementService
 {
 	private const string PluginName =
@@ -52,6 +61,21 @@ public sealed class GooglePlayGamesAchievementService
 	private const ulong AuthenticationRetryMilliseconds =
 		30_000;
 
+	/*
+	 * Google Play Games LeaderboardVariant constants:
+	 *
+	 * TIME_SPAN_ALL_TIME = 2
+	 * COLLECTION_PUBLIC  = 0
+	 */
+	private const int LeaderboardTimeSpanAllTime =
+		2;
+
+	private const int LeaderboardCollectionPublic =
+		0;
+
+	private const int LeaderboardTopResultCount =
+		25;
+
 
 	private GodotObject? _plugin;
 
@@ -85,6 +109,24 @@ public sealed class GooglePlayGamesAchievementService
 		-1;
 
 	private string? _pendingLeaderboardToShow;
+
+	private string? _pendingLeaderboardDataRequest;
+
+
+	public event Action<
+		string,
+		IReadOnlyList<GooglePlayLeaderboardEntry>
+	>? LeaderboardTopScoresLoaded;
+
+	public event Action<
+		string,
+		GooglePlayLeaderboardEntry?
+	>? LeaderboardPlayerScoreLoaded;
+
+	public event Action<
+		string,
+		string
+	>? LeaderboardLoadFailed;
 
 
 	public bool IsAvailable =>
@@ -217,6 +259,22 @@ public sealed class GooglePlayGamesAchievementService
 				OnScoreSubmitted
 			)
 		);
+
+
+		_plugin.Connect(
+			"topScoresLoaded",
+			Callable.From<string, string>(
+				OnTopScoresLoaded
+			)
+		);
+
+
+		_plugin.Connect(
+			"scoreLoaded",
+			Callable.From<string, string>(
+				OnPlayerScoreLoaded
+			)
+		);
 	}
 
 
@@ -246,6 +304,24 @@ public sealed class GooglePlayGamesAchievementService
 				"loadAchievements",
 				true
 			);
+
+
+			if (
+				!string.IsNullOrWhiteSpace(
+					_pendingLeaderboardDataRequest
+				)
+			)
+			{
+				string leaderboardId =
+					_pendingLeaderboardDataRequest;
+
+				_pendingLeaderboardDataRequest =
+					null;
+
+				LoadLeaderboardData(
+					leaderboardId
+				);
+			}
 
 
 			if (
@@ -866,6 +942,441 @@ public sealed class GooglePlayGamesAchievementService
 			_lastSubmittedPrestiges =
 				-1;
 		}
+	}
+
+
+	public bool RequestLeaderboardData(
+		string leaderboardId)
+	{
+		if (!_initialized)
+		{
+			Initialize();
+		}
+
+
+		if (_plugin == null)
+		{
+			LeaderboardLoadFailed?.Invoke(
+				leaderboardId,
+				"Google Play Games is not available in this build."
+			);
+
+			return false;
+		}
+
+
+		if (_authenticated)
+		{
+			LoadLeaderboardData(
+				leaderboardId
+			);
+
+			return true;
+		}
+
+
+		/*
+		 * Keep the requested leaderboard and continue immediately after
+		 * Google Play authentication succeeds.
+		 */
+		_pendingLeaderboardDataRequest =
+			leaderboardId;
+
+
+		try
+		{
+			_manualSignInAttempted =
+				true;
+
+
+			_plugin.Call(
+				"signIn"
+			);
+
+
+			return true;
+		}
+		catch (Exception exception)
+		{
+			_pendingLeaderboardDataRequest =
+				null;
+
+
+			LeaderboardLoadFailed?.Invoke(
+				leaderboardId,
+				"Google Play sign-in could not be started: "
+					+ exception.Message
+			);
+
+
+			return false;
+		}
+	}
+
+
+	private void LoadLeaderboardData(
+		string leaderboardId)
+	{
+		if (
+			_plugin == null
+			|| !_authenticated
+		)
+		{
+			return;
+		}
+
+
+		try
+		{
+			/*
+			 * Load the public all-time Top 25 and the signed-in player's
+			 * own score/rank as two independent requests.
+			 */
+			_plugin.Call(
+				"loadTopScores",
+				leaderboardId,
+				LeaderboardTimeSpanAllTime,
+				LeaderboardCollectionPublic,
+				LeaderboardTopResultCount,
+				true
+			);
+
+
+			_plugin.Call(
+				"loadPlayerScore",
+				leaderboardId,
+				LeaderboardTimeSpanAllTime,
+				LeaderboardCollectionPublic
+			);
+		}
+		catch (Exception exception)
+		{
+			LeaderboardLoadFailed?.Invoke(
+				leaderboardId,
+				"Leaderboard could not be loaded: "
+					+ exception.Message
+			);
+		}
+	}
+
+
+	private void OnTopScoresLoaded(
+		string leaderboardId,
+		string scoresJson)
+	{
+		try
+		{
+			IReadOnlyList<GooglePlayLeaderboardEntry> entries =
+				ParseLeaderboardScores(
+					scoresJson
+				);
+
+
+			LeaderboardTopScoresLoaded?.Invoke(
+				leaderboardId,
+				entries
+			);
+		}
+		catch (Exception exception)
+		{
+			GD.PushWarning(
+				"Google Play top scores parse failed: "
+					+ exception.Message
+			);
+
+
+			LeaderboardLoadFailed?.Invoke(
+				leaderboardId,
+				"Could not read Google Play leaderboard data."
+			);
+		}
+	}
+
+
+	private void OnPlayerScoreLoaded(
+		string leaderboardId,
+		string scoreJson)
+	{
+		try
+		{
+			GooglePlayLeaderboardEntry? entry =
+				ParseSingleLeaderboardScore(
+					scoreJson
+				);
+
+
+			LeaderboardPlayerScoreLoaded?.Invoke(
+				leaderboardId,
+				entry
+			);
+		}
+		catch (Exception exception)
+		{
+			GD.PushWarning(
+				"Google Play player score parse failed: "
+					+ exception.Message
+			);
+
+
+			LeaderboardPlayerScoreLoaded?.Invoke(
+				leaderboardId,
+				null
+			);
+		}
+	}
+
+
+	private static IReadOnlyList<GooglePlayLeaderboardEntry>
+		ParseLeaderboardScores(
+			string json)
+	{
+		List<GooglePlayLeaderboardEntry> entries =
+			[];
+
+
+		if (
+			string.IsNullOrWhiteSpace(
+				json
+			)
+			|| json == "null"
+		)
+		{
+			return entries;
+		}
+
+
+		using JsonDocument document =
+			JsonDocument.Parse(
+				json
+			);
+
+
+		if (
+			document.RootElement.ValueKind
+				!= JsonValueKind.Object
+			|| !document.RootElement.TryGetProperty(
+				"scores",
+				out JsonElement scores
+			)
+			|| scores.ValueKind
+				!= JsonValueKind.Array
+		)
+		{
+			return entries;
+		}
+
+
+		foreach (
+			JsonElement score
+				in scores.EnumerateArray()
+		)
+		{
+			GooglePlayLeaderboardEntry? entry =
+				ParseScoreElement(
+					score
+				);
+
+
+			if (entry != null)
+			{
+				entries.Add(
+					entry
+				);
+			}
+		}
+
+
+		return entries;
+	}
+
+
+	private static GooglePlayLeaderboardEntry?
+		ParseSingleLeaderboardScore(
+			string json)
+	{
+		if (
+			string.IsNullOrWhiteSpace(
+				json
+			)
+			|| json == "null"
+		)
+		{
+			return null;
+		}
+
+
+		using JsonDocument document =
+			JsonDocument.Parse(
+				json
+			);
+
+
+		if (
+			document.RootElement.ValueKind
+				!= JsonValueKind.Object
+		)
+		{
+			return null;
+		}
+
+
+		return ParseScoreElement(
+			document.RootElement
+		);
+	}
+
+
+	private static GooglePlayLeaderboardEntry?
+		ParseScoreElement(
+			JsonElement score)
+	{
+		long rank =
+			GetJsonInt64(
+				score,
+				"rank"
+			);
+
+
+		long rawScore =
+			GetJsonInt64(
+				score,
+				"rawScore"
+			);
+
+
+		string displayRank =
+			GetJsonString(
+				score,
+				"displayRank"
+			);
+
+
+		if (
+			string.IsNullOrWhiteSpace(
+				displayRank
+			)
+		)
+		{
+			displayRank =
+				rank > 0
+					? "#"
+						+ rank
+					: "-";
+		}
+
+
+		string displayScore =
+			GetJsonString(
+				score,
+				"displayScore"
+			);
+
+
+		if (
+			string.IsNullOrWhiteSpace(
+				displayScore
+			)
+		)
+		{
+			displayScore =
+				rawScore.ToString();
+		}
+
+
+		string playerName =
+			GetJsonString(
+				score,
+				"scoreHolderDisplayName"
+			);
+
+
+		if (
+			string.IsNullOrWhiteSpace(
+				playerName
+			)
+		)
+		{
+			playerName =
+				"Player";
+		}
+
+
+		return new GooglePlayLeaderboardEntry(
+			rank,
+			displayRank,
+			rawScore,
+			displayScore,
+			playerName
+		);
+	}
+
+
+	private static string GetJsonString(
+		JsonElement element,
+		string propertyName)
+	{
+		if (
+			!element.TryGetProperty(
+				propertyName,
+				out JsonElement property
+			)
+			|| property.ValueKind
+				== JsonValueKind.Null
+		)
+		{
+			return "";
+		}
+
+
+		return property.ValueKind
+				== JsonValueKind.String
+			? property.GetString()
+				?? ""
+			: property.ToString();
+	}
+
+
+	private static long GetJsonInt64(
+		JsonElement element,
+		string propertyName)
+	{
+		if (
+			!element.TryGetProperty(
+				propertyName,
+				out JsonElement property
+			)
+		)
+		{
+			return 0;
+		}
+
+
+		if (
+			property.ValueKind
+				== JsonValueKind.Number
+			&& property.TryGetInt64(
+				out long numericValue
+			)
+		)
+		{
+			return numericValue;
+		}
+
+
+		if (
+			property.ValueKind
+				== JsonValueKind.String
+			&& long.TryParse(
+				property.GetString(),
+				out long stringValue
+			)
+		)
+		{
+			return stringValue;
+		}
+
+
+		return 0;
 	}
 
 

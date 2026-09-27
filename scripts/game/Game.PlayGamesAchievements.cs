@@ -20,6 +20,9 @@ public partial class Game
 	private Timer?
 		_playGamesAchievementTimer;
 
+	private LeaderboardOverlayController?
+		_leaderboardOverlay;
+
 	private StatsLeaderboardButtonsController?
 		_statsLeaderboardButtons;
 
@@ -84,16 +87,29 @@ public partial class Game
 
 
 		/*
+		 * Native Idle AI leaderboard overlay. Google Play still provides all
+		 * leaderboard data; only the presentation remains inside the game.
+		 */
+		_leaderboardOverlay =
+			new LeaderboardOverlayController(
+				this,
+				_playGamesAchievements
+			);
+
+
+		_leaderboardOverlay.Initialize();
+
+
+		/*
 		 * Stats already exists in the scene. This controller inserts the two
-		 * Google Play buttons as the first section of the existing Stats VBox,
-		 * without replacing StatsOverlayController.cs.
+		 * leaderboard cards as the first section of the existing Stats VBox.
 		 */
 		_statsLeaderboardButtons =
 			new StatsLeaderboardButtonsController(
 				this,
 				_state,
 				_progression,
-				_playGamesAchievements
+				_leaderboardOverlay
 			);
 
 

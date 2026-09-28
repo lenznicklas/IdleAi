@@ -174,7 +174,7 @@ public sealed class LeaderboardOverlayController
 			title;
 
 		_subtitle.Text =
-			"ALL TIME  •  GLOBAL  •  TOP 25";
+			"ALL TIME  •  GLOBAL  •  TOP 25 + YOUR RANK";
 
 		RefreshUsernameButton();
 
@@ -290,6 +290,13 @@ public sealed class LeaderboardOverlayController
 		_lastPlayerEntry =
 			entry;
 
+		/*
+		 * Top scores and the signed-in player's score are returned by Google
+		 * as separate requests. Re-render the list as soon as the own-score
+		 * callback arrives so the player can be merged into the visible list
+		 * even when they are outside Google's returned Top 25 block.
+		 */
+		RenderTopScores();
 		RenderOwnScore();
 
 		UpdateLoadingState();
@@ -358,7 +365,194 @@ public sealed class LeaderboardOverlayController
 
 		ClearScoreRows();
 
-		if (_lastTopEntries.Count == 0)
+		IReadOnlyList<string> playerIds =
+			_aliases.GetTopPlayerIds(
+				_currentLeaderboardId
+			);
+
+		string ownPlayerId =
+			_aliases.GetOwnPlayerId(
+				_currentLeaderboardId
+			);
+
+		List<string> aliasesToResolve =
+			playerIds
+				.Where(
+					playerId =>
+						!string.IsNullOrWhiteSpace(
+							playerId
+						)
+				)
+				.ToList();
+
+		if (
+			!string.IsNullOrWhiteSpace(
+				ownPlayerId
+			)
+		)
+		{
+			aliasesToResolve.Add(
+				ownPlayerId
+			);
+		}
+
+		_aliases.EnsureAliases(
+			aliasesToResolve
+		);
+
+		bool ownPlayerAlreadyRendered =
+			false;
+
+		for (
+			int i = 0;
+			i < _lastTopEntries.Count;
+			i++
+		)
+		{
+			GooglePlayLeaderboardEntry entry =
+				_lastTopEntries[
+					i
+				];
+
+			string playerId =
+				i < playerIds.Count
+					? playerIds[
+						i
+					]
+					: "";
+
+			bool isOwnPlayer =
+				!string.IsNullOrWhiteSpace(
+					ownPlayerId
+				)
+				&& string.Equals(
+					playerId,
+					ownPlayerId,
+					StringComparison.Ordinal
+				);
+
+			/*
+			 * Player IDs can arrive one signal later than the score rows. During
+			 * that short window, rank + raw score gives us a safe visual fallback
+			 * for identifying the current player's row. Once IDs arrive the list
+			 * is rendered again and the exact player-id comparison takes over.
+			 */
+			if (
+				!isOwnPlayer
+				&& string.IsNullOrWhiteSpace(
+					playerId
+				)
+				&& _lastPlayerEntry != null
+				&& entry.Rank
+					== _lastPlayerEntry.Rank
+				&& entry.RawScore
+					== _lastPlayerEntry.RawScore
+			)
+			{
+				isOwnPlayer =
+					true;
+			}
+
+			if (isOwnPlayer)
+			{
+				ownPlayerAlreadyRendered =
+					true;
+			}
+
+			string alias =
+				isOwnPlayer
+					&& _aliases.HasUsername
+						? _aliases.CurrentUsername
+						: _aliases.GetAlias(
+							playerId
+						)
+							?? "Anonymous AI";
+
+			string displayAlias =
+				isOwnPlayer
+					? "YOU  •  "
+						+ alias
+					: alias;
+
+			_scoreList.AddChild(
+				CreateScoreRow(
+					entry,
+					displayAlias,
+					i,
+					isOwnPlayer
+				)
+			);
+		}
+
+		/*
+		 * loadTopScores() only returns Google's Top 25 block. The signed-in
+		 * player's own score is loaded independently via loadPlayerScore().
+		 * If that player is outside the Top 25, append their real ranked row so
+		 * their value is still visible in the leaderboard list itself.
+		 */
+		if (
+			_playerScoreReceived
+			&& _lastPlayerEntry != null
+			&& !ownPlayerAlreadyRendered
+		)
+		{
+			if (_lastTopEntries.Count > 0)
+			{
+				Label separator =
+					CreateCenteredLabel(
+						"• • •  YOUR POSITION  • • •",
+						12
+					);
+
+				separator.CustomMinimumSize =
+					new Vector2(
+						0,
+						42
+					);
+
+				separator.AddThemeColorOverride(
+					"font_color",
+					new Color(
+						0.44f,
+						0.80f,
+						1.0f,
+						1.0f
+					)
+				);
+
+				_scoreList.AddChild(
+					separator
+				);
+			}
+
+			string ownAlias =
+				_aliases.HasUsername
+					? _aliases.CurrentUsername
+					: _aliases.GetAlias(
+						ownPlayerId
+					)
+						?? "Anonymous AI";
+
+			_scoreList.AddChild(
+				CreateScoreRow(
+					_lastPlayerEntry,
+					"YOU  •  "
+						+ ownAlias,
+					_lastTopEntries.Count,
+					true
+				)
+			);
+
+			return;
+		}
+
+		if (
+			_lastTopEntries.Count == 0
+			&& (
+				!_playerScoreReceived
+				|| _lastPlayerEntry == null
+			)
+		)
 		{
 			Label empty =
 				CreateCenteredLabel(
@@ -375,50 +569,8 @@ public sealed class LeaderboardOverlayController
 			_scoreList.AddChild(
 				empty
 			);
-
-			return;
-		}
-
-		IReadOnlyList<string> playerIds =
-			_aliases.GetTopPlayerIds(
-				_currentLeaderboardId
-			);
-
-		_aliases.EnsureAliases(
-			playerIds
-		);
-
-		for (
-			int i = 0;
-			i < _lastTopEntries.Count;
-			i++
-		)
-		{
-			string playerId =
-				i < playerIds.Count
-					? playerIds[
-						i
-					]
-					: "";
-
-			string alias =
-				_aliases.GetAlias(
-					playerId
-				)
-				?? "Anonymous AI";
-
-			_scoreList.AddChild(
-				CreateScoreRow(
-					_lastTopEntries[
-						i
-					],
-					alias,
-					i
-				)
-			);
 		}
 	}
-
 
 	private void RenderOwnScore()
 	{
@@ -703,7 +855,7 @@ public sealed class LeaderboardOverlayController
 
 		_subtitle =
 			CreateCenteredLabel(
-				"ALL TIME  •  GLOBAL  •  TOP 25",
+				"ALL TIME  •  GLOBAL  •  TOP 25 + YOUR RANK",
 				12
 			);
 
@@ -1006,7 +1158,8 @@ public sealed class LeaderboardOverlayController
 	private static Control CreateScoreRow(
 		GooglePlayLeaderboardEntry entry,
 		string playerAlias,
-		int index)
+		int index,
+		bool isOwnPlayer = false)
 	{
 		PanelContainer panel =
 			new()
@@ -1029,21 +1182,28 @@ public sealed class LeaderboardOverlayController
 			new()
 			{
 				BgColor =
-					podium
+					isOwnPlayer
 						? new Color(
-							0.10f,
-							0.10f,
-							0.18f,
-							0.98f
+							0.07f,
+							0.16f,
+							0.27f,
+							0.99f
 						)
-						: new Color(
-							0.035f,
-							0.055f,
-							0.09f,
-							index % 2 == 0
-								? 0.96f
-								: 0.82f
-						),
+						: podium
+							? new Color(
+								0.10f,
+								0.10f,
+								0.18f,
+								0.98f
+							)
+							: new Color(
+								0.035f,
+								0.055f,
+								0.09f,
+								index % 2 == 0
+									? 0.96f
+									: 0.82f
+							),
 
 				CornerRadiusTopLeft = 9,
 				CornerRadiusTopRight = 9,
@@ -1051,7 +1211,22 @@ public sealed class LeaderboardOverlayController
 				CornerRadiusBottomRight = 9
 			};
 
-		if (podium)
+		if (isOwnPlayer)
+		{
+			style.BorderColor =
+				new Color(
+					0.28f,
+					0.72f,
+					1.0f,
+					0.95f
+				);
+
+			style.BorderWidthLeft = 2;
+			style.BorderWidthTop = 2;
+			style.BorderWidthRight = 2;
+			style.BorderWidthBottom = 2;
+		}
+		else if (podium)
 		{
 			style.BorderColor =
 				new Color(

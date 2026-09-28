@@ -161,6 +161,30 @@ public static class RoomThemePalette
 					)
 				),
 
+			/*
+			 * ROOM 5 / THE SINGULARITY.
+			 *
+			 * Gold/amber is intentionally different from all four normal rooms.
+			 * SingularityController applies this Room-5 bar theme while the
+			 * special endgame page is open.
+			 */
+			4 =>
+				(
+					new Color(
+						0.68f,
+						0.43f,
+						0.08f,
+						1
+					),
+
+					new Color(
+						0.38f,
+						0.20f,
+						0.035f,
+						1
+					)
+				),
+
 			_ =>
 				(
 					new Color(

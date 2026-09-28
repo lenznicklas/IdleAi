@@ -6,20 +6,25 @@ namespace IdleAi;
 
 
 /*
- * First playable Singularity draft.
+ * Singularity room UI.
  *
- * - Permanent unlock at 50aa Tokens for testing.
- * - Infinite sectors (8 nodes each).
- * - Compute / Amplifier / Cooling / Quantum nodes.
- * - Adjacency bonuses.
- * - Core upgrades.
- * - Separate Singularity Matter economy.
- * - Lines are rendered directly with DrawLine; no line PNG is used.
+ * This version intentionally uses overlays for every interaction:
+ * - Empty node -> node-type purchase overlay.
+ * - Filled node -> info + upgrade overlay.
+ * - Core -> Core info + "buy next Core" overlay.
+ *
+ * No upgrade/purchase controls are permanently shown below the network.
  */
 public sealed partial class SingularityController
 {
 	private const float BottomReservedSpace =
 		132.0f;
+
+	private const int NavigationHapticDurationMs =
+		12;
+
+	private const float NavigationHapticStrength =
+		0.12f;
 
 	private static readonly Color Accent =
 		new(
@@ -106,9 +111,13 @@ public sealed partial class SingularityController
 			"res://assets/ui/sector.png"
 		);
 
+
 	private readonly Game _root;
 
+	private readonly GameState _state;
+
 	private readonly SingularityService _service;
+
 
 	private Control _page =
 		null!;
@@ -140,7 +149,10 @@ public sealed partial class SingularityController
 	private SingularityLinkLayer _linkLayer =
 		null!;
 
-	private Button _coreButton =
+	private TextureRect _coreImage =
+		null!;
+
+	private Button _coreHitbox =
 		null!;
 
 	private readonly List<NodeButtonView>
@@ -159,32 +171,30 @@ public sealed partial class SingularityController
 	private Button _nextSectorButton =
 		null!;
 
-	private Label _selectionTitle =
+	private Label _hint =
 		null!;
 
-	private Label _selectionDetails =
+
+	private Control _detailOverlay =
 		null!;
 
-	private HBoxContainer _buildButtons =
+	private PanelContainer _detailPanel =
 		null!;
 
-	private Button _upgradeNodeButton =
+	private VBoxContainer _detailContent =
 		null!;
 
-	private Button _upgradeCoreButton =
-		null!;
+	private int _selectedNode =
+		-1;
 
-	private Label _message =
-		null!;
+	private bool _detailIsCore;
+
 
 	private Timer _runtimeTimer =
 		null!;
 
 	private Timer _saveTimer =
 		null!;
-
-	private int _selectedNode =
-		-1;
 
 
 	public event Action<string>? MessageRequested;
@@ -197,10 +207,14 @@ public sealed partial class SingularityController
 
 	public SingularityController(
 		Game root,
+		GameState state,
 		SingularityService service)
 	{
 		_root =
 			root;
+
+		_state =
+			state;
 
 		_service =
 			service;
@@ -210,10 +224,18 @@ public sealed partial class SingularityController
 	public void Initialize()
 	{
 		CreatePage();
+		CreateDetailOverlay();
 		CreateTimers();
 
 		_service.Changed +=
-			RefreshAll;
+			OnServiceChanged;
+
+		if (CoreTexture == null)
+		{
+			GD.PushWarning(
+				"Singularity: core.png could not be loaded."
+			);
+		}
 
 		Hide();
 	}
@@ -224,8 +246,9 @@ public sealed partial class SingularityController
 		if (!_service.Unlocked)
 			return;
 
-		_selectedNode =
-			-1;
+		CloseDetailOverlay();
+
+		ApplySingularityBottomBarTheme();
 
 		RefreshAll();
 
@@ -238,7 +261,18 @@ public sealed partial class SingularityController
 
 	public void Hide()
 	{
+		bool wasVisible =
+			_page != null
+			&& _page.Visible;
+
+		CloseDetailOverlay();
+
 		_page?.Hide();
+
+		if (wasVisible)
+		{
+			RestoreNormalBottomBarTheme();
+		}
 	}
 
 
@@ -302,6 +336,10 @@ public sealed partial class SingularityController
 	}
 
 
+	// ==================================================
+	// PAGE
+	// ==================================================
+
 	private void CreatePage()
 	{
 		_page =
@@ -324,6 +362,7 @@ public sealed partial class SingularityController
 		_root.AddChild(
 			_page
 		);
+
 
 		ColorRect background =
 			new()
@@ -353,6 +392,7 @@ public sealed partial class SingularityController
 			background
 		);
 
+
 		SingularityGridBackground grid =
 			new()
 			{
@@ -372,6 +412,7 @@ public sealed partial class SingularityController
 		_page.AddChild(
 			grid
 		);
+
 
 		CreateHeader();
 		CreateScrollContent();
@@ -429,6 +470,7 @@ public sealed partial class SingularityController
 			_header
 		);
 
+
 		MarginContainer margin =
 			new();
 
@@ -456,6 +498,7 @@ public sealed partial class SingularityController
 			margin
 		);
 
+
 		VBoxContainer box =
 			new();
 
@@ -467,6 +510,7 @@ public sealed partial class SingularityController
 		margin.AddChild(
 			box
 		);
+
 
 		HBoxContainer top =
 			new()
@@ -483,6 +527,7 @@ public sealed partial class SingularityController
 		box.AddChild(
 			top
 		);
+
 
 		Button mapButton =
 			new()
@@ -503,6 +548,8 @@ public sealed partial class SingularityController
 		mapButton.Pressed +=
 			() =>
 			{
+				PlayHaptic();
+
 				Hide();
 
 				Control map =
@@ -514,9 +561,14 @@ public sealed partial class SingularityController
 				map.MoveToFront();
 			};
 
+		ApplyGoldButtonStyle(
+			mapButton
+		);
+
 		top.AddChild(
 			mapButton
 		);
+
 
 		Label title =
 			CreateLabel(
@@ -534,6 +586,7 @@ public sealed partial class SingularityController
 			title
 		);
 
+
 		Label output =
 			CreateLabel(
 				13,
@@ -548,6 +601,7 @@ public sealed partial class SingularityController
 		top.AddChild(
 			output
 		);
+
 
 		_outputValue =
 			CreateLabel(
@@ -568,6 +622,7 @@ public sealed partial class SingularityController
 			_outputValue
 		);
 
+
 		HBoxContainer stats =
 			new()
 			{
@@ -584,6 +639,7 @@ public sealed partial class SingularityController
 			stats
 		);
 
+
 		stats.AddChild(
 			CreateStatCard(
 				MatterIcon,
@@ -595,7 +651,7 @@ public sealed partial class SingularityController
 		stats.AddChild(
 			CreateStatCard(
 				CoreLevelIcon,
-				"CORE",
+				"CORES",
 				out _coreValue
 			)
 		);
@@ -612,7 +668,7 @@ public sealed partial class SingularityController
 
 	private Control CreateStatCard(
 		Texture2D texture,
-		string label,
+		string title,
 		out Label value)
 	{
 		PanelContainer panel =
@@ -647,6 +703,7 @@ public sealed partial class SingularityController
 			)
 		);
 
+
 		HBoxContainer row =
 			new()
 			{
@@ -662,6 +719,7 @@ public sealed partial class SingularityController
 		panel.AddChild(
 			row
 		);
+
 
 		TextureRect icon =
 			new()
@@ -688,6 +746,7 @@ public sealed partial class SingularityController
 			icon
 		);
 
+
 		VBoxContainer text =
 			new();
 
@@ -695,10 +754,11 @@ public sealed partial class SingularityController
 			text
 		);
 
+
 		Label name =
 			CreateLabel(
 				9,
-				label
+				title
 			);
 
 		name.Modulate =
@@ -712,6 +772,7 @@ public sealed partial class SingularityController
 		text.AddChild(
 			name
 		);
+
 
 		value =
 			CreateLabel(
@@ -761,6 +822,7 @@ public sealed partial class SingularityController
 			_scroll
 		);
 
+
 		CenterContainer center =
 			new()
 			{
@@ -774,6 +836,7 @@ public sealed partial class SingularityController
 		_scroll.AddChild(
 			center
 		);
+
 
 		_content =
 			new VBoxContainer
@@ -799,9 +862,7 @@ public sealed partial class SingularityController
 
 		CreateSectorNavigation();
 		CreateNetwork();
-		CreateCoreUpgradePanel();
-		CreateSelectionPanel();
-		CreateMessagePanel();
+		CreateHint();
 	}
 
 
@@ -833,6 +894,7 @@ public sealed partial class SingularityController
 			panel
 		);
 
+
 		HBoxContainer row =
 			new()
 			{
@@ -846,6 +908,7 @@ public sealed partial class SingularityController
 		panel.AddChild(
 			row
 		);
+
 
 		_previousSectorButton =
 			new Button
@@ -871,13 +934,13 @@ public sealed partial class SingularityController
 		_previousSectorButton.Pressed +=
 			() =>
 			{
+				PlayHaptic();
+
 				if (
 					_service.GoToPreviousSector()
 				)
 				{
-					_selectedNode =
-						-1;
-
+					CloseDetailOverlay();
 					RefreshAll();
 				}
 			};
@@ -885,6 +948,7 @@ public sealed partial class SingularityController
 		row.AddChild(
 			_previousSectorButton
 		);
+
 
 		VBoxContainer center =
 			new()
@@ -897,6 +961,7 @@ public sealed partial class SingularityController
 			center
 		);
 
+
 		_sectorTitle =
 			CreateLabel(
 				20,
@@ -906,6 +971,7 @@ public sealed partial class SingularityController
 		center.AddChild(
 			_sectorTitle
 		);
+
 
 		_sectorOutput =
 			CreateLabel(
@@ -921,6 +987,7 @@ public sealed partial class SingularityController
 		center.AddChild(
 			_sectorOutput
 		);
+
 
 		_nextSectorButton =
 			new Button
@@ -987,6 +1054,7 @@ public sealed partial class SingularityController
 			frame
 		);
 
+
 		_network =
 			new Control
 			{
@@ -1000,6 +1068,7 @@ public sealed partial class SingularityController
 		frame.AddChild(
 			_network
 		);
+
 
 		_linkLayer =
 			new SingularityLinkLayer
@@ -1016,74 +1085,34 @@ public sealed partial class SingularityController
 			_linkLayer
 		);
 
-		_coreButton =
-			new Button
+
+		/*
+		 * Core rendering fix:
+		 *
+		 * The image is now a direct TextureRect child of the network, not a
+		 * child of a themed Button. A completely transparent Button is placed
+		 * above it only as a hitbox. The Button can therefore never paint over
+		 * core.png.
+		 */
+		_coreImage =
+			new TextureRect
 			{
-				Position =
-					new Vector2(
-						245,
-						245
-					),
+				Name =
+					"SingularityCoreImage",
 
-				Size =
-					new Vector2(
-						160,
-						160
-					),
-
-				FocusMode =
-					Control.FocusModeEnum.None,
-
-				TooltipText =
-					"Singularity Core",
-
-				ClipContents =
-					true
-			};
-
-		_coreButton.AddThemeStyleboxOverride(
-			"normal",
-			CreateNodeStyle(
-				new Color(
-					0.06f,
-					0.04f,
-					0.015f,
-					0.92f
-				),
-				Accent,
-				false
-			)
-		);
-
-		_coreButton.Pressed +=
-			() =>
-			{
-				_selectedNode =
-					-1;
-
-				RefreshSelection();
-			};
-
-		_network.AddChild(
-			_coreButton
-		);
-
-		TextureRect coreImage =
-			new()
-			{
 				Texture =
 					CoreTexture,
 
 				Position =
 					new Vector2(
-						8,
-						8
+						225,
+						225
 					),
 
 				Size =
 					new Vector2(
-						144,
-						144
+						200,
+						200
 					),
 
 				ExpandMode =
@@ -1093,12 +1122,78 @@ public sealed partial class SingularityController
 					TextureRect.StretchModeEnum.KeepAspectCentered,
 
 				MouseFilter =
-					Control.MouseFilterEnum.Ignore
+					Control.MouseFilterEnum.Ignore,
+
+				ZIndex =
+					2
 			};
 
-		_coreButton.AddChild(
-			coreImage
+		_network.AddChild(
+			_coreImage
 		);
+
+
+		if (CoreTexture == null)
+		{
+			Label fallback =
+				CreateLabel(
+					18,
+					"CORE"
+				);
+
+			fallback.SetAnchorsAndOffsetsPreset(
+				Control.LayoutPreset.FullRect
+			);
+
+			_coreImage.AddChild(
+				fallback
+			);
+		}
+
+
+		_coreHitbox =
+			new Button
+			{
+				Name =
+					"SingularityCoreHitbox",
+
+				Position =
+					new Vector2(
+						225,
+						225
+					),
+
+				Size =
+					new Vector2(
+						200,
+						200
+					),
+
+				FocusMode =
+					Control.FocusModeEnum.None,
+
+				TooltipText =
+					"Open Singularity Core",
+
+				ZIndex =
+					3
+			};
+
+		ApplyTransparentButtonStyle(
+			_coreHitbox
+		);
+
+		_coreHitbox.Pressed +=
+			() =>
+			{
+				PlayHaptic();
+				OpenCoreOverlay();
+			};
+
+		_network.AddChild(
+			_coreHitbox
+		);
+
 
 		for (
 			int i = 0;
@@ -1113,6 +1208,7 @@ public sealed partial class SingularityController
 				GetNodeCenter(
 					i
 				);
+
 
 			Button button =
 				new()
@@ -1140,21 +1236,25 @@ public sealed partial class SingularityController
 						Control.FocusModeEnum.None,
 
 					ClipContents =
-						true
+						true,
+
+					ZIndex =
+						2
 				};
 
 			button.Pressed +=
 				() =>
 				{
-					_selectedNode =
-						index;
-
-					RefreshSelection();
+					PlayHaptic();
+					OpenNodeOverlay(
+						index
+					);
 				};
 
 			_network.AddChild(
 				button
 			);
+
 
 			TextureRect icon =
 				new()
@@ -1185,6 +1285,7 @@ public sealed partial class SingularityController
 				icon
 			);
 
+
 			Label level =
 				CreateLabel(
 					11,
@@ -1210,6 +1311,7 @@ public sealed partial class SingularityController
 				level
 			);
 
+
 			_nodeViews.Add(
 				new NodeButtonView(
 					button,
@@ -1218,6 +1320,7 @@ public sealed partial class SingularityController
 				)
 			);
 		}
+
 
 		_linkLayer.SetCenters(
 			new Vector2(
@@ -1229,62 +1332,663 @@ public sealed partial class SingularityController
 	}
 
 
-	private void CreateCoreUpgradePanel()
+	private void CreateHint()
 	{
-		PanelContainer panel =
-			new();
+		_hint =
+			CreateLabel(
+				12,
+				"Tap the Core or any Node to open its overlay."
+			);
 
-		panel.AddThemeStyleboxOverride(
+		_hint.CustomMinimumSize =
+			new Vector2(
+				0,
+				54
+			);
+
+		_hint.Modulate =
+			new Color(
+				0.72f,
+				0.72f,
+				0.76f,
+				1.0f
+			);
+
+		_content.AddChild(
+			_hint
+		);
+	}
+
+
+	// ==================================================
+	// DETAIL OVERLAY
+	// ==================================================
+
+	private void CreateDetailOverlay()
+	{
+		_detailOverlay =
+			new Control
+			{
+				Name =
+					"SingularityDetailOverlay",
+
+				MouseFilter =
+					Control.MouseFilterEnum.Stop,
+
+				ZIndex =
+					1500
+			};
+
+		_detailOverlay.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+		_root.AddChild(
+			_detailOverlay
+		);
+
+
+		ColorRect dim =
+			new()
+			{
+				Color =
+					new Color(
+						0,
+						0,
+						0,
+						0.80f
+					),
+
+				MouseFilter =
+					Control.MouseFilterEnum.Stop
+			};
+
+		dim.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+		dim.GuiInput +=
+			OnOverlayDimInput;
+
+		_detailOverlay.AddChild(
+			dim
+		);
+
+
+		CenterContainer center =
+			new()
+			{
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+		center.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+		center.OffsetLeft =
+			18;
+
+		center.OffsetTop =
+			34;
+
+		center.OffsetRight =
+			-18;
+
+		center.OffsetBottom =
+			-34;
+
+		_detailOverlay.AddChild(
+			center
+		);
+
+
+		_detailPanel =
+			new PanelContainer
+			{
+				CustomMinimumSize =
+					new Vector2(
+						590,
+						0
+					),
+
+				MouseFilter =
+					Control.MouseFilterEnum.Stop
+			};
+
+		_detailPanel.AddThemeStyleboxOverride(
 			"panel",
 			CreatePanelStyle(
 				new Color(
-					0.040f,
-					0.030f,
-					0.015f,
-					0.98f
+					0.018f,
+					0.020f,
+					0.028f,
+					0.995f
 				),
 				Accent,
-				16
+				22
 			)
 		);
 
-		_content.AddChild(
-			panel
+		center.AddChild(
+			_detailPanel
 		);
+
 
 		MarginContainer margin =
 			new();
 
 		margin.AddThemeConstantOverride(
 			"margin_left",
-			16
+			24
 		);
 
 		margin.AddThemeConstantOverride(
 			"margin_top",
-			12
+			54
 		);
 
 		margin.AddThemeConstantOverride(
 			"margin_right",
-			16
+			24
 		);
 
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
+			24
+		);
+
+		_detailPanel.AddChild(
+			margin
+		);
+
+
+		_detailContent =
+			new VBoxContainer
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+		_detailContent.AddThemeConstantOverride(
+			"separation",
 			12
 		);
 
-		panel.AddChild(
+		margin.AddChild(
+			_detailContent
+		);
+
+
+		OverlayCloseButton.Add(
+			_detailPanel,
+			CloseDetailOverlay
+		);
+
+
+		_detailOverlay.Hide();
+	}
+
+
+	private void OpenCoreOverlay()
+	{
+		_selectedNode =
+			-1;
+
+		_detailIsCore =
+			true;
+
+		BuildCoreOverlay();
+
+		_detailOverlay.Show();
+		_detailOverlay.MoveToFront();
+	}
+
+
+	private void OpenNodeOverlay(
+		int nodeIndex)
+	{
+		_selectedNode =
+			Math.Clamp(
+				nodeIndex,
+				0,
+				SingularityService.NodesPerSector - 1
+			);
+
+		_detailIsCore =
+			false;
+
+		BuildNodeOverlay();
+
+		_detailOverlay.Show();
+		_detailOverlay.MoveToFront();
+	}
+
+
+	private void CloseDetailOverlay()
+	{
+		_detailOverlay?.Hide();
+
+		_selectedNode =
+			-1;
+
+		_detailIsCore =
+			false;
+	}
+
+
+	private void RefreshOpenDetailOverlay()
+	{
+		if (
+			_detailOverlay == null
+			|| !_detailOverlay.Visible
+		)
+		{
+			return;
+		}
+
+		if (_detailIsCore)
+		{
+			BuildCoreOverlay();
+		}
+		else if (_selectedNode >= 0)
+		{
+			BuildNodeOverlay();
+		}
+	}
+
+
+	private void ClearDetailContent()
+	{
+		foreach (
+			Node child
+				in _detailContent.GetChildren()
+		)
+		{
+			_detailContent.RemoveChild(
+				child
+			);
+
+			child.QueueFree();
+		}
+	}
+
+
+	private void BuildCoreOverlay()
+	{
+		ClearDetailContent();
+
+
+		Label title =
+			CreateLabel(
+				26,
+				"SINGULARITY CORE"
+			);
+
+		title.AddThemeColorOverride(
+			"font_color",
+			Accent.Lightened(
+				0.12f
+			)
+		);
+
+		_detailContent.AddChild(
+			title
+		);
+
+
+		TextureRect image =
+			CreateOverlayImage(
+				CoreTexture,
+				220
+			);
+
+		_detailContent.AddChild(
+			image
+		);
+
+
+		Label core =
+			CreateLabel(
+				20,
+				"CORE "
+					+ _service.CoreCount
+			);
+
+		_detailContent.AddChild(
+			core
+		);
+
+
+		Label included =
+			CreateLabel(
+				12,
+				_service.CoreCount == 1
+					? "Core 1 is included automatically when The Singularity is initialized."
+					: "Installed Cores: "
+						+ _service.CoreCount
+			);
+
+		included.AutowrapMode =
+			TextServer.AutowrapMode.WordSmart;
+
+		included.Modulate =
+			new Color(
+				0.72f,
+				0.76f,
+				0.82f,
+				1.0f
+			);
+
+		_detailContent.AddChild(
+			included
+		);
+
+
+		PanelContainer stats =
+			CreateInfoCard();
+
+		_detailContent.AddChild(
+			stats
+		);
+
+
+		VBoxContainer statBox =
+			new();
+
+		statBox.AddThemeConstantOverride(
+			"separation",
+			7
+		);
+
+		stats.AddChild(
+			statBox
+		);
+
+
+		statBox.AddChild(
+			CreateLabel(
+				14,
+				"Core generation: "
+					+ NumberFormatter.Format(
+						_service.GetCoreOutputPerSecond()
+					)
+					+ " Matter/s"
+			)
+		);
+
+
+		statBox.AddChild(
+			CreateLabel(
+				14,
+				"Compute network multiplier: x"
+					+ _service
+						.GetComputeCoreMultiplier()
+						.ToString(
+							"F2"
+						)
+			)
+		);
+
+
+		int nextCore =
+			_service.CoreCount + 1;
+
+		double nextOutput =
+			SingularityService
+				.GetCoreOutputPerSecond(
+					nextCore
+				);
+
+		Label next =
+			CreateLabel(
+				13,
+				"Core "
+					+ nextCore
+					+ " → "
+					+ NumberFormatter.Format(
+						nextOutput
+					)
+					+ " Core Matter/s and +10% network output"
+			);
+
+		next.AutowrapMode =
+			TextServer.AutowrapMode.WordSmart;
+
+		statBox.AddChild(
+			next
+		);
+
+
+		Button buy =
+			new Button
+			{
+				Text =
+					"BUY CORE "
+					+ nextCore
+					+ "\n"
+					+ NumberFormatter.Format(
+						_service.GetNextCoreCost()
+					)
+					+ " MATTER",
+
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						70
+					),
+
+				FocusMode =
+					Control.FocusModeEnum.None
+			};
+
+		ApplyGoldButtonStyle(
+			buy
+		);
+
+		buy.Pressed +=
+			() =>
+			{
+				PlayHaptic();
+
+				HandleResult(
+					_service.BuyNextCore()
+				);
+			};
+
+		_detailContent.AddChild(
+			buy
+		);
+	}
+
+
+	private void BuildNodeOverlay()
+	{
+		ClearDetailContent();
+
+		SingularityNodeData node =
+			_service.GetNode(
+				_service.CurrentSectorIndex,
+				_selectedNode
+			);
+
+		if (
+			node.Type
+			== SingularityNodeType.Empty
+		)
+		{
+			BuildEmptyNodeOverlay();
+
+			return;
+		}
+
+		BuildFilledNodeOverlay(
+			node
+		);
+	}
+
+
+	private void BuildEmptyNodeOverlay()
+	{
+		Label title =
+			CreateLabel(
+				25,
+				"EMPTY NODE "
+					+ (
+						_selectedNode + 1
+					)
+			);
+
+		title.AddThemeColorOverride(
+			"font_color",
+			Accent.Lightened(
+				0.12f
+			)
+		);
+
+		_detailContent.AddChild(
+			title
+		);
+
+
+		_detailContent.AddChild(
+			CreateOverlayImage(
+				EmptyNodeTexture,
+				170
+			)
+		);
+
+
+		Label hint =
+			CreateLabel(
+				13,
+				"Choose which Node to construct here."
+			);
+
+		hint.Modulate =
+			new Color(
+				0.74f,
+				0.78f,
+				0.84f,
+				1.0f
+			);
+
+		_detailContent.AddChild(
+			hint
+		);
+
+
+		AddNodePurchaseOption(
+			SingularityNodeType.Compute,
+			ComputeNodeTexture,
+			"COMPUTE NODE",
+			"Produces Singularity Matter continuously."
+		);
+
+		AddNodePurchaseOption(
+			SingularityNodeType.Amplifier,
+			AmplifierNodeTexture,
+			"AMPLIFIER NODE",
+			"+15% output per level to each adjacent Compute Node."
+		);
+
+		AddNodePurchaseOption(
+			SingularityNodeType.Cooling,
+			CoolingNodeTexture,
+			"COOLING NODE",
+			"+10% speed/output per level to each adjacent Compute Node."
+		);
+
+		AddNodePurchaseOption(
+			SingularityNodeType.Quantum,
+			QuantumNodeTexture,
+			"QUANTUM NODE",
+			"+12% output per level to every Compute Node in this Sector."
+		);
+	}
+
+
+	private void AddNodePurchaseOption(
+		SingularityNodeType type,
+		Texture2D texture,
+		string title,
+		string description)
+	{
+		PanelContainer card =
+			CreateInfoCard();
+
+		_detailContent.AddChild(
+			card
+		);
+
+
+		MarginContainer margin =
+			new();
+
+		margin.AddThemeConstantOverride(
+			"margin_left",
+			10
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_top",
+			8
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_right",
+			10
+		);
+
+		margin.AddThemeConstantOverride(
+			"margin_bottom",
+			8
+		);
+
+		card.AddChild(
 			margin
 		);
+
 
 		HBoxContainer row =
 			new();
 
+		row.AddThemeConstantOverride(
+			"separation",
+			10
+		);
+
 		margin.AddChild(
 			row
 		);
+
+
+		TextureRect icon =
+			new()
+			{
+				Texture =
+					texture,
+
+				CustomMinimumSize =
+					new Vector2(
+						70,
+						70
+					),
+
+				ExpandMode =
+					TextureRect.ExpandModeEnum.IgnoreSize,
+
+				StretchMode =
+					TextureRect.StretchModeEnum.KeepAspectCentered,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+		row.AddChild(
+			icon
+		);
+
 
 		VBoxContainer text =
 			new()
@@ -1297,244 +2001,96 @@ public sealed partial class SingularityController
 			text
 		);
 
-		Label title =
+
+		Label name =
 			CreateLabel(
-				17,
-				"SINGULARITY CORE"
+				15,
+				title
 			);
 
-		title.HorizontalAlignment =
+		name.HorizontalAlignment =
 			HorizontalAlignment.Left;
 
 		text.AddChild(
-			title
+			name
 		);
 
-		Label description =
+
+		Label desc =
 			CreateLabel(
 				11,
-				"Core levels boost every Compute Node and generate Matter."
+				description
 			);
 
-		description.HorizontalAlignment =
+		desc.HorizontalAlignment =
 			HorizontalAlignment.Left;
 
-		description.AutowrapMode =
+		desc.AutowrapMode =
 			TextServer.AutowrapMode.WordSmart;
 
+		desc.Modulate =
+			new Color(
+				0.70f,
+				0.74f,
+				0.80f,
+				1.0f
+			);
+
 		text.AddChild(
-			description
+			desc
 		);
 
-		_upgradeCoreButton =
-			new Button
+
+		bool unlocked =
+			_service.IsNodeTypeUnlocked(
+				type
+			);
+
+		double cost =
+			_service.GetBuildCost(
+				_service.CurrentSectorIndex,
+				type
+			);
+
+
+		Button buy =
+			new()
 			{
+				Text =
+					unlocked
+						? "BUY\n"
+							+ NumberFormatter.Format(
+								cost
+							)
+						: "LOCKED\n"
+							+ _service.GetNodeUnlockText(
+								type
+							),
+
 				CustomMinimumSize =
 					new Vector2(
-						190,
-						62
+						120,
+						68
 					),
 
 				FocusMode =
-					Control.FocusModeEnum.None
+					Control.FocusModeEnum.None,
+
+				Disabled =
+					!unlocked
 			};
 
-		_upgradeCoreButton.Pressed +=
-			() =>
-			{
-				HandleResult(
-					_service.UpgradeCore()
-				);
-			};
-
-		row.AddChild(
-			_upgradeCoreButton
-		);
-	}
-
-
-	private void CreateSelectionPanel()
-	{
-		PanelContainer panel =
-			new();
-
-		panel.AddThemeStyleboxOverride(
-			"panel",
-			CreatePanelStyle(
-				new Color(
-					0.018f,
-					0.020f,
-					0.030f,
-					0.98f
-				),
-				new Color(
-					0.24f,
-					0.28f,
-					0.34f,
-					0.86f
-				),
-				16
+		ApplyNodeTypeButtonStyle(
+			buy,
+			GetNodeColor(
+				type
 			)
 		);
 
-		_content.AddChild(
-			panel
-		);
-
-		MarginContainer margin =
-			new();
-
-		margin.AddThemeConstantOverride(
-			"margin_left",
-			16
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_top",
-			14
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_right",
-			16
-		);
-
-		margin.AddThemeConstantOverride(
-			"margin_bottom",
-			14
-		);
-
-		panel.AddChild(
-			margin
-		);
-
-		VBoxContainer box =
-			new();
-
-		box.AddThemeConstantOverride(
-			"separation",
-			8
-		);
-
-		margin.AddChild(
-			box
-		);
-
-		_selectionTitle =
-			CreateLabel(
-				18,
-				"SELECT A NODE"
-			);
-
-		box.AddChild(
-			_selectionTitle
-		);
-
-		_selectionDetails =
-			CreateLabel(
-				12,
-				"Tap a node to build or upgrade it."
-			);
-
-		_selectionDetails.AutowrapMode =
-			TextServer.AutowrapMode.WordSmart;
-
-		box.AddChild(
-			_selectionDetails
-		);
-
-		_buildButtons =
-			new HBoxContainer
-			{
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
-			};
-
-		_buildButtons.AddThemeConstantOverride(
-			"separation",
-			6
-		);
-
-		box.AddChild(
-			_buildButtons
-		);
-
-		AddBuildButton(
-			SingularityNodeType.Compute,
-			"CMP"
-		);
-
-		AddBuildButton(
-			SingularityNodeType.Amplifier,
-			"AMP"
-		);
-
-		AddBuildButton(
-			SingularityNodeType.Cooling,
-			"CLG"
-		);
-
-		AddBuildButton(
-			SingularityNodeType.Quantum,
-			"QNT"
-		);
-
-		_upgradeNodeButton =
-			new Button
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						58
-					),
-
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
-
-				FocusMode =
-					Control.FocusModeEnum.None
-			};
-
-		_upgradeNodeButton.Pressed +=
-			OnUpgradeSelectedNode;
-
-		box.AddChild(
-			_upgradeNodeButton
-		);
-	}
-
-
-	private void AddBuildButton(
-		SingularityNodeType type,
-		string shortName)
-	{
-		Button button =
-			new()
-			{
-				Name =
-					type.ToString(),
-
-				Text =
-					shortName,
-
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						54
-					),
-
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
-
-				FocusMode =
-					Control.FocusModeEnum.None
-			};
-
-		button.Pressed +=
+		buy.Pressed +=
 			() =>
 			{
-				if (_selectedNode < 0)
-					return;
+				PlayHaptic();
 
 				HandleResult(
 					_service.BuildNode(
@@ -1545,52 +2101,237 @@ public sealed partial class SingularityController
 				);
 			};
 
-		_buildButtons.AddChild(
-			button
+		row.AddChild(
+			buy
 		);
 	}
 
 
-	private void CreateMessagePanel()
+	private void BuildFilledNodeOverlay(
+		SingularityNodeData node)
 	{
-		_message =
-			CreateLabel(
-				12,
-				"Compute Nodes create Matter. Amplifier/Cooling buff neighboring nodes. Quantum buffs the whole sector."
+		Color accent =
+			GetNodeColor(
+				node.Type
 			);
 
-		_message.AutowrapMode =
+
+		Label title =
+			CreateLabel(
+				25,
+				node.Type.ToString().ToUpperInvariant()
+					+ " NODE"
+			);
+
+		title.AddThemeColorOverride(
+			"font_color",
+			accent.Lightened(
+				0.12f
+			)
+		);
+
+		_detailContent.AddChild(
+			title
+		);
+
+
+		_detailContent.AddChild(
+			CreateOverlayImage(
+				GetNodeTexture(
+					node.Type
+				),
+				190
+			)
+		);
+
+
+		Label level =
+			CreateLabel(
+				19,
+				"LEVEL "
+					+ node.Level
+			);
+
+		_detailContent.AddChild(
+			level
+		);
+
+
+		Label description =
+			CreateLabel(
+				13,
+				GetNodeDescription(
+					node.Type
+				)
+			);
+
+		description.AutowrapMode =
 			TextServer.AutowrapMode.WordSmart;
 
-		_message.CustomMinimumSize =
-			new Vector2(
-				0,
-				70
-			);
-
-		_message.Modulate =
+		description.Modulate =
 			new Color(
-				0.74f,
-				0.78f,
-				0.84f,
+				0.72f,
+				0.76f,
+				0.82f,
 				1.0f
 			);
 
-		_content.AddChild(
-			_message
+		_detailContent.AddChild(
+			description
+		);
+
+
+		PanelContainer stats =
+			CreateInfoCard();
+
+		_detailContent.AddChild(
+			stats
+		);
+
+
+		VBoxContainer statBox =
+			new();
+
+		statBox.AddThemeConstantOverride(
+			"separation",
+			7
+		);
+
+		stats.AddChild(
+			statBox
+		);
+
+
+		if (
+			node.Type
+			== SingularityNodeType.Compute
+		)
+		{
+			statBox.AddChild(
+				CreateLabel(
+					14,
+					"Current output: "
+						+ NumberFormatter.Format(
+							_service.GetNodeDisplayedOutput(
+								_service.CurrentSectorIndex,
+								_selectedNode
+							)
+						)
+						+ " Matter/s"
+				)
+			);
+		}
+		else
+		{
+			statBox.AddChild(
+				CreateLabel(
+					14,
+					GetNodeLevelEffectText(
+						node
+					)
+				)
+			);
+		}
+
+
+		double upgradeCost =
+			_service.GetNodeUpgradeCost(
+				_service.CurrentSectorIndex,
+				_selectedNode
+			);
+
+
+		Button upgrade =
+			new()
+			{
+				Text =
+					"UPGRADE TO LEVEL "
+					+ (
+						node.Level + 1
+					)
+					+ "\n"
+					+ NumberFormatter.Format(
+						upgradeCost
+					)
+					+ " MATTER",
+
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						70
+					),
+
+				FocusMode =
+					Control.FocusModeEnum.None
+			};
+
+		ApplyNodeTypeButtonStyle(
+			upgrade,
+			accent
+		);
+
+		upgrade.Pressed +=
+			() =>
+			{
+				PlayHaptic();
+
+				HandleResult(
+					_service.UpgradeNode(
+						_service.CurrentSectorIndex,
+						_selectedNode
+					)
+				);
+			};
+
+		_detailContent.AddChild(
+			upgrade
 		);
 	}
 
 
+	private void OnOverlayDimInput(
+		InputEvent @event)
+	{
+		bool released =
+			@event
+				is InputEventScreenTouch touch
+			&& !touch.Pressed;
+
+		released |=
+			@event
+				is InputEventMouseButton mouse
+			&& !mouse.Pressed
+			&& mouse.ButtonIndex
+				== MouseButton.Left;
+
+		if (!released)
+			return;
+
+		_detailOverlay
+			.GetViewport()
+			.SetInputAsHandled();
+
+		Callable
+			.From(
+				CloseDetailOverlay
+			)
+			.CallDeferred();
+	}
+
+
+	// ==================================================
+	// ACTIONS / REFRESH
+	// ==================================================
+
 	private void OnNextSectorPressed()
 	{
+		PlayHaptic();
+
 		if (
 			_service.GoToNextExistingSector()
 		)
 		{
-			_selectedNode =
-				-1;
-
+			CloseDetailOverlay();
 			RefreshAll();
 
 			return;
@@ -1602,34 +2343,25 @@ public sealed partial class SingularityController
 	}
 
 
-	private void OnUpgradeSelectedNode()
-	{
-		if (_selectedNode < 0)
-			return;
-
-		HandleResult(
-			_service.UpgradeNode(
-				_service.CurrentSectorIndex,
-				_selectedNode
-			)
-		);
-	}
-
-
 	private void HandleResult(
 		SingularityActionResult result)
 	{
-		_message.Text =
-			result.Message;
-
 		MessageRequested?.Invoke(
 			result.Message
 		);
 
-		if (result.Changed)
-		{
-			RefreshAll();
-		}
+		if (!result.Changed)
+			return;
+
+		RefreshAll();
+		RefreshOpenDetailOverlay();
+	}
+
+
+	private void OnServiceChanged()
+	{
+		RefreshAll();
+		RefreshOpenDetailOverlay();
 	}
 
 
@@ -1648,7 +2380,6 @@ public sealed partial class SingularityController
 		RefreshRuntime();
 		RefreshSector();
 		RefreshNodes();
-		RefreshSelection();
 	}
 
 
@@ -1660,8 +2391,7 @@ public sealed partial class SingularityController
 			);
 
 		_coreValue.Text =
-			"L"
-			+ _service.CoreLevel;
+			_service.CoreCount.ToString();
 
 		_sectorValue.Text =
 			_service.SectorNumber.ToString();
@@ -1700,35 +2430,23 @@ public sealed partial class SingularityController
 			_nextSectorButton.Text =
 				"›";
 
-			_nextSectorButton.Disabled =
-				false;
-		}
-		else
-		{
-			double cost =
-				_service.GetNextSectorUnlockCost();
-
-			_nextSectorButton.Text =
-				_service.CanUnlockNextSector()
-					? "+"
-					: "›";
-
 			_nextSectorButton.TooltipText =
-				"Next sector: "
-				+ NumberFormatter.Format(
-					cost
-				)
-				+ " Matter";
+				"Next Sector";
 
-			_nextSectorButton.Disabled =
-				false;
+			return;
 		}
 
-		_upgradeCoreButton.Text =
-			"UPGRADE CORE\n"
+		_nextSectorButton.Text =
+			_service.CanUnlockNextSector()
+				? "+"
+				: "›";
+
+		_nextSectorButton.TooltipText =
+			"Next Sector • "
 			+ NumberFormatter.Format(
-				_service.GetCoreUpgradeCost()
-			);
+				_service.GetNextSectorUnlockCost()
+			)
+			+ " Matter";
 	}
 
 
@@ -1769,6 +2487,7 @@ public sealed partial class SingularityController
 				node.Type
 				!= SingularityNodeType.Empty;
 
+
 			Color accent =
 				GetNodeColor(
 					node.Type
@@ -1799,8 +2518,33 @@ public sealed partial class SingularityController
 								0.32f,
 								0.82f
 							)
-							: accent,
-					i == _selectedNode
+							: accent
+				)
+			);
+
+			view.Root.AddThemeStyleboxOverride(
+				"hover",
+				CreateNodeStyle(
+					new Color(
+						accent.R * 0.28f,
+						accent.G * 0.28f,
+						accent.B * 0.28f,
+						0.98f
+					),
+					accent
+				)
+			);
+
+			view.Root.AddThemeStyleboxOverride(
+				"pressed",
+				CreateNodeStyle(
+					new Color(
+						accent.R * 0.16f,
+						accent.G * 0.16f,
+						accent.B * 0.16f,
+						1.0f
+					),
+					accent
 				)
 			);
 
@@ -1812,149 +2556,64 @@ public sealed partial class SingularityController
 							+ node.Level;
 		}
 
+
+		/*
+		 * The link layer now receives the occupied-state array.
+		 * It draws:
+		 * 1. Core -> occupied Node links.
+		 * 2. Node -> Node links whenever both adjacent ring nodes are occupied.
+		 */
 		_linkLayer.SetActiveNodes(
 			active
 		);
 	}
 
 
-	private void RefreshSelection()
+	// ==================================================
+	// BOTTOM BAR THEME
+	// ==================================================
+
+	private void ApplySingularityBottomBarTheme()
 	{
-		if (_selectedNode < 0)
-		{
-			_selectionTitle.Text =
-				"SINGULARITY CORE";
+		TextureRect? background =
+			_root.GetNodeOrNull<TextureRect>(
+				"BottomBar/Background"
+			);
 
-			_selectionDetails.Text =
-				"Core Level "
-				+ _service.CoreLevel
-				+ " • "
-				+ NumberFormatter.Format(
-					_service.GetCoreOutputPerSecond()
-				)
-				+ " base Matter/s\n"
-				+ "Every Core Level also boosts Compute Nodes by +10%.";
-
-			_buildButtons.Hide();
-			_upgradeNodeButton.Hide();
-
+		if (background == null)
 			return;
-		}
 
-		SingularityNodeData node =
-			_service.GetNode(
-				_service.CurrentSectorIndex,
-				_selectedNode
-			);
-
-		if (
-			node.Type
-			== SingularityNodeType.Empty
-		)
-		{
-			_selectionTitle.Text =
-				"EMPTY NODE "
-				+ (
-					_selectedNode + 1
-				);
-
-			_selectionDetails.Text =
-				"Choose what to construct. Adjacent slots are the two neighboring nodes around the ring.";
-
-			_buildButtons.Show();
-			_upgradeNodeButton.Hide();
-
-			foreach (
-				Node child
-					in _buildButtons.GetChildren()
-			)
-			{
-				if (
-					child is not Button button
-					|| !Enum.TryParse(
-						button.Name.ToString(),
-						out SingularityNodeType type
-					)
+		background.Texture =
+			RoomThemePalette
+				.Create(
+					4
 				)
-				{
-					continue;
-				}
-
-				bool unlocked =
-					_service.IsNodeTypeUnlocked(
-						type
-					);
-
-				double cost =
-					_service.GetBuildCost(
-						_service.CurrentSectorIndex,
-						type
-					);
-
-				button.Disabled =
-					!unlocked;
-
-				button.Text =
-					GetNodeShortName(
-						type
-					)
-					+ "\n"
-					+ (
-						unlocked
-							? NumberFormatter.Format(
-								cost
-							)
-							: _service.GetNodeUnlockText(
-								type
-							)
-					);
-			}
-
-			return;
-		}
-
-		_buildButtons.Hide();
-		_upgradeNodeButton.Show();
-
-		double upgradeCost =
-			_service.GetNodeUpgradeCost(
-				_service.CurrentSectorIndex,
-				_selectedNode
-			);
-
-		_selectionTitle.Text =
-			node.Type.ToString().ToUpperInvariant()
-			+ " NODE • LV "
-			+ node.Level;
-
-		_selectionDetails.Text =
-			GetNodeDescription(
-				node.Type
-			);
-
-		if (
-			node.Type
-			== SingularityNodeType.Compute
-		)
-		{
-			_selectionDetails.Text +=
-				"\nCurrent output: "
-				+ NumberFormatter.Format(
-					_service.GetNodeDisplayedOutput(
-						_service.CurrentSectorIndex,
-						_selectedNode
-					)
-				)
-				+ " Matter/s";
-		}
-
-		_upgradeNodeButton.Text =
-			"UPGRADE NODE\n"
-			+ NumberFormatter.Format(
-				upgradeCost
-			);
+				.Bar;
 	}
 
+
+	private void RestoreNormalBottomBarTheme()
+	{
+		TextureRect? background =
+			_root.GetNodeOrNull<TextureRect>(
+				"BottomBar/Background"
+			);
+
+		if (background == null)
+			return;
+
+		background.Texture =
+			RoomThemePalette
+				.Create(
+					_state.CurrentRoomIndex
+				)
+				.Bar;
+	}
+
+
+	// ==================================================
+	// TEXT / HELPERS
+	// ==================================================
 
 	private static string GetNodeDescription(
 		SingularityNodeType type)
@@ -1965,13 +2624,13 @@ public sealed partial class SingularityController
 				"Produces Singularity Matter continuously.",
 
 			SingularityNodeType.Amplifier =>
-				"+15% output per level to each adjacent Compute Node.",
+				"Boosts the two neighboring Compute Nodes.",
 
 			SingularityNodeType.Cooling =>
-				"+10% speed/output per level to each adjacent Compute Node.",
+				"Speeds up the two neighboring Compute Nodes.",
 
 			SingularityNodeType.Quantum =>
-				"+12% output per level to every Compute Node in this sector.",
+				"Multiplies every Compute Node in this Sector.",
 
 			_ =>
 				""
@@ -1979,17 +2638,93 @@ public sealed partial class SingularityController
 	}
 
 
-	private static string GetNodeShortName(
-		SingularityNodeType type)
+	private static string GetNodeLevelEffectText(
+		SingularityNodeData node)
 	{
-		return type switch
+		return node.Type switch
 		{
-			SingularityNodeType.Compute => "CMP",
-			SingularityNodeType.Amplifier => "AMP",
-			SingularityNodeType.Cooling => "CLG",
-			SingularityNodeType.Quantum => "QNT",
-			_ => "---"
+			SingularityNodeType.Amplifier =>
+				"Adjacent Compute boost: +"
+				+ (
+					15
+					* node.Level
+				)
+				+ "%",
+
+			SingularityNodeType.Cooling =>
+				"Adjacent Compute speed/output: +"
+				+ (
+					10
+					* node.Level
+				)
+				+ "%",
+
+			SingularityNodeType.Quantum =>
+				"Sector Compute boost: +"
+				+ (
+					12
+					* node.Level
+				)
+				+ "%",
+
+			_ =>
+				""
 		};
+	}
+
+
+	private static TextureRect CreateOverlayImage(
+		Texture2D texture,
+		float height)
+	{
+		return new TextureRect
+		{
+			Texture =
+				texture,
+
+			CustomMinimumSize =
+				new Vector2(
+					0,
+					height
+				),
+
+			ExpandMode =
+				TextureRect.ExpandModeEnum.IgnoreSize,
+
+			StretchMode =
+				TextureRect.StretchModeEnum.KeepAspectCentered,
+
+			MouseFilter =
+				Control.MouseFilterEnum.Ignore
+		};
+	}
+
+
+	private static PanelContainer CreateInfoCard()
+	{
+		PanelContainer panel =
+			new();
+
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			CreatePanelStyle(
+				new Color(
+					0.030f,
+					0.032f,
+					0.044f,
+					0.98f
+				),
+				new Color(
+					0.23f,
+					0.25f,
+					0.30f,
+					0.84f
+				),
+				14
+			)
+		);
+
+		return panel;
 	}
 
 
@@ -2035,8 +2770,8 @@ public sealed partial class SingularityController
 
 			_ =>
 				new Color(
-					0.32f,
 					0.34f,
+					0.35f,
 					0.38f,
 					1.0f
 				)
@@ -2210,23 +2945,17 @@ public sealed partial class SingularityController
 
 	private static StyleBoxFlat CreateNodeStyle(
 		Color background,
-		Color border,
-		bool selected)
+		Color border)
 	{
-		int width =
-			selected
-				? 4
-				: 2;
-
 		return new StyleBoxFlat
 		{
 			BgColor = background,
 			BorderColor = border,
 
-			BorderWidthLeft = width,
-			BorderWidthTop = width,
-			BorderWidthRight = width,
-			BorderWidthBottom = width,
+			BorderWidthLeft = 2,
+			BorderWidthTop = 2,
+			BorderWidthRight = 2,
+			BorderWidthBottom = 2,
 
 			CornerRadiusTopLeft = 18,
 			CornerRadiusTopRight = 18,
@@ -2238,16 +2967,144 @@ public sealed partial class SingularityController
 					border.R,
 					border.G,
 					border.B,
-					selected
-						? 0.42f
-						: 0.18f
+					0.20f
 				),
 
-			ShadowSize =
-				selected
-					? 12
-					: 5
+			ShadowSize = 6
 		};
+	}
+
+
+	private static void ApplyTransparentButtonStyle(
+		Button button)
+	{
+		StyleBoxEmpty empty =
+			new();
+
+		button.AddThemeStyleboxOverride(
+			"normal",
+			empty
+		);
+
+		button.AddThemeStyleboxOverride(
+			"hover",
+			empty
+		);
+
+		button.AddThemeStyleboxOverride(
+			"pressed",
+			empty
+		);
+
+		button.AddThemeStyleboxOverride(
+			"focus",
+			empty
+		);
+	}
+
+
+	private static void ApplyGoldButtonStyle(
+		Button button)
+	{
+		ApplyNodeTypeButtonStyle(
+			button,
+			Accent
+		);
+	}
+
+
+	private static void ApplyNodeTypeButtonStyle(
+		Button button,
+		Color accent)
+	{
+		button.AddThemeStyleboxOverride(
+			"normal",
+			CreateActionButtonStyle(
+				accent.Darkened(
+					0.48f
+				),
+				accent
+			)
+		);
+
+		button.AddThemeStyleboxOverride(
+			"hover",
+			CreateActionButtonStyle(
+				accent.Darkened(
+					0.28f
+				),
+				accent.Lightened(
+					0.08f
+				)
+			)
+		);
+
+		button.AddThemeStyleboxOverride(
+			"pressed",
+			CreateActionButtonStyle(
+				accent.Darkened(
+					0.58f
+				),
+				accent
+			)
+		);
+
+		button.AddThemeStyleboxOverride(
+			"disabled",
+			CreateActionButtonStyle(
+				new Color(
+					0.07f,
+					0.075f,
+					0.085f,
+					0.96f
+				),
+				new Color(
+					0.22f,
+					0.24f,
+					0.28f,
+					0.82f
+				)
+			)
+		);
+	}
+
+
+	private static StyleBoxFlat CreateActionButtonStyle(
+		Color background,
+		Color border)
+	{
+		return new StyleBoxFlat
+		{
+			BgColor =
+				background,
+
+			BorderColor =
+				border,
+
+			BorderWidthLeft = 2,
+			BorderWidthTop = 2,
+			BorderWidthRight = 2,
+			BorderWidthBottom = 2,
+
+			CornerRadiusTopLeft = 14,
+			CornerRadiusTopRight = 14,
+			CornerRadiusBottomLeft = 14,
+			CornerRadiusBottomRight = 14,
+
+			ContentMarginLeft = 10,
+			ContentMarginRight = 10,
+			ContentMarginTop = 7,
+			ContentMarginBottom = 7
+		};
+	}
+
+
+	private static void PlayHaptic()
+	{
+		Input.VibrateHandheld(
+			NavigationHapticDurationMs,
+			NavigationHapticStrength
+		);
 	}
 
 
@@ -2257,6 +3114,10 @@ public sealed partial class SingularityController
 		Label Level
 	);
 
+
+	// ==================================================
+	// LINES
+	// ==================================================
 
 	private sealed partial class SingularityLinkLayer
 		: Control
@@ -2311,6 +3172,60 @@ public sealed partial class SingularityController
 
 		public override void _Draw()
 		{
+			/*
+			 * 1) Draw occupied adjacent Node -> Node links.
+			 *
+			 * The ring wraps around, therefore Node 8 and Node 1 are also
+			 * neighbors.
+			 */
+			for (
+				int i = 0;
+				i < _nodes.Count;
+				i++
+			)
+			{
+				int next =
+					(
+						i + 1
+					)
+					% _nodes.Count;
+
+				bool bothOccupied =
+					i < _active.Length
+					&& next < _active.Length
+					&& _active[
+						i
+					]
+					&& _active[
+						next
+					];
+
+				if (!bothOccupied)
+					continue;
+
+				DrawConnection(
+					_nodes[
+						i
+					],
+					_nodes[
+						next
+					],
+					new Color(
+						0.96f,
+						0.70f,
+						0.22f,
+						0.94f
+					),
+					10.0f,
+					3.4f
+				);
+			}
+
+
+			/*
+			 * 2) Draw Core -> occupied Node links.
+			 * Empty nodes only keep a very subtle guide line.
+			 */
 			for (
 				int i = 0;
 				i < _nodes.Count;
@@ -2330,40 +3245,53 @@ public sealed partial class SingularityController
 							0.22f,
 							0.24f,
 							0.30f,
-							0.72f
+							0.42f
 						);
 
-				DrawLine(
-					_core,
-					_nodes[
-						i
-					],
-					new Color(
-						color.R,
-						color.G,
-						color.B,
-						active
-							? 0.18f
-							: 0.10f
-					),
-					active
-						? 13.0f
-						: 7.0f,
-					true
-				);
-
-				DrawLine(
+				DrawConnection(
 					_core,
 					_nodes[
 						i
 					],
 					color,
 					active
+						? 13.0f
+						: 5.0f,
+					active
 						? 4.0f
-						: 2.5f,
-					true
+						: 1.5f
 				);
 			}
+		}
+
+
+		private void DrawConnection(
+			Vector2 from,
+			Vector2 to,
+			Color color,
+			float glowWidth,
+			float lineWidth)
+		{
+			DrawLine(
+				from,
+				to,
+				new Color(
+					color.R,
+					color.G,
+					color.B,
+					0.18f
+				),
+				glowWidth,
+				true
+			);
+
+			DrawLine(
+				from,
+				to,
+				color,
+				lineWidth,
+				true
+			);
 		}
 	}
 

@@ -1,6 +1,5 @@
 using Godot;
 using System;
-using System.IO;
 using System.Text.Json;
 
 namespace IdleAi;
@@ -46,8 +45,21 @@ public sealed class SingularityService
 	public double Matter =>
 		_data.Matter;
 
+	/*
+	 * "CoreLevel" is kept for save compatibility.
+	 *
+	 * Gameplay meaning:
+	 * Core 1 is installed for free when Singularity starts.
+	 * Core 2, Core 3, ... have to be purchased with Matter.
+	 */
 	public int CoreLevel =>
-		_data.CoreLevel;
+		Math.Max(
+			1,
+			_data.CoreLevel
+		);
+
+	public int CoreCount =>
+		CoreLevel;
 
 	public int CurrentSectorIndex =>
 		_data.CurrentSectorIndex;
@@ -64,6 +76,12 @@ public sealed class SingularityService
 	public SingularityService()
 	{
 		Load();
+
+		_data.CoreLevel =
+			Math.Max(
+				1,
+				_data.CoreLevel
+			);
 
 		EnsureSector(
 			0
@@ -132,16 +150,25 @@ public sealed class SingularityService
 		_data.Unlocked =
 			true;
 
+		/*
+		 * The very first Core is free. This also makes old/migrated saves safe
+		 * if a zero somehow reaches the JSON.
+		 */
+		_data.CoreLevel =
+			Math.Max(
+				1,
+				_data.CoreLevel
+			);
+
 		EnsureSector(
 			0
 		);
 
-		Save();
-		Changed?.Invoke();
+		SaveAndNotify();
 
 		return new SingularityActionResult(
 			true,
-			"SINGULARITY ONLINE"
+			"SINGULARITY ONLINE • CORE 1 INSTALLED"
 		);
 	}
 
@@ -190,23 +217,40 @@ public sealed class SingularityService
 	}
 
 
-	public double GetCoreUpgradeCost()
+	// ==================================================
+	// CORES
+	// ==================================================
+
+	public double GetNextCoreCost()
 	{
+		/*
+		 * Core 1 costs nothing because it already exists.
+		 * This is the purchase price for CoreCount + 1.
+		 */
 		return 100.0
 			* Math.Pow(
 				2.15,
 				Math.Max(
 					0,
-					CoreLevel - 1
+					CoreCount - 1
 				)
 			);
 	}
 
 
-	public SingularityActionResult UpgradeCore()
+	/*
+	 * Compatibility with the first draft.
+	 */
+	public double GetCoreUpgradeCost()
+	{
+		return GetNextCoreCost();
+	}
+
+
+	public SingularityActionResult BuyNextCore()
 	{
 		double cost =
-			GetCoreUpgradeCost();
+			GetNextCoreCost();
 
 		if (_data.Matter < cost)
 		{
@@ -221,19 +265,65 @@ public sealed class SingularityService
 		_data.CoreLevel =
 			Math.Min(
 				int.MaxValue,
-				_data.CoreLevel + 1
+				CoreCount + 1
 			);
 
 		SaveAndNotify();
 
 		return new SingularityActionResult(
 			true,
-			"Singularity Core upgraded to Level "
-				+ CoreLevel
-				+ "."
+			"Core "
+				+ CoreCount
+				+ " installed."
 		);
 	}
 
+
+	/*
+	 * Compatibility with the first draft.
+	 */
+	public SingularityActionResult UpgradeCore()
+	{
+		return BuyNextCore();
+	}
+
+
+	public double GetCoreOutputPerSecond()
+	{
+		return GetCoreOutputPerSecond(
+			CoreCount
+		);
+	}
+
+
+	public static double GetCoreOutputPerSecond(
+		int coreCount)
+	{
+		return 0.05
+			* Math.Pow(
+				1.42,
+				Math.Max(
+					0,
+					coreCount - 1
+				)
+			);
+	}
+
+
+	public double GetComputeCoreMultiplier()
+	{
+		return 1.0
+			+ 0.10
+			* Math.Max(
+				0,
+				CoreCount - 1
+			);
+	}
+
+
+	// ==================================================
+	// NODE UNLOCKS / COSTS
+	// ==================================================
 
 	public bool IsNodeTypeUnlocked(
 		SingularityNodeType type)
@@ -244,13 +334,13 @@ public sealed class SingularityService
 				true,
 
 			SingularityNodeType.Amplifier =>
-				CoreLevel >= 3,
+				CoreCount >= 3,
 
 			SingularityNodeType.Cooling =>
-				CoreLevel >= 5,
+				CoreCount >= 5,
 
 			SingularityNodeType.Quantum =>
-				CoreLevel >= 8,
+				CoreCount >= 8,
 
 			_ =>
 				false
@@ -488,6 +578,10 @@ public sealed class SingularityService
 	}
 
 
+	// ==================================================
+	// SECTORS
+	// ==================================================
+
 	public double GetNextSectorUnlockCost()
 	{
 		int nextSector =
@@ -592,6 +686,10 @@ public sealed class SingularityService
 	}
 
 
+	// ==================================================
+	// OUTPUT
+	// ==================================================
+
 	public double GetTotalOutputPerSecond()
 	{
 		if (!Unlocked)
@@ -613,19 +711,6 @@ public sealed class SingularityService
 		}
 
 		return output;
-	}
-
-
-	public double GetCoreOutputPerSecond()
-	{
-		return 0.05
-			* Math.Pow(
-				1.42,
-				Math.Max(
-					0,
-					CoreLevel - 1
-				)
-			);
 	}
 
 
@@ -688,9 +773,6 @@ public sealed class SingularityService
 					)
 				);
 
-			double adjacencyMultiplier =
-				1.0;
-
 			int previous =
 				(
 					i
@@ -705,15 +787,13 @@ public sealed class SingularityService
 				)
 				% NodesPerSector;
 
-			adjacencyMultiplier *=
+			double adjacencyMultiplier =
 				GetAdjacentMultiplier(
 					sector.Nodes[
 						previous
 					]
-				);
-
-			adjacencyMultiplier *=
-				GetAdjacentMultiplier(
+				)
+				* GetAdjacentMultiplier(
 					sector.Nodes[
 						next
 					]
@@ -725,16 +805,8 @@ public sealed class SingularityService
 				* quantumMultiplier;
 		}
 
-		double coreMultiplier =
-			1.0
-			+ 0.10
-			* Math.Max(
-				0,
-				CoreLevel - 1
-			);
-
 		return total
-			* coreMultiplier;
+			* GetComputeCoreMultiplier();
 	}
 
 
@@ -843,12 +915,7 @@ public sealed class SingularityService
 			quantum;
 
 		output *=
-			1.0
-			+ 0.10
-			* Math.Max(
-				0,
-				CoreLevel - 1
-			);
+			GetComputeCoreMultiplier();
 
 		return output;
 	}
@@ -883,6 +950,10 @@ public sealed class SingularityService
 	}
 
 
+	// ==================================================
+	// SAVE
+	// ==================================================
+
 	public void Save()
 	{
 		try
@@ -910,7 +981,7 @@ public sealed class SingularityService
 		{
 			GD.PushWarning(
 				"Singularity save failed: "
-				+ exception.Message
+					+ exception.Message
 			);
 		}
 	}
@@ -961,7 +1032,7 @@ public sealed class SingularityService
 		{
 			GD.PushWarning(
 				"Singularity save load failed: "
-				+ exception.Message
+					+ exception.Message
 			);
 
 			_data =

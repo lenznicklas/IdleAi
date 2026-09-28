@@ -145,9 +145,14 @@ public partial class Game
 		_singularityService =
 			new SingularityService();
 
+		/*
+		 * GameState is passed so the special room can restore the normal
+		 * BottomBar theme when it closes.
+		 */
 		_singularityController =
 			new SingularityController(
 				this,
+				_state,
 				_singularityService
 			);
 

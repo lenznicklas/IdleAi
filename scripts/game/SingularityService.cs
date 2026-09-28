@@ -25,6 +25,9 @@ public sealed class SingularityService
 	private const double OfflineEfficiency =
 		0.50;
 
+	private const double NodeSellRefundFraction =
+		1.0 / 3.0;
+
 	private const long MaximumOfflineSeconds =
 		7 * 24 * 60 * 60;
 
@@ -467,6 +470,9 @@ public sealed class SingularityService
 		node.Level =
 			1;
 
+		node.InvestedMatter =
+			cost;
+
 		SaveAndNotify();
 
 		return new SingularityActionResult(
@@ -560,6 +566,23 @@ public sealed class SingularityService
 		_data.Matter -=
 			cost;
 
+		/*
+		 * Saves created before sell support did not store InvestedMatter.
+		 * Seed those Nodes with a conservative reconstruction before adding
+		 * the new upgrade cost, so they can still be sold sensibly.
+		 */
+		if (node.InvestedMatter <= 0.0)
+		{
+			node.InvestedMatter =
+				EstimateLegacyNodeInvestment(
+					sectorIndex,
+					node
+				);
+		}
+
+		node.InvestedMatter +=
+			cost;
+
 		node.Level =
 			Math.Min(
 				int.MaxValue,
@@ -574,6 +597,162 @@ public sealed class SingularityService
 				+ " Node upgraded to Level "
 				+ node.Level
 				+ "."
+		);
+	}
+
+
+	// ==================================================
+	// NODE SELLING
+	// ==================================================
+
+	public double GetNodeSellRefund(
+		int sectorIndex,
+		int nodeIndex)
+	{
+		SingularityNodeData node =
+			GetNode(
+				sectorIndex,
+				nodeIndex
+			);
+
+		if (
+			node.Type
+			== SingularityNodeType.Empty
+		)
+		{
+			return 0.0;
+		}
+
+		double invested =
+			node.InvestedMatter > 0.0
+				? node.InvestedMatter
+				: EstimateLegacyNodeInvestment(
+					sectorIndex,
+					node
+				);
+
+		return Math.Max(
+			0.0,
+			invested
+				* NodeSellRefundFraction
+		);
+	}
+
+
+	public SingularityActionResult SellNode(
+		int sectorIndex,
+		int nodeIndex)
+	{
+		SingularityNodeData node =
+			GetNode(
+				sectorIndex,
+				nodeIndex
+			);
+
+		if (
+			node.Type
+			== SingularityNodeType.Empty
+		)
+		{
+			return new SingularityActionResult(
+				false,
+				"This Node is already empty."
+			);
+		}
+
+		SingularityNodeType soldType =
+			node.Type;
+
+		double refund =
+			GetNodeSellRefund(
+				sectorIndex,
+				nodeIndex
+			);
+
+		_data.Matter +=
+			refund;
+
+		node.Type =
+			SingularityNodeType.Empty;
+
+		node.Level =
+			1;
+
+		node.InvestedMatter =
+			0.0;
+
+		SaveAndNotify();
+
+		return new SingularityActionResult(
+			true,
+			soldType
+				+ " Node sold for "
+				+ NumberFormatter.Format(
+					refund
+				)
+				+ " Matter."
+		);
+	}
+
+
+	private static double EstimateLegacyNodeInvestment(
+		int sectorIndex,
+		SingularityNodeData node)
+	{
+		double buildBase =
+			node.Type switch
+			{
+				SingularityNodeType.Compute => 10.0,
+				SingularityNodeType.Amplifier => 45.0,
+				SingularityNodeType.Cooling => 80.0,
+				SingularityNodeType.Quantum => 260.0,
+				_ => 0.0
+			};
+
+		double investment =
+			buildBase
+			* Math.Pow(
+				3.0,
+				Math.Max(
+					0,
+					sectorIndex
+				)
+			);
+
+		double upgradeBase =
+			node.Type switch
+			{
+				SingularityNodeType.Compute => 18.0,
+				SingularityNodeType.Amplifier => 60.0,
+				SingularityNodeType.Cooling => 95.0,
+				SingularityNodeType.Quantum => 320.0,
+				_ => 0.0
+			};
+
+		for (
+			int level = 1;
+			level < node.Level;
+			level++
+		)
+		{
+			investment +=
+				upgradeBase
+				* Math.Pow(
+					1.85,
+					level - 1
+				)
+				* Math.Pow(
+					2.6,
+					Math.Max(
+						0,
+						sectorIndex
+					)
+				);
+		}
+
+		return Math.Max(
+			0.0,
+			investment
 		);
 	}
 
@@ -1038,6 +1217,12 @@ public sealed class SingularityService
 			_data =
 				new SingularitySaveData();
 		}
+
+		_data.SaveVersion =
+			Math.Max(
+				2,
+				_data.SaveVersion
+			);
 
 		_data.CoreLevel =
 			Math.Max(

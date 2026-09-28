@@ -17,8 +17,18 @@ namespace IdleAi;
  */
 public sealed partial class SingularityController
 {
-	private const float BottomReservedSpace =
-		132.0f;
+	/*
+	 * Fallback only. At runtime Singularity reads the actual BottomBar height
+	 * so it always matches the normal rooms exactly.
+	 */
+	private const float DefaultBottomBarHeight =
+		88.0f;
+
+	private const int SingularityPageZIndex =
+		600;
+
+	private const int SingularityBottomBarZIndex =
+		700;
 
 	private const int NavigationHapticDurationMs =
 		12;
@@ -122,6 +132,17 @@ public sealed partial class SingularityController
 	private Control _page =
 		null!;
 
+	private ColorRect _pageBackground =
+		null!;
+
+	private SingularityGridBackground _gridBackground =
+		null!;
+
+	private Control _bottomBar =
+		null!;
+
+	private int _normalBottomBarZIndex;
+
 	private PanelContainer _header =
 		null!;
 
@@ -147,6 +168,9 @@ public sealed partial class SingularityController
 		null!;
 
 	private SingularityLinkLayer _linkLayer =
+		null!;
+
+	private Control _coreHolder =
 		null!;
 
 	private TextureRect _coreImage =
@@ -223,6 +247,14 @@ public sealed partial class SingularityController
 
 	public void Initialize()
 	{
+		_bottomBar =
+			_root.GetNode<Control>(
+				"BottomBar"
+			);
+
+		_normalBottomBarZIndex =
+			_bottomBar.ZIndex;
+
 		CreatePage();
 		CreateDetailOverlay();
 		CreateTimers();
@@ -249,11 +281,18 @@ public sealed partial class SingularityController
 		CloseDetailOverlay();
 
 		ApplySingularityBottomBarTheme();
+		ApplySingularityBottomBarLayer();
 
 		RefreshAll();
 
 		_page.Show();
 		_page.MoveToFront();
+
+		/*
+		 * MoveToFront() changes sibling order, while the explicit ZIndex keeps
+		 * the complete normal BottomBar above the Singularity page.
+		 */
+		_bottomBar.MoveToFront();
 
 		ApplySafeArea();
 	}
@@ -272,6 +311,7 @@ public sealed partial class SingularityController
 		if (wasVisible)
 		{
 			RestoreNormalBottomBarTheme();
+			RestoreNormalBottomBarLayer();
 		}
 	}
 
@@ -352,7 +392,7 @@ public sealed partial class SingularityController
 					Control.MouseFilterEnum.Ignore,
 
 				ZIndex =
-					600
+					SingularityPageZIndex
 			};
 
 		_page.SetAnchorsAndOffsetsPreset(
@@ -364,8 +404,8 @@ public sealed partial class SingularityController
 		);
 
 
-		ColorRect background =
-			new()
+		_pageBackground =
+			new ColorRect
 			{
 				Color =
 					new Color(
@@ -379,38 +419,32 @@ public sealed partial class SingularityController
 					Control.MouseFilterEnum.Ignore
 			};
 
-		background.AnchorRight =
+		_pageBackground.AnchorRight =
 			1.0f;
 
-		background.AnchorBottom =
+		_pageBackground.AnchorBottom =
 			1.0f;
-
-		background.OffsetBottom =
-			-BottomReservedSpace;
 
 		_page.AddChild(
-			background
+			_pageBackground
 		);
 
 
-		SingularityGridBackground grid =
-			new()
+		_gridBackground =
+			new SingularityGridBackground
 			{
 				MouseFilter =
 					Control.MouseFilterEnum.Ignore
 			};
 
-		grid.AnchorRight =
+		_gridBackground.AnchorRight =
 			1.0f;
 
-		grid.AnchorBottom =
+		_gridBackground.AnchorBottom =
 			1.0f;
-
-		grid.OffsetBottom =
-			-BottomReservedSpace;
 
 		_page.AddChild(
-			grid
+			_gridBackground
 		);
 
 
@@ -816,7 +850,7 @@ public sealed partial class SingularityController
 			166.0f;
 
 		_scroll.OffsetBottom =
-			-BottomReservedSpace;
+			0.0f;
 
 		_page.AddChild(
 			_scroll
@@ -1087,39 +1121,44 @@ public sealed partial class SingularityController
 
 
 		/*
-		 * Core rendering fix:
+		 * Core rendering / centering:
 		 *
-		 * The image is now a direct TextureRect child of the network, not a
-		 * child of a themed Button. A completely transparent Button is placed
-		 * above it only as a hitbox. The Button can therefore never paint over
-		 * core.png.
+		 * A fixed 132x132 clipped holder is centered exactly on (325, 325).
+		 * core.png is forced into that holder with KeepAspectCentered, so even a
+		 * very large source texture can never spill across the network again.
 		 */
-		_coreImage =
-			new TextureRect
+		const float coreSize =
+			132.0f;
+
+		Vector2 corePosition =
+			new Vector2(
+				325.0f - coreSize / 2.0f,
+				325.0f - coreSize / 2.0f
+			);
+
+		_coreHolder =
+			new Control
 			{
 				Name =
-					"SingularityCoreImage",
-
-				Texture =
-					CoreTexture,
+					"SingularityCoreHolder",
 
 				Position =
-					new Vector2(
-						225,
-						225
-					),
+					corePosition,
 
 				Size =
 					new Vector2(
-						200,
-						200
+						coreSize,
+						coreSize
 					),
 
-				ExpandMode =
-					TextureRect.ExpandModeEnum.IgnoreSize,
+				CustomMinimumSize =
+					new Vector2(
+						coreSize,
+						coreSize
+					),
 
-				StretchMode =
-					TextureRect.StretchModeEnum.KeepAspectCentered,
+				ClipContents =
+					true,
 
 				MouseFilter =
 					Control.MouseFilterEnum.Ignore,
@@ -1129,6 +1168,34 @@ public sealed partial class SingularityController
 			};
 
 		_network.AddChild(
+			_coreHolder
+		);
+
+
+		_coreImage =
+			new TextureRect
+			{
+				Name =
+					"SingularityCoreImage",
+
+				Texture =
+					CoreTexture,
+
+				ExpandMode =
+					TextureRect.ExpandModeEnum.IgnoreSize,
+
+				StretchMode =
+					TextureRect.StretchModeEnum.KeepAspectCentered,
+
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore
+			};
+
+		_coreImage.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+		_coreHolder.AddChild(
 			_coreImage
 		);
 
@@ -1145,7 +1212,7 @@ public sealed partial class SingularityController
 				Control.LayoutPreset.FullRect
 			);
 
-			_coreImage.AddChild(
+			_coreHolder.AddChild(
 				fallback
 			);
 		}
@@ -1158,15 +1225,12 @@ public sealed partial class SingularityController
 					"SingularityCoreHitbox",
 
 				Position =
-					new Vector2(
-						225,
-						225
-					),
+					corePosition,
 
 				Size =
 					new Vector2(
-						200,
-						200
+						coreSize,
+						coreSize
 					),
 
 				FocusMode =
@@ -1193,7 +1257,6 @@ public sealed partial class SingularityController
 		_network.AddChild(
 			_coreHitbox
 		);
-
 
 		for (
 			int i = 0;
@@ -2286,6 +2349,231 @@ public sealed partial class SingularityController
 		_detailContent.AddChild(
 			upgrade
 		);
+
+
+		double sellRefund =
+			_service.GetNodeSellRefund(
+				_service.CurrentSectorIndex,
+				_selectedNode
+			);
+
+
+		Button sell =
+			new()
+			{
+				Text =
+					"SELL NODE\nREFUND "
+					+ NumberFormatter.Format(
+						sellRefund
+					)
+					+ " MATTER",
+
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						62
+					),
+
+				FocusMode =
+					Control.FocusModeEnum.None
+			};
+
+		ApplySellButtonStyle(
+			sell
+		);
+
+		sell.Pressed +=
+			() =>
+			{
+				PlayHaptic();
+				OpenSellNodeConfirmation();
+			};
+
+		_detailContent.AddChild(
+			sell
+		);
+	}
+
+
+	private void OpenSellNodeConfirmation()
+	{
+		if (_selectedNode < 0)
+			return;
+
+		SingularityNodeData node =
+			_service.GetNode(
+				_service.CurrentSectorIndex,
+				_selectedNode
+			);
+
+		if (
+			node.Type
+			== SingularityNodeType.Empty
+		)
+		{
+			BuildNodeOverlay();
+			return;
+		}
+
+		SingularityNodeType type =
+			node.Type;
+
+		double refund =
+			_service.GetNodeSellRefund(
+				_service.CurrentSectorIndex,
+				_selectedNode
+			);
+
+		ClearDetailContent();
+
+
+		Label title =
+			CreateLabel(
+				25,
+				"SELL "
+					+ type.ToString().ToUpperInvariant()
+					+ " NODE?"
+			);
+
+		title.AddThemeColorOverride(
+			"font_color",
+			new Color(
+				1.0f,
+				0.42f,
+				0.30f,
+				1.0f
+			)
+		);
+
+		_detailContent.AddChild(
+			title
+		);
+
+
+		_detailContent.AddChild(
+			CreateOverlayImage(
+				GetNodeTexture(
+					type
+				),
+				160
+			)
+		);
+
+
+		Label info =
+			CreateLabel(
+				14,
+				"The slot becomes empty again.\nYou receive one third of the Matter invested in this Node.\n\nRefund: "
+					+ NumberFormatter.Format(
+						refund
+					)
+					+ " Matter"
+			);
+
+		info.AutowrapMode =
+			TextServer.AutowrapMode.WordSmart;
+
+		_detailContent.AddChild(
+			info
+		);
+
+
+		Button confirm =
+			new()
+			{
+				Text =
+					"CONFIRM SELL\n+"
+					+ NumberFormatter.Format(
+						refund
+					)
+					+ " MATTER",
+
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						68
+					),
+
+				FocusMode =
+					Control.FocusModeEnum.None
+			};
+
+		ApplySellButtonStyle(
+			confirm
+		);
+
+		confirm.Pressed +=
+			SellSelectedNode;
+
+		_detailContent.AddChild(
+			confirm
+		);
+
+
+		Button cancel =
+			new()
+			{
+				Text =
+					"CANCEL",
+
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						54
+					),
+
+				FocusMode =
+					Control.FocusModeEnum.None
+			};
+
+		ApplyNodeTypeButtonStyle(
+			cancel,
+			new Color(
+				0.44f,
+				0.48f,
+				0.56f,
+				1.0f
+			)
+		);
+
+		cancel.Pressed +=
+			() =>
+			{
+				PlayHaptic();
+				BuildNodeOverlay();
+			};
+
+		_detailContent.AddChild(
+			cancel
+		);
+	}
+
+
+	private void SellSelectedNode()
+	{
+		if (_selectedNode < 0)
+			return;
+
+		PlayHaptic();
+
+		SingularityActionResult result =
+			_service.SellNode(
+				_service.CurrentSectorIndex,
+				_selectedNode
+			);
+
+		MessageRequested?.Invoke(
+			result.Message
+		);
+
+		if (!result.Changed)
+		{
+			BuildNodeOverlay();
+			return;
+		}
+
+		CloseDetailOverlay();
+		RefreshAll();
 	}
 
 
@@ -2573,6 +2861,46 @@ public sealed partial class SingularityController
 	// BOTTOM BAR THEME
 	// ==================================================
 
+	private void ApplySingularityBottomBarLayer()
+	{
+		if (
+			_bottomBar == null
+			|| !GodotObject.IsInstanceValid(
+				_bottomBar
+			)
+		)
+		{
+			return;
+		}
+
+		/*
+		 * SingularityPage has its own high ZIndex. Without lifting BottomBar as
+		 * well, only the portion not covered by the page remains visible.
+		 */
+		_bottomBar.ZIndex =
+			SingularityBottomBarZIndex;
+
+		_bottomBar.MoveToFront();
+	}
+
+
+	private void RestoreNormalBottomBarLayer()
+	{
+		if (
+			_bottomBar == null
+			|| !GodotObject.IsInstanceValid(
+				_bottomBar
+			)
+		)
+		{
+			return;
+		}
+
+		_bottomBar.ZIndex =
+			_normalBottomBarZIndex;
+	}
+
+
 	private void ApplySingularityBottomBarTheme()
 	{
 		TextureRect? background =
@@ -2839,6 +3167,9 @@ public sealed partial class SingularityController
 		float safeTop =
 			GetSafeTopInset();
 
+		float bottomBarHeight =
+			GetActualBottomBarHeight();
+
 		_header.OffsetTop =
 			safeTop
 			+ 14.0f;
@@ -2846,6 +3177,36 @@ public sealed partial class SingularityController
 		_scroll.OffsetTop =
 			safeTop
 			+ 166.0f;
+
+		/*
+		 * Use the real runtime BottomBar height instead of a Singularity-only
+		 * constant. This guarantees identical bar height on every viewport.
+		 */
+		_pageBackground.OffsetBottom =
+			-bottomBarHeight;
+
+		_gridBackground.OffsetBottom =
+			-bottomBarHeight;
+
+		_scroll.OffsetBottom =
+			-bottomBarHeight;
+	}
+
+
+	private float GetActualBottomBarHeight()
+	{
+		if (
+			_bottomBar != null
+			&& GodotObject.IsInstanceValid(
+				_bottomBar
+			)
+			&& _bottomBar.Size.Y > 1.0f
+		)
+		{
+			return _bottomBar.Size.Y;
+		}
+
+		return DefaultBottomBarHeight;
 	}
 
 
@@ -3065,6 +3426,24 @@ public sealed partial class SingularityController
 					0.82f
 				)
 			)
+		);
+	}
+
+
+	private static void ApplySellButtonStyle(
+		Button button)
+	{
+		Color accent =
+			new Color(
+				0.92f,
+				0.24f,
+				0.16f,
+				1.0f
+			);
+
+		ApplyNodeTypeButtonStyle(
+			button,
+			accent
 		);
 	}
 

@@ -161,6 +161,12 @@ public partial class Game
 
 		_singularityController.Initialize();
 
+		/*
+		 * Replace only the camera/panning physics of the existing 2D
+		 * Singularity map. Sector/node/render/save logic stays untouched.
+		 */
+		_singularityController.EnableSmoothPanPhysics();
+
 		_singularityMapExtension =
 			new SingularityMapExtension(
 				this,

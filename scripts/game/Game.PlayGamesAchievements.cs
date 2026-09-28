@@ -4,8 +4,9 @@ namespace IdleAi;
 
 
 /*
- * Play Games + Firebase alias integration lives in this partial Game class so
- * the large main Game.cs stays focused on gameplay.
+ * Play Games + Firebase alias integration and lightweight feature bootstraps
+ * live in this partial Game class so the large main Game.cs stays focused on
+ * the primary gameplay loop.
  */
 public partial class Game
 {
@@ -27,18 +28,27 @@ public partial class Game
 	private StatsLeaderboardButtonsController?
 		_statsLeaderboardButtons;
 
+	private SingularityService?
+		_singularityService;
+
+	private SingularityController?
+		_singularityController;
+
+	private SingularityMapExtension?
+		_singularityMapExtension;
+
 
 	public override void _EnterTree()
 	{
 		Callable
 			.From(
-				InitializePlayGamesAchievements
+				InitializeDeferredFeatures
 			)
 			.CallDeferred();
 	}
 
 
-	private void InitializePlayGamesAchievements()
+	private void InitializeDeferredFeatures()
 	{
 		if (
 			_playGamesAchievements
@@ -48,12 +58,16 @@ public partial class Game
 			return;
 		}
 
+		InitializePlayGamesAndFirebase();
+		InitializeSingularity();
+	}
 
+
+	private void InitializePlayGamesAndFirebase()
+	{
 		/*
-		 * Connect FirebaseAliasService first so it can capture the raw
-		 * topScoresLoaded/scoreLoaded JSON and cache Play Games player IDs
-		 * before the visible leaderboard needs them. The UI also handles the
-		 * reverse callback order, so this is only an extra safety measure.
+		 * Connect FirebaseAliasService first so it can capture raw
+		 * topScoresLoaded/scoreLoaded JSON and cache Play Games player IDs.
 		 */
 		_firebaseAliases =
 			new FirebaseAliasService
@@ -68,12 +82,10 @@ public partial class Game
 
 		_firebaseAliases.Initialize();
 
-
 		_playGamesAchievements =
 			new GooglePlayGamesAchievementService();
 
 		_playGamesAchievements.Initialize();
-
 
 		_playGamesAchievementTimer =
 			new Timer
@@ -98,7 +110,6 @@ public partial class Game
 			_playGamesAchievementTimer
 		);
 
-
 		_usernameSetupOverlay =
 			new UsernameSetupOverlayController(
 				this,
@@ -106,7 +117,6 @@ public partial class Game
 			);
 
 		_usernameSetupOverlay.Initialize();
-
 
 		_leaderboardOverlay =
 			new LeaderboardOverlayController(
@@ -118,7 +128,6 @@ public partial class Game
 
 		_leaderboardOverlay.Initialize();
 
-
 		_statsLeaderboardButtons =
 			new StatsLeaderboardButtonsController(
 				this,
@@ -128,6 +137,44 @@ public partial class Game
 			);
 
 		_statsLeaderboardButtons.Initialize();
+	}
+
+
+	private void InitializeSingularity()
+	{
+		_singularityService =
+			new SingularityService();
+
+		_singularityController =
+			new SingularityController(
+				this,
+				_singularityService
+			);
+
+		_singularityController.MessageRequested +=
+			_ui.SetMessage;
+
+		_singularityController.Initialize();
+
+		_singularityMapExtension =
+			new SingularityMapExtension(
+				this,
+				_state,
+				_singularityService,
+				_singularityController
+			);
+
+		_singularityMapExtension.MessageRequested +=
+			_ui.SetMessage;
+
+		_singularityMapExtension.GameStateChanged +=
+			() =>
+			{
+				_ui.UpdateAll();
+				SaveGame();
+			};
+
+		_singularityMapExtension.Initialize();
 	}
 
 
@@ -154,5 +201,7 @@ public partial class Game
 		);
 
 		_statsLeaderboardButtons?.Refresh();
+
+		_singularityMapExtension?.Refresh();
 	}
 }

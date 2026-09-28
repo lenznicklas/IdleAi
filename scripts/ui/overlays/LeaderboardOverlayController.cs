@@ -7,12 +7,15 @@ namespace IdleAi;
 
 
 /*
- * Native Idle AI leaderboard overlay.
+ * Native Idle AI Google Play leaderboard.
  *
- * Google Play Games remains the authoritative source for rank and score.
- * Player display names are NEVER rendered from Google Play. The visible name
- * comes only from FirebaseAliasService. Players without an Idle AI username
- * are displayed as "Anonymous AI".
+ * FIXES IN THIS VERSION:
+ * - The signed-in player's row is merged at its real Google rank instead of
+ *   being blindly appended after the Top 25.
+ * - Rank text always has a numeric fallback (#N) when Google's displayRank
+ *   string is empty.
+ * - Google Play display names are never rendered. Firebase Idle AI aliases are
+ *   used instead.
  */
 public sealed class LeaderboardOverlayController
 {
@@ -20,7 +23,7 @@ public sealed class LeaderboardOverlayController
 		680;
 
 	private const int PanelHeight =
-		1040;
+		1000;
 
 	private readonly Game _root;
 
@@ -30,7 +33,6 @@ public sealed class LeaderboardOverlayController
 
 	private readonly UsernameSetupOverlayController _usernameSetup;
 
-
 	private Control _overlay =
 		null!;
 
@@ -38,9 +40,6 @@ public sealed class LeaderboardOverlayController
 		null!;
 
 	private Label _title =
-		null!;
-
-	private Label _subtitle =
 		null!;
 
 	private Label _status =
@@ -72,7 +71,6 @@ public sealed class LeaderboardOverlayController
 
 	private Button _refreshButton =
 		null!;
-
 
 	private string _currentLeaderboardId =
 		"";
@@ -173,11 +171,6 @@ public sealed class LeaderboardOverlayController
 		_title.Text =
 			title;
 
-		_subtitle.Text =
-			"ALL TIME  •  GLOBAL  •  TOP 25 + YOUR RANK";
-
-		RefreshUsernameButton();
-
 		_overlay.Show();
 		_overlay.MoveToFront();
 
@@ -218,7 +211,7 @@ public sealed class LeaderboardOverlayController
 		ClearScoreRows();
 
 		_status.Text =
-			"Loading leaderboard…";
+			"Loading Google Play leaderboard…";
 
 		_status.Show();
 
@@ -235,18 +228,13 @@ public sealed class LeaderboardOverlayController
 		if (!requested)
 		{
 			_status.Text =
-				"Google Play Games is unavailable. "
-				+ "Leaderboards can be loaded in the Android build.";
+				"Google Play Games is unavailable.";
 
 			_refreshButton.Disabled =
 				false;
 		}
 	}
 
-
-	// ==================================================
-	// GOOGLE PLAY CALLBACKS
-	// ==================================================
 
 	private void OnTopScoresLoaded(
 		string leaderboardId,
@@ -260,14 +248,13 @@ public sealed class LeaderboardOverlayController
 			return;
 		}
 
-		_topScoresReceived =
-			true;
-
 		_lastTopEntries =
 			entries;
 
-		RenderTopScores();
+		_topScoresReceived =
+			true;
 
+		RenderList();
 		UpdateLoadingState();
 	}
 
@@ -284,21 +271,18 @@ public sealed class LeaderboardOverlayController
 			return;
 		}
 
-		_playerScoreReceived =
-			true;
-
 		_lastPlayerEntry =
 			entry;
 
-		/*
-		 * Top scores and the signed-in player's score are returned by Google
-		 * as separate requests. Re-render the list as soon as the own-score
-		 * callback arrives so the player can be merged into the visible list
-		 * even when they are outside Google's returned Top 25 block.
-		 */
-		RenderTopScores();
-		RenderOwnScore();
+		_playerScoreReceived =
+			true;
 
+		/*
+		 * The own score is a separate Google request. Rebuild the list here so
+		 * the player's row can immediately be inserted at the correct rank.
+		 */
+		RenderList();
+		RenderOwnScore();
 		UpdateLoadingState();
 	}
 
@@ -314,12 +298,7 @@ public sealed class LeaderboardOverlayController
 			return;
 		}
 
-		/*
-		 * The native Play Games signal may reach FirebaseAliasService before
-		 * or after GooglePlayGamesAchievementService. Re-rendering here makes
-		 * both callback orders safe.
-		 */
-		RenderTopScores();
+		RenderList();
 		RenderOwnScore();
 	}
 
@@ -330,8 +309,7 @@ public sealed class LeaderboardOverlayController
 			return;
 
 		RefreshUsernameButton();
-
-		RenderTopScores();
+		RenderList();
 		RenderOwnScore();
 	}
 
@@ -358,14 +336,14 @@ public sealed class LeaderboardOverlayController
 	}
 
 
-	private void RenderTopScores()
+	private void RenderList()
 	{
 		if (!_topScoresReceived)
 			return;
 
 		ClearScoreRows();
 
-		IReadOnlyList<string> playerIds =
+		IReadOnlyList<string> topPlayerIds =
 			_aliases.GetTopPlayerIds(
 				_currentLeaderboardId
 			);
@@ -375,33 +353,8 @@ public sealed class LeaderboardOverlayController
 				_currentLeaderboardId
 			);
 
-		List<string> aliasesToResolve =
-			playerIds
-				.Where(
-					playerId =>
-						!string.IsNullOrWhiteSpace(
-							playerId
-						)
-				)
-				.ToList();
-
-		if (
-			!string.IsNullOrWhiteSpace(
-				ownPlayerId
-			)
-		)
-		{
-			aliasesToResolve.Add(
-				ownPlayerId
-			);
-		}
-
-		_aliases.EnsureAliases(
-			aliasesToResolve
-		);
-
-		bool ownPlayerAlreadyRendered =
-			false;
+		List<DisplayRow> rows =
+			[];
 
 		for (
 			int i = 0;
@@ -415,144 +368,119 @@ public sealed class LeaderboardOverlayController
 				];
 
 			string playerId =
-				i < playerIds.Count
-					? playerIds[
+				i < topPlayerIds.Count
+					? topPlayerIds[
 						i
 					]
 					: "";
 
-			bool isOwnPlayer =
-				!string.IsNullOrWhiteSpace(
-					ownPlayerId
-				)
-				&& string.Equals(
+			bool own =
+				IsOwnEntry(
+					entry,
 					playerId,
-					ownPlayerId,
-					StringComparison.Ordinal
+					ownPlayerId
 				);
 
-			/*
-			 * Player IDs can arrive one signal later than the score rows. During
-			 * that short window, rank + raw score gives us a safe visual fallback
-			 * for identifying the current player's row. Once IDs arrive the list
-			 * is rendered again and the exact player-id comparison takes over.
-			 */
-			if (
-				!isOwnPlayer
-				&& string.IsNullOrWhiteSpace(
-					playerId
-				)
-				&& _lastPlayerEntry != null
-				&& entry.Rank
-					== _lastPlayerEntry.Rank
-				&& entry.RawScore
-					== _lastPlayerEntry.RawScore
-			)
-			{
-				isOwnPlayer =
-					true;
-			}
-
-			if (isOwnPlayer)
-			{
-				ownPlayerAlreadyRendered =
-					true;
-			}
-
-			string alias =
-				isOwnPlayer
-					&& _aliases.HasUsername
-						? _aliases.CurrentUsername
-						: _aliases.GetAlias(
-							playerId
-						)
-							?? "Anonymous AI";
-
-			string displayAlias =
-				isOwnPlayer
-					? "YOU  •  "
-						+ alias
-					: alias;
-
-			_scoreList.AddChild(
-				CreateScoreRow(
+			rows.Add(
+				new DisplayRow(
 					entry,
-					displayAlias,
-					i,
-					isOwnPlayer
+					playerId,
+					own
 				)
 			);
 		}
 
-		/*
-		 * loadTopScores() only returns Google's Top 25 block. The signed-in
-		 * player's own score is loaded independently via loadPlayerScore().
-		 * If that player is outside the Top 25, append their real ranked row so
-		 * their value is still visible in the leaderboard list itself.
-		 */
+		bool ownAlreadyIncluded =
+			rows.Any(
+				row =>
+					row.IsOwn
+			);
+
 		if (
 			_playerScoreReceived
 			&& _lastPlayerEntry != null
-			&& !ownPlayerAlreadyRendered
+			&& !ownAlreadyIncluded
 		)
 		{
-			if (_lastTopEntries.Count > 0)
-			{
-				Label separator =
-					CreateCenteredLabel(
-						"• • •  YOUR POSITION  • • •",
-						12
-					);
-
-				separator.CustomMinimumSize =
-					new Vector2(
-						0,
-						42
-					);
-
-				separator.AddThemeColorOverride(
-					"font_color",
-					new Color(
-						0.44f,
-						0.80f,
-						1.0f,
-						1.0f
-					)
-				);
-
-				_scoreList.AddChild(
-					separator
-				);
-			}
-
-			string ownAlias =
-				_aliases.HasUsername
-					? _aliases.CurrentUsername
-					: _aliases.GetAlias(
-						ownPlayerId
-					)
-						?? "Anonymous AI";
-
-			_scoreList.AddChild(
-				CreateScoreRow(
+			/*
+			 * Merge by Google's numeric rank. This fixes the old behavior where
+			 * the player's score was always appended after Top 25 even when
+			 * Google reported e.g. rank #3.
+			 */
+			rows.Add(
+				new DisplayRow(
 					_lastPlayerEntry,
-					"YOU  •  "
-						+ ownAlias,
-					_lastTopEntries.Count,
+					ownPlayerId,
 					true
 				)
 			);
-
-			return;
 		}
 
-		if (
-			_lastTopEntries.Count == 0
-			&& (
-				!_playerScoreReceived
-				|| _lastPlayerEntry == null
-			)
+		rows =
+			rows
+				.OrderBy(
+					row =>
+						row.Entry.Rank > 0
+							? row.Entry.Rank
+							: long.MaxValue
+				)
+				.ThenByDescending(
+					row =>
+						row.Entry.RawScore
+				)
+				.ToList();
+
+		/*
+		 * Remove accidental duplicate rows for the signed-in player when the
+		 * player-centered response races the Top-25 response.
+		 */
+		bool ownRendered =
+			false;
+
+		List<DisplayRow> cleanRows =
+			[];
+
+		foreach (
+			DisplayRow row
+				in rows
 		)
+		{
+			if (row.IsOwn)
+			{
+				if (ownRendered)
+					continue;
+
+				ownRendered =
+					true;
+			}
+
+			cleanRows.Add(
+				row
+			);
+		}
+
+		List<string> aliasesToResolve =
+			cleanRows
+				.Select(
+					row =>
+						row.PlayerId
+				)
+				.Where(
+					id =>
+						!string.IsNullOrWhiteSpace(
+							id
+						)
+				)
+				.Distinct(
+					StringComparer.Ordinal
+				)
+				.ToList();
+
+		_aliases.EnsureAliases(
+			aliasesToResolve
+		);
+
+		if (cleanRows.Count == 0)
 		{
 			Label empty =
 				CreateCenteredLabel(
@@ -569,8 +497,131 @@ public sealed class LeaderboardOverlayController
 			_scoreList.AddChild(
 				empty
 			);
+
+			return;
+		}
+
+		long previousRank =
+			0;
+
+		for (
+			int i = 0;
+			i < cleanRows.Count;
+			i++
+		)
+		{
+			DisplayRow row =
+				cleanRows[
+					i
+				];
+
+			/*
+			 * When the own player is outside the returned Top 25 there is a
+			 * real gap in the data. Show a separator, but keep the row sorted
+			 * by its actual rank rather than pretending it is rank 26.
+			 */
+			if (
+				previousRank > 0
+				&& row.Entry.Rank
+					> previousRank + 1
+			)
+			{
+				Label gap =
+					CreateCenteredLabel(
+						"• • •",
+						12
+					);
+
+				gap.CustomMinimumSize =
+					new Vector2(
+						0,
+						30
+					);
+
+				gap.AddThemeColorOverride(
+					"font_color",
+					new Color(
+						0.44f,
+						0.80f,
+						1.0f,
+						0.82f
+					)
+				);
+
+				_scoreList.AddChild(
+					gap
+				);
+			}
+
+			string alias =
+				row.IsOwn
+					&& _aliases.HasUsername
+						? _aliases.CurrentUsername
+						: _aliases.GetAlias(
+							row.PlayerId
+						)
+							?? "Anonymous AI";
+
+			if (row.IsOwn)
+			{
+				alias =
+					"YOU  •  "
+					+ alias;
+			}
+
+			_scoreList.AddChild(
+				CreateScoreRow(
+					row.Entry,
+					alias,
+					i,
+					row.IsOwn
+				)
+			);
+
+			if (row.Entry.Rank > 0)
+			{
+				previousRank =
+					row.Entry.Rank;
+			}
 		}
 	}
+
+
+	private bool IsOwnEntry(
+		GooglePlayLeaderboardEntry entry,
+		string playerId,
+		string ownPlayerId)
+	{
+		if (
+			!string.IsNullOrWhiteSpace(
+				playerId
+			)
+			&& !string.IsNullOrWhiteSpace(
+				ownPlayerId
+			)
+			&& string.Equals(
+				playerId,
+				ownPlayerId,
+				StringComparison.Ordinal
+			)
+		)
+		{
+			return true;
+		}
+
+		if (_lastPlayerEntry == null)
+			return false;
+
+		/*
+		 * Fallback for callback order: before FirebaseAliasService has delivered
+		 * the player ID array, rank + raw score identify the same Google row.
+		 */
+		return entry.Rank
+				== _lastPlayerEntry.Rank
+			&& entry.RawScore
+				== _lastPlayerEntry.RawScore;
+	}
+
 
 	private void RenderOwnScore()
 	{
@@ -616,7 +667,9 @@ public sealed class LeaderboardOverlayController
 					?? "Anonymous AI";
 
 		_playerRank.Text =
-			_lastPlayerEntry.DisplayRank;
+			GetRankText(
+				_lastPlayerEntry
+			);
 
 		_playerName.Text =
 			"YOU  •  "
@@ -645,7 +698,7 @@ public sealed class LeaderboardOverlayController
 		}
 
 		_status.Text =
-			"Loading leaderboard…";
+			"Loading Google Play leaderboard…";
 
 		_status.Show();
 	}
@@ -653,9 +706,6 @@ public sealed class LeaderboardOverlayController
 
 	private void RefreshUsernameButton()
 	{
-		if (_usernameButton == null)
-			return;
-
 		if (_aliases.HasUsername)
 		{
 			_usernameButton.Text =
@@ -665,9 +715,6 @@ public sealed class LeaderboardOverlayController
 			_usernameButton.Disabled =
 				true;
 
-			_usernameButton.TooltipText =
-				"Your public Idle AI leaderboard username.";
-
 			return;
 		}
 
@@ -676,15 +723,8 @@ public sealed class LeaderboardOverlayController
 
 		_usernameButton.Disabled =
 			false;
-
-		_usernameButton.TooltipText =
-			"Choose the public username shown in Idle AI leaderboards.";
 	}
 
-
-	// ==================================================
-	// UI
-	// ==================================================
 
 	private void CreateUi()
 	{
@@ -746,17 +786,10 @@ public sealed class LeaderboardOverlayController
 			Control.LayoutPreset.FullRect
 		);
 
-		center.OffsetLeft =
-			18;
-
-		center.OffsetTop =
-			26;
-
-		center.OffsetRight =
-			-18;
-
-		center.OffsetBottom =
-			-26;
+		center.OffsetLeft = 18;
+		center.OffsetTop = 30;
+		center.OffsetRight = -18;
+		center.OffsetBottom = -30;
 
 		_overlay.AddChild(
 			center
@@ -765,9 +798,6 @@ public sealed class LeaderboardOverlayController
 		_panel =
 			new PanelContainer
 			{
-				Name =
-					"LeaderboardPanel",
-
 				CustomMinimumSize =
 					new Vector2(
 						PanelWidth,
@@ -794,17 +824,14 @@ public sealed class LeaderboardOverlayController
 			"margin_left",
 			24
 		);
-
 		margin.AddThemeConstantOverride(
 			"margin_top",
 			26
 		);
-
 		margin.AddThemeConstantOverride(
 			"margin_right",
 			24
 		);
-
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
 			24
@@ -853,13 +880,13 @@ public sealed class LeaderboardOverlayController
 			_title
 		);
 
-		_subtitle =
+		Label subtitle =
 			CreateCenteredLabel(
-				"ALL TIME  •  GLOBAL  •  TOP 25 + YOUR RANK",
+				"ALL TIME  •  GLOBAL  •  TOP 25 + YOU",
 				12
 			);
 
-		_subtitle.AddThemeColorOverride(
+		subtitle.AddThemeColorOverride(
 			"font_color",
 			new Color(
 				0.62f,
@@ -870,57 +897,43 @@ public sealed class LeaderboardOverlayController
 		);
 
 		layout.AddChild(
-			_subtitle
+			subtitle
 		);
 
 		_usernameButton =
 			new Button
 			{
-				Text =
-					"SET IDLE AI USERNAME",
-
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						48
+						46
 					),
-
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
 
 				FocusMode =
 					Control.FocusModeEnum.None
 			};
 
 		_usernameButton.Pressed +=
-			() =>
-			{
-				Input.VibrateHandheld(
-					10,
-					0.10f
-				);
-
-				_usernameSetup.Open();
-			};
+			_usernameSetup.Open;
 
 		layout.AddChild(
 			_usernameButton
 		);
 
 		layout.AddChild(
-			CreateColumnHeader()
+			CreateHeaderRow()
 		);
 
 		_status =
 			CreateCenteredLabel(
-				"Loading leaderboard…",
+				"Loading…",
 				14
 			);
 
 		_status.CustomMinimumSize =
 			new Vector2(
 				0,
-				46
+				42
 			);
 
 		layout.AddChild(
@@ -930,20 +943,17 @@ public sealed class LeaderboardOverlayController
 		_scroll =
 			new ScrollContainer
 			{
-				Name =
-					"LeaderboardScroll",
+				HorizontalScrollMode =
+					ScrollContainer.ScrollMode.Disabled,
+
+				VerticalScrollMode =
+					ScrollContainer.ScrollMode.Auto,
 
 				SizeFlagsHorizontal =
 					Control.SizeFlags.ExpandFill,
 
 				SizeFlagsVertical =
 					Control.SizeFlags.ExpandFill,
-
-				HorizontalScrollMode =
-					ScrollContainer.ScrollMode.Disabled,
-
-				VerticalScrollMode =
-					ScrollContainer.ScrollMode.Auto,
 
 				MouseFilter =
 					Control.MouseFilterEnum.Pass
@@ -953,28 +963,9 @@ public sealed class LeaderboardOverlayController
 			_scroll
 		);
 
-		MarginContainer listMargin =
-			new()
-			{
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
-			};
-
-		listMargin.AddThemeConstantOverride(
-			"margin_right",
-			5
-		);
-
-		_scroll.AddChild(
-			listMargin
-		);
-
 		_scoreList =
 			new VBoxContainer
 			{
-				Name =
-					"Scores",
-
 				SizeFlagsHorizontal =
 					Control.SizeFlags.ExpandFill
 			};
@@ -984,17 +975,17 @@ public sealed class LeaderboardOverlayController
 			6
 		);
 
-		listMargin.AddChild(
+		_scroll.AddChild(
 			_scoreList
 		);
 
-		Label yourRankTitle =
+		Label ownTitle =
 			CreateCenteredLabel(
 				"YOUR RANK",
 				12
 			);
 
-		yourRankTitle.AddThemeColorOverride(
+		ownTitle.AddThemeColorOverride(
 			"font_color",
 			new Color(
 				0.62f,
@@ -1005,11 +996,11 @@ public sealed class LeaderboardOverlayController
 		);
 
 		layout.AddChild(
-			yourRankTitle
+			ownTitle
 		);
 
 		_playerCard =
-			CreatePlayerCard();
+			CreateOwnCard();
 
 		layout.AddChild(
 			_playerCard
@@ -1024,46 +1015,35 @@ public sealed class LeaderboardOverlayController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						52
+						50
 					),
-
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
 
 				FocusMode =
 					Control.FocusModeEnum.None
 			};
 
 		_refreshButton.Pressed +=
-			() =>
-			{
-				Input.VibrateHandheld(
-					10,
-					0.10f
-				);
-
-				Load();
-			};
+			Load;
 
 		layout.AddChild(
 			_refreshButton
 		);
 
-		TextureButton closeButton =
+		TextureButton close =
 			OverlayCloseButton.Add(
 				_panel,
 				Hide
 			);
 
 		if (
-			closeButton.GetParent()
+			close.GetParent()
 				is Control closeLayer
 		)
 		{
 			closeLayer.MoveToFront();
 		}
 
-		closeButton.MoveToFront();
+		close.MoveToFront();
 
 		_mobileScroll =
 			new MobileScrollController
@@ -1082,7 +1062,7 @@ public sealed class LeaderboardOverlayController
 	}
 
 
-	private static Control CreateColumnHeader()
+	private static Control CreateHeaderRow()
 	{
 		PanelContainer panel =
 			new()
@@ -1091,14 +1071,12 @@ public sealed class LeaderboardOverlayController
 					new Vector2(
 						0,
 						42
-					),
-
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
+					)
 			};
 
-		StyleBoxFlat style =
-			new()
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			new StyleBoxFlat
 			{
 				BgColor =
 					new Color(
@@ -1112,15 +1090,11 @@ public sealed class LeaderboardOverlayController
 				CornerRadiusTopRight = 9,
 				CornerRadiusBottomLeft = 9,
 				CornerRadiusBottomRight = 9
-			};
-
-		panel.AddThemeStyleboxOverride(
-			"panel",
-			style
+			}
 		);
 
 		HBoxContainer row =
-			CreateScoreColumns();
+			new();
 
 		panel.AddChild(
 			row
@@ -1157,10 +1131,14 @@ public sealed class LeaderboardOverlayController
 
 	private static Control CreateScoreRow(
 		GooglePlayLeaderboardEntry entry,
-		string playerAlias,
+		string alias,
 		int index,
-		bool isOwnPlayer = false)
+		bool own)
 	{
+		bool podium =
+			entry.Rank
+				is >= 1 and <= 3;
+
 		PanelContainer panel =
 			new()
 			{
@@ -1168,42 +1146,80 @@ public sealed class LeaderboardOverlayController
 					new Vector2(
 						0,
 						58
-					),
-
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
+					)
 			};
 
-		bool podium =
-			entry.Rank
-				is >= 1 and <= 3;
+		Color background =
+			own
+				? new Color(
+					0.07f,
+					0.16f,
+					0.27f,
+					0.99f
+				)
+				: podium
+					? new Color(
+						0.10f,
+						0.10f,
+						0.18f,
+						0.98f
+					)
+					: new Color(
+						0.035f,
+						0.055f,
+						0.09f,
+						index % 2 == 0
+							? 0.96f
+							: 0.82f
+					);
+
+		Color border =
+			own
+				? new Color(
+					0.28f,
+					0.72f,
+					1.0f,
+					0.95f
+				)
+				: podium
+					? new Color(
+						0.68f,
+						0.55f,
+						0.22f,
+						0.74f
+					)
+					: new Color(
+						0.12f,
+						0.16f,
+						0.23f,
+						0.70f
+					);
 
 		StyleBoxFlat style =
 			new()
 			{
-				BgColor =
-					isOwnPlayer
-						? new Color(
-							0.07f,
-							0.16f,
-							0.27f,
-							0.99f
-						)
-						: podium
-							? new Color(
-								0.10f,
-								0.10f,
-								0.18f,
-								0.98f
-							)
-							: new Color(
-								0.035f,
-								0.055f,
-								0.09f,
-								index % 2 == 0
-									? 0.96f
-									: 0.82f
-							),
+				BgColor = background,
+				BorderColor = border,
+
+				BorderWidthLeft =
+					own
+						? 2
+						: 1,
+
+				BorderWidthTop =
+					own
+						? 2
+						: 1,
+
+				BorderWidthRight =
+					own
+						? 2
+						: 1,
+
+				BorderWidthBottom =
+					own
+						? 2
+						: 1,
 
 				CornerRadiusTopLeft = 9,
 				CornerRadiusTopRight = 9,
@@ -1211,76 +1227,33 @@ public sealed class LeaderboardOverlayController
 				CornerRadiusBottomRight = 9
 			};
 
-		if (isOwnPlayer)
-		{
-			style.BorderColor =
-				new Color(
-					0.28f,
-					0.72f,
-					1.0f,
-					0.95f
-				);
-
-			style.BorderWidthLeft = 2;
-			style.BorderWidthTop = 2;
-			style.BorderWidthRight = 2;
-			style.BorderWidthBottom = 2;
-		}
-		else if (podium)
-		{
-			style.BorderColor =
-				new Color(
-					0.68f,
-					0.55f,
-					0.22f,
-					0.74f
-				);
-
-			style.BorderWidthLeft = 1;
-			style.BorderWidthTop = 1;
-			style.BorderWidthRight = 1;
-			style.BorderWidthBottom = 1;
-		}
-
 		panel.AddThemeStyleboxOverride(
 			"panel",
 			style
 		);
 
 		HBoxContainer row =
-			CreateScoreColumns();
+			new();
 
 		panel.AddChild(
 			row
 		);
 
-		string rankText =
-			entry.Rank switch
-			{
-				1 => "★ 1",
-				2 => "2",
-				3 => "3",
-				_ => entry.DisplayRank
-			};
-
 		AddColumnLabel(
 			row,
-			rankText,
+			GetRankText(
+				entry
+			),
 			90,
 			HorizontalAlignment.Center,
-			podium
+			own || podium
 				? 17
 				: 15
 		);
 
-		/*
-		 * IMPORTANT: entry.PlayerName is intentionally ignored here. It is
-		 * Google's Play Games display name and must never be exposed in the
-		 * Idle AI leaderboard.
-		 */
 		AddColumnLabel(
 			row,
-			playerAlias,
+			alias,
 			0,
 			HorizontalAlignment.Left,
 			15,
@@ -1299,7 +1272,7 @@ public sealed class LeaderboardOverlayController
 	}
 
 
-	private PanelContainer CreatePlayerCard()
+	private PanelContainer CreateOwnCard()
 	{
 		PanelContainer panel =
 			new()
@@ -1307,15 +1280,13 @@ public sealed class LeaderboardOverlayController
 				CustomMinimumSize =
 					new Vector2(
 						0,
-						72
-					),
-
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
+						68
+					)
 			};
 
-		StyleBoxFlat style =
-			new()
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			new StyleBoxFlat
 			{
 				BgColor =
 					new Color(
@@ -1342,15 +1313,11 @@ public sealed class LeaderboardOverlayController
 				CornerRadiusTopRight = 12,
 				CornerRadiusBottomLeft = 12,
 				CornerRadiusBottomRight = 12
-			};
-
-		panel.AddThemeStyleboxOverride(
-			"panel",
-			style
+			}
 		);
 
 		HBoxContainer row =
-			CreateScoreColumns();
+			new();
 
 		panel.AddChild(
 			row
@@ -1388,21 +1355,25 @@ public sealed class LeaderboardOverlayController
 	}
 
 
-	private static HBoxContainer CreateScoreColumns()
+	private static string GetRankText(
+		GooglePlayLeaderboardEntry entry)
 	{
-		HBoxContainer row =
-			new()
-			{
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
-			};
+		if (entry.Rank > 0)
+		{
+			return "#"
+				+ entry.Rank;
+		}
 
-		row.AddThemeConstantOverride(
-			"separation",
-			8
-		);
+		if (
+			!string.IsNullOrWhiteSpace(
+				entry.DisplayRank
+			)
+		)
+		{
+			return entry.DisplayRank;
+		}
 
-		return row;
+		return "-";
 	}
 
 
@@ -1417,8 +1388,7 @@ public sealed class LeaderboardOverlayController
 		Label label =
 			new()
 			{
-				Text =
-					text,
+				Text = text,
 
 				HorizontalAlignment =
 					alignment,
@@ -1468,8 +1438,7 @@ public sealed class LeaderboardOverlayController
 		Label label =
 			new()
 			{
-				Text =
-					text,
+				Text = text,
 
 				HorizontalAlignment =
 					HorizontalAlignment.Center,
@@ -1575,8 +1544,14 @@ public sealed class LeaderboardOverlayController
 					0.58f
 				),
 
-			ShadowSize =
-				18
+			ShadowSize = 18
 		};
 	}
+
+
+	private sealed record DisplayRow(
+		GooglePlayLeaderboardEntry Entry,
+		string PlayerId,
+		bool IsOwn
+	);
 }

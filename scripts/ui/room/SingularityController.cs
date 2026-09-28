@@ -31,16 +31,16 @@ public sealed partial class SingularityController
 		700;
 
 	private const float SectorMapSize =
-		500.0f;
+		516.0f;
 
 	private const float SectorMapSpacing =
-		640.0f;
+		656.0f;
 
 	private const float SectorMapNodeRadius =
-		176.0f;
+		182.0f;
 
 	private const float SectorMapNodeButtonSize =
-		88.0f;
+		91.0f;
 
 	private const float SectorVirtualizationMargin =
 		760.0f;

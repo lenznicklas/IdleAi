@@ -337,13 +337,13 @@ public sealed class SingularityService
 				true,
 
 			SingularityNodeType.Amplifier =>
-				CoreCount >= 3,
+				true,
 
 			SingularityNodeType.Cooling =>
-				CoreCount >= 5,
+				CoreCount >= 3,
 
 			SingularityNodeType.Quantum =>
-				CoreCount >= 8,
+				CoreCount >= 5,
 
 			_ =>
 				false
@@ -360,13 +360,13 @@ public sealed class SingularityService
 				"UNLOCKED",
 
 			SingularityNodeType.Amplifier =>
-				"CORE 3",
+				"UNLOCKED",
 
 			SingularityNodeType.Cooling =>
-				"CORE 5",
+				"CORE 3",
 
 			SingularityNodeType.Quantum =>
-				"CORE 8",
+				"CORE 5",
 
 			_ =>
 				""

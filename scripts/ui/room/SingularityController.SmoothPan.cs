@@ -49,6 +49,24 @@ public sealed partial class SingularityController
 	private const float SmoothPanSnapDistance =
 		0.75f;
 
+	/*
+	 * If an existing Sector is already fairly close to the center after a
+	 * swipe, gently pull it into the exact center instead of leaving it a few
+	 * pixels off. Fast flings still travel freely; snapping starts only after
+	 * the map has slowed down enough.
+	 */
+	private const float SmoothPanSectorSnapRadius =
+		185.0f;
+
+	private const float SmoothPanSectorSnapMaxSpeed =
+		900.0f;
+
+	private const float SmoothPanSectorSnapStrength =
+		30.0f;
+
+	private const float SmoothPanSectorSnapDamping =
+		7.6f;
+
 
 	private SmoothPanPhysicsRunner?
 		_smoothPanRunner;
@@ -264,6 +282,13 @@ public sealed partial class SingularityController
 		_smoothPanWasMoving =
 			true;
 
+		/*
+		 * Update Current Sector while the finger is still moving. The header and
+		 * CURRENT badge therefore change as soon as another Sector becomes the
+		 * closest one to the viewport center, not only after inertia stops.
+		 */
+		UpdateFocusedSectorDuringMotion();
+
 		RefreshMapWorld();
 	}
 
@@ -290,6 +315,10 @@ public sealed partial class SingularityController
 
 		_smoothPanWasMoving =
 			true;
+
+		/* Current Sector is already correct before the coast/bounce finishes. */
+		UpdateFocusedSectorDuringMotion();
+		RefreshMapWorld();
 	}
 
 
@@ -333,37 +362,72 @@ public sealed partial class SingularityController
 		if (dt <= 0.0f)
 			return;
 
+		/*
+		 * Keep the selected/current Sector live while inertia is still running.
+		 * This is intentionally done before and after this frame's movement.
+		 */
+		UpdateFocusedSectorDuringMotion();
+
 		Vector2 position =
 			_mapWorld.Position;
 
-		Vector2 target =
+		Vector2 boundsTarget =
 			GetClampedMapPosition(
 				position
 			);
 
-		Vector2 springDisplacement =
-			target - position;
+		Vector2 boundsDisplacement =
+			boundsTarget - position;
 
 		bool outsideBounds =
-			springDisplacement.LengthSquared()
+			boundsDisplacement.LengthSquared()
 				> 0.01f;
+
+		bool sectorSnapActive =
+			false;
+
+		Vector2 sectorSnapTarget =
+			position;
+
+		if (!outsideBounds)
+		{
+			sectorSnapActive =
+				TryGetSectorSnapTarget(
+					position,
+					out sectorSnapTarget
+				);
+		}
 
 		if (outsideBounds)
 		{
 			/*
-			 * Damped spring:
-			 * acceleration pulls the camera back into bounds while damping
-			 * prevents endless oscillation. A little overshoot remains, which
-			 * gives the requested bounce.
+			 * Edge bounce keeps priority over Sector snapping. First return from
+			 * overscroll; then, if a Sector is near the center, it can snap.
 			 */
 			_smoothPanVelocity +=
-				springDisplacement
-				* SmoothPanSpringStrength
-				* dt;
+				boundsDisplacement
+					* SmoothPanSpringStrength
+					* dt;
 
 			_smoothPanVelocity *=
 				MathF.Exp(
 					-SmoothPanSpringDamping
+					* dt
+				);
+		}
+		else if (sectorSnapActive)
+		{
+			Vector2 snapDisplacement =
+				sectorSnapTarget - position;
+
+			_smoothPanVelocity +=
+				snapDisplacement
+					* SmoothPanSectorSnapStrength
+					* dt;
+
+			_smoothPanVelocity *=
+				MathF.Exp(
+					-SmoothPanSectorSnapDamping
 					* dt
 				);
 		}
@@ -383,7 +447,7 @@ public sealed partial class SingularityController
 		{
 			position +=
 				_smoothPanVelocity
-				* dt;
+					* dt;
 
 			position =
 				LimitMaximumOverscroll(
@@ -396,15 +460,18 @@ public sealed partial class SingularityController
 			_smoothPanWasMoving =
 				true;
 
+			UpdateFocusedSectorDuringMotion();
 			RefreshMapWorld();
 		}
 
 		Vector2 finalTarget =
-			GetClampedMapPosition(
-				_mapWorld.Position
-			);
+			sectorSnapActive
+				? sectorSnapTarget
+				: GetClampedMapPosition(
+					_mapWorld.Position
+				);
 
-		float distanceToBounds =
+		float distanceToTarget =
 			_mapWorld.Position.DistanceTo(
 				finalTarget
 			);
@@ -412,7 +479,7 @@ public sealed partial class SingularityController
 		if (
 			_smoothPanVelocity.Length()
 				<= SmoothPanStopSpeed
-			&& distanceToBounds
+			&& distanceToTarget
 				<= SmoothPanSnapDistance
 		)
 		{
@@ -427,11 +494,93 @@ public sealed partial class SingularityController
 				_smoothPanWasMoving =
 					false;
 
-				UpdateFocusedSectorFromCamera();
+				UpdateFocusedSectorDuringMotion();
 				RefreshRuntime();
 				RefreshMapWorld();
 			}
 		}
+	}
+
+
+	private void UpdateFocusedSectorDuringMotion()
+	{
+		if (
+			_service.SectorCount <= 0
+			|| _mapViewport == null
+			|| _mapWorld == null
+			|| _mapViewport.Size.X <= 1.0f
+			|| _mapViewport.Size.Y <= 1.0f
+		)
+		{
+			return;
+		}
+
+		int previousSector =
+			_service.CurrentSectorIndex;
+
+		UpdateFocusedSectorFromCamera();
+
+		if (
+			previousSector
+			== _service.CurrentSectorIndex
+		)
+		{
+			return;
+		}
+
+		/* Header Sector number updates immediately when focus changes. */
+		RefreshRuntime();
+	}
+
+
+	private bool TryGetSectorSnapTarget(
+		Vector2 currentPosition,
+		out Vector2 targetPosition)
+	{
+		targetPosition =
+			currentPosition;
+
+		if (
+			_service.SectorCount <= 0
+			|| _mapViewport.Size.X <= 1.0f
+			|| _mapViewport.Size.Y <= 1.0f
+			|| _smoothPanVelocity.Length()
+				> SmoothPanSectorSnapMaxSpeed
+		)
+		{
+			return false;
+		}
+
+		int sectorIndex =
+			Math.Clamp(
+				_service.CurrentSectorIndex,
+				0,
+				_service.SectorCount - 1
+			);
+
+		Vector2 sectorCenter =
+			GetSectorWorldTopLeft(
+				sectorIndex
+			)
+			+ new Vector2(
+				SectorMapSize / 2.0f,
+				SectorMapSize / 2.0f
+			);
+
+		Vector2 exactCenterPosition =
+			_mapViewport.Size / 2.0f
+			- sectorCenter;
+
+		/* Respect map edges while still centering whenever bounds allow it. */
+		targetPosition =
+			GetClampedMapPosition(
+				exactCenterPosition
+			);
+
+		return currentPosition.DistanceTo(
+			targetPosition
+		)
+		<= SmoothPanSectorSnapRadius;
 	}
 
 

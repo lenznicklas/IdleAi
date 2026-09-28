@@ -10,6 +10,12 @@ public sealed class SecretKorpoSkinController
 	private const string SecretCode =
 		"NIBL";
 
+	private const string DebugTokenCode =
+		"debug1";
+
+	private const double DebugTokenReward =
+		50_000_000_000_000_000_000.0; // 50ab
+
 	private const float BottomPadding =
 		260.0f;
 
@@ -256,6 +262,48 @@ public sealed class SecretKorpoSkinController
 
 	private void Redeem()
 	{
+		string code =
+			_codeInput.Text.Trim();
+
+		if (
+			code.Equals(
+				DebugTokenCode,
+				StringComparison.OrdinalIgnoreCase
+			)
+		)
+		{
+			BotSkinResult debugResult =
+				_service.GrantDebugTokens(
+					DebugTokenReward
+				);
+
+			MessageRequested?.Invoke(
+				debugResult.Message
+			);
+
+			if (debugResult.Changed)
+			{
+				_codeStatus.Text =
+					"DEBUG REWARD: +50ab TOKENS";
+
+				_codeStatus.AddThemeColorOverride(
+					"font_color",
+					ShopUi.Green
+				);
+
+				_codeInput.Clear();
+
+				Input.VibrateHandheld(
+					24,
+					0.18f
+				);
+
+				StateChanged?.Invoke();
+			}
+
+			return;
+		}
+
 		if (
 			_service.IsOwned(
 				BotSkinCatalog.KorpoSkinId
@@ -270,9 +318,6 @@ public sealed class SecretKorpoSkinController
 
 			return;
 		}
-
-		string code =
-			_codeInput.Text.Trim();
 
 		if (
 			!code.Equals(
@@ -763,29 +808,45 @@ public sealed class SecretKorpoSkinController
 			&& _redeemButton != null
 		)
 		{
+			/*
+			 * Keep the code field usable even after NIBL was redeemed so
+			 * debug1 remains available for development testing.
+			 */
+			_codeInput.Editable =
+				true;
+
+			_codeInput.PlaceholderText =
+				"ENTER CODE";
+
+			_redeemButton.Text =
+				"REDEEM";
+
+			_redeemButton.Disabled =
+				false;
+
 			if (unlocked)
 			{
-				_codeStatus.Text =
-					"CODE REDEEMED";
+				if (
+					string.IsNullOrWhiteSpace(
+						_codeStatus.Text
+					)
+					|| _codeStatus.Text
+						== "CODE REDEEMED"
+				)
+				{
+					_codeStatus.Text =
+						"SECRET KORPO UNLOCKED";
 
-				_codeStatus.AddThemeColorOverride(
-					"font_color",
-					ShopUi.Green
-				);
-
-				_codeInput.Editable =
-					false;
-
-				_codeInput.PlaceholderText =
-					"REDEEMED";
-
-				_redeemButton.Text =
-					"UNLOCKED";
-
-				_redeemButton.Disabled =
-					true;
+					_codeStatus.AddThemeColorOverride(
+						"font_color",
+						ShopUi.Green
+					);
+				}
 			}
-			else
+			else if (
+				_codeStatus.Text
+					!= "DEBUG REWARD: +50ab TOKENS"
+			)
 			{
 				_codeStatus.Text =
 					"";
@@ -794,15 +855,6 @@ public sealed class SecretKorpoSkinController
 					"font_color",
 					ShopUi.TextSecondary
 				);
-
-				_codeInput.Editable =
-					true;
-
-				_redeemButton.Text =
-					"REDEEM";
-
-				_redeemButton.Disabled =
-					false;
 			}
 		}
 

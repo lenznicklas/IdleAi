@@ -75,6 +75,47 @@ public sealed class BotSkinService
 	}
 
 
+	/*
+	 * Development-only token grant used by the existing Shop access-code
+	 * field. Keeping the GameState access here avoids changing the public
+	 * constructor of SecretKorpoSkinController or GameUiController.
+	 *
+	 * This changes only the current Token balance. It deliberately does not
+	 * touch earned-token statistics, RunEarnedTokens or leaderboard progress.
+	 */
+	public BotSkinResult GrantDebugTokens(
+		double amount)
+	{
+		if (
+			amount <= 0.0
+			|| double.IsNaN(
+				amount
+			)
+			|| double.IsInfinity(
+				amount
+			)
+		)
+		{
+			return new BotSkinResult(
+				false,
+				"Invalid debug token reward."
+			);
+		}
+
+		_state.Tokens +=
+			amount;
+
+		return new BotSkinResult(
+			true,
+			"+"
+				+ NumberFormatter.Format(
+					amount
+				)
+				+ " Tokens"
+		);
+	}
+
+
 	public BotSkinResult UnlockSecretSkin(
 		string skinId)
 	{

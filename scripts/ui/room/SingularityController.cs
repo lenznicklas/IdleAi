@@ -30,6 +30,54 @@ public sealed partial class SingularityController
 	private const int SingularityBottomBarZIndex =
 		700;
 
+	private const float SectorMapSize =
+		500.0f;
+
+	private const float SectorMapSpacing =
+		640.0f;
+
+	private const float SectorMapNodeRadius =
+		176.0f;
+
+	private const float SectorMapNodeButtonSize =
+		88.0f;
+
+	private const float SectorVirtualizationMargin =
+		760.0f;
+
+	private const float MapBoundsMargin =
+		320.0f;
+
+	private const float WorldCanvasSize =
+		200_000.0f;
+
+	private static readonly Vector2 WorldOrigin =
+		new(
+			WorldCanvasSize / 2.0f,
+			WorldCanvasSize / 2.0f
+		);
+
+	private static readonly List<Vector2I> SectorGridCache =
+		[
+			Vector2I.Zero
+		];
+
+	private static Vector2I _spiralCursor =
+		Vector2I.Zero;
+
+	private static Vector2I _spiralDirection =
+		new(
+			1,
+			0
+		);
+
+	private static int _spiralStepLength =
+		1;
+
+	private static int _spiralStepProgress;
+
+	private static int _spiralLegsAtCurrentLength;
+
 	private const int NavigationHapticDurationMs =
 		12;
 
@@ -158,45 +206,42 @@ public sealed partial class SingularityController
 	private Label _outputValue =
 		null!;
 
-	private ScrollContainer _scroll =
+
+
+	// 2D map / camera -----------------------------------------------------
+	private Control _mapViewport =
 		null!;
 
-	private VBoxContainer _content =
+	private Control _mapWorld =
 		null!;
 
-	private Control _network =
+	private InterSectorLinkLayer _interSectorLinks =
 		null!;
 
-	private SingularityLinkLayer _linkLayer =
+	private SingularityPanInput _panInput =
 		null!;
 
-	private Control _coreHolder =
+	private Button _centerMapButton =
 		null!;
 
-	private TextureRect _coreImage =
-		null!;
-
-	private Button _coreHitbox =
-		null!;
-
-	private readonly List<NodeButtonView>
-		_nodeViews =
+	private readonly Dictionary<int, SectorMapView>
+		_sectorMapViews =
 			[];
 
-	private Label _sectorTitle =
-		null!;
+	private readonly Dictionary<Vector2I, int>
+		_sectorIndexByGrid =
+			[];
 
-	private Label _sectorOutput =
-		null!;
+	private int _cachedSectorCoordinateCount;
 
-	private Button _previousSectorButton =
-		null!;
+	private int _cachedBoundsSectorCount =
+		-1;
 
-	private Button _nextSectorButton =
-		null!;
+	private Rect2 _cachedMapBounds;
 
-	private Label _hint =
-		null!;
+	private Control? _expansionSectorView;
+
+	private bool _cameraInitialized;
 
 
 	private Control _detailOverlay =
@@ -295,6 +340,20 @@ public sealed partial class SingularityController
 		_bottomBar.MoveToFront();
 
 		ApplySafeArea();
+
+		Callable
+			.From(
+				() =>
+				{
+					CenterOnSector(
+						_service.CurrentSectorIndex,
+						false
+					);
+
+					RefreshMapWorld();
+				}
+			)
+			.CallDeferred();
 	}
 
 
@@ -305,6 +364,8 @@ public sealed partial class SingularityController
 			&& _page.Visible;
 
 		CloseDetailOverlay();
+
+		_panInput?.StopMotion();
 
 		_page?.Hide();
 
@@ -449,7 +510,7 @@ public sealed partial class SingularityController
 
 
 		CreateHeader();
-		CreateScrollContent();
+		CreateMapViewport();
 
 		_page.Resized +=
 			ApplySafeArea;
@@ -822,456 +883,1049 @@ public sealed partial class SingularityController
 	}
 
 
-	private void CreateScrollContent()
+
+	// ==================================================
+	// FREE-PANNING 2D SECTOR MAP
+	// ==================================================
+
+	private void CreateMapViewport()
 	{
-		_scroll =
-			new ScrollContainer
-			{
-				Name =
-					"SingularityScroll",
-
-				HorizontalScrollMode =
-					ScrollContainer.ScrollMode.Disabled,
-
-				VerticalScrollMode =
-					ScrollContainer.ScrollMode.ShowNever,
-
-				MouseFilter =
-					Control.MouseFilterEnum.Pass
-			};
-
-		_scroll.AnchorRight =
-			1.0f;
-
-		_scroll.AnchorBottom =
-			1.0f;
-
-		_scroll.OffsetTop =
-			166.0f;
-
-		_scroll.OffsetBottom =
-			0.0f;
-
-		_page.AddChild(
-			_scroll
-		);
-
-
-		CenterContainer center =
-			new()
-			{
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
-
-				SizeFlagsVertical =
-					Control.SizeFlags.ShrinkBegin
-			};
-
-		_scroll.AddChild(
-			center
-		);
-
-
-		_content =
-			new VBoxContainer
-			{
-				CustomMinimumSize =
-					new Vector2(
-						650,
-						0
-					),
-
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ShrinkCenter
-			};
-
-		_content.AddThemeConstantOverride(
-			"separation",
-			12
-		);
-
-		center.AddChild(
-			_content
-		);
-
-		CreateSectorNavigation();
-		CreateNetwork();
-		CreateHint();
-	}
-
-
-	private void CreateSectorNavigation()
-	{
-		PanelContainer panel =
-			new();
-
-		panel.AddThemeStyleboxOverride(
-			"panel",
-			CreatePanelStyle(
-				new Color(
-					0.018f,
-					0.020f,
-					0.028f,
-					0.96f
-				),
-				new Color(
-					0.24f,
-					0.22f,
-					0.18f,
-					0.76f
-				),
-				14
-			)
-		);
-
-		_content.AddChild(
-			panel
-		);
-
-
-		HBoxContainer row =
-			new()
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						72
-					)
-			};
-
-		panel.AddChild(
-			row
-		);
-
-
-		_previousSectorButton =
-			new Button
-			{
-				Text =
-					"‹",
-
-				CustomMinimumSize =
-					new Vector2(
-						72,
-						60
-					),
-
-				FocusMode =
-					Control.FocusModeEnum.None
-			};
-
-		_previousSectorButton.AddThemeFontSizeOverride(
-			"font_size",
-			28
-		);
-
-		_previousSectorButton.Pressed +=
-			() =>
-			{
-				PlayHaptic();
-
-				if (
-					_service.GoToPreviousSector()
-				)
-				{
-					CloseDetailOverlay();
-					RefreshAll();
-				}
-			};
-
-		row.AddChild(
-			_previousSectorButton
-		);
-
-
-		VBoxContainer center =
-			new()
-			{
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
-			};
-
-		row.AddChild(
-			center
-		);
-
-
-		_sectorTitle =
-			CreateLabel(
-				20,
-				"SECTOR 1"
-			);
-
-		center.AddChild(
-			_sectorTitle
-		);
-
-
-		_sectorOutput =
-			CreateLabel(
-				12,
-				"0 Matter/s"
-			);
-
-		_sectorOutput.Modulate =
-			Accent.Lightened(
-				0.12f
-			);
-
-		center.AddChild(
-			_sectorOutput
-		);
-
-
-		_nextSectorButton =
-			new Button
-			{
-				Text =
-					"›",
-
-				CustomMinimumSize =
-					new Vector2(
-						72,
-						60
-					),
-
-				FocusMode =
-					Control.FocusModeEnum.None
-			};
-
-		_nextSectorButton.AddThemeFontSizeOverride(
-			"font_size",
-			28
-		);
-
-		_nextSectorButton.Pressed +=
-			OnNextSectorPressed;
-
-		row.AddChild(
-			_nextSectorButton
-		);
-	}
-
-
-	private void CreateNetwork()
-	{
-		PanelContainer frame =
-			new()
-			{
-				CustomMinimumSize =
-					new Vector2(
-						650,
-						650
-					)
-			};
-
-		frame.AddThemeStyleboxOverride(
-			"panel",
-			CreatePanelStyle(
-				new Color(
-					0.010f,
-					0.012f,
-					0.020f,
-					0.98f
-				),
-				new Color(
-					0.20f,
-					0.18f,
-					0.14f,
-					0.82f
-				),
-				24
-			)
-		);
-
-		_content.AddChild(
-			frame
-		);
-
-
-		_network =
-			new Control
-			{
-				CustomMinimumSize =
-					new Vector2(
-						650,
-						650
-					)
-			};
-
-		frame.AddChild(
-			_network
-		);
-
-
-		_linkLayer =
-			new SingularityLinkLayer
-			{
-				MouseFilter =
-					Control.MouseFilterEnum.Ignore
-			};
-
-		_linkLayer.SetAnchorsAndOffsetsPreset(
-			Control.LayoutPreset.FullRect
-		);
-
-		_network.AddChild(
-			_linkLayer
-		);
-
-
-		/*
-		 * Core rendering / centering:
-		 *
-		 * A fixed 132x132 clipped holder is centered exactly on (325, 325).
-		 * core.png is forced into that holder with KeepAspectCentered, so even a
-		 * very large source texture can never spill across the network again.
-		 */
-		const float coreSize =
-			132.0f;
-
-		Vector2 corePosition =
-			new Vector2(
-				325.0f - coreSize / 2.0f,
-				325.0f - coreSize / 2.0f
-			);
-
-		_coreHolder =
+		_mapViewport =
 			new Control
 			{
 				Name =
-					"SingularityCoreHolder",
-
-				Position =
-					corePosition,
-
-				Size =
-					new Vector2(
-						coreSize,
-						coreSize
-					),
-
-				CustomMinimumSize =
-					new Vector2(
-						coreSize,
-						coreSize
-					),
+					"SingularityMapViewport",
 
 				ClipContents =
 					true,
 
 				MouseFilter =
+					Control.MouseFilterEnum.Stop
+			};
+
+		_mapViewport.AnchorRight =
+			1.0f;
+
+		_mapViewport.AnchorBottom =
+			1.0f;
+
+		_mapViewport.OffsetTop =
+			166.0f;
+
+		_page.AddChild(
+			_mapViewport
+		);
+
+
+		_mapWorld =
+			new Control
+			{
+				Name =
+					"SingularityMapWorld",
+
+				Position =
+					Vector2.Zero,
+
+				Size =
+					new Vector2(
+						WorldCanvasSize,
+						WorldCanvasSize
+					),
+
+				CustomMinimumSize =
+					new Vector2(
+						WorldCanvasSize,
+						WorldCanvasSize
+					),
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass
+			};
+
+		_mapViewport.AddChild(
+			_mapWorld
+		);
+
+
+		_interSectorLinks =
+			new InterSectorLinkLayer
+			{
+				Name =
+					"InterSectorLinks",
+
+				Position =
+					Vector2.Zero,
+
+				Size =
+					new Vector2(
+						WorldCanvasSize,
+						WorldCanvasSize
+					),
+
+				MouseFilter =
 					Control.MouseFilterEnum.Ignore,
+
+				ZIndex =
+					0
+			};
+
+		_mapWorld.AddChild(
+			_interSectorLinks
+		);
+
+
+		_panInput =
+			new SingularityPanInput
+			{
+				Name =
+					"SingularityPanInput"
+			};
+
+		_page.AddChild(
+			_panInput
+		);
+
+		_panInput.Configure(
+			_mapViewport,
+			() =>
+				Visible
+				&& (
+					_detailOverlay == null
+					|| !_detailOverlay.Visible
+				),
+			OnMapPanDelta,
+			OnMapPanEnded
+		);
+
+
+		_centerMapButton =
+			new Button
+			{
+				Name =
+					"CenterMapButton",
+
+				Text =
+					"◎ CENTER",
+
+				AnchorLeft =
+					1.0f,
+
+				AnchorTop =
+					1.0f,
+
+				AnchorRight =
+					1.0f,
+
+				AnchorBottom =
+					1.0f,
+
+				OffsetLeft =
+					-145.0f,
+
+				OffsetTop =
+					-62.0f,
+
+				OffsetRight =
+					-14.0f,
+
+				OffsetBottom =
+					-14.0f,
+
+				FocusMode =
+					Control.FocusModeEnum.None,
+
+				ZIndex =
+					20
+			};
+
+		ApplyGoldButtonStyle(
+			_centerMapButton
+		);
+
+		_centerMapButton.Pressed +=
+			() =>
+			{
+				if (_panInput.ShouldSuppressClick)
+					return;
+
+				PlayHaptic();
+
+				CenterOnSector(
+					_service.CurrentSectorIndex,
+					true
+				);
+			};
+
+		_mapViewport.AddChild(
+			_centerMapButton
+		);
+
+
+		_mapViewport.Resized +=
+			() =>
+			{
+				ClampMapPosition();
+				RefreshMapWorld();
+			};
+	}
+
+
+	private void OnMapPanDelta(
+		Vector2 delta)
+	{
+		if (
+			_mapWorld == null
+			|| !GodotObject.IsInstanceValid(
+				_mapWorld
+			)
+		)
+		{
+			return;
+		}
+
+		_mapWorld.Position +=
+			delta;
+
+		ClampMapPosition();
+		RefreshMapWorld();
+	}
+
+
+	private void OnMapPanEnded()
+	{
+		UpdateFocusedSectorFromCamera();
+		RefreshRuntime();
+		RefreshMapWorld();
+	}
+
+
+	private void CenterOnSector(
+		int sectorIndex,
+		bool playHaptic)
+	{
+		if (
+			_mapViewport == null
+			|| _mapWorld == null
+			|| _mapViewport.Size.X <= 1.0f
+			|| _mapViewport.Size.Y <= 1.0f
+		)
+		{
+			return;
+		}
+
+		sectorIndex =
+			Math.Clamp(
+				sectorIndex,
+				0,
+				Math.Max(
+					0,
+					_service.SectorCount - 1
+				)
+			);
+
+		if (playHaptic)
+		{
+			PlayHaptic();
+		}
+
+		_panInput?.StopMotion();
+
+		Vector2 sectorCenter =
+			GetSectorWorldTopLeft(
+				sectorIndex
+			)
+			+ new Vector2(
+				SectorMapSize / 2.0f,
+				SectorMapSize / 2.0f
+			);
+
+		_mapWorld.Position =
+			_mapViewport.Size / 2.0f
+			- sectorCenter;
+
+		_cameraInitialized =
+			true;
+
+		ClampMapPosition();
+		RefreshMapWorld();
+	}
+
+
+	private void UpdateFocusedSectorFromCamera()
+	{
+		if (
+			_service.SectorCount <= 0
+			|| _mapViewport.Size.X <= 1.0f
+			|| _mapViewport.Size.Y <= 1.0f
+		)
+		{
+			return;
+		}
+
+		Vector2 cameraCenterInWorld =
+			-_mapWorld.Position
+			+ _mapViewport.Size / 2.0f;
+
+		int nearest =
+			0;
+
+		float nearestDistanceSquared =
+			float.MaxValue;
+
+		for (
+			int i = 0;
+			i < _service.SectorCount;
+			i++
+		)
+		{
+			Vector2 center =
+				GetSectorWorldTopLeft(
+					i
+				)
+				+ new Vector2(
+					SectorMapSize / 2.0f,
+					SectorMapSize / 2.0f
+				);
+
+			float distanceSquared =
+				cameraCenterInWorld.DistanceSquaredTo(
+					center
+				);
+
+			if (distanceSquared >= nearestDistanceSquared)
+				continue;
+
+			nearestDistanceSquared =
+				distanceSquared;
+
+			nearest =
+				i;
+		}
+
+		_service.SelectSector(
+			nearest
+		);
+	}
+
+
+	private void ClampMapPosition()
+	{
+		if (
+			_mapViewport == null
+			|| _mapWorld == null
+			|| _mapViewport.Size.X <= 1.0f
+			|| _mapViewport.Size.Y <= 1.0f
+		)
+		{
+			return;
+		}
+
+		Rect2 bounds =
+			GetMapContentBounds();
+
+		Vector2 viewportSize =
+			_mapViewport.Size;
+
+		Vector2 position =
+			_mapWorld.Position;
+
+		float minX =
+			viewportSize.X
+			- bounds.End.X;
+
+		float maxX =
+			-bounds.Position.X;
+
+		float minY =
+			viewportSize.Y
+			- bounds.End.Y;
+
+		float maxY =
+			-bounds.Position.Y;
+
+		if (minX > maxX)
+		{
+			position.X =
+				viewportSize.X / 2.0f
+				- (
+					bounds.Position.X
+					+ bounds.Size.X / 2.0f
+				);
+		}
+		else
+		{
+			position.X =
+				Math.Clamp(
+					position.X,
+					minX,
+					maxX
+				);
+		}
+
+		if (minY > maxY)
+		{
+			position.Y =
+				viewportSize.Y / 2.0f
+				- (
+					bounds.Position.Y
+					+ bounds.Size.Y / 2.0f
+				);
+		}
+		else
+		{
+			position.Y =
+				Math.Clamp(
+					position.Y,
+					minY,
+					maxY
+				);
+		}
+
+		_mapWorld.Position =
+			position;
+	}
+
+
+	private Rect2 GetMapContentBounds()
+	{
+		if (
+			_cachedBoundsSectorCount
+			== _service.SectorCount
+		)
+		{
+			return _cachedMapBounds;
+		}
+
+		int countIncludingExpansion =
+			Math.Max(
+				1,
+				_service.SectorCount + 1
+			);
+
+		Vector2 first =
+			GetSectorWorldTopLeft(
+				0
+			);
+
+		float minX =
+			first.X;
+
+		float minY =
+			first.Y;
+
+		float maxX =
+			first.X + SectorMapSize;
+
+		float maxY =
+			first.Y + SectorMapSize;
+
+		for (
+			int i = 1;
+			i < countIncludingExpansion;
+			i++
+		)
+		{
+			Vector2 topLeft =
+				GetSectorWorldTopLeft(
+					i
+				);
+
+			minX =
+				MathF.Min(
+					minX,
+					topLeft.X
+				);
+
+			minY =
+				MathF.Min(
+					minY,
+					topLeft.Y
+				);
+
+			maxX =
+				MathF.Max(
+					maxX,
+					topLeft.X + SectorMapSize
+				);
+
+			maxY =
+				MathF.Max(
+					maxY,
+					topLeft.Y + SectorMapSize
+				);
+		}
+
+		_cachedMapBounds =
+			new Rect2(
+				new Vector2(
+					minX - MapBoundsMargin,
+					minY - MapBoundsMargin
+				),
+				new Vector2(
+					maxX - minX
+						+ MapBoundsMargin * 2.0f,
+					maxY - minY
+						+ MapBoundsMargin * 2.0f
+				)
+			);
+
+		_cachedBoundsSectorCount =
+			_service.SectorCount;
+
+		return _cachedMapBounds;
+	}
+
+
+	private void EnsureSectorCoordinateCache()
+	{
+		if (
+			_cachedSectorCoordinateCount
+			> _service.SectorCount
+		)
+		{
+			_sectorIndexByGrid.Clear();
+			_cachedSectorCoordinateCount =
+				0;
+		}
+
+		while (
+			_cachedSectorCoordinateCount
+			< _service.SectorCount
+		)
+		{
+			int index =
+				_cachedSectorCoordinateCount;
+
+			_sectorIndexByGrid[
+				GetSectorGridPosition(
+					index
+				)
+			] =
+				index;
+
+			_cachedSectorCoordinateCount++;
+		}
+	}
+
+
+	private void RefreshMapWorld()
+	{
+		if (
+			_mapViewport == null
+			|| _mapWorld == null
+			|| _mapViewport.Size.X <= 1.0f
+			|| _mapViewport.Size.Y <= 1.0f
+		)
+		{
+			return;
+		}
+
+		if (!_cameraInitialized)
+		{
+			CenterOnSector(
+				_service.CurrentSectorIndex,
+				false
+			);
+
+			return;
+		}
+
+		Rect2 visibleWorld =
+			new Rect2(
+				-_mapWorld.Position,
+				_mapViewport.Size
+			)
+			.Grow(
+				SectorVirtualizationMargin
+			);
+
+		EnsureSectorCoordinateCache();
+
+		HashSet<int> wanted =
+			[];
+
+		/*
+		 * Virtualization is coordinate-based: only grid cells intersecting the
+		 * camera + margin are considered. Runtime therefore stays proportional to
+		 * what is visible instead of to the lifetime Sector count.
+		 */
+		Rect2 centerSearch =
+			visibleWorld.Grow(
+				SectorMapSize / 2.0f
+			);
+
+		int minGridX =
+			(int)MathF.Floor(
+				(
+					centerSearch.Position.X
+					- WorldOrigin.X
+				)
+				/ SectorMapSpacing
+			);
+
+		int maxGridX =
+			(int)MathF.Ceiling(
+				(
+					centerSearch.End.X
+					- WorldOrigin.X
+				)
+				/ SectorMapSpacing
+			);
+
+		int minGridY =
+			(int)MathF.Floor(
+				(
+					centerSearch.Position.Y
+					- WorldOrigin.Y
+				)
+				/ SectorMapSpacing
+			);
+
+		int maxGridY =
+			(int)MathF.Ceiling(
+				(
+					centerSearch.End.Y
+					- WorldOrigin.Y
+				)
+				/ SectorMapSpacing
+			);
+
+		for (
+			int gridY = minGridY;
+			gridY <= maxGridY;
+			gridY++
+		)
+		{
+			for (
+				int gridX = minGridX;
+				gridX <= maxGridX;
+				gridX++
+			)
+			{
+				if (!_sectorIndexByGrid.TryGetValue(
+					new Vector2I(
+						gridX,
+						gridY
+					),
+					out int sectorIndex
+				))
+				{
+					continue;
+				}
+
+				wanted.Add(
+					sectorIndex
+				);
+
+				EnsureSectorMapView(
+					sectorIndex
+				);
+			}
+		}
+
+		List<int> toRemove =
+			[];
+
+		foreach (
+			KeyValuePair<int, SectorMapView> pair
+				in _sectorMapViews
+		)
+		{
+			if (!wanted.Contains(
+				pair.Key
+			))
+			{
+				toRemove.Add(
+					pair.Key
+				);
+			}
+		}
+
+		foreach (
+			int index
+				in toRemove
+		)
+		{
+			SectorMapView view =
+				_sectorMapViews[
+					index
+				];
+
+			_sectorMapViews.Remove(
+				index
+			);
+
+			view.Root.QueueFree();
+		}
+
+		foreach (
+			SectorMapView view
+				in _sectorMapViews.Values
+		)
+		{
+			RefreshSectorMapView(
+				view
+			);
+		}
+
+		RefreshExpansionSector(
+			visibleWorld
+		);
+
+		RefreshInterSectorConnections(
+			visibleWorld
+		);
+	}
+
+
+	private void EnsureSectorMapView(
+		int sectorIndex)
+	{
+		if (_sectorMapViews.ContainsKey(
+			sectorIndex
+		))
+		{
+			return;
+		}
+
+		Control root =
+			new()
+			{
+				Name =
+					"Sector_"
+					+ (sectorIndex + 1),
+
+				Position =
+					GetSectorWorldTopLeft(
+						sectorIndex
+					),
+
+				Size =
+					new Vector2(
+						SectorMapSize,
+						SectorMapSize
+					),
+
+				CustomMinimumSize =
+					new Vector2(
+						SectorMapSize,
+						SectorMapSize
+					),
+
+				MouseFilter =
+					Control.MouseFilterEnum.Pass,
 
 				ZIndex =
 					2
 			};
 
-		_network.AddChild(
-			_coreHolder
+		_mapWorld.AddChild(
+			root
 		);
 
 
-		_coreImage =
-			new TextureRect
+		PanelContainer frame =
+			new()
 			{
-				Name =
-					"SingularityCoreImage",
-
-				Texture =
-					CoreTexture,
-
-				ExpandMode =
-					TextureRect.ExpandModeEnum.IgnoreSize,
-
-				StretchMode =
-					TextureRect.StretchModeEnum.KeepAspectCentered,
-
 				MouseFilter =
 					Control.MouseFilterEnum.Ignore
 			};
 
-		_coreImage.SetAnchorsAndOffsetsPreset(
+		frame.SetAnchorsAndOffsetsPreset(
 			Control.LayoutPreset.FullRect
 		);
 
-		_coreHolder.AddChild(
-			_coreImage
+		root.AddChild(
+			frame
 		);
 
 
-		if (CoreTexture == null)
+		SectorLocalLinkLayer links =
+			new()
+			{
+				MouseFilter =
+					Control.MouseFilterEnum.Ignore,
+
+				ZIndex =
+					1
+			};
+
+		links.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+		root.AddChild(
+			links
+		);
+
+
+		Label title =
+			CreateLabel(
+				17,
+				"SECTOR "
+					+ (sectorIndex + 1)
+			);
+
+		title.Position =
+			new Vector2(
+				18,
+				12
+			);
+
+		title.Size =
+			new Vector2(
+				SectorMapSize - 36.0f,
+				28.0f
+			);
+
+		title.AddThemeColorOverride(
+			"font_color",
+			Accent.Lightened(
+				0.10f
+			)
+		);
+
+		root.AddChild(
+			title
+		);
+
+
+		Label output =
+			CreateLabel(
+				11,
+				"0 Matter/s"
+			);
+
+		output.Position =
+			new Vector2(
+				18,
+				39
+			);
+
+		output.Size =
+			new Vector2(
+				SectorMapSize - 36.0f,
+				24.0f
+			);
+
+		output.Modulate =
+			new Color(
+				0.76f,
+				0.72f,
+				0.62f,
+				1.0f
+			);
+
+		root.AddChild(
+			output
+		);
+
+
+		Label currentBadge =
+			CreateLabel(
+				10,
+				"CURRENT"
+			);
+
+		currentBadge.Position =
+			new Vector2(
+				SectorMapSize - 98.0f,
+				14.0f
+			);
+
+		currentBadge.Size =
+			new Vector2(
+				82.0f,
+				24.0f
+			);
+
+		currentBadge.AddThemeColorOverride(
+			"font_color",
+			Accent
+		);
+
+		root.AddChild(
+			currentBadge
+		);
+
+
+		if (sectorIndex == 0)
 		{
-			Label fallback =
-				CreateLabel(
-					18,
-					"CORE"
+			const float coreSize =
+				108.0f;
+
+			Vector2 corePosition =
+				new Vector2(
+					SectorMapSize / 2.0f
+						- coreSize / 2.0f,
+					SectorMapSize / 2.0f
+						- coreSize / 2.0f
 				);
 
-			fallback.SetAnchorsAndOffsetsPreset(
+			Control holder =
+				new()
+				{
+					Position =
+						corePosition,
+
+					Size =
+						new Vector2(
+							coreSize,
+							coreSize
+						),
+
+					ClipContents =
+						true,
+
+					MouseFilter =
+						Control.MouseFilterEnum.Ignore,
+
+					ZIndex =
+						3
+				};
+
+			root.AddChild(
+				holder
+			);
+
+			TextureRect image =
+				new()
+				{
+					Texture =
+						CoreTexture,
+
+					ExpandMode =
+						TextureRect.ExpandModeEnum.IgnoreSize,
+
+					StretchMode =
+						TextureRect.StretchModeEnum.KeepAspectCentered,
+
+					MouseFilter =
+						Control.MouseFilterEnum.Ignore
+				};
+
+			image.SetAnchorsAndOffsetsPreset(
 				Control.LayoutPreset.FullRect
 			);
 
-			_coreHolder.AddChild(
-				fallback
+			holder.AddChild(
+				image
+			);
+
+			Button coreButton =
+				new()
+				{
+					Position =
+						corePosition,
+
+					Size =
+						new Vector2(
+							coreSize,
+							coreSize
+						),
+
+					FocusMode =
+						Control.FocusModeEnum.None,
+
+					TooltipText =
+						"Singularity Core",
+
+					ZIndex =
+						4
+				};
+
+			ApplyTransparentButtonStyle(
+				coreButton
+			);
+
+			coreButton.Pressed +=
+				() =>
+				{
+					if (_panInput.ShouldSuppressClick)
+						return;
+
+					_service.SelectSector(
+						0
+					);
+
+					RefreshRuntime();
+					RefreshMapWorld();
+					PlayHaptic();
+					OpenCoreOverlay();
+				};
+
+			root.AddChild(
+				coreButton
+			);
+		}
+		else
+		{
+			Button hub =
+				new()
+				{
+					Text =
+						"S"
+						+ (sectorIndex + 1),
+
+					Position =
+						new Vector2(
+							SectorMapSize / 2.0f - 46.0f,
+							SectorMapSize / 2.0f - 46.0f
+						),
+
+					Size =
+						new Vector2(
+							92.0f,
+							92.0f
+						),
+
+					FocusMode =
+						Control.FocusModeEnum.None,
+
+					ZIndex =
+						3
+				};
+
+			ApplyGoldButtonStyle(
+				hub
+			);
+
+			hub.Pressed +=
+				() =>
+				{
+					if (_panInput.ShouldSuppressClick)
+						return;
+
+					_service.SelectSector(
+						sectorIndex
+					);
+
+					RefreshRuntime();
+					RefreshMapWorld();
+				};
+
+			root.AddChild(
+				hub
 			);
 		}
 
 
-		_coreHitbox =
-			new Button
-			{
-				Name =
-					"SingularityCoreHitbox",
-
-				Position =
-					corePosition,
-
-				Size =
-					new Vector2(
-						coreSize,
-						coreSize
-					),
-
-				FocusMode =
-					Control.FocusModeEnum.None,
-
-				TooltipText =
-					"Open Singularity Core",
-
-				ZIndex =
-					3
-			};
-
-		ApplyTransparentButtonStyle(
-			_coreHitbox
-		);
-
-		_coreHitbox.Pressed +=
-			() =>
-			{
-				PlayHaptic();
-				OpenCoreOverlay();
-			};
-
-		_network.AddChild(
-			_coreHitbox
-		);
+		List<NodeButtonView> nodeViews =
+			[];
 
 		for (
-			int i = 0;
-			i < SingularityService.NodesPerSector;
-			i++
+			int nodeIndex = 0;
+			nodeIndex < SingularityService.NodesPerSector;
+			nodeIndex++
 		)
 		{
-			int index =
-				i;
+			int capturedNode =
+				nodeIndex;
 
 			Vector2 center =
-				GetNodeCenter(
-					i
+				GetMapNodeCenter(
+					nodeIndex
 				);
-
 
 			Button button =
 				new()
@@ -1279,20 +1933,14 @@ public sealed partial class SingularityController
 					Position =
 						center
 						- new Vector2(
-							58,
-							58
+							SectorMapNodeButtonSize / 2.0f,
+							SectorMapNodeButtonSize / 2.0f
 						),
 
 					Size =
 						new Vector2(
-							116,
-							116
-						),
-
-					CustomMinimumSize =
-						new Vector2(
-							116,
-							116
+							SectorMapNodeButtonSize,
+							SectorMapNodeButtonSize
 						),
 
 					FocusMode =
@@ -1302,19 +1950,28 @@ public sealed partial class SingularityController
 						true,
 
 					ZIndex =
-						2
+						4
 				};
 
 			button.Pressed +=
 				() =>
 				{
+					if (_panInput.ShouldSuppressClick)
+						return;
+
+					_service.SelectSector(
+						sectorIndex
+					);
+
+					RefreshRuntime();
+					RefreshMapWorld();
 					PlayHaptic();
 					OpenNodeOverlay(
-						index
+						capturedNode
 					);
 				};
 
-			_network.AddChild(
+			root.AddChild(
 				button
 			);
 
@@ -1324,14 +1981,14 @@ public sealed partial class SingularityController
 				{
 					Position =
 						new Vector2(
-							10,
-							8
+							8,
+							6
 						),
 
 					Size =
 						new Vector2(
-							96,
-							82
+							SectorMapNodeButtonSize - 16.0f,
+							SectorMapNodeButtonSize - 28.0f
 						),
 
 					ExpandMode =
@@ -1351,31 +2008,27 @@ public sealed partial class SingularityController
 
 			Label level =
 				CreateLabel(
-					11,
+					9,
 					""
 				);
 
 			level.Position =
 				new Vector2(
-					6,
-					89
+					4,
+					SectorMapNodeButtonSize - 23.0f
 				);
 
 			level.Size =
 				new Vector2(
-					104,
-					22
+					SectorMapNodeButtonSize - 8.0f,
+					18.0f
 				);
-
-			level.MouseFilter =
-				Control.MouseFilterEnum.Ignore;
 
 			button.AddChild(
 				level
 			);
 
-
-			_nodeViews.Add(
+			nodeViews.Add(
 				new NodeButtonView(
 					button,
 					icon,
@@ -1385,42 +2038,639 @@ public sealed partial class SingularityController
 		}
 
 
-		_linkLayer.SetCenters(
-			new Vector2(
-				325,
-				325
-			),
-			GetAllNodeCenters()
+		SectorMapView view =
+			new(
+				sectorIndex,
+				root,
+				frame,
+				links,
+				title,
+				output,
+				currentBadge,
+				nodeViews
+			);
+
+		_sectorMapViews[
+			sectorIndex
+		] =
+			view;
+
+		RefreshSectorMapView(
+			view
 		);
 	}
 
 
-	private void CreateHint()
+	private void RefreshSectorMapView(
+		SectorMapView view)
 	{
-		_hint =
-			CreateLabel(
-				12,
-				"Tap the Core or any Node to open its overlay."
+		SingularitySectorData sector =
+			_service.GetSector(
+				view.SectorIndex
 			);
 
-		_hint.CustomMinimumSize =
-			new Vector2(
-				0,
-				54
+		bool isCurrent =
+			view.SectorIndex
+			== _service.CurrentSectorIndex;
+
+		view.Frame.AddThemeStyleboxOverride(
+			"panel",
+			CreatePanelStyle(
+				isCurrent
+					? new Color(
+						0.050f,
+						0.035f,
+						0.012f,
+						0.97f
+					)
+					: new Color(
+						0.010f,
+						0.013f,
+						0.020f,
+						0.95f
+					),
+				isCurrent
+					? Accent
+					: new Color(
+						0.24f,
+						0.20f,
+						0.13f,
+						0.88f
+					),
+				24
+			)
+		);
+
+		view.CurrentBadge.Visible =
+			isCurrent;
+
+		view.Title.Text =
+			"SECTOR "
+			+ (view.SectorIndex + 1);
+
+		view.Output.Text =
+			NumberFormatter.Format(
+				_service.GetSectorOutputPerSecond(
+					view.SectorIndex
+				)
+			)
+			+ " Matter/s";
+
+		bool[] active =
+			new bool[
+				SingularityService.NodesPerSector
+			];
+
+		for (
+			int i = 0;
+			i < view.Nodes.Count;
+			i++
+		)
+		{
+			SingularityNodeData node =
+				sector.Nodes[
+					i
+				];
+
+			NodeButtonView nodeView =
+				view.Nodes[
+					i
+				];
+
+			active[
+				i
+			] =
+				node.Type
+				!= SingularityNodeType.Empty;
+
+			nodeView.Icon.Texture =
+				GetNodeTexture(
+					node.Type
+				);
+
+			Color accent =
+				GetNodeColor(
+					node.Type
+				);
+
+			nodeView.Root.AddThemeStyleboxOverride(
+				"normal",
+				CreateNodeStyle(
+					node.Type
+						== SingularityNodeType.Empty
+							? new Color(
+								0.025f,
+								0.030f,
+								0.040f,
+								0.96f
+							)
+							: new Color(
+								accent.R * 0.20f,
+								accent.G * 0.20f,
+								accent.B * 0.20f,
+								0.98f
+							),
+					node.Type
+						== SingularityNodeType.Empty
+							? new Color(
+								0.24f,
+								0.27f,
+								0.32f,
+								0.82f
+							)
+							: accent
+				)
 			);
 
-		_hint.Modulate =
-			new Color(
-				0.72f,
-				0.72f,
-				0.76f,
-				1.0f
-			);
+			nodeView.Level.Text =
+				node.Type
+					== SingularityNodeType.Empty
+						? "EMPTY"
+						: "LV "
+							+ node.Level;
+		}
 
-		_content.AddChild(
-			_hint
+		view.Links.SetActiveNodes(
+			active
 		);
 	}
+
+
+	private void RefreshExpansionSector(
+		Rect2 visibleWorld)
+	{
+		int nextSectorIndex =
+			_service.SectorCount;
+
+		Rect2 rect =
+			new Rect2(
+				GetSectorWorldTopLeft(
+					nextSectorIndex
+				),
+				new Vector2(
+					SectorMapSize,
+					SectorMapSize
+				)
+			);
+
+		if (!visibleWorld.Intersects(
+			rect
+		))
+		{
+			if (_expansionSectorView != null)
+			{
+				_expansionSectorView.QueueFree();
+				_expansionSectorView =
+					null;
+			}
+
+			return;
+		}
+
+		if (
+			_expansionSectorView != null
+			&& GodotObject.IsInstanceValid(
+				_expansionSectorView
+			)
+		)
+		{
+			_expansionSectorView.Position =
+				rect.Position;
+
+			UpdateExpansionSectorText();
+			return;
+		}
+
+		PanelContainer panel =
+			new()
+			{
+				Name =
+					"NextSectorExpansion",
+
+				Position =
+					rect.Position,
+
+				Size =
+					rect.Size,
+
+				CustomMinimumSize =
+					rect.Size,
+
+				ZIndex =
+					2
+			};
+
+		panel.AddThemeStyleboxOverride(
+			"panel",
+			CreatePanelStyle(
+				new Color(
+					0.040f,
+					0.028f,
+					0.010f,
+					0.72f
+				),
+				new Color(
+					Accent.R,
+					Accent.G,
+					Accent.B,
+					0.58f
+				),
+				24
+			)
+		);
+
+		_mapWorld.AddChild(
+			panel
+		);
+
+		Button button =
+			new()
+			{
+				Name =
+					"UnlockNextSectorButton",
+
+				FocusMode =
+					Control.FocusModeEnum.None
+			};
+
+		button.SetAnchorsAndOffsetsPreset(
+			Control.LayoutPreset.FullRect
+		);
+
+		button.AddThemeFontSizeOverride(
+			"font_size",
+			18
+		);
+
+		ApplyGoldButtonStyle(
+			button
+		);
+
+		button.Pressed +=
+			() =>
+			{
+				if (_panInput.ShouldSuppressClick)
+					return;
+
+				PlayHaptic();
+
+				int unlockedIndex =
+					_service.SectorCount;
+
+				SingularityActionResult result =
+					_service.UnlockNextSector();
+
+				MessageRequested?.Invoke(
+					result.Message
+				);
+
+				if (!result.Changed)
+				{
+					UpdateExpansionSectorText();
+					return;
+				}
+
+				RefreshAll();
+
+				Callable
+					.From(
+						() =>
+						{
+							CenterOnSector(
+								unlockedIndex,
+								false
+							);
+
+							RefreshMapWorld();
+						}
+					)
+					.CallDeferred();
+			};
+
+		panel.AddChild(
+			button
+		);
+
+		_expansionSectorView =
+			panel;
+
+		UpdateExpansionSectorText();
+	}
+
+
+	private void UpdateExpansionSectorText()
+	{
+		if (
+			_expansionSectorView == null
+			|| !GodotObject.IsInstanceValid(
+				_expansionSectorView
+			)
+			|| _expansionSectorView.GetChildCount() == 0
+			|| _expansionSectorView.GetChild(0)
+				is not Button button
+		)
+		{
+			return;
+		}
+
+		int nextNumber =
+			_service.SectorCount + 1;
+
+		bool ready =
+			_service.CanUnlockNextSector();
+
+		button.Text =
+			ready
+				? "+  EXPAND NETWORK\nSECTOR "
+					+ nextNumber
+					+ "\n"
+					+ NumberFormatter.Format(
+						_service.GetNextSectorUnlockCost()
+					)
+					+ " MATTER"
+				: "SECTOR "
+					+ nextNumber
+					+ " LOCKED\nFILL ALL 8 NODES IN SECTOR "
+					+ (
+						_service.GetFrontierSectorIndex()
+						+ 1
+					);
+	}
+
+
+	private void RefreshInterSectorConnections(
+		Rect2 visibleWorld)
+	{
+		EnsureSectorCoordinateCache();
+
+		List<MapConnectionSegment> segments =
+			[];
+
+		foreach (
+			int sectorIndex
+				in _sectorMapViews.Keys
+		)
+		{
+			Vector2I position =
+				GetSectorGridPosition(
+					sectorIndex
+				);
+
+			TryAddInterSectorConnection(
+				sectorIndex,
+				position + new Vector2I(
+					1,
+					0
+				),
+				2,
+				6,
+				_sectorIndexByGrid,
+				visibleWorld,
+				segments
+			);
+
+			TryAddInterSectorConnection(
+				sectorIndex,
+				position + new Vector2I(
+					0,
+					1
+				),
+				4,
+				0,
+				_sectorIndexByGrid,
+				visibleWorld,
+				segments
+			);
+		}
+
+		_interSectorLinks.SetSegments(
+			segments
+		);
+	}
+
+
+	private void TryAddInterSectorConnection(
+		int fromSector,
+		Vector2I neighborPosition,
+		int fromNode,
+		int toNode,
+		IReadOnlyDictionary<Vector2I, int> byPosition,
+		Rect2 visibleWorld,
+		List<MapConnectionSegment> segments)
+	{
+		if (!byPosition.TryGetValue(
+			neighborPosition,
+			out int toSector
+		))
+		{
+			return;
+		}
+
+		Vector2 from =
+			GetSectorWorldTopLeft(
+				fromSector
+			)
+			+ GetMapNodeCenter(
+				fromNode
+			);
+
+		Vector2 to =
+			GetSectorWorldTopLeft(
+				toSector
+			)
+			+ GetMapNodeCenter(
+				toNode
+			);
+
+		Rect2 segmentBounds =
+			new Rect2(
+				new Vector2(
+					MathF.Min(
+						from.X,
+						to.X
+					),
+					MathF.Min(
+						from.Y,
+						to.Y
+					)
+				),
+				new Vector2(
+					MathF.Abs(
+						to.X - from.X
+					)
+						+ 2.0f,
+					MathF.Abs(
+						to.Y - from.Y
+					)
+						+ 2.0f
+				)
+			);
+
+		if (!visibleWorld.Grow(
+			180.0f
+		).Intersects(
+			segmentBounds
+		))
+		{
+			return;
+		}
+
+		bool active =
+			_service.GetNode(
+				fromSector,
+				fromNode
+			).Type
+				!= SingularityNodeType.Empty
+			&& _service.GetNode(
+					toSector,
+					toNode
+				).Type
+					!= SingularityNodeType.Empty;
+
+		segments.Add(
+			new MapConnectionSegment(
+				from,
+				to,
+				active
+			)
+		);
+	}
+
+
+	private static Vector2 GetMapNodeCenter(
+		int index)
+	{
+		double angle =
+			-Math.PI / 2.0
+			+ index
+			* (
+				Math.PI * 2.0
+				/ SingularityService.NodesPerSector
+			);
+
+		return new Vector2(
+			SectorMapSize / 2.0f
+				+ (float)(
+					Math.Cos(
+						angle
+					)
+					* SectorMapNodeRadius
+				),
+			SectorMapSize / 2.0f
+				+ (float)(
+					Math.Sin(
+						angle
+					)
+					* SectorMapNodeRadius
+				)
+		);
+	}
+
+
+	private static Vector2 GetSectorWorldTopLeft(
+		int sectorIndex)
+	{
+		Vector2I grid =
+			GetSectorGridPosition(
+				sectorIndex
+			);
+
+		Vector2 center =
+			WorldOrigin
+			+ new Vector2(
+				grid.X * SectorMapSpacing,
+				grid.Y * SectorMapSpacing
+			);
+
+		return center
+			- new Vector2(
+				SectorMapSize / 2.0f,
+				SectorMapSize / 2.0f
+			);
+	}
+
+
+	/*
+	 * Deterministic square spiral:
+	 *
+	 *          6 -- 7 -- 8
+	 *          |         |
+	 *          5    0 -- 1
+	 *          |         |
+	 *          4 -- 3 -- 2
+	 *
+	 * Every next Sector is cardinally adjacent to the previous one. Because the
+	 * position is derived only from the Sector index, old saves need no X/Y
+	 * migration and an arbitrary number of Sectors remains possible.
+	 */
+	private static Vector2I GetSectorGridPosition(
+		int sectorIndex)
+	{
+		sectorIndex =
+			Math.Max(
+				0,
+				sectorIndex
+			);
+
+		/*
+		 * Cache the deterministic spiral incrementally. This keeps map refreshes
+		 * O(number of sectors) instead of repeatedly recalculating every path from
+		 * Sector 1, which matters once an endgame save contains hundreds or
+		 * thousands of Sectors.
+		 */
+		while (
+			SectorGridCache.Count
+			<= sectorIndex
+		)
+		{
+			_spiralCursor +=
+				_spiralDirection;
+
+			SectorGridCache.Add(
+				_spiralCursor
+			);
+
+			_spiralStepProgress++;
+
+			if (
+				_spiralStepProgress
+				< _spiralStepLength
+			)
+			{
+				continue;
+			}
+
+			_spiralStepProgress =
+				0;
+
+			_spiralDirection =
+				new Vector2I(
+					-_spiralDirection.Y,
+					_spiralDirection.X
+				);
+
+			_spiralLegsAtCurrentLength++;
+
+			if (
+				_spiralLegsAtCurrentLength
+				< 2
+			)
+			{
+				continue;
+			}
+
+			_spiralLegsAtCurrentLength =
+				0;
+
+			_spiralStepLength++;
+		}
+
+		return SectorGridCache[
+			sectorIndex
+		];
+	}
+
+
 
 
 	// ==================================================
@@ -2611,24 +3861,6 @@ public sealed partial class SingularityController
 	// ACTIONS / REFRESH
 	// ==================================================
 
-	private void OnNextSectorPressed()
-	{
-		PlayHaptic();
-
-		if (
-			_service.GoToNextExistingSector()
-		)
-		{
-			CloseDetailOverlay();
-			RefreshAll();
-
-			return;
-		}
-
-		HandleResult(
-			_service.UnlockNextSector()
-		);
-	}
 
 
 	private void HandleResult(
@@ -2666,8 +3898,7 @@ public sealed partial class SingularityController
 		}
 
 		RefreshRuntime();
-		RefreshSector();
-		RefreshNodes();
+		RefreshMapWorld();
 	}
 
 
@@ -2682,179 +3913,17 @@ public sealed partial class SingularityController
 			_service.CoreCount.ToString();
 
 		_sectorValue.Text =
-			_service.SectorNumber.ToString();
+			(_service.CurrentSectorIndex + 1)
+				.ToString();
 
 		_outputValue.Text =
 			NumberFormatter.Format(
 				_service.GetTotalOutputPerSecond()
 			)
 			+ "/s";
-
-		_sectorOutput.Text =
-			NumberFormatter.Format(
-				_service.GetSectorOutputPerSecond(
-					_service.CurrentSectorIndex
-				)
-			)
-			+ " Matter/s";
 	}
 
 
-	private void RefreshSector()
-	{
-		_sectorTitle.Text =
-			"SECTOR "
-			+ _service.SectorNumber;
-
-		_previousSectorButton.Disabled =
-			_service.CurrentSectorIndex
-			<= 0;
-
-		if (
-			_service.CurrentSectorIndex
-			< _service.SectorCount - 1
-		)
-		{
-			_nextSectorButton.Text =
-				"›";
-
-			_nextSectorButton.TooltipText =
-				"Next Sector";
-
-			return;
-		}
-
-		_nextSectorButton.Text =
-			_service.CanUnlockNextSector()
-				? "+"
-				: "›";
-
-		_nextSectorButton.TooltipText =
-			"Next Sector • "
-			+ NumberFormatter.Format(
-				_service.GetNextSectorUnlockCost()
-			)
-			+ " Matter";
-	}
-
-
-	private void RefreshNodes()
-	{
-		SingularitySectorData sector =
-			_service.GetCurrentSector();
-
-		bool[] active =
-			new bool[
-				SingularityService.NodesPerSector
-			];
-
-		for (
-			int i = 0;
-			i < _nodeViews.Count;
-			i++
-		)
-		{
-			SingularityNodeData node =
-				sector.Nodes[
-					i
-				];
-
-			NodeButtonView view =
-				_nodeViews[
-					i
-				];
-
-			view.Icon.Texture =
-				GetNodeTexture(
-					node.Type
-				);
-
-			active[
-				i
-			] =
-				node.Type
-				!= SingularityNodeType.Empty;
-
-
-			Color accent =
-				GetNodeColor(
-					node.Type
-				);
-
-			view.Root.AddThemeStyleboxOverride(
-				"normal",
-				CreateNodeStyle(
-					node.Type
-						== SingularityNodeType.Empty
-							? new Color(
-								0.025f,
-								0.030f,
-								0.040f,
-								0.96f
-							)
-							: new Color(
-								accent.R * 0.20f,
-								accent.G * 0.20f,
-								accent.B * 0.20f,
-								0.98f
-							),
-					node.Type
-						== SingularityNodeType.Empty
-							? new Color(
-								0.24f,
-								0.27f,
-								0.32f,
-								0.82f
-							)
-							: accent
-				)
-			);
-
-			view.Root.AddThemeStyleboxOverride(
-				"hover",
-				CreateNodeStyle(
-					new Color(
-						accent.R * 0.28f,
-						accent.G * 0.28f,
-						accent.B * 0.28f,
-						0.98f
-					),
-					accent
-				)
-			);
-
-			view.Root.AddThemeStyleboxOverride(
-				"pressed",
-				CreateNodeStyle(
-					new Color(
-						accent.R * 0.16f,
-						accent.G * 0.16f,
-						accent.B * 0.16f,
-						1.0f
-					),
-					accent
-				)
-			);
-
-			view.Level.Text =
-				node.Type
-					== SingularityNodeType.Empty
-						? "EMPTY"
-						: "LV "
-							+ node.Level;
-		}
-
-
-		/*
-		 * The link layer now receives the occupied-state array.
-		 * It draws:
-		 * 1. Core -> occupied Node links.
-		 * 2. Node -> Node links whenever both adjacent ring nodes are occupied.
-		 */
-		_linkLayer.SetActiveNodes(
-			active
-		);
-	}
 
 
 	// ==================================================
@@ -3107,59 +4176,6 @@ public sealed partial class SingularityController
 	}
 
 
-	private static Vector2 GetNodeCenter(
-		int index)
-	{
-		double angle =
-			-Math.PI / 2.0
-			+ index
-			* (
-				Math.PI * 2.0
-				/ SingularityService.NodesPerSector
-			);
-
-		const double radius =
-			235.0;
-
-		return new Vector2(
-			325.0f
-				+ (float)(
-					Math.Cos(
-						angle
-					)
-					* radius
-				),
-			325.0f
-				+ (float)(
-					Math.Sin(
-						angle
-					)
-					* radius
-				)
-		);
-	}
-
-
-	private static List<Vector2> GetAllNodeCenters()
-	{
-		List<Vector2> centers =
-			[];
-
-		for (
-			int i = 0;
-			i < SingularityService.NodesPerSector;
-			i++
-		)
-		{
-			centers.Add(
-				GetNodeCenter(
-					i
-				)
-			);
-		}
-
-		return centers;
-	}
 
 
 	private void ApplySafeArea()
@@ -3174,22 +4190,29 @@ public sealed partial class SingularityController
 			safeTop
 			+ 14.0f;
 
-		_scroll.OffsetTop =
-			safeTop
-			+ 166.0f;
+		if (
+			_mapViewport != null
+			&& GodotObject.IsInstanceValid(
+				_mapViewport
+			)
+		)
+		{
+			_mapViewport.OffsetTop =
+				safeTop
+				+ 166.0f;
 
-		/*
-		 * Use the real runtime BottomBar height instead of a Singularity-only
-		 * constant. This guarantees identical bar height on every viewport.
-		 */
+			_mapViewport.OffsetBottom =
+				-bottomBarHeight;
+		}
+
 		_pageBackground.OffsetBottom =
 			-bottomBarHeight;
 
 		_gridBackground.OffsetBottom =
 			-bottomBarHeight;
 
-		_scroll.OffsetBottom =
-			-bottomBarHeight;
+		ClampMapPosition();
+		RefreshMapWorld();
 	}
 
 
@@ -3494,49 +4517,33 @@ public sealed partial class SingularityController
 	);
 
 
-	// ==================================================
-	// LINES
-	// ==================================================
 
-	private sealed partial class SingularityLinkLayer
+	private sealed record SectorMapView(
+		int SectorIndex,
+		Control Root,
+		PanelContainer Frame,
+		SectorLocalLinkLayer Links,
+		Label Title,
+		Label Output,
+		Label CurrentBadge,
+		List<NodeButtonView> Nodes
+	);
+
+
+	private readonly record struct MapConnectionSegment(
+		Vector2 From,
+		Vector2 To,
+		bool Active
+	);
+
+
+	private sealed partial class SectorLocalLinkLayer
 		: Control
 	{
-		private Vector2 _core;
-
-		private readonly List<Vector2>
-			_nodes =
-				[];
-
 		private bool[] _active =
-			Array.Empty<bool>();
-
-
-		public void SetCenters(
-			Vector2 core,
-			IReadOnlyList<Vector2> nodes)
-		{
-			_core =
-				core;
-
-			_nodes.Clear();
-
-			foreach (
-				Vector2 node
-					in nodes
-			)
-			{
-				_nodes.Add(
-					node
-				);
-			}
-
-			_active =
-				new bool[
-					_nodes.Count
-				];
-
-			QueueRedraw();
-		}
+			new bool[
+				SingularityService.NodesPerSector
+			];
 
 
 		public void SetActiveNodes(
@@ -3551,15 +4558,47 @@ public sealed partial class SingularityController
 
 		public override void _Draw()
 		{
-			/*
-			 * 1) Draw occupied adjacent Node -> Node links.
-			 *
-			 * The ring wraps around, therefore Node 8 and Node 1 are also
-			 * neighbors.
-			 */
+			Vector2 center =
+				new Vector2(
+					SectorMapSize / 2.0f,
+					SectorMapSize / 2.0f
+				);
+
 			for (
 				int i = 0;
-				i < _nodes.Count;
+				i < SingularityService.NodesPerSector;
+				i++
+			)
+			{
+				Vector2 node =
+					GetMapNodeCenter(
+						i
+					);
+
+				bool active =
+					i < _active.Length
+					&& _active[
+						i
+					];
+
+				DrawConnection(
+					center,
+					node,
+					active
+						? Accent
+						: new Color(
+							0.22f,
+							0.24f,
+							0.30f,
+							0.35f
+						),
+					active
+					);
+			}
+
+			for (
+				int i = 0;
+				i < SingularityService.NodesPerSector;
 				i++
 			)
 			{
@@ -3567,9 +4606,9 @@ public sealed partial class SingularityController
 					(
 						i + 1
 					)
-					% _nodes.Count;
+					% SingularityService.NodesPerSector;
 
-				bool bothOccupied =
+				bool active =
 					i < _active.Length
 					&& next < _active.Length
 					&& _active[
@@ -3579,66 +4618,18 @@ public sealed partial class SingularityController
 						next
 					];
 
-				if (!bothOccupied)
+				if (!active)
 					continue;
 
 				DrawConnection(
-					_nodes[
+					GetMapNodeCenter(
 						i
-					],
-					_nodes[
-						next
-					],
-					new Color(
-						0.96f,
-						0.70f,
-						0.22f,
-						0.94f
 					),
-					10.0f,
-					3.4f
-				);
-			}
-
-
-			/*
-			 * 2) Draw Core -> occupied Node links.
-			 * Empty nodes only keep a very subtle guide line.
-			 */
-			for (
-				int i = 0;
-				i < _nodes.Count;
-				i++
-			)
-			{
-				bool active =
-					i < _active.Length
-					&& _active[
-						i
-					];
-
-				Color color =
-					active
-						? Accent
-						: new Color(
-							0.22f,
-							0.24f,
-							0.30f,
-							0.42f
-						);
-
-				DrawConnection(
-					_core,
-					_nodes[
-						i
-					],
-					color,
-					active
-						? 13.0f
-						: 5.0f,
-					active
-						? 4.0f
-						: 1.5f
+					GetMapNodeCenter(
+						next
+					),
+					Accent,
+					true
 				);
 			}
 		}
@@ -3648,8 +4639,7 @@ public sealed partial class SingularityController
 			Vector2 from,
 			Vector2 to,
 			Color color,
-			float glowWidth,
-			float lineWidth)
+			bool active)
 		{
 			DrawLine(
 				from,
@@ -3658,9 +4648,13 @@ public sealed partial class SingularityController
 					color.R,
 					color.G,
 					color.B,
-					0.18f
+					active
+						? 0.18f
+						: 0.08f
 				),
-				glowWidth,
+				active
+					? 10.0f
+					: 4.0f,
 				true
 			);
 
@@ -3668,11 +4662,464 @@ public sealed partial class SingularityController
 				from,
 				to,
 				color,
-				lineWidth,
+				active
+					? 3.2f
+					: 1.2f,
 				true
 			);
 		}
 	}
+
+
+	private sealed partial class InterSectorLinkLayer
+		: Control
+	{
+		private List<MapConnectionSegment> _segments =
+			[];
+
+
+		public void SetSegments(
+			IReadOnlyList<MapConnectionSegment> segments)
+		{
+			_segments =
+				new List<MapConnectionSegment>(
+					segments
+				);
+
+			QueueRedraw();
+		}
+
+
+		public override void _Draw()
+		{
+			foreach (
+				MapConnectionSegment segment
+					in _segments
+			)
+			{
+				Color color =
+					segment.Active
+						? new Color(
+							1.0f,
+							0.72f,
+							0.20f,
+							0.98f
+						)
+						: new Color(
+							0.48f,
+							0.34f,
+							0.12f,
+							0.54f
+						);
+
+				DrawLine(
+					segment.From,
+					segment.To,
+					new Color(
+						color.R,
+						color.G,
+						color.B,
+						segment.Active
+							? 0.22f
+							: 0.10f
+					),
+					segment.Active
+						? 18.0f
+						: 9.0f,
+					true
+				);
+
+				DrawLine(
+					segment.From,
+					segment.To,
+					color,
+					segment.Active
+						? 5.5f
+						: 2.4f,
+					true
+				);
+			}
+		}
+	}
+
+
+	private sealed partial class SingularityPanInput
+		: Control
+	{
+		private const float DragThreshold =
+			10.0f;
+
+		private Control? _viewport;
+
+		private Func<bool>? _canPan;
+
+		private Action<Vector2>? _panDelta;
+
+		private Action? _panEnded;
+
+		private bool _trackingTouch;
+
+		private int _touchIndex =
+			-1;
+
+		private bool _trackingMouse;
+
+		private bool _dragging;
+
+		private Vector2 _totalDrag;
+
+		private Vector2 _velocity;
+
+		private ulong _suppressClickUntil;
+
+
+		public bool ShouldSuppressClick =>
+			Time.GetTicksMsec()
+			< _suppressClickUntil;
+
+
+		public void Configure(
+			Control viewport,
+			Func<bool> canPan,
+			Action<Vector2> panDelta,
+			Action panEnded)
+		{
+			_viewport =
+				viewport;
+
+			_canPan =
+				canPan;
+
+			_panDelta =
+				panDelta;
+
+			_panEnded =
+				panEnded;
+
+			MouseFilter =
+				Control.MouseFilterEnum.Ignore;
+
+			SetProcess(
+				true
+			);
+		}
+
+
+		public void StopMotion()
+		{
+			_velocity =
+				Vector2.Zero;
+
+			_trackingTouch =
+				false;
+
+			_trackingMouse =
+				false;
+
+			_dragging =
+				false;
+		}
+
+
+		public override void _Input(
+			InputEvent @event)
+		{
+			if (
+				_viewport == null
+				|| _canPan == null
+				|| !_canPan()
+			)
+			{
+				return;
+			}
+
+			if (
+				@event is InputEventScreenTouch touch
+			)
+			{
+				HandleTouch(
+					touch
+				);
+
+				return;
+			}
+
+			if (
+				@event is InputEventScreenDrag drag
+			)
+			{
+				HandleTouchDrag(
+					drag
+				);
+
+				return;
+			}
+
+			if (
+				@event is InputEventMouseButton mouseButton
+				&& mouseButton.ButtonIndex
+					== MouseButton.Left
+			)
+			{
+				HandleMouseButton(
+					mouseButton
+				);
+
+				return;
+			}
+
+			if (
+				@event is InputEventMouseMotion mouseMotion
+				&& _trackingMouse
+			)
+			{
+				HandleMouseMotion(
+					mouseMotion
+				);
+			}
+		}
+
+
+		public override void _Process(
+			double delta)
+		{
+			if (
+				_trackingTouch
+				|| _trackingMouse
+				|| _velocity.LengthSquared()
+					< 64.0f
+				|| _canPan == null
+				|| !_canPan()
+			)
+			{
+				return;
+			}
+
+			_panDelta?.Invoke(
+				_velocity
+				* (float)delta
+			);
+
+			float damping =
+				MathF.Pow(
+					0.035f,
+					(float)delta
+				);
+
+			_velocity *=
+				damping;
+
+			if (
+				_velocity.LengthSquared()
+				< 64.0f
+			)
+			{
+				_velocity =
+					Vector2.Zero;
+
+				_panEnded?.Invoke();
+			}
+		}
+
+
+		private bool IsInsideViewport(
+			Vector2 position)
+		{
+			return _viewport != null
+				&& _viewport.GetGlobalRect()
+					.HasPoint(
+						position
+					);
+		}
+
+
+		private void HandleTouch(
+			InputEventScreenTouch touch)
+		{
+			if (touch.Pressed)
+			{
+				if (!IsInsideViewport(
+					touch.Position
+				))
+				{
+					return;
+				}
+
+				_trackingTouch =
+					true;
+
+				_touchIndex =
+					touch.Index;
+
+				_dragging =
+					false;
+
+				_totalDrag =
+					Vector2.Zero;
+
+				_velocity =
+					Vector2.Zero;
+
+				return;
+			}
+
+			if (
+				!_trackingTouch
+				|| touch.Index != _touchIndex
+			)
+			{
+				return;
+			}
+
+			if (_dragging)
+			{
+				_suppressClickUntil =
+					Time.GetTicksMsec()
+					+ 180;
+
+				GetViewport()
+					.SetInputAsHandled();
+			}
+
+			_trackingTouch =
+				false;
+
+			_touchIndex =
+				-1;
+
+			_dragging =
+				false;
+
+			_panEnded?.Invoke();
+		}
+
+
+		private void HandleTouchDrag(
+			InputEventScreenDrag drag)
+		{
+			if (
+				!_trackingTouch
+				|| drag.Index != _touchIndex
+			)
+			{
+				return;
+			}
+
+			_totalDrag +=
+				drag.Relative;
+
+			if (
+				!_dragging
+				&& _totalDrag.Length()
+					>= DragThreshold
+			)
+			{
+				_dragging =
+					true;
+			}
+
+			if (!_dragging)
+				return;
+
+			_velocity =
+				drag.Velocity;
+
+			_panDelta?.Invoke(
+				drag.Relative
+			);
+
+			GetViewport()
+				.SetInputAsHandled();
+		}
+
+
+		private void HandleMouseButton(
+			InputEventMouseButton mouseButton)
+		{
+			if (mouseButton.Pressed)
+			{
+				if (!IsInsideViewport(
+					mouseButton.Position
+				))
+				{
+					return;
+				}
+
+				_trackingMouse =
+					true;
+
+				_dragging =
+					false;
+
+				_totalDrag =
+					Vector2.Zero;
+
+				_velocity =
+					Vector2.Zero;
+
+				return;
+			}
+
+			if (!_trackingMouse)
+				return;
+
+			if (_dragging)
+			{
+				_suppressClickUntil =
+					Time.GetTicksMsec()
+					+ 180;
+
+				GetViewport()
+					.SetInputAsHandled();
+			}
+
+			_trackingMouse =
+				false;
+
+			_dragging =
+				false;
+
+			_panEnded?.Invoke();
+		}
+
+
+		private void HandleMouseMotion(
+			InputEventMouseMotion motion)
+		{
+			_totalDrag +=
+				motion.Relative;
+
+			if (
+				!_dragging
+				&& _totalDrag.Length()
+					>= DragThreshold
+			)
+			{
+				_dragging =
+					true;
+			}
+
+			if (!_dragging)
+				return;
+
+			/* Mouse velocity is not directly supplied here; estimate it. */
+			_velocity =
+				motion.Relative
+				* 60.0f;
+
+			_panDelta?.Invoke(
+				motion.Relative
+			);
+
+			GetViewport()
+				.SetInputAsHandled();
+		}
+	}
+
+	// ==================================================
+	// LINES
+	// ==================================================
+
 
 
 	private sealed partial class SingularityGridBackground

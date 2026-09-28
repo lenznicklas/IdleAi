@@ -779,14 +779,53 @@ public sealed class SingularityService
 
 	public bool CanUnlockNextSector()
 	{
-		SingularitySectorData current =
-			GetCurrentSector();
+		/*
+		 * The 2D Singularity map expands along a deterministic spiral. Expansion
+		 * always continues from the newest/frontier Sector, independent of which
+		 * Sector the player is currently looking at on the map.
+		 */
+		if (_data.Sectors.Count == 0)
+			return false;
 
-		return current.Nodes.TrueForAll(
+		SingularitySectorData frontier =
+			_data.Sectors[
+				_data.Sectors.Count - 1
+			];
+
+		return frontier.Nodes.TrueForAll(
 			node =>
 				node.Type
 				!= SingularityNodeType.Empty
 		);
+	}
+
+
+	public int GetFrontierSectorIndex()
+	{
+		return Math.Max(
+			0,
+			_data.Sectors.Count - 1
+		);
+	}
+
+
+	public void SelectSector(
+		int sectorIndex)
+	{
+		if (
+			sectorIndex < 0
+			|| sectorIndex >= _data.Sectors.Count
+			|| sectorIndex == _data.CurrentSectorIndex
+		)
+		{
+			return;
+		}
+
+		_data.CurrentSectorIndex =
+			sectorIndex;
+
+		/* Navigation focus is persisted without emitting a progression change. */
+		Save();
 	}
 
 
@@ -796,7 +835,9 @@ public sealed class SingularityService
 		{
 			return new SingularityActionResult(
 				false,
-				"Fill all 8 nodes in this sector first."
+				"Fill all 8 nodes in Sector "
+					+ (GetFrontierSectorIndex() + 1)
+					+ " first."
 			);
 		}
 

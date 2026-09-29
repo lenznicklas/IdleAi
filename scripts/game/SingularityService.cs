@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Collections.Generic;
 using System.Text.Json;
 
 namespace IdleAi;
@@ -41,6 +42,36 @@ public sealed class SingularityService
 	private SingularitySaveData _data =
 		new();
 
+	private long _pauseUnix;
+
+	private double _pauseOutputPerSecond;
+
+	private double _pendingOfflineEarnings;
+
+	private readonly List<Vector2I> _sectorGridCache =
+		[
+			Vector2I.Zero
+		];
+
+	private readonly Dictionary<Vector2I, int> _sectorIndexByGrid =
+		[];
+
+	private Vector2I _spiralCursor =
+		Vector2I.Zero;
+
+	private Vector2I _spiralDirection =
+		new(
+			1,
+			0
+		);
+
+	private int _spiralStepLength =
+		1;
+
+	private int _spiralStepProgress;
+
+	private int _spiralLegsAtCurrentLength;
+
 
 	public bool Unlocked =>
 		_data.Unlocked;
@@ -49,20 +80,34 @@ public sealed class SingularityService
 		_data.Matter;
 
 	/*
-	 * "CoreLevel" is kept for save compatibility.
-	 *
-	 * Gameplay meaning:
-	 * Core 1 is installed for free when Singularity starts.
-	 * Core 2, Core 3, ... have to be purchased with Matter.
+	 * Compatibility property for older UI/code. In save version 3 every Sector
+	 * owns its own Core; CoreLevel therefore means the focused Sector's level.
 	 */
 	public int CoreLevel =>
-		Math.Max(
-			1,
-			_data.CoreLevel
+		GetSectorCoreLevel(
+			CurrentSectorIndex
 		);
 
-	public int CoreCount =>
-		CoreLevel;
+	/* Number of actually unlocked Sector Cores. */
+	public int CoreCount
+	{
+		get
+		{
+			int count =
+				0;
+
+			foreach (
+				SingularitySectorData sector
+					in _data.Sectors
+			)
+			{
+				if (sector.CoreUnlocked)
+					count++;
+			}
+
+			return count;
+		}
+	}
 
 	public int CurrentSectorIndex =>
 		_data.CurrentSectorIndex;
@@ -80,17 +125,26 @@ public sealed class SingularityService
 	{
 		Load();
 
-		_data.CoreLevel =
-			Math.Max(
-				1,
-				_data.CoreLevel
-			);
-
 		EnsureSector(
 			0
 		);
 
-		ApplyOfflineIncome();
+		RebuildGridIndex();
+
+		_pendingOfflineEarnings =
+			ApplyOfflineIncomeFromTimestamp(
+				_data.LastSaveUnix,
+				GetUnixNow(),
+				GetTotalOutputPerSecond()
+			);
+
+		/*
+		 * Persist a cold-start offline award immediately. Without this, a process
+		 * killed before the next 10-second autosave could receive the same elapsed
+		 * period again on the next launch.
+		 */
+		if (_pendingOfflineEarnings > 0.0)
+			Save();
 	}
 
 
@@ -153,38 +207,36 @@ public sealed class SingularityService
 		_data.Unlocked =
 			true;
 
-		/*
-		 * The very first Core is free. This also makes old/migrated saves safe
-		 * if a zero somehow reaches the JSON.
-		 */
-		_data.CoreLevel =
-			Math.Max(
-				1,
-				_data.CoreLevel
-			);
-
 		EnsureSector(
 			0
 		);
+
+		SingularitySectorData firstSector =
+			_data.Sectors[0];
+
+		firstSector.CoreUnlocked =
+			true;
+
+		firstSector.CoreLevel =
+			Math.Max(
+				1,
+				firstSector.CoreLevel
+			);
 
 		SaveAndNotify();
 
 		return new SingularityActionResult(
 			true,
-			"SINGULARITY ONLINE • CORE 1 INSTALLED"
+			"SINGULARITY ONLINE • SECTOR 1 CORE INSTALLED"
 		);
 	}
 
 
 	public SingularitySectorData GetCurrentSector()
 	{
-		EnsureSector(
+		return GetSector(
 			_data.CurrentSectorIndex
 		);
-
-		return _data.Sectors[
-			_data.CurrentSectorIndex
-		];
 	}
 
 
@@ -221,93 +273,264 @@ public sealed class SingularityService
 
 
 	// ==================================================
-	// CORES
+	// SECTOR CORES
 	// ==================================================
 
-	public double GetNextCoreCost()
+	public bool IsSectorCoreUnlocked(
+		int sectorIndex)
 	{
-		/*
-		 * Core 1 costs nothing because it already exists.
-		 * This is the purchase price for CoreCount + 1.
-		 */
-		return 100.0
+		return GetSector(
+			sectorIndex
+		).CoreUnlocked;
+	}
+
+
+	public int GetSectorCoreLevel(
+		int sectorIndex)
+	{
+		SingularitySectorData sector =
+			GetSector(
+				sectorIndex
+			);
+
+		return Math.Max(
+			1,
+			sector.CoreLevel
+		);
+	}
+
+
+	public double GetSectorCoreUnlockCost(
+		int sectorIndex)
+	{
+		if (sectorIndex <= 0)
+			return 0.0;
+
+		return 250.0
 			* Math.Pow(
-				2.15,
-				Math.Max(
-					0,
-					CoreCount - 1
-				)
+				4.0,
+				sectorIndex - 1
 			);
 	}
 
 
-	/*
-	 * Compatibility with the first draft.
-	 */
-	public double GetCoreUpgradeCost()
+	public SingularityActionResult UnlockSectorCore(
+		int sectorIndex)
 	{
-		return GetNextCoreCost();
-	}
-
-
-	public SingularityActionResult BuyNextCore()
-	{
-		double cost =
-			GetNextCoreCost();
-
-		if (_data.Matter < cost)
+		if (
+			sectorIndex < 0
+			|| sectorIndex >= _data.Sectors.Count
+		)
 		{
-			return NotEnoughMatter(
-				cost
+			return new SingularityActionResult(
+				false,
+				"Invalid Sector Core."
 			);
 		}
+
+		SingularitySectorData sector =
+			GetSector(
+				sectorIndex
+			);
+
+		if (sector.CoreUnlocked)
+		{
+			return new SingularityActionResult(
+				false,
+				"This Sector Core is already online."
+			);
+		}
+
+		double cost =
+			GetSectorCoreUnlockCost(
+				sectorIndex
+			);
+
+		if (_data.Matter < cost)
+			return NotEnoughMatter(cost);
 
 		_data.Matter -=
 			cost;
 
-		_data.CoreLevel =
-			Math.Min(
-				int.MaxValue,
-				CoreCount + 1
-			);
+		sector.CoreUnlocked =
+			true;
+
+		sector.CoreLevel =
+			1;
 
 		SaveAndNotify();
 
 		return new SingularityActionResult(
 			true,
-			"Core "
-				+ CoreCount
-				+ " installed."
+			"Sector "
+				+ (sectorIndex + 1)
+				+ " Core online."
 		);
 	}
 
 
-	/*
-	 * Compatibility with the first draft.
-	 */
+	public double GetSectorCoreUpgradeCost(
+		int sectorIndex)
+	{
+		if (!IsSectorCoreUnlocked(sectorIndex))
+			return GetSectorCoreUnlockCost(sectorIndex);
+
+		int level =
+			GetSectorCoreLevel(
+				sectorIndex
+			);
+
+		return 100.0
+			* Math.Pow(
+				2.15,
+				Math.Max(
+					0,
+					level - 1
+				)
+			)
+			* Math.Pow(
+				3.0,
+				Math.Max(
+					0,
+					sectorIndex
+				)
+			);
+	}
+
+
+	public SingularityActionResult UpgradeSectorCore(
+		int sectorIndex)
+	{
+		if (!IsSectorCoreUnlocked(sectorIndex))
+			return UnlockSectorCore(sectorIndex);
+
+		double cost =
+			GetSectorCoreUpgradeCost(
+				sectorIndex
+			);
+
+		if (_data.Matter < cost)
+			return NotEnoughMatter(cost);
+
+		_data.Matter -=
+			cost;
+
+		SingularitySectorData sector =
+			GetSector(
+				sectorIndex
+			);
+
+		sector.CoreLevel =
+			Math.Min(
+				int.MaxValue,
+				GetSectorCoreLevel(sectorIndex) + 1
+			);
+
+		/* Keep the legacy field harmlessly in sync with Sector 1. */
+		if (sectorIndex == 0)
+		{
+			_data.CoreLevel =
+				sector.CoreLevel;
+		}
+
+		SaveAndNotify();
+
+		return new SingularityActionResult(
+			true,
+			"Sector "
+				+ (sectorIndex + 1)
+				+ " Core upgraded to Level "
+				+ sector.CoreLevel
+				+ "."
+		);
+	}
+
+
+	public double GetSectorCoreOutputPerSecond(
+		int sectorIndex)
+	{
+		if (!IsSectorCoreUnlocked(sectorIndex))
+			return 0.0;
+
+		return GetCoreOutputPerSecond(
+			GetSectorCoreLevel(
+				sectorIndex
+			)
+		)
+		* (
+			1.0
+			+ 0.35
+			* Math.Max(
+				0,
+				sectorIndex
+			)
+		);
+	}
+
+
+	public double GetSectorComputeCoreMultiplier(
+		int sectorIndex)
+	{
+		if (!IsSectorCoreUnlocked(sectorIndex))
+			return 1.0;
+
+		return 1.0
+			+ 0.10
+			* Math.Max(
+				0,
+				GetSectorCoreLevel(sectorIndex) - 1
+			);
+	}
+
+
+	// Compatibility with the first single-Core implementation.
+	public double GetNextCoreCost()
+	{
+		return GetCoreUpgradeCost();
+	}
+
+
+	public double GetCoreUpgradeCost()
+	{
+		return IsSectorCoreUnlocked(CurrentSectorIndex)
+			? GetSectorCoreUpgradeCost(CurrentSectorIndex)
+			: GetSectorCoreUnlockCost(CurrentSectorIndex);
+	}
+
+
+	public SingularityActionResult BuyNextCore()
+	{
+		return UpgradeSectorCore(
+			CurrentSectorIndex
+		);
+	}
+
+
 	public SingularityActionResult UpgradeCore()
 	{
-		return BuyNextCore();
+		return UpgradeSectorCore(
+			CurrentSectorIndex
+		);
 	}
 
 
 	public double GetCoreOutputPerSecond()
 	{
-		return GetCoreOutputPerSecond(
-			CoreCount
+		return GetSectorCoreOutputPerSecond(
+			CurrentSectorIndex
 		);
 	}
 
 
 	public static double GetCoreOutputPerSecond(
-		int coreCount)
+		int coreLevel)
 	{
 		return 0.05
 			* Math.Pow(
 				1.42,
 				Math.Max(
 					0,
-					coreCount - 1
+					coreLevel - 1
 				)
 			);
 	}
@@ -315,12 +538,9 @@ public sealed class SingularityService
 
 	public double GetComputeCoreMultiplier()
 	{
-		return 1.0
-			+ 0.10
-			* Math.Max(
-				0,
-				CoreCount - 1
-			);
+		return GetSectorComputeCoreMultiplier(
+			CurrentSectorIndex
+		);
 	}
 
 
@@ -333,20 +553,11 @@ public sealed class SingularityService
 	{
 		return type switch
 		{
-			SingularityNodeType.Compute =>
-				true,
-
-			SingularityNodeType.Amplifier =>
-				true,
-
-			SingularityNodeType.Cooling =>
-				CoreCount >= 3,
-
-			SingularityNodeType.Quantum =>
-				CoreCount >= 5,
-
-			_ =>
-				false
+			SingularityNodeType.Compute => true,
+			SingularityNodeType.Amplifier => true,
+			SingularityNodeType.Cooling => CoreCount >= 3,
+			SingularityNodeType.Quantum => CoreCount >= 5,
+			_ => false
 		};
 	}
 
@@ -356,20 +567,11 @@ public sealed class SingularityService
 	{
 		return type switch
 		{
-			SingularityNodeType.Compute =>
-				"UNLOCKED",
-
-			SingularityNodeType.Amplifier =>
-				"UNLOCKED",
-
-			SingularityNodeType.Cooling =>
-				"CORE 3",
-
-			SingularityNodeType.Quantum =>
-				"CORE 5",
-
-			_ =>
-				""
+			SingularityNodeType.Compute => "UNLOCKED",
+			SingularityNodeType.Amplifier => "UNLOCKED",
+			SingularityNodeType.Cooling => "3 CORES",
+			SingularityNodeType.Quantum => "5 CORES",
+			_ => ""
 		};
 	}
 
@@ -391,24 +593,15 @@ public sealed class SingularityService
 				_ => 0.0
 			};
 
-		double sectorMultiplier =
-			Math.Pow(
+		return baseCost
+			* Math.Pow(
 				3.0,
-				Math.Max(
-					0,
-					sectorIndex
-				)
-			);
-
-		double networkGrowth =
-			Math.Pow(
+				Math.Max(0, sectorIndex)
+			)
+			* Math.Pow(
 				1.22,
 				builtNodes
 			);
-
-		return baseCost
-			* sectorMultiplier
-			* networkGrowth;
 	}
 
 
@@ -417,17 +610,22 @@ public sealed class SingularityService
 		int nodeIndex,
 		SingularityNodeType type)
 	{
+		if (!IsSectorCoreUnlocked(sectorIndex))
+		{
+			return new SingularityActionResult(
+				false,
+				"Unlock this Sector Core first."
+			);
+		}
+
 		if (
 			type == SingularityNodeType.Empty
-			|| !IsNodeTypeUnlocked(
-				type
-			)
+			|| !IsNodeTypeUnlocked(type)
 		)
 		{
 			return new SingularityActionResult(
 				false,
-				type
-					+ " is not unlocked yet."
+				type + " is not unlocked yet."
 			);
 		}
 
@@ -437,10 +635,7 @@ public sealed class SingularityService
 				nodeIndex
 			);
 
-		if (
-			node.Type
-			!= SingularityNodeType.Empty
-		)
+		if (node.Type != SingularityNodeType.Empty)
 		{
 			return new SingularityActionResult(
 				false,
@@ -455,11 +650,7 @@ public sealed class SingularityService
 			);
 
 		if (_data.Matter < cost)
-		{
-			return NotEnoughMatter(
-				cost
-			);
-		}
+			return NotEnoughMatter(cost);
 
 		_data.Matter -=
 			cost;
@@ -477,8 +668,7 @@ public sealed class SingularityService
 
 		return new SingularityActionResult(
 			true,
-			type
-				+ " Node constructed."
+			type + " Node constructed."
 		);
 	}
 
@@ -493,13 +683,8 @@ public sealed class SingularityService
 				nodeIndex
 			);
 
-		if (
-			node.Type
-			== SingularityNodeType.Empty
-		)
-		{
+		if (node.Type == SingularityNodeType.Empty)
 			return 0.0;
-		}
 
 		double typeBase =
 			node.Type switch
@@ -521,10 +706,7 @@ public sealed class SingularityService
 			)
 			* Math.Pow(
 				2.6,
-				Math.Max(
-					0,
-					sectorIndex
-				)
+				Math.Max(0, sectorIndex)
 			);
 	}
 
@@ -539,10 +721,7 @@ public sealed class SingularityService
 				nodeIndex
 			);
 
-		if (
-			node.Type
-			== SingularityNodeType.Empty
-		)
+		if (node.Type == SingularityNodeType.Empty)
 		{
 			return new SingularityActionResult(
 				false,
@@ -557,20 +736,11 @@ public sealed class SingularityService
 			);
 
 		if (_data.Matter < cost)
-		{
-			return NotEnoughMatter(
-				cost
-			);
-		}
+			return NotEnoughMatter(cost);
 
 		_data.Matter -=
 			cost;
 
-		/*
-		 * Saves created before sell support did not store InvestedMatter.
-		 * Seed those Nodes with a conservative reconstruction before adding
-		 * the new upgrade cost, so they can still be sold sensibly.
-		 */
 		if (node.InvestedMatter <= 0.0)
 		{
 			node.InvestedMatter =
@@ -615,13 +785,8 @@ public sealed class SingularityService
 				nodeIndex
 			);
 
-		if (
-			node.Type
-			== SingularityNodeType.Empty
-		)
-		{
+		if (node.Type == SingularityNodeType.Empty)
 			return 0.0;
-		}
 
 		double invested =
 			node.InvestedMatter > 0.0
@@ -633,8 +798,7 @@ public sealed class SingularityService
 
 		return Math.Max(
 			0.0,
-			invested
-				* NodeSellRefundFraction
+			invested * NodeSellRefundFraction
 		);
 	}
 
@@ -649,10 +813,7 @@ public sealed class SingularityService
 				nodeIndex
 			);
 
-		if (
-			node.Type
-			== SingularityNodeType.Empty
-		)
+		if (node.Type == SingularityNodeType.Empty)
 		{
 			return new SingularityActionResult(
 				false,
@@ -687,9 +848,7 @@ public sealed class SingularityService
 			true,
 			soldType
 				+ " Node sold for "
-				+ NumberFormatter.Format(
-					refund
-				)
+				+ NumberFormatter.Format(refund)
 				+ " Matter."
 		);
 	}
@@ -713,10 +872,7 @@ public sealed class SingularityService
 			buildBase
 			* Math.Pow(
 				3.0,
-				Math.Max(
-					0,
-					sectorIndex
-				)
+				Math.Max(0, sectorIndex)
 			);
 
 		double upgradeBase =
@@ -743,10 +899,7 @@ public sealed class SingularityService
 				)
 				* Math.Pow(
 					2.6,
-					Math.Max(
-						0,
-						sectorIndex
-					)
+					Math.Max(0, sectorIndex)
 				);
 		}
 
@@ -779,11 +932,6 @@ public sealed class SingularityService
 
 	public bool CanUnlockNextSector()
 	{
-		/*
-		 * The 2D Singularity map expands along a deterministic spiral. Expansion
-		 * always continues from the newest/frontier Sector, independent of which
-		 * Sector the player is currently looking at on the map.
-		 */
 		if (_data.Sectors.Count == 0)
 			return false;
 
@@ -791,6 +939,9 @@ public sealed class SingularityService
 			_data.Sectors[
 				_data.Sectors.Count - 1
 			];
+
+		if (!frontier.CoreUnlocked)
+			return false;
 
 		return frontier.Nodes.TrueForAll(
 			node =>
@@ -824,7 +975,6 @@ public sealed class SingularityService
 		_data.CurrentSectorIndex =
 			sectorIndex;
 
-		/* Navigation focus is persisted without emitting a progression change. */
 		Save();
 	}
 
@@ -833,10 +983,23 @@ public sealed class SingularityService
 	{
 		if (!CanUnlockNextSector())
 		{
+			int frontierIndex =
+				GetFrontierSectorIndex();
+
+			if (!IsSectorCoreUnlocked(frontierIndex))
+			{
+				return new SingularityActionResult(
+					false,
+					"Unlock the Sector "
+						+ (frontierIndex + 1)
+						+ " Core first."
+				);
+			}
+
 			return new SingularityActionResult(
 				false,
 				"Fill all 8 nodes in Sector "
-					+ (GetFrontierSectorIndex() + 1)
+					+ (frontierIndex + 1)
 					+ " first."
 			);
 		}
@@ -848,11 +1011,7 @@ public sealed class SingularityService
 			GetNextSectorUnlockCost();
 
 		if (_data.Matter < cost)
-		{
-			return NotEnoughMatter(
-				cost
-			);
-		}
+			return NotEnoughMatter(cost);
 
 		_data.Matter -=
 			cost;
@@ -860,6 +1019,16 @@ public sealed class SingularityService
 		EnsureSector(
 			nextIndex
 		);
+
+		/* New Sector exists, but its Core intentionally starts locked. */
+		SingularitySectorData newSector =
+			_data.Sectors[nextIndex];
+
+		newSector.CoreUnlocked =
+			false;
+
+		newSector.CoreLevel =
+			1;
 
 		_data.CurrentSectorIndex =
 			nextIndex;
@@ -870,7 +1039,7 @@ public sealed class SingularityService
 			true,
 			"Sector "
 				+ SectorNumber
-				+ " opened."
+				+ " opened • Core locked."
 		);
 	}
 
@@ -907,7 +1076,7 @@ public sealed class SingularityService
 
 
 	// ==================================================
-	// OUTPUT
+	// OUTPUT / CROSS-SECTOR ADJACENCY
 	// ==================================================
 
 	public double GetTotalOutputPerSecond()
@@ -915,8 +1084,8 @@ public sealed class SingularityService
 		if (!Unlocked)
 			return 0.0;
 
-		double output =
-			GetCoreOutputPerSecond();
+		double total =
+			0.0;
 
 		for (
 			int sectorIndex = 0;
@@ -924,13 +1093,13 @@ public sealed class SingularityService
 			sectorIndex++
 		)
 		{
-			output +=
+			total +=
 				GetSectorOutputPerSecond(
 					sectorIndex
 				);
 		}
 
-		return output;
+		return total;
 	}
 
 
@@ -950,10 +1119,7 @@ public sealed class SingularityService
 				in sector.Nodes
 		)
 		{
-			if (
-				node.Type
-				== SingularityNodeType.Quantum
-			)
+			if (node.Type == SingularityNodeType.Quantum)
 			{
 				quantumMultiplier +=
 					0.12
@@ -962,7 +1128,9 @@ public sealed class SingularityService
 		}
 
 		double total =
-			0.0;
+			GetSectorCoreOutputPerSecond(
+				sectorIndex
+			);
 
 		for (
 			int i = 0;
@@ -971,17 +1139,10 @@ public sealed class SingularityService
 		)
 		{
 			SingularityNodeData node =
-				sector.Nodes[
-					i
-				];
+				sector.Nodes[i];
 
-			if (
-				node.Type
-				!= SingularityNodeType.Compute
-			)
-			{
+			if (node.Type != SingularityNodeType.Compute)
 				continue;
-			}
 
 			double baseOutput =
 				0.25
@@ -993,40 +1154,51 @@ public sealed class SingularityService
 					)
 				);
 
-			int previous =
-				(
-					i
-					+ NodesPerSector
-					- 1
-				)
-				% NodesPerSector;
-
-			int next =
-				(
-					i + 1
-				)
-				% NodesPerSector;
-
 			double adjacencyMultiplier =
-				GetAdjacentMultiplier(
-					sector.Nodes[
-						previous
-					]
+				GetLocalAdjacencyMultiplier(
+					sector,
+					i
 				)
-				* GetAdjacentMultiplier(
-					sector.Nodes[
-						next
-					]
+				* GetExternalAdjacencyMultiplier(
+					sectorIndex,
+					i
 				);
 
 			total +=
 				baseOutput
 				* adjacencyMultiplier
-				* quantumMultiplier;
+				* quantumMultiplier
+				* GetSectorComputeCoreMultiplier(
+					sectorIndex
+				);
 		}
 
-		return total
-			* GetComputeCoreMultiplier();
+		return total;
+	}
+
+
+	private static double GetLocalAdjacencyMultiplier(
+		SingularitySectorData sector,
+		int nodeIndex)
+	{
+		int previous =
+			(
+				nodeIndex
+				+ NodesPerSector
+				- 1
+			)
+			% NodesPerSector;
+
+		int next =
+			(nodeIndex + 1)
+			% NodesPerSector;
+
+		return GetAdjacentMultiplier(
+			sector.Nodes[previous]
+		)
+		* GetAdjacentMultiplier(
+			sector.Nodes[next]
+		);
 	}
 
 
@@ -1036,18 +1208,89 @@ public sealed class SingularityService
 		return node.Type switch
 		{
 			SingularityNodeType.Amplifier =>
-				1.0
-				+ 0.15
-				* node.Level,
+				1.0 + 0.15 * node.Level,
 
 			SingularityNodeType.Cooling =>
-				1.0
-				+ 0.10
-				* node.Level,
+				1.0 + 0.10 * node.Level,
 
-			_ =>
-				1.0
+			_ => 1.0
 		};
+	}
+
+
+	private double GetExternalAdjacencyMultiplier(
+		int sectorIndex,
+		int nodeIndex)
+	{
+		if (!TryGetCrossSectorNeighbor(
+			sectorIndex,
+			nodeIndex,
+			out int neighborSector,
+			out int neighborNode
+		))
+		{
+			return 1.0;
+		}
+
+		return GetAdjacentMultiplier(
+			GetNode(
+				neighborSector,
+				neighborNode
+			)
+		);
+	}
+
+
+	private bool TryGetCrossSectorNeighbor(
+		int sectorIndex,
+		int nodeIndex,
+		out int neighborSector,
+		out int neighborNode)
+	{
+		neighborSector =
+			-1;
+
+		neighborNode =
+			-1;
+
+		Vector2I offset;
+
+		switch (nodeIndex)
+		{
+			case 0:
+				offset = new Vector2I(0, -1);
+				neighborNode = 4;
+				break;
+
+			case 2:
+				offset = new Vector2I(1, 0);
+				neighborNode = 6;
+				break;
+
+			case 4:
+				offset = new Vector2I(0, 1);
+				neighborNode = 0;
+				break;
+
+			case 6:
+				offset = new Vector2I(-1, 0);
+				neighborNode = 2;
+				break;
+
+			default:
+				return false;
+		}
+
+		EnsureGridCache();
+
+		Vector2I target =
+			GetSectorGridPosition(sectorIndex)
+			+ offset;
+
+		return _sectorIndexByGrid.TryGetValue(
+			target,
+			out neighborSector
+		);
 	}
 
 
@@ -1061,13 +1304,8 @@ public sealed class SingularityService
 				nodeIndex
 			);
 
-		if (
-			node.Type
-			!= SingularityNodeType.Compute
-		)
-		{
+		if (node.Type != SingularityNodeType.Compute)
 			return 0.0;
-		}
 
 		SingularitySectorData sector =
 			GetSector(
@@ -1084,32 +1322,16 @@ public sealed class SingularityService
 				)
 			);
 
-		int previous =
-			(
-				nodeIndex
-				+ NodesPerSector
-				- 1
-			)
-			% NodesPerSector;
-
-		int next =
-			(
-				nodeIndex + 1
-			)
-			% NodesPerSector;
-
 		output *=
-			GetAdjacentMultiplier(
-				sector.Nodes[
-					previous
-				]
+			GetLocalAdjacencyMultiplier(
+				sector,
+				nodeIndex
 			);
 
 		output *=
-			GetAdjacentMultiplier(
-				sector.Nodes[
-					next
-				]
+			GetExternalAdjacencyMultiplier(
+				sectorIndex,
+				nodeIndex
 			);
 
 		double quantum =
@@ -1120,10 +1342,7 @@ public sealed class SingularityService
 				in sector.Nodes
 		)
 		{
-			if (
-				sectorNode.Type
-				== SingularityNodeType.Quantum
-			)
+			if (sectorNode.Type == SingularityNodeType.Quantum)
 			{
 				quantum +=
 					0.12
@@ -1135,7 +1354,9 @@ public sealed class SingularityService
 			quantum;
 
 		output *=
-			GetComputeCoreMultiplier();
+			GetSectorComputeCoreMultiplier(
+				sectorIndex
+			);
 
 		return output;
 	}
@@ -1156,13 +1377,8 @@ public sealed class SingularityService
 					in sector.Nodes
 			)
 			{
-				if (
-					node.Type
-					!= SingularityNodeType.Empty
-				)
-				{
+				if (node.Type != SingularityNodeType.Empty)
 					count++;
-				}
 			}
 		}
 
@@ -1171,7 +1387,118 @@ public sealed class SingularityService
 
 
 	// ==================================================
-	// SAVE
+	// OFFLINE / LIFECYCLE
+	// ==================================================
+
+	public double ConsumePendingOfflineEarnings()
+	{
+		double value =
+			_pendingOfflineEarnings;
+
+		_pendingOfflineEarnings =
+			0.0;
+
+		return value;
+	}
+
+
+	public void HandleApplicationPaused()
+	{
+		if (!Unlocked)
+			return;
+
+		_pauseUnix =
+			GetUnixNow();
+
+		_pauseOutputPerSecond =
+			GetTotalOutputPerSecond();
+
+		Save();
+	}
+
+
+	public double HandleApplicationResumed()
+	{
+		if (
+			!Unlocked
+			|| _pauseUnix <= 0
+		)
+		{
+			return 0.0;
+		}
+
+		long now =
+			GetUnixNow();
+
+		double earned =
+			ApplyOfflineIncomeFromTimestamp(
+				_pauseUnix,
+				now,
+				_pauseOutputPerSecond
+			);
+
+		_pauseUnix =
+			0;
+
+		_pauseOutputPerSecond =
+			0.0;
+
+		Save();
+
+		if (earned > 0.0)
+			Changed?.Invoke();
+
+		return earned;
+	}
+
+
+	private double ApplyOfflineIncomeFromTimestamp(
+		long fromUnix,
+		long toUnix,
+		double outputPerSecond)
+	{
+		if (
+			!Unlocked
+			|| fromUnix <= 0
+			|| toUnix <= fromUnix
+			|| outputPerSecond <= 0.0
+		)
+		{
+			return 0.0;
+		}
+
+		long seconds =
+			Math.Clamp(
+				toUnix - fromUnix,
+				0,
+				MaximumOfflineSeconds
+			);
+
+		if (seconds <= 0)
+			return 0.0;
+
+		double earned =
+			outputPerSecond
+			* seconds
+			* OfflineEfficiency;
+
+		if (earned <= 0.0)
+			return 0.0;
+
+		_data.Matter +=
+			earned;
+
+		GD.Print(
+			"Singularity offline matter: ",
+			earned
+		);
+
+		return earned;
+	}
+
+
+	// ==================================================
+	// SAVE / MIGRATION
 	// ==================================================
 
 	public void Save()
@@ -1212,16 +1539,12 @@ public sealed class SingularityService
 		_data =
 			new SingularitySaveData();
 
-		if (
-			!Godot.FileAccess.FileExists(
-				SavePath
-			)
-		)
+		if (!Godot.FileAccess.FileExists(SavePath))
 		{
-			EnsureSector(
-				0
-			);
-
+			EnsureSector(0);
+			_data.Sectors[0].CoreUnlocked = true;
+			_data.Sectors[0].CoreLevel = 1;
+			_data.SaveVersion = 3;
 			return;
 		}
 
@@ -1243,10 +1566,7 @@ public sealed class SingularityService
 				);
 
 			if (loaded != null)
-			{
-				_data =
-					loaded;
-			}
+				_data = loaded;
 		}
 		catch (Exception exception)
 		{
@@ -1259,17 +1579,8 @@ public sealed class SingularityService
 				new SingularitySaveData();
 		}
 
-		_data.SaveVersion =
-			Math.Max(
-				2,
-				_data.SaveVersion
-			);
-
-		_data.CoreLevel =
-			Math.Max(
-				1,
-				_data.CoreLevel
-			);
+		int loadedVersion =
+			_data.SaveVersion;
 
 		_data.CurrentSectorIndex =
 			Math.Max(
@@ -1280,47 +1591,60 @@ public sealed class SingularityService
 		EnsureSector(
 			_data.CurrentSectorIndex
 		);
-	}
 
-
-	private void ApplyOfflineIncome()
-	{
-		if (
-			!Unlocked
-			|| _data.LastSaveUnix <= 0
-		)
+		if (loadedVersion < 3)
 		{
-			return;
+			/*
+			 * Old saves had one global Core progression. Preserve that progression
+			 * as Sector 1's Core level; later Sector Cores intentionally start
+			 * locked under the new per-Sector Core system.
+			 */
+			SingularitySectorData first =
+				_data.Sectors[0];
+
+			first.CoreUnlocked =
+				true;
+
+			first.CoreLevel =
+				Math.Max(
+					1,
+					_data.CoreLevel
+				);
+
+			for (
+				int i = 1;
+				i < _data.Sectors.Count;
+				i++
+			)
+			{
+				_data.Sectors[i].CoreUnlocked = false;
+				_data.Sectors[i].CoreLevel = 1;
+			}
 		}
 
-		long now =
-			GetUnixNow();
+		_data.Sectors[0].CoreUnlocked =
+			true;
 
-		long seconds =
-			Math.Clamp(
-				now - _data.LastSaveUnix,
-				0,
-				MaximumOfflineSeconds
+		_data.Sectors[0].CoreLevel =
+			Math.Max(
+				1,
+				_data.Sectors[0].CoreLevel
 			);
 
-		if (seconds <= 0)
-			return;
+		foreach (
+			SingularitySectorData sector
+				in _data.Sectors
+		)
+		{
+			sector.CoreLevel =
+				Math.Max(
+					1,
+					sector.CoreLevel
+				);
+		}
 
-		double earned =
-			GetTotalOutputPerSecond()
-			* seconds
-			* OfflineEfficiency;
-
-		if (earned <= 0.0)
-			return;
-
-		_data.Matter +=
-			earned;
-
-		GD.Print(
-			"Singularity offline matter: ",
-			earned
-		);
+		_data.SaveVersion =
+			3;
 	}
 
 
@@ -1333,13 +1657,19 @@ public sealed class SingularityService
 				index
 			);
 
-		while (
-			_data.Sectors.Count
-			<= index
-		)
+		while (_data.Sectors.Count <= index)
 		{
+			int newIndex =
+				_data.Sectors.Count;
+
 			SingularitySectorData sector =
-				new();
+				new()
+				{
+					CoreUnlocked =
+						newIndex == 0,
+
+					CoreLevel = 1
+				};
 
 			for (
 				int i = 0;
@@ -1362,16 +1692,127 @@ public sealed class SingularityService
 				in _data.Sectors
 		)
 		{
-			while (
-				sector.Nodes.Count
-				< NodesPerSector
-			)
+			while (sector.Nodes.Count < NodesPerSector)
 			{
 				sector.Nodes.Add(
 					new SingularityNodeData()
 				);
 			}
+
+			sector.CoreLevel =
+				Math.Max(
+					1,
+					sector.CoreLevel
+				);
 		}
+
+		EnsureGridCache();
+	}
+
+
+	private void RebuildGridIndex()
+	{
+		_sectorIndexByGrid.Clear();
+		EnsureGridCache();
+	}
+
+
+	private void EnsureGridCache()
+	{
+		while (_sectorGridCache.Count < _data.Sectors.Count)
+		{
+			_spiralCursor +=
+				_spiralDirection;
+
+			_sectorGridCache.Add(
+				_spiralCursor
+			);
+
+			_spiralStepProgress++;
+
+			if (_spiralStepProgress < _spiralStepLength)
+				continue;
+
+			_spiralStepProgress =
+				0;
+
+			_spiralDirection =
+				new Vector2I(
+					-_spiralDirection.Y,
+					_spiralDirection.X
+				);
+
+			_spiralLegsAtCurrentLength++;
+
+			if (_spiralLegsAtCurrentLength < 2)
+				continue;
+
+			_spiralLegsAtCurrentLength =
+				0;
+
+			_spiralStepLength++;
+		}
+
+		for (
+			int i = _sectorIndexByGrid.Count;
+			i < _data.Sectors.Count;
+			i++
+		)
+		{
+			_sectorIndexByGrid[
+				GetSectorGridPosition(i)
+			] = i;
+		}
+	}
+
+
+	private Vector2I GetSectorGridPosition(
+		int sectorIndex)
+	{
+		sectorIndex =
+			Math.Clamp(
+				sectorIndex,
+				0,
+				Math.Max(
+					0,
+					_data.Sectors.Count - 1
+				)
+			);
+
+		while (_sectorGridCache.Count <= sectorIndex)
+		{
+			_spiralCursor +=
+				_spiralDirection;
+
+			_sectorGridCache.Add(
+				_spiralCursor
+			);
+
+			_spiralStepProgress++;
+
+			if (_spiralStepProgress < _spiralStepLength)
+				continue;
+
+			_spiralStepProgress = 0;
+
+			_spiralDirection =
+				new Vector2I(
+					-_spiralDirection.Y,
+					_spiralDirection.X
+				);
+
+			_spiralLegsAtCurrentLength++;
+
+			if (_spiralLegsAtCurrentLength >= 2)
+			{
+				_spiralLegsAtCurrentLength = 0;
+				_spiralStepLength++;
+			}
+		}
+
+		return _sectorGridCache[
+			sectorIndex
+		];
 	}
 
 
@@ -1381,9 +1822,7 @@ public sealed class SingularityService
 		return new SingularityActionResult(
 			false,
 			"Need "
-				+ NumberFormatter.Format(
-					cost
-				)
+				+ NumberFormatter.Format(cost)
 				+ " Singularity Matter."
 		);
 	}

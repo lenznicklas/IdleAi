@@ -79,11 +79,6 @@ public sealed class PrestigeService
 			);
 		}
 
-		/*
-		 * Capture the exact visible Total Level BEFORE resetting anything.
-		 * Machines/rooms still reset normally, but the permanent base is
-		 * recalculated afterwards so GetTotalLevel() returns this same value.
-		 */
 		int totalLevelBeforePrestige =
 			ProgressionService
 				.CalculateTotalLevel(
@@ -180,11 +175,11 @@ public sealed class PrestigeService
 
 				slot.ResetDataShardMilestones();
 
-				slot.BotRarity =
-					null;
-
-				slot.BotPurchasePrice =
-					0.0;
+				/*
+				 * ClearBot also resets durability state so a future Bot cannot
+				 * inherit durability from the previous prestige run.
+				 */
+				slot.ClearBot();
 
 				slot.IsRunning =
 					false;

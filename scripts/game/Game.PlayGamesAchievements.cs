@@ -37,6 +37,12 @@ public partial class Game
 	private SingularityMapExtension?
 		_singularityMapExtension;
 
+	private UiReadabilityController?
+		_uiReadability;
+
+	private BotDurabilityUiController?
+		_botDurabilityUi;
+
 
 	public override void _EnterTree()
 	{
@@ -58,17 +64,58 @@ public partial class Game
 			return;
 		}
 
+		InitializeReadability();
+		InitializeBotDurabilityUi();
 		InitializePlayGamesAndFirebase();
 		InitializeSingularity();
 	}
 
 
+	private void InitializeReadability()
+	{
+		if (_uiReadability != null)
+			return;
+
+		_uiReadability =
+			new UiReadabilityController
+			{
+				Name =
+					"UiReadabilityController"
+			};
+
+		AddChild(
+			_uiReadability
+		);
+
+		_uiReadability.Initialize(
+			this
+		);
+	}
+
+
+	private void InitializeBotDurabilityUi()
+	{
+		if (_botDurabilityUi != null)
+			return;
+
+		_botDurabilityUi =
+			new BotDurabilityUiController(
+				this,
+				_state
+			)
+			{
+				Name =
+					"BotDurabilityUiController"
+			};
+
+		AddChild(
+			_botDurabilityUi
+		);
+	}
+
+
 	private void InitializePlayGamesAndFirebase()
 	{
-		/*
-		 * Connect FirebaseAliasService first so it can capture raw
-		 * topScoresLoaded/scoreLoaded JSON and cache Play Games player IDs.
-		 */
 		_firebaseAliases =
 			new FirebaseAliasService
 			{
@@ -142,13 +189,15 @@ public partial class Game
 
 	private void InitializeSingularity()
 	{
-		_singularityService =
-			new SingularityService();
-
 		/*
-		 * GameState is passed so the special room can restore the normal
-		 * BottomBar theme when it closes.
+		 * Passing GameState lets Singularity Bots reuse the same Lab Bot-power
+		 * and rarity research as normal machine Bots.
 		 */
+		_singularityService =
+			new SingularityService(
+				_state
+			);
+
 		_singularityController =
 			new SingularityController(
 				this,
@@ -161,11 +210,9 @@ public partial class Game
 
 		_singularityController.Initialize();
 
-		/*
-		 * Replace only the camera/panning physics of the existing 2D
-		 * Singularity map. Sector/node/render/save logic stays untouched.
-		 */
 		_singularityController.EnableSmoothPanPhysics();
+
+		_singularityController.EnableBotUi();
 
 		_singularityMapExtension =
 			new SingularityMapExtension(

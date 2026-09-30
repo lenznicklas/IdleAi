@@ -10,6 +10,12 @@ public sealed class BotDefinition
 
 	public double ProductionMultiplier { get; }
 
+	/*
+	 * Durability is measured in seconds of ACTUAL work.
+	 * Time spent installed but idle does not consume durability.
+	 */
+	public double WorkingLifetimeSeconds { get; }
+
 	public Texture2D DefaultTexture { get; }
 
 	public Texture2D Texture { get; private set; }
@@ -19,6 +25,7 @@ public sealed class BotDefinition
 		BotRarity rarity,
 		string name,
 		double productionMultiplier,
+		double workingLifetimeSeconds,
 		Texture2D texture)
 	{
 		Rarity =
@@ -29,6 +36,9 @@ public sealed class BotDefinition
 
 		ProductionMultiplier =
 			productionMultiplier;
+
+		WorkingLifetimeSeconds =
+			workingLifetimeSeconds;
 
 		DefaultTexture =
 			texture;

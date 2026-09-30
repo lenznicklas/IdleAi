@@ -11,6 +11,9 @@ public readonly record struct BotActionResult(
 
 public sealed class BotService
 {
+	private const double FullRepairCostFraction =
+		0.20;
+
 	private readonly GameState _state;
 
 	private readonly EconomyService _economy;
@@ -26,10 +29,8 @@ public sealed class BotService
 		_state =
 			state;
 
-
 		_economy =
 			economy;
-
 
 		_random.Randomize();
 	}
@@ -49,7 +50,6 @@ public sealed class BotService
 				slotIndex
 			);
 
-
 		if (slot == null)
 		{
 			return new BotActionResult(
@@ -57,7 +57,6 @@ public sealed class BotService
 				"Invalid machine."
 			);
 		}
-
 
 		if (!slot.Unlocked)
 		{
@@ -67,7 +66,6 @@ public sealed class BotService
 			);
 		}
 
-
 		if (slot.HasBot)
 		{
 			return new BotActionResult(
@@ -76,14 +74,12 @@ public sealed class BotService
 			);
 		}
 
-
 		double cost =
 			_economy.GetBotCost(
 				roomIndex,
 				slot,
 				slotIndex
 			);
-
 
 		if (_state.Tokens < cost)
 		{
@@ -93,32 +89,24 @@ public sealed class BotService
 			);
 		}
 
-
 		_state.Tokens -=
 			cost;
-
 
 		BotRarity rarity =
 			RollRarity();
 
-
 		slot.BotRarity =
 			rarity;
-
 
 		slot.BotPurchasePrice =
 			cost;
 
-
-		// ==================================================
-		// AUTO PRODUCTION
-		// ==================================================
+		slot.InitializeBotDurability();
 
 		if (!slot.IsRunning)
 		{
 			slot.IsRunning =
 				true;
-
 
 			slot.CycleRemaining =
 				_economy.GetCycleDuration(
@@ -126,33 +114,125 @@ public sealed class BotService
 				);
 		}
 
-
-		// ==================================================
-		// STATS
-		// ==================================================
-
 		_state.Stats.AddMachineSpending(
 			"Bots",
 			cost
 		);
-
 
 		BotDefinition bot =
 			BotCatalog.Get(
 				rarity
 			);
 
-
 		double effectiveMultiplier =
 			bot.ProductionMultiplier
 			* _state.Lab
 				.GetBotPowerMultiplier();
 
-
 		return new BotActionResult(
 			true,
 			$"You got a {bot.Name}! "
-			+ $"x{effectiveMultiplier:F2}"
+			+ $"x{effectiveMultiplier:F2} • "
+			+ FormatWorkingTime(
+				bot.WorkingLifetimeSeconds
+			)
+			+ " durability"
+		);
+	}
+
+
+	// ==================================================
+	// REPAIR
+	// ==================================================
+
+	public double GetRepairPrice(
+		SlotData slot)
+	{
+		if (!slot.HasBot)
+			return 0.0;
+
+		double missing =
+			1.0
+			- slot.BotDurabilityRatio;
+
+		if (missing <= 0.0001)
+			return 0.0;
+
+		return Math.Max(
+			1.0,
+			slot.BotPurchasePrice
+				* FullRepairCostFraction
+				* missing
+		);
+	}
+
+
+	public BotActionResult RepairBot(
+		int roomIndex,
+		int slotIndex)
+	{
+		SlotData? slot =
+			GetSlot(
+				roomIndex,
+				slotIndex
+			);
+
+		if (
+			slot == null
+			|| !slot.HasBot
+		)
+		{
+			return new BotActionResult(
+				false,
+				"No bot to repair."
+			);
+		}
+
+		double cost =
+			GetRepairPrice(
+				slot
+			);
+
+		if (cost <= 0.0)
+		{
+			return new BotActionResult(
+				false,
+				"Bot durability is already full."
+			);
+		}
+
+		if (_state.Tokens < cost)
+		{
+			return new BotActionResult(
+				false,
+				"Not enough Tokens to repair this bot."
+			);
+		}
+
+		_state.Tokens -=
+			cost;
+
+		slot.RepairBot();
+
+		if (!slot.IsRunning)
+		{
+			slot.IsRunning =
+				true;
+
+			slot.CycleRemaining =
+				_economy.GetCycleDuration(
+					slot
+				);
+		}
+
+		_state.Stats.AddMachineSpending(
+			"Bot Repairs",
+			cost
+		);
+
+		return new BotActionResult(
+			true,
+			"Bot repaired to 100% durability."
 		);
 	}
 
@@ -171,7 +251,6 @@ public sealed class BotService
 				slotIndex
 			);
 
-
 		if (
 			slot == null
 			|| !slot.HasBot
@@ -183,41 +262,28 @@ public sealed class BotService
 			);
 		}
 
-
 		double refund =
 			slot.BotPurchasePrice
 			* GameConfig.BotSellRefundFactor;
-
 
 		BotDefinition bot =
 			BotCatalog.Get(
 				slot.BotRarity!.Value
 			);
 
-
 		_state.Tokens +=
 			refund;
 
-
-		slot.BotRarity =
-			null;
-
-
-		slot.BotPurchasePrice =
-			0.0;
-
+		slot.ClearBot();
 
 		slot.IsRunning =
 			false;
 
-
 		slot.CycleRemaining =
 			0.0;
 
-
 		slot.RuntimeCycleDuration =
 			0.0;
-
 
 		return new BotActionResult(
 			true,
@@ -241,10 +307,8 @@ public sealed class BotService
 				slotIndex
 			);
 
-
 		if (slot == null)
 			return 0.0;
-
 
 		return _economy.GetBotCost(
 			roomIndex,
@@ -260,7 +324,6 @@ public sealed class BotService
 		if (!slot.HasBot)
 			return 0.0;
 
-
 		return slot.BotPurchasePrice
 			   * GameConfig.BotSellRefundFactor;
 	}
@@ -273,19 +336,63 @@ public sealed class BotService
 	public double GetEffectiveMultiplier(
 		SlotData slot)
 	{
-		if (!slot.HasBot)
+		if (!slot.HasWorkingBot)
 			return 1.0;
-
 
 		double baseMultiplier =
 			BotCatalog.GetMultiplier(
 				slot.BotRarity
 			);
 
-
 		return baseMultiplier
 			* _state.Lab
 				.GetBotPowerMultiplier();
+	}
+
+
+	public static string FormatWorkingTime(
+		double seconds)
+	{
+		seconds =
+			Math.Max(
+				0.0,
+				seconds
+			);
+
+		TimeSpan time =
+			TimeSpan.FromSeconds(
+				seconds
+			);
+
+		if (time.TotalDays >= 1.0)
+		{
+			return ((int)time.TotalDays)
+				+ "d "
+				+ time.Hours
+				+ "h";
+		}
+
+		if (time.TotalHours >= 1.0)
+		{
+			return ((int)time.TotalHours)
+				+ "h "
+				+ time.Minutes
+				+ "m";
+		}
+
+		if (time.TotalMinutes >= 1.0)
+		{
+			return ((int)time.TotalMinutes)
+				+ "m";
+		}
+
+		return Math.Max(
+			0,
+			(int)Math.Ceiling(
+				time.TotalSeconds
+			)
+		)
+		+ "s";
 	}
 
 
@@ -305,12 +412,10 @@ public sealed class BotService
 			+ _state.Lab
 				.GetRareBotChanceBonus();
 
-
 		double epic =
 			GameConfig.EpicBotChance
 			+ _state.Lab
 				.GetEpicBotChanceBonus();
-
 
 		double baseLegendary =
 			1.0
@@ -318,12 +423,10 @@ public sealed class BotService
 			- GameConfig.RareBotChance
 			- GameConfig.EpicBotChance;
 
-
 		double legendary =
 			baseLegendary
 			+ _state.Lab
 				.GetLegendaryBotChanceBonus();
-
 
 		rare =
 			Math.Max(
@@ -331,13 +434,11 @@ public sealed class BotService
 				rare
 			);
 
-
 		epic =
 			Math.Max(
 				0.0,
 				epic
 			);
-
 
 		legendary =
 			Math.Max(
@@ -345,17 +446,10 @@ public sealed class BotService
 				legendary
 			);
 
-
 		double specialTotal =
 			rare
 			+ epic
 			+ legendary;
-
-
-		/*
-		 * If future research ever pushes the
-		 * non-common total above 100%, normalize it.
-		 */
 
 		if (specialTotal > 1.0)
 		{
@@ -368,7 +462,6 @@ public sealed class BotService
 			legendary /=
 				specialTotal;
 
-
 			return (
 				0.0,
 				rare,
@@ -377,11 +470,9 @@ public sealed class BotService
 			);
 		}
 
-
 		double common =
 			1.0
 			- specialTotal;
-
 
 		return (
 			common,
@@ -389,6 +480,12 @@ public sealed class BotService
 			epic,
 			legendary
 		);
+	}
+
+
+	public BotRarity RollRarityPublic()
+	{
+		return RollRarity();
 	}
 
 
@@ -402,30 +499,23 @@ public sealed class BotService
 		) =
 			GetRarityChances();
 
-
 		double roll =
 			_random.Randf();
-
 
 		if (roll < common)
 			return BotRarity.Common;
 
-
 		roll -=
 			common;
-
 
 		if (roll < rare)
 			return BotRarity.Rare;
 
-
 		roll -=
 			rare;
 
-
 		if (roll < epic)
 			return BotRarity.Epic;
-
 
 		return BotRarity.Legendary;
 	}
@@ -447,12 +537,10 @@ public sealed class BotService
 			return null;
 		}
 
-
 		RoomState room =
 			_state.RoomStates[
 				roomIndex
 			];
-
 
 		if (
 			slotIndex < 0
@@ -461,7 +549,6 @@ public sealed class BotService
 		{
 			return null;
 		}
-
 
 		return room.Slots[
 			slotIndex

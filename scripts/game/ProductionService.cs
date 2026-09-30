@@ -17,19 +17,9 @@ public readonly record struct ProductionCompletionResult(
 
 public sealed class ProductionService
 {
-	/*
-	 * Every press while a manual machine is already running
-	 * advances the cycle by this amount.
-	 */
 	private const double ManualCycleAdvanceSeconds =
 		0.5;
 
-	/*
-	 * The 0.5 second advance is not applied in one frame.
-	 * It is spread over this short interval with SmoothStep,
-	 * so the progress bar visibly moves forward instead of
-	 * jumping.
-	 */
 	private const double ManualAdvanceAnimationSeconds =
 		0.18;
 
@@ -99,14 +89,17 @@ public sealed class ProductionService
 
 			foreach (
 				SlotData slot
-				in room.Slots
+					in room.Slots
 			)
 			{
 				if (!slot.Unlocked)
-				continue;
+					continue;
+
+				bool automated =
+					slot.HasWorkingBot;
 
 				if (
-					slot.HasBot
+					automated
 					&& !slot.IsRunning
 				)
 				{
@@ -124,14 +117,45 @@ public sealed class ProductionService
 					continue;
 				}
 
+				/*
+				 * A Bot only loses durability while it is actually driving a
+				 * running machine. If it has only 2.5 seconds left, this frame
+				 * advances at most 2.5 seconds of automated work.
+				 */
+				if (
+					automated
+					&& !slot.BotDurabilityInitialized
+				)
+				{
+					slot.InitializeBotDurability();
+				}
+
+				/*
+				 * Do not consume the durability until after cycle rewards were
+				 * resolved. This keeps the Bot multiplier active for a cycle that
+				 * finishes on the exact frame the Bot reaches 0 durability.
+				 */
+				double workDelta =
+					automated
+						? Math.Min(
+							delta,
+							Math.Max(
+								0.0,
+								slot.BotDurabilitySecondsRemaining
+							)
+						)
+						: delta;
+
 				double manualAdvance =
-					ConsumeManualAdvance(
-						slot,
-						delta
-					);
+					automated
+						? 0.0
+						: ConsumeManualAdvance(
+							slot,
+							delta
+						);
 
 				slot.CycleRemaining -=
-					delta
+					workDelta
 					+ manualAdvance;
 
 				int safety =
@@ -154,8 +178,35 @@ public sealed class ProductionService
 					earned +=
 						result.Earned;
 
-					if (!slot.HasBot)
+					/*
+					 * A broken Bot no longer auto-restarts a cycle.
+					 */
+					if (!slot.HasWorkingBot)
 						break;
+				}
+
+				if (automated)
+				{
+					slot.ConsumeBotWork(
+						workDelta
+					);
+				}
+
+				if (
+					automated
+					&& !slot.HasWorkingBot
+				)
+				{
+					/*
+					 * Durability reached zero. Stop automation immediately after
+					 * any cycle that legitimately completed on this frame.
+					 */
+					slot.IsRunning =
+						false;
+
+					ClearManualAdvanceAnimations(
+						slot
+					);
 				}
 			}
 		}
@@ -194,7 +245,7 @@ public sealed class ProductionService
 
 			foreach (
 				SlotData slot
-				in room.Slots
+					in room.Slots
 			)
 			{
 				if (
@@ -290,7 +341,7 @@ public sealed class ProductionService
 		int researchPoints =
 			TryAwardResearchPoint();
 
-		if (slot.HasBot)
+		if (slot.HasWorkingBot)
 		{
 			double duration =
 				_economy.GetCycleDuration(
@@ -394,7 +445,7 @@ public sealed class ProductionService
 			);
 		}
 
-		if (slot.HasBot)
+		if (slot.HasWorkingBot)
 		{
 			return new ManualStartResult(
 				false,
@@ -452,7 +503,9 @@ public sealed class ProductionService
 
 		return new ManualStartResult(
 			true,
-			"Machine started."
+			slot.BotBroken
+				? "Bot is broken • machine started manually."
+				: "Machine started."
 		);
 	}
 
@@ -680,16 +733,18 @@ public sealed class ProductionService
 			{
 				if (
 					!slot.Unlocked
-					|| !slot.HasBot
+					|| !slot.HasWorkingBot
 				)
 				{
+					if (slot.BotBroken)
+					{
+						slot.IsRunning =
+							false;
+					}
+
 					continue;
 				}
 
-				/*
-				 * GetCycleDuration also restores RuntimeCycleDuration, but unlike
-				 * the old implementation we keep a valid saved CycleRemaining.
-				 */
 				double duration =
 					_economy.GetCycleDuration(
 						slot

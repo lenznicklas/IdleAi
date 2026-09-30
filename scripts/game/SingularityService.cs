@@ -29,6 +29,20 @@ public sealed class SingularityService
 	private const double NodeSellRefundFraction =
 		1.0 / 3.0;
 
+	private const double BotSellRefundFraction =
+		1.0 / 3.0;
+
+	private const double BotFullRepairCostFraction =
+		0.20;
+
+	/*
+	 * Singularity nodes run continuously, so even a Common Bot must have a
+	 * useful effect. The normal Bot multiplier is therefore given a small
+	 * +10% Singularity resonance bonus.
+	 */
+	private const double SingularityBotBaseBonus =
+		0.10;
+
 	private const long MaximumOfflineSeconds =
 		7 * 24 * 60 * 60;
 
@@ -39,12 +53,15 @@ public sealed class SingularityService
 			PropertyNameCaseInsensitive = true
 		};
 
+	private readonly GameState? _state;
+
+	private readonly RandomNumberGenerator _random =
+		new();
+
 	private SingularitySaveData _data =
 		new();
 
 	private long _pauseUnix;
-
-	private double _pauseOutputPerSecond;
 
 	private double _pendingOfflineEarnings;
 
@@ -79,16 +96,11 @@ public sealed class SingularityService
 	public double Matter =>
 		_data.Matter;
 
-	/*
-	 * Compatibility property for older UI/code. In save version 3 every Sector
-	 * owns its own Core; CoreLevel therefore means the focused Sector's level.
-	 */
 	public int CoreLevel =>
 		GetSectorCoreLevel(
 			CurrentSectorIndex
 		);
 
-	/* Number of actually unlocked Sector Cores. */
 	public int CoreCount
 	{
 		get
@@ -121,8 +133,14 @@ public sealed class SingularityService
 	public event Action? Changed;
 
 
-	public SingularityService()
+	public SingularityService(
+		GameState? state = null)
 	{
+		_state =
+			state;
+
+		_random.Randomize();
+
 		Load();
 
 		EnsureSector(
@@ -134,15 +152,9 @@ public sealed class SingularityService
 		_pendingOfflineEarnings =
 			ApplyOfflineIncomeFromTimestamp(
 				_data.LastSaveUnix,
-				GetUnixNow(),
-				GetTotalOutputPerSecond()
+				GetUnixNow()
 			);
 
-		/*
-		 * Persist a cold-start offline award immediately. Without this, a process
-		 * killed before the next 10-second autosave could receive the same elapsed
-		 * period again on the next launch.
-		 */
 		if (_pendingOfflineEarnings > 0.0)
 			Save();
 	}
@@ -162,12 +174,20 @@ public sealed class SingularityService
 		double output =
 			GetTotalOutputPerSecond();
 
-		if (output <= 0.0)
-			return;
+		if (output > 0.0)
+		{
+			_data.Matter +=
+				output
+				* delta;
+		}
 
-		_data.Matter +=
-			output
-			* delta;
+		/*
+		 * Durability is consumed only while a Node exists, its Sector Core is
+		 * online, and the Bot is still functional.
+		 */
+		ConsumeSingularityBotWork(
+			delta
+		);
 	}
 
 
@@ -426,7 +446,6 @@ public sealed class SingularityService
 				GetSectorCoreLevel(sectorIndex) + 1
 			);
 
-		/* Keep the legacy field harmlessly in sync with Sector 1. */
 		if (sectorIndex == 0)
 		{
 			_data.CoreLevel =
@@ -483,7 +502,6 @@ public sealed class SingularityService
 	}
 
 
-	// Compatibility with the first single-Core implementation.
 	public double GetNextCoreCost()
 	{
 		return GetCoreUpgradeCost();
@@ -664,6 +682,10 @@ public sealed class SingularityService
 		node.InvestedMatter =
 			cost;
 
+		ClearNodeBot(
+			node
+		);
+
 		SaveAndNotify();
 
 		return new SingularityActionResult(
@@ -772,6 +794,591 @@ public sealed class SingularityService
 
 
 	// ==================================================
+	// SINGULARITY NODE BOTS
+	// ==================================================
+
+	public double GetNodeBotPurchaseCost(
+		int sectorIndex,
+		int nodeIndex)
+	{
+		SingularityNodeData node =
+			GetNode(
+				sectorIndex,
+				nodeIndex
+			);
+
+		if (node.Type == SingularityNodeType.Empty)
+			return 0.0;
+
+		return 30.0
+			* Math.Pow(
+				2.4,
+				Math.Max(
+					0,
+					sectorIndex
+				)
+			)
+			* Math.Pow(
+				1.35,
+				Math.Max(
+					0,
+					node.Level - 1
+				)
+			);
+	}
+
+
+	public SingularityActionResult BuyNodeBot(
+		int sectorIndex,
+		int nodeIndex)
+	{
+		if (!IsSectorCoreUnlocked(sectorIndex))
+		{
+			return new SingularityActionResult(
+				false,
+				"Unlock this Sector Core first."
+			);
+		}
+
+		SingularityNodeData node =
+			GetNode(
+				sectorIndex,
+				nodeIndex
+			);
+
+		if (node.Type == SingularityNodeType.Empty)
+		{
+			return new SingularityActionResult(
+				false,
+				"Build a Node first."
+			);
+		}
+
+		if (node.HasBot)
+		{
+			return new SingularityActionResult(
+				false,
+				"This Node already has a Bot."
+			);
+		}
+
+		double cost =
+			GetNodeBotPurchaseCost(
+				sectorIndex,
+				nodeIndex
+			);
+
+		if (_data.Matter < cost)
+			return NotEnoughMatter(cost);
+
+		_data.Matter -=
+			cost;
+
+		BotRarity rarity =
+			RollBotRarity();
+
+		node.BotRarity =
+			rarity;
+
+		node.BotPurchasePriceMatter =
+			cost;
+
+		InitializeNodeBotDurability(
+			node
+		);
+
+		SaveAndNotify();
+
+		BotDefinition bot =
+			BotCatalog.Get(
+				rarity
+			);
+
+		return new SingularityActionResult(
+			true,
+			bot.Name
+				+ " installed on "
+				+ node.Type
+				+ " Node • "
+				+ BotService.FormatWorkingTime(
+					bot.WorkingLifetimeSeconds
+				)
+				+ " durability."
+		);
+	}
+
+
+	public double GetNodeBotSellRefund(
+		int sectorIndex,
+		int nodeIndex)
+	{
+		SingularityNodeData node =
+			GetNode(
+				sectorIndex,
+				nodeIndex
+			);
+
+		if (!node.HasBot)
+			return 0.0;
+
+		return Math.Max(
+			0.0,
+			node.BotPurchasePriceMatter
+				* BotSellRefundFraction
+		);
+	}
+
+
+	public SingularityActionResult SellNodeBot(
+		int sectorIndex,
+		int nodeIndex)
+	{
+		SingularityNodeData node =
+			GetNode(
+				sectorIndex,
+				nodeIndex
+			);
+
+		if (!node.HasBot)
+		{
+			return new SingularityActionResult(
+				false,
+				"No Bot installed on this Node."
+			);
+		}
+
+		BotDefinition bot =
+			BotCatalog.Get(
+				node.BotRarity!.Value
+			);
+
+		double refund =
+			GetNodeBotSellRefund(
+				sectorIndex,
+				nodeIndex
+			);
+
+		_data.Matter +=
+			refund;
+
+		ClearNodeBot(
+			node
+		);
+
+		SaveAndNotify();
+
+		return new SingularityActionResult(
+			true,
+			bot.Name
+				+ " sold for "
+				+ NumberFormatter.Format(
+					refund
+				)
+				+ " Matter."
+		);
+	}
+
+
+	public double GetNodeBotRepairCost(
+		int sectorIndex,
+		int nodeIndex)
+	{
+		SingularityNodeData node =
+			GetNode(
+				sectorIndex,
+				nodeIndex
+			);
+
+		if (!node.HasBot)
+			return 0.0;
+
+		double missing =
+			1.0
+			- GetNodeBotDurabilityRatio(
+				sectorIndex,
+				nodeIndex
+			);
+
+		if (missing <= 0.0001)
+			return 0.0;
+
+		return Math.Max(
+			1.0,
+			node.BotPurchasePriceMatter
+				* BotFullRepairCostFraction
+				* missing
+		);
+	}
+
+
+	public SingularityActionResult RepairNodeBot(
+		int sectorIndex,
+		int nodeIndex)
+	{
+		SingularityNodeData node =
+			GetNode(
+				sectorIndex,
+				nodeIndex
+			);
+
+		if (!node.HasBot)
+		{
+			return new SingularityActionResult(
+				false,
+				"No Bot installed on this Node."
+			);
+		}
+
+		double cost =
+			GetNodeBotRepairCost(
+				sectorIndex,
+				nodeIndex
+			);
+
+		if (cost <= 0.0)
+		{
+			return new SingularityActionResult(
+				false,
+				"Bot durability is already full."
+			);
+		}
+
+		if (_data.Matter < cost)
+			return NotEnoughMatter(cost);
+
+		_data.Matter -=
+			cost;
+
+		InitializeNodeBotDurability(
+			node
+		);
+
+		SaveAndNotify();
+
+		return new SingularityActionResult(
+			true,
+			"Node Bot repaired to 100% durability."
+		);
+	}
+
+
+	public double GetNodeBotDurabilityRatio(
+		int sectorIndex,
+		int nodeIndex)
+	{
+		SingularityNodeData node =
+			GetNode(
+				sectorIndex,
+				nodeIndex
+			);
+
+		if (!node.HasBot)
+			return 0.0;
+
+		double maximum =
+			BotCatalog.GetWorkingLifetimeSeconds(
+				node.BotRarity!.Value
+			);
+
+		if (maximum <= 0.0)
+			return 0.0;
+
+		if (!node.BotDurabilityInitialized)
+			return 1.0;
+
+		return Math.Clamp(
+			node.BotDurabilitySecondsRemaining
+				/ maximum,
+			0.0,
+			1.0
+		);
+	}
+
+
+	public double GetNodeBotEffectiveMultiplier(
+		int sectorIndex,
+		int nodeIndex)
+	{
+		return GetNodeBotEffectiveMultiplier(
+			GetNode(
+				sectorIndex,
+				nodeIndex
+			)
+		);
+	}
+
+
+	private double GetNodeBotEffectiveMultiplier(
+		SingularityNodeData node)
+	{
+		if (!node.HasWorkingBot)
+			return 1.0;
+
+		double multiplier =
+			BotCatalog.GetMultiplier(
+				node.BotRarity
+			)
+			+ SingularityBotBaseBonus;
+
+		if (_state != null)
+		{
+			multiplier *=
+				_state.Lab
+					.GetBotPowerMultiplier();
+		}
+
+		return multiplier;
+	}
+
+
+	private void InitializeNodeBotDurability(
+		SingularityNodeData node)
+	{
+		if (!node.BotRarity.HasValue)
+		{
+			node.BotDurabilityInitialized =
+				false;
+
+			node.BotDurabilitySecondsRemaining =
+				0.0;
+
+			return;
+		}
+
+		node.BotDurabilityInitialized =
+			true;
+
+		node.BotDurabilitySecondsRemaining =
+			BotCatalog.GetWorkingLifetimeSeconds(
+				node.BotRarity.Value
+			);
+	}
+
+
+	private static void ClearNodeBot(
+		SingularityNodeData node)
+	{
+		node.BotRarity =
+			null;
+
+		node.BotPurchasePriceMatter =
+			0.0;
+
+		node.BotDurabilityInitialized =
+			false;
+
+		node.BotDurabilitySecondsRemaining =
+			0.0;
+	}
+
+
+	private void ConsumeSingularityBotWork(
+		double seconds)
+	{
+		if (seconds <= 0.0)
+			return;
+
+		for (
+			int sectorIndex = 0;
+			sectorIndex < _data.Sectors.Count;
+			sectorIndex++
+		)
+		{
+			SingularitySectorData sector =
+				_data.Sectors[
+					sectorIndex
+				];
+
+			if (!sector.CoreUnlocked)
+				continue;
+
+			foreach (
+				SingularityNodeData node
+					in sector.Nodes
+			)
+			{
+				if (
+					node.Type == SingularityNodeType.Empty
+					|| !node.HasWorkingBot
+				)
+				{
+					continue;
+				}
+
+				if (!node.BotDurabilityInitialized)
+				{
+					InitializeNodeBotDurability(
+						node
+					);
+				}
+
+				node.BotDurabilitySecondsRemaining =
+					Math.Max(
+						0.0,
+						node.BotDurabilitySecondsRemaining
+							- seconds
+					);
+			}
+		}
+	}
+
+
+	private double GetNextNodeBotBreakSeconds()
+	{
+		double next =
+			double.PositiveInfinity;
+
+		foreach (
+			SingularitySectorData sector
+				in _data.Sectors
+		)
+		{
+			if (!sector.CoreUnlocked)
+				continue;
+
+			foreach (
+				SingularityNodeData node
+					in sector.Nodes
+			)
+			{
+				if (
+					node.Type == SingularityNodeType.Empty
+					|| !node.HasWorkingBot
+				)
+				{
+					continue;
+				}
+
+				if (!node.BotDurabilityInitialized)
+				{
+					InitializeNodeBotDurability(
+						node
+					);
+				}
+
+				next =
+					Math.Min(
+						next,
+						node.BotDurabilitySecondsRemaining
+					);
+			}
+		}
+
+		return next;
+	}
+
+
+	public (
+		double Common,
+		double Rare,
+		double Epic,
+		double Legendary
+	) GetNodeBotRarityChances()
+	{
+		double rare =
+			GameConfig.RareBotChance;
+
+		double epic =
+			GameConfig.EpicBotChance;
+
+		double legendary =
+			1.0
+			- GameConfig.CommonBotChance
+			- GameConfig.RareBotChance
+			- GameConfig.EpicBotChance;
+
+		if (_state != null)
+		{
+			rare +=
+				_state.Lab
+					.GetRareBotChanceBonus();
+
+			epic +=
+				_state.Lab
+					.GetEpicBotChanceBonus();
+
+			legendary +=
+				_state.Lab
+					.GetLegendaryBotChanceBonus();
+		}
+
+		rare =
+			Math.Max(
+				0.0,
+				rare
+			);
+
+		epic =
+			Math.Max(
+				0.0,
+				epic
+			);
+
+		legendary =
+			Math.Max(
+				0.0,
+				legendary
+			);
+
+		double special =
+			rare + epic + legendary;
+
+		if (special > 1.0)
+		{
+			rare /= special;
+			epic /= special;
+			legendary /= special;
+
+			return (
+				0.0,
+				rare,
+				epic,
+				legendary
+			);
+		}
+
+		return (
+			1.0 - special,
+			rare,
+			epic,
+			legendary
+		);
+	}
+
+
+	private BotRarity RollBotRarity()
+	{
+		(
+			double common,
+			double rare,
+			double epic,
+			double legendary
+		) =
+			GetNodeBotRarityChances();
+
+		double roll =
+			_random.Randf();
+
+		if (roll < common)
+			return BotRarity.Common;
+
+		roll -=
+			common;
+
+		if (roll < rare)
+			return BotRarity.Rare;
+
+		roll -=
+			rare;
+
+		if (roll < epic)
+			return BotRarity.Epic;
+
+		return BotRarity.Legendary;
+	}
+
+
+	// ==================================================
 	// NODE SELLING
 	// ==================================================
 
@@ -821,6 +1428,14 @@ public sealed class SingularityService
 			);
 		}
 
+		if (node.HasBot)
+		{
+			return new SingularityActionResult(
+				false,
+				"Sell the Node's Bot first."
+			);
+		}
+
 		SingularityNodeType soldType =
 			node.Type;
 
@@ -841,6 +1456,10 @@ public sealed class SingularityService
 
 		node.InvestedMatter =
 			0.0;
+
+		ClearNodeBot(
+			node
+		);
 
 		SaveAndNotify();
 
@@ -1020,7 +1639,6 @@ public sealed class SingularityService
 			nextIndex
 		);
 
-		/* New Sector exists, but its Core intentionally starts locked. */
 		SingularitySectorData newSector =
 			_data.Sectors[nextIndex];
 
@@ -1123,7 +1741,10 @@ public sealed class SingularityService
 			{
 				quantumMultiplier +=
 					0.12
-					* node.Level;
+					* node.Level
+					* GetNodeBotEffectiveMultiplier(
+						node
+					);
 			}
 		}
 
@@ -1152,6 +1773,9 @@ public sealed class SingularityService
 						0,
 						node.Level - 1
 					)
+				)
+				* GetNodeBotEffectiveMultiplier(
+					node
 				);
 
 			double adjacencyMultiplier =
@@ -1177,7 +1801,7 @@ public sealed class SingularityService
 	}
 
 
-	private static double GetLocalAdjacencyMultiplier(
+	private double GetLocalAdjacencyMultiplier(
 		SingularitySectorData sector,
 		int nodeIndex)
 	{
@@ -1202,16 +1826,27 @@ public sealed class SingularityService
 	}
 
 
-	private static double GetAdjacentMultiplier(
+	private double GetAdjacentMultiplier(
 		SingularityNodeData node)
 	{
+		double botMultiplier =
+			GetNodeBotEffectiveMultiplier(
+				node
+			);
+
 		return node.Type switch
 		{
 			SingularityNodeType.Amplifier =>
-				1.0 + 0.15 * node.Level,
+				1.0
+				+ 0.15
+				* node.Level
+				* botMultiplier,
 
 			SingularityNodeType.Cooling =>
-				1.0 + 0.10 * node.Level,
+				1.0
+				+ 0.10
+				* node.Level
+				* botMultiplier,
 
 			_ => 1.0
 		};
@@ -1320,6 +1955,9 @@ public sealed class SingularityService
 					0,
 					node.Level - 1
 				)
+			)
+			* GetNodeBotEffectiveMultiplier(
+				node
 			);
 
 		output *=
@@ -1346,7 +1984,10 @@ public sealed class SingularityService
 			{
 				quantum +=
 					0.12
-					* sectorNode.Level;
+					* sectorNode.Level
+					* GetNodeBotEffectiveMultiplier(
+						sectorNode
+					);
 			}
 		}
 
@@ -1410,9 +2051,6 @@ public sealed class SingularityService
 		_pauseUnix =
 			GetUnixNow();
 
-		_pauseOutputPerSecond =
-			GetTotalOutputPerSecond();
-
 		Save();
 	}
 
@@ -1433,15 +2071,11 @@ public sealed class SingularityService
 		double earned =
 			ApplyOfflineIncomeFromTimestamp(
 				_pauseUnix,
-				now,
-				_pauseOutputPerSecond
+				now
 			);
 
 		_pauseUnix =
 			0;
-
-		_pauseOutputPerSecond =
-			0.0;
 
 		Save();
 
@@ -1454,14 +2088,12 @@ public sealed class SingularityService
 
 	private double ApplyOfflineIncomeFromTimestamp(
 		long fromUnix,
-		long toUnix,
-		double outputPerSecond)
+		long toUnix)
 	{
 		if (
 			!Unlocked
 			|| fromUnix <= 0
 			|| toUnix <= fromUnix
-			|| outputPerSecond <= 0.0
 		)
 		{
 			return 0.0;
@@ -1477,10 +2109,62 @@ public sealed class SingularityService
 		if (seconds <= 0)
 			return 0.0;
 
+		double remaining =
+			seconds;
+
 		double earned =
-			outputPerSecond
-			* seconds
-			* OfflineEfficiency;
+			0.0;
+
+		int safety =
+			0;
+
+		/*
+		 * Exact durability-aware offline simulation:
+		 * each chunk ends at the next Bot break. Output is recalculated after
+		 * every break, so a Bot cannot keep boosting the full offline period
+		 * after its remaining work time has reached zero.
+		 */
+		while (
+			remaining > 0.0001
+			&& safety < 100_000
+		)
+		{
+			safety++;
+
+			double output =
+				GetTotalOutputPerSecond();
+
+			double nextBreak =
+				GetNextNodeBotBreakSeconds();
+
+			double chunk =
+				double.IsFinite(
+					nextBreak
+				)
+				? Math.Min(
+					remaining,
+					Math.Max(
+						0.001,
+						nextBreak
+					)
+				)
+				: remaining;
+
+			if (output > 0.0)
+			{
+				earned +=
+					output
+					* chunk
+					* OfflineEfficiency;
+			}
+
+			ConsumeSingularityBotWork(
+				chunk
+			);
+
+			remaining -=
+				chunk;
+		}
 
 		if (earned <= 0.0)
 			return 0.0;
@@ -1544,7 +2228,7 @@ public sealed class SingularityService
 			EnsureSector(0);
 			_data.Sectors[0].CoreUnlocked = true;
 			_data.Sectors[0].CoreLevel = 1;
-			_data.SaveVersion = 3;
+			_data.SaveVersion = 4;
 			return;
 		}
 
@@ -1594,11 +2278,6 @@ public sealed class SingularityService
 
 		if (loadedVersion < 3)
 		{
-			/*
-			 * Old saves had one global Core progression. Preserve that progression
-			 * as Sector 1's Core level; later Sector Cores intentionally start
-			 * locked under the new per-Sector Core system.
-			 */
 			SingularitySectorData first =
 				_data.Sectors[0];
 
@@ -1641,10 +2320,47 @@ public sealed class SingularityService
 					1,
 					sector.CoreLevel
 				);
+
+			foreach (
+				SingularityNodeData node
+					in sector.Nodes
+			)
+			{
+				if (!node.BotRarity.HasValue)
+				{
+					ClearNodeBot(
+						node
+					);
+
+					continue;
+				}
+
+				if (!node.BotDurabilityInitialized)
+				{
+					/*
+					 * Future-safe migration: if a save somehow contains a Node Bot
+					 * but predates durability, start that Bot at 100%.
+					 */
+					InitializeNodeBotDurability(
+						node
+					);
+				}
+				else
+				{
+					node.BotDurabilitySecondsRemaining =
+						Math.Clamp(
+							node.BotDurabilitySecondsRemaining,
+							0.0,
+							BotCatalog.GetWorkingLifetimeSeconds(
+								node.BotRarity.Value
+							)
+						);
+				}
+			}
 		}
 
 		_data.SaveVersion =
-			3;
+			4;
 	}
 
 

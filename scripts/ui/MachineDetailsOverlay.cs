@@ -104,6 +104,14 @@ public sealed class MachineDetailsOverlay
 		null!;
 
 
+	private HBoxContainer _botActionRow =
+		null!;
+
+
+	private Button _repairBotButton =
+		null!;
+
+
 	private Button _sellBotButton =
 		null!;
 
@@ -604,17 +612,6 @@ public sealed class MachineDetailsOverlay
 					);
 
 
-			/*
-			 * MAX normally shows the maximum number of levels
-			 * the player can currently afford.
-			 *
-			 * If zero levels are affordable, keep MAX selected
-			 * but preview the next single level instead. This
-			 * keeps the upgrade information/button geometry
-			 * identical to the normal upgrade state instead of
-			 * replacing it with a short "Not enough Tokens"
-			 * message.
-			 */
 			MachineUpgradeQuote displayQuote =
 				quote;
 
@@ -873,7 +870,6 @@ public sealed class MachineDetailsOverlay
 				slot
 			);
 
-
 			return;
 		}
 
@@ -900,7 +896,40 @@ public sealed class MachineDetailsOverlay
 
 
 		_botName.Text =
-			bot.Name.ToUpperInvariant();
+			slot.BotBroken
+				? bot.Name.ToUpperInvariant()
+					+ " • BROKEN"
+				: bot.Name.ToUpperInvariant();
+
+
+		_botName.AddThemeColorOverride(
+			"font_color",
+			slot.BotBroken
+				? new Color(
+					1.0f,
+					0.35f,
+					0.28f,
+					1.0f
+				)
+				: Colors.White
+		);
+
+
+		string durabilityText =
+			slot.BotBroken
+				? "Durability: 0% • BROKEN\nAutomation disabled until repaired."
+				: "Durability: "
+					+ (
+						slot.BotDurabilityRatio
+						* 100.0
+					).ToString(
+						"0"
+					)
+					+ "% • "
+					+ BotService.FormatWorkingTime(
+						slot.BotDurabilitySecondsRemaining
+					)
+					+ " work left";
 
 
 		_botMultiplier.Text =
@@ -915,21 +944,60 @@ public sealed class MachineDetailsOverlay
 			+ "\nEffective Power: x"
 			+ effectiveMultiplier.ToString(
 				"F2"
+			)
+			+ "\n"
+			+ durabilityText
+			+ "\nFull lifetime: "
+			+ BotService.FormatWorkingTime(
+				bot.WorkingLifetimeSeconds
 			);
 
 
 		_buyBotButton.Hide();
 
+		_botActionRow.Show();
+
 		_sellBotButton.Show();
 
 
 		_sellBotButton.Text =
-			"SELL BOT • "
+			"SELL • "
 			+ NumberFormatter.Format(
 				_bots.GetSellPrice(
 					slot
 				)
 			);
+
+
+		double repairPrice =
+			_bots.GetRepairPrice(
+				slot
+			);
+
+
+		if (repairPrice > 0.0)
+		{
+			_repairBotButton.Show();
+
+			_repairBotButton.Text =
+				slot.BotBroken
+					? "REPAIR • "
+						+ NumberFormatter.Format(
+							repairPrice
+						)
+					: "SERVICE • "
+						+ NumberFormatter.Format(
+							repairPrice
+						);
+
+			_repairBotButton.Disabled =
+				_state.Tokens
+				< repairPrice;
+		}
+		else
+		{
+			_repairBotButton.Hide();
+		}
 	}
 
 
@@ -942,6 +1010,12 @@ public sealed class MachineDetailsOverlay
 
 		_botName.Text =
 			"NO BOT";
+
+
+		_botName.AddThemeColorOverride(
+			"font_color",
+			Colors.White
+		);
 
 
 		(
@@ -960,18 +1034,22 @@ public sealed class MachineDetailsOverlay
 			+ FormatPercent(
 				common
 			)
+			+ " • 6h durability"
 			+ "\nRare: "
 			+ FormatPercent(
 				rare
 			)
+			+ " • 12h"
 			+ "\nEpic: "
 			+ FormatPercent(
 				epic
 			)
+			+ " • 24h"
 			+ "\nLegendary: "
 			+ FormatPercent(
 				legendary
-			);
+			)
+			+ " • 48h";
 
 
 		_buyBotButton.Text =
@@ -986,7 +1064,7 @@ public sealed class MachineDetailsOverlay
 
 		_buyBotButton.Show();
 
-		_sellBotButton.Hide();
+		_botActionRow.Hide();
 	}
 
 
@@ -994,6 +1072,24 @@ public sealed class MachineDetailsOverlay
 	{
 		BotActionResult result =
 			_bots.BuyBot(
+				_roomIndex,
+				_slotIndex
+			);
+
+
+		StateChanged?.Invoke(
+			result.Message
+		);
+
+
+		Refresh();
+	}
+
+
+	private void RepairBot()
+	{
+		BotActionResult result =
+			_bots.RepairBot(
 				_roomIndex,
 				_slotIndex
 			);
@@ -1050,6 +1146,14 @@ public sealed class MachineDetailsOverlay
 			+ effectiveMultiplier.ToString(
 				"F2"
 			)
+			+ "\nDurability: "
+			+ (
+				slot.BotDurabilityRatio
+				* 100.0
+			).ToString(
+				"0"
+			)
+			+ "%"
 			+ "\nRefund: "
 			+ NumberFormatter.Format(
 				_bots.GetSellPrice(
@@ -1462,6 +1566,51 @@ public sealed class MachineDetailsOverlay
 		);
 
 
+		_botActionRow =
+			new HBoxContainer
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
+
+
+		_botActionRow.AddThemeConstantOverride(
+			"separation",
+			8
+		);
+
+
+		vbox.AddChild(
+			_botActionRow
+		);
+
+
+		_repairBotButton =
+			new Button
+			{
+				CustomMinimumSize =
+					new Vector2(
+						0,
+						52
+					),
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
+
+				FocusMode =
+					Control.FocusModeEnum.None
+			};
+
+
+		_repairBotButton.Pressed +=
+			RepairBot;
+
+
+		_botActionRow.AddChild(
+			_repairBotButton
+		);
+
+
 		_sellBotButton =
 			new Button
 			{
@@ -1470,6 +1619,9 @@ public sealed class MachineDetailsOverlay
 						0,
 						52
 					),
+
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill,
 
 				FocusMode =
 					Control.FocusModeEnum.None
@@ -1480,7 +1632,7 @@ public sealed class MachineDetailsOverlay
 			OpenSellConfirmation;
 
 
-		vbox.AddChild(
+		_botActionRow.AddChild(
 			_sellBotButton
 		);
 
@@ -1547,6 +1699,12 @@ public sealed class MachineDetailsOverlay
 
 		ApplyPrimaryButtonStyle(
 			_buyBotButton,
+			accent
+		);
+
+
+		ApplyPrimaryButtonStyle(
+			_repairBotButton,
 			accent
 		);
 
@@ -1628,6 +1786,10 @@ public sealed class MachineDetailsOverlay
 		Button button,
 		Color accent)
 	{
+		if (button == null)
+			return;
+
+
 		Color normalBackground =
 			accent.Darkened(
 				0.42f

@@ -5,6 +5,9 @@ namespace IdleAi;
 
 public static class BotCatalog
 {
+	private const double Hour =
+		60.0 * 60.0;
+
 	private static readonly Dictionary<BotRarity, BotDefinition>
 		Bots =
 			new()
@@ -16,6 +19,7 @@ public static class BotCatalog
 						BotRarity.Common,
 						"Common Bot",
 						1.0,
+						6.0 * Hour,
 						GD.Load<Texture2D>(
 							"res://assets/bots/common.png"
 						)
@@ -29,6 +33,7 @@ public static class BotCatalog
 						BotRarity.Rare,
 						"Rare Bot",
 						1.2,
+						12.0 * Hour,
 						GD.Load<Texture2D>(
 							"res://assets/bots/rare.png"
 						)
@@ -42,6 +47,7 @@ public static class BotCatalog
 						BotRarity.Epic,
 						"Epic Bot",
 						1.4,
+						24.0 * Hour,
 						GD.Load<Texture2D>(
 							"res://assets/bots/epic.png"
 						)
@@ -55,6 +61,7 @@ public static class BotCatalog
 						BotRarity.Legendary,
 						"Legendary Bot",
 						1.5,
+						48.0 * Hour,
 						GD.Load<Texture2D>(
 							"res://assets/bots/legendary.png"
 						)
@@ -88,6 +95,15 @@ public static class BotCatalog
 	}
 
 
+	public static double GetWorkingLifetimeSeconds(
+		BotRarity rarity)
+	{
+		return Get(
+			rarity
+		).WorkingLifetimeSeconds;
+	}
+
+
 	public static void ApplySkin(
 		string? skinId)
 	{
@@ -101,9 +117,9 @@ public static class BotCatalog
 					System.StringComparison.OrdinalIgnoreCase
 				)
 			|| !BotSkinCatalog.TryGet(
-				skinId,
-				out SkinDefinition _
-			)
+					skinId,
+					out SkinDefinition _
+				)
 		)
 		{
 			ResetTextures();

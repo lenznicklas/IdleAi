@@ -19,12 +19,35 @@ public sealed class SingularityNodeData
 
 	public int Level { get; set; } = 1;
 
-	/*
-	 * Tracks the real Matter invested into this Node so selling can refund
-	 * exactly one third of the player's investment. Old saves simply load 0
-	 * here and use the safe legacy estimate in SingularityService.
-	 */
 	public double InvestedMatter { get; set; }
+
+
+	// ==================================================
+	// BOT
+	// ==================================================
+
+	public BotRarity? BotRarity { get; set; }
+
+	public double BotPurchasePriceMatter { get; set; }
+
+	public bool BotDurabilityInitialized { get; set; }
+
+	public double BotDurabilitySecondsRemaining { get; set; }
+
+
+	public bool HasBot =>
+		BotRarity.HasValue;
+
+
+	public bool BotBroken =>
+		HasBot
+		&& BotDurabilityInitialized
+		&& BotDurabilitySecondsRemaining <= 0.0;
+
+
+	public bool HasWorkingBot =>
+		HasBot
+		&& !BotBroken;
 }
 
 
@@ -32,12 +55,6 @@ public sealed class SingularitySectorData
 {
 	public List<SingularityNodeData> Nodes { get; set; } = [];
 
-	/*
-	 * Every Sector now owns its own Singularity Core.
-	 *
-	 * Sector 1 starts unlocked at Level 1. New Sectors are created with a
-	 * locked Core and the player buys that Core with Singularity Matter.
-	 */
 	public bool CoreUnlocked { get; set; }
 
 	public int CoreLevel { get; set; } = 1;
@@ -46,17 +63,12 @@ public sealed class SingularitySectorData
 
 public sealed class SingularitySaveData
 {
-	public int SaveVersion { get; set; } = 3;
+	public int SaveVersion { get; set; } = 4;
 
 	public bool Unlocked { get; set; }
 
 	public double Matter { get; set; }
 
-	/*
-	 * Legacy field retained only so v1/v2 Singularity saves migrate without
-	 * losing their original Core progression. In v3 the real Core state lives
-	 * inside each SingularitySectorData.
-	 */
 	public int CoreLevel { get; set; } = 1;
 
 	public int CurrentSectorIndex { get; set; }

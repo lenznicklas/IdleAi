@@ -262,14 +262,15 @@ public sealed class EconomyService
 			);
 
 		double botMultiplier =
-			BotCatalog.GetMultiplier(
-				slot.BotRarity
-			);
+			1.0;
 
-		if (slot.HasBot)
+		if (slot.HasWorkingBot)
 		{
-			botMultiplier *=
-				_state.Lab
+			botMultiplier =
+				BotCatalog.GetMultiplier(
+					slot.BotRarity
+				)
+				* _state.Lab
 					.GetBotPowerMultiplier();
 		}
 
@@ -298,7 +299,6 @@ public sealed class EconomyService
 					roomIndex,
 					includeTemporaryShopBoost
 				);
-
 
 		double quantumMultiplier =
 			QuantumService
@@ -519,14 +519,14 @@ public sealed class EconomyService
 
 		foreach (
 			SlotData slot
-			in _state.RoomStates[
-				roomIndex
-			].Slots
+				in _state.RoomStates[
+					roomIndex
+				].Slots
 		)
 		{
 			if (
 				!slot.Unlocked
-				|| !slot.HasBot
+				|| !slot.HasWorkingBot
 			)
 			{
 				continue;
@@ -570,14 +570,14 @@ public sealed class EconomyService
 
 		foreach (
 			SlotData slot
-			in _state.RoomStates[
-				roomIndex
-			].Slots
+				in _state.RoomStates[
+					roomIndex
+				].Slots
 		)
 		{
 			if (
 				!slot.Unlocked
-				|| !slot.HasBot
+				|| !slot.HasWorkingBot
 			)
 			{
 				continue;
@@ -604,14 +604,14 @@ public sealed class EconomyService
 
 		foreach (
 			SlotData slot
-			in _state.RoomStates[
-				roomIndex
-			].Slots
+				in _state.RoomStates[
+					roomIndex
+				].Slots
 		)
 		{
 			if (
 				!slot.Unlocked
-				|| !slot.HasBot
+				|| !slot.HasWorkingBot
 			)
 			{
 				continue;
@@ -733,20 +733,12 @@ public sealed class EconomyService
 		else
 			baseMultiplier = 1.0;
 
-
-		/*
-		 * Final-tier machines can level forever.
-		 * After Level 25 they receive another x1.5
-		 * milestone every 25 levels.
-		 */
 		if (level <= 25)
 			return baseMultiplier;
-
 
 		int extraMilestones =
 			(level - 25)
 			/ 25;
-
 
 		return baseMultiplier
 			* Math.Pow(
@@ -768,12 +760,10 @@ public sealed class EconomyService
 				)
 				* 25;
 
-
 			double nextMultiplier =
 				GetMilestoneMultiplier(
 					nextMilestone
 				);
-
 
 			return "Level "
 				+ nextMilestone
@@ -782,7 +772,6 @@ public sealed class EconomyService
 					"0.##"
 				);
 		}
-
 
 		if (level >= 20)
 			return "Level 25: x8";

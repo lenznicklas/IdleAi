@@ -11,10 +11,6 @@ public sealed class SaveGameData
 
 	public double RunEarnedTokens { get; set; }
 
-	/*
-	 * Added in SaveVersion 21.
-	 * Keeps Total Level permanent across Prestige while machines still reset.
-	 */
 	public int LifetimeLevelBase { get; set; }
 
 	public long LastSaveUnix { get; set; }
@@ -140,15 +136,19 @@ public sealed class SlotSaveData
 
 	public int MachineLevel { get; set; } = 1;
 
-	/*
-	 * Legacy field retained so old saves stay readable.
-	 * Level-road rewards no longer use per-machine Shard milestones.
-	 */
 	public List<int> ClaimedDataShardMilestones { get; set; } = [];
 
 	public BotRarity? BotRarity { get; set; }
 
 	public double BotPurchasePrice { get; set; }
+
+	/*
+	 * These fields are deliberately self-versioned via the initialized flag,
+	 * so older main saves can still remain SaveVersion 21.
+	 */
+	public bool BotDurabilityInitialized { get; set; }
+
+	public double BotDurabilitySecondsRemaining { get; set; }
 
 	public bool IsRunning { get; set; }
 

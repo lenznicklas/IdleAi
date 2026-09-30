@@ -133,6 +133,13 @@ public sealed partial class SingularityController
 		_root.AddChild(
 			_smoothPanRunner
 		);
+
+		/*
+		 * Keep Node buttons visually consistent while a finger touches/drags
+		 * across them. Without explicit hover/pressed styles Godot falls back
+		 * to the default grey rectangular Button theme on touch-down.
+		 */
+		EnablePolishedNodeTouchStyles();
 	}
 
 

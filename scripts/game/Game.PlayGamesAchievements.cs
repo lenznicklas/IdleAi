@@ -214,6 +214,12 @@ public partial class Game
 
 		_singularityController.EnableBotUi();
 
+		/*
+		 * Slightly enlarge the Sector frame around the existing Node network
+		 * without changing map coordinates, snapping or cross-Sector links.
+		 */
+		_singularityController.EnableLargerSectorFrames();
+
 		_singularityMapExtension =
 			new SingularityMapExtension(
 				this,
@@ -253,9 +259,22 @@ public partial class Game
 			_progression
 		);
 
+		/*
+		 * Keep the official Google Play leaderboards exactly as before.
+		 */
 		_playGamesAchievements.SyncLeaderboards(
 			_state,
 			_progression
+		);
+
+		/*
+		 * Additionally persist the same values beside the unique Idle AI
+		 * username. The custom in-game Top 25 is rendered from this source,
+		 * so every row has a real Firebase username and an exact rank.
+		 */
+		_firebaseAliases?.SyncInGameLeaderboardScores(
+			_progression.GetTotalLevel(),
+			_state.Prestige.PrestigeCount
 		);
 
 		_statsLeaderboardButtons?.Refresh();

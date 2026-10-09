@@ -20,6 +20,9 @@ public static class BotSkinCatalog
 	public const string MilitarySkinId =
 		"military";
 
+	public const string HalloweenSkinId =
+		"halloween";
+
 	public const string KorpoSkinId =
 		"korpo_skin";
 
@@ -29,50 +32,42 @@ public static class BotSkinCatalog
 		[
 			CreateSkin(
 				NatureOvergrownSkinId,
-
 				"Nature Overgrown",
-
 				"Futuristic bots reclaimed by moss, flowers, plants and small mushrooms.",
-
 				50.0,
-
 				"res://assets/bots/nature_overgrown_skin/"
 			),
 
 			CreateSkin(
 				SteampunkSkinId,
-
 				"Steampunk",
-
 				"Brass, copper, gears, pipes and industrial Victorian machinery.",
-
 				50.0,
-
 				"res://assets/bots/steampunk_skin/"
 			),
 
 			CreateSkin(
 				ApocalypseSkinId,
-
 				"Apocalypse / Scrap",
-
 				"Welded scrap metal, rust, replacement cables and warning markings from a ruined AI world.",
-
 				50.0,
-
 				"res://assets/bots/apocalypse_skin/"
 			),
 
 			CreateSkin(
 				MilitarySkinId,
-
 				"Military AI",
-
 				"Armored plating, tactical details, warning stripes and heavy military AI styling.",
-
 				50.0,
-
 				"res://assets/bots/military_skin/"
+			),
+
+			CreateSkin(
+				HalloweenSkinId,
+				"Halloween",
+				"A spooky seasonal bot pack with Halloween styling.",
+				50.0,
+				"res://assets/bots/halloween_skin/"
 			)
 		];
 
@@ -81,20 +76,14 @@ public static class BotSkinCatalog
 	 * Secret skin:
 	 *
 	 * Intentionally NOT part of Skins / GetAll().
-	 * BotSkinShopController therefore cannot show it before the code
-	 * has been redeemed. It is still reachable through TryGet() so
-	 * ownership, equipping and save loading work normally.
+	 * It only appears in the Bot Skin collection after NIBL was redeemed.
 	 */
 	private static readonly SkinDefinition KorpoSkin =
 		CreateSkin(
 			KorpoSkinId,
-
 			"Korpo",
-
 			"A secret Korpo bot pack with colored cap and band styling.",
-
 			0.0,
-
 			"res://assets/bots/korpo_skin/"
 		);
 
@@ -181,10 +170,6 @@ public static class BotSkinCatalog
 	}
 
 
-	// ==================================================
-	// SKIN CREATION
-	// ==================================================
-
 	private static SkinDefinition CreateSkin(
 		string id,
 		string name,
@@ -194,47 +179,35 @@ public static class BotSkinCatalog
 	{
 		return new SkinDefinition(
 			id,
-
 			name,
-
 			description,
-
 			SkinTarget.Bots,
-
 			cost,
-
 			new Dictionary<BotRarity, Texture2D?>
 			{
 				{
 					BotRarity.Common,
-
 					LoadTexture(
 						basePath
 							+ "common.png"
 					)
 				},
-
 				{
 					BotRarity.Rare,
-
 					LoadTexture(
 						basePath
 							+ "rare.png"
 					)
 				},
-
 				{
 					BotRarity.Epic,
-
 					LoadTexture(
 						basePath
 							+ "epic.png"
 					)
 				},
-
 				{
 					BotRarity.Legendary,
-
 					LoadTexture(
 						basePath
 							+ "legendary.png"
@@ -244,10 +217,6 @@ public static class BotSkinCatalog
 		);
 	}
 
-
-	// ==================================================
-	// SAFE TEXTURE LOADING
-	// ==================================================
 
 	private static Texture2D? LoadTexture(
 		string path)

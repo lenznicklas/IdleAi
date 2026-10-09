@@ -44,6 +44,9 @@ public sealed class SecretKorpoSkinController
 
 	private SecretCardView? _secretCard;
 
+	private HalloweenOfferShopController _halloweenOffer =
+		null!;
+
 
 	public event Action<string>? MessageRequested;
 
@@ -77,19 +80,52 @@ public sealed class SecretKorpoSkinController
 
 		_preview.Initialize();
 
+		/*
+		 * GameUiController initializes this controller LAST.
+		 * Therefore all normal Shop, IAP, Bot Skin and Machine Skin sections
+		 * already exist here.
+		 */
+		_halloweenOffer =
+			new HalloweenOfferShopController(
+				_root,
+				_service
+			);
+
+		_halloweenOffer.MessageRequested +=
+			message =>
+				MessageRequested?.Invoke(
+					message
+				);
+
+		_halloweenOffer.StateChanged +=
+			() =>
+			{
+				StateChanged?.Invoke();
+
+				Refresh();
+			};
+
+		_root.AddChild(
+			_halloweenOffer
+		);
+
+		_halloweenOffer.Initialize();
+
+		/*
+		 * ACCESS CODE is created after OFFERS and then included in the final
+		 * reorder, so it remains physically last.
+		 */
 		CreateCodeEntryAtBottom();
 
 		FindCollectionContent();
 
 		EnsureSecretCard();
 
+		_halloweenOffer.ReorderMainShopSections();
+
 		Refresh();
 	}
 
-
-	// ==================================================
-	// CODE FIELD - ALWAYS LAST SHOP SECTION
-	// ==================================================
 
 	private void CreateCodeEntryAtBottom()
 	{
@@ -375,10 +411,6 @@ public sealed class SecretKorpoSkinController
 	}
 
 
-	// ==================================================
-	// SECRET COLLECTION CARD
-	// ==================================================
-
 	private void FindCollectionContent()
 	{
 		Control? root =
@@ -594,18 +626,6 @@ public sealed class SecretKorpoSkinController
 			"KORPO • LEGENDARY"
 		);
 
-		Label rarity =
-			ShopUi.CreateMutedLabel(
-				11
-			);
-
-		rarity.Text =
-			"COMMON   •   RARE   •   EPIC   •   LEGENDARY";
-
-		box.AddChild(
-			rarity
-		);
-
 		Label status =
 			ShopUi.CreateMutedLabel(
 				13
@@ -808,10 +828,6 @@ public sealed class SecretKorpoSkinController
 			&& _redeemButton != null
 		)
 		{
-			/*
-			 * Keep the code field usable even after NIBL was redeemed so
-			 * debug1 remains available for development testing.
-			 */
 			_codeInput.Editable =
 				true;
 
@@ -858,6 +874,8 @@ public sealed class SecretKorpoSkinController
 			}
 		}
 
+		_halloweenOffer?.Refresh();
+
 		if (!unlocked)
 			return;
 
@@ -890,7 +908,7 @@ public sealed class SecretKorpoSkinController
 		}
 
 		_secretCard.Status.Text =
-			"SECRET  •  OWNED";
+			"SECRET • OWNED";
 
 		_secretCard.Status.AddThemeColorOverride(
 			"font_color",
@@ -904,10 +922,6 @@ public sealed class SecretKorpoSkinController
 			false;
 	}
 
-
-	// ==================================================
-	// HELPERS
-	// ==================================================
 
 	private Node? DetachBottomSpacer()
 	{

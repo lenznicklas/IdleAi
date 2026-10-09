@@ -27,10 +27,8 @@ public sealed class ShopService
 		_state =
 			state;
 
-
 		_economy =
 			economy;
-
 
 		_production =
 			production;
@@ -48,49 +46,56 @@ public sealed class ShopService
 			);
 		}
 
-
 		_state.Shop.DataShards +=
 			amount;
-
 
 		return new ShopResult(
 			true,
 			"+"
-			+ amount
-			+ (
-				amount == 1
-					? " Data Shard!"
-					: " Data Shards!"
+				+ amount
+				+ (
+					amount == 1
+						? " Data Shard!"
+						: " Data Shards!"
+				)
+		);
+	}
+
+
+	/*
+	 * Data Shards are an integer currency.
+	 *
+	 * Upgrade formulas are still allowed to use fractional growth factors,
+	 * but the actual price paid and returned to the UI is always rounded up
+	 * to a whole Shard.
+	 */
+	public double GetProductionUpgradeCost()
+	{
+		return WholeShardCost(
+			GameConfig
+				.ShopProductionUpgradeBaseCost
+			* Math.Pow(
+				GameConfig
+					.ShopProductionUpgradeCostGrowth,
+				_state.Shop
+					.ProductionUpgradeLevel
 			)
 		);
 	}
 
 
-	public double GetProductionUpgradeCost()
-	{
-		return GameConfig
-			.ShopProductionUpgradeBaseCost
-			* Math.Pow(
-				GameConfig
-					.ShopProductionUpgradeCostGrowth,
-
-				_state.Shop
-					.ProductionUpgradeLevel
-			);
-	}
-
-
 	public double GetOfflineUpgradeCost()
 	{
-		return GameConfig
-			.ShopOfflineUpgradeBaseCost
+		return WholeShardCost(
+			GameConfig
+				.ShopOfflineUpgradeBaseCost
 			* Math.Pow(
 				GameConfig
 					.ShopOfflineUpgradeCostGrowth,
-
 				_state.Shop
 					.OfflineUpgradeLevel
-			);
+			)
+		);
 	}
 
 
@@ -105,10 +110,8 @@ public sealed class ShopService
 			return NotEnough();
 		}
 
-
 		long now =
 			GetCurrentUnixTime();
-
 
 		long start =
 			Math.Max(
@@ -117,13 +120,11 @@ public sealed class ShopService
 					.ProductionBoostEndUnix
 			);
 
-
 		_state.Shop.ProductionBoostEndUnix =
 			start
 			+ GameConfig
 				.ShopProductionBoostMinutes
 			* 60L;
-
 
 		return new ShopResult(
 			true,
@@ -143,10 +144,8 @@ public sealed class ShopService
 			return NotEnough();
 		}
 
-
 		long now =
 			GetCurrentUnixTime();
-
 
 		long start =
 			Math.Max(
@@ -155,13 +154,11 @@ public sealed class ShopService
 					.BotLuckBoostEndUnix
 			);
 
-
 		_state.Shop.BotLuckBoostEndUnix =
 			start
 			+ GameConfig
 				.ShopBotLuckMinutes
 			* 60L;
-
 
 		return new ShopResult(
 			true,
@@ -180,27 +177,24 @@ public sealed class ShopService
 			);
 		}
 
-
-		if (
-			!TrySpend(
+		double cost =
+			WholeShardCost(
 				GameConfig.ShopInstantProductionCost
-			)
-		)
+			);
+
+		if (!TrySpend(cost))
 		{
 			return NotEnough();
 		}
-
 
 		ProductionCompletionResult result =
 			_production
 				.CompleteAllRunningCyclesInstantly();
 
-
 		if (result.CompletedCycles <= 0)
 		{
 			_state.Shop.DataShards +=
-				GameConfig.ShopInstantProductionCost;
-
+				cost;
 
 			return new ShopResult(
 				false,
@@ -208,26 +202,21 @@ public sealed class ShopService
 			);
 		}
 
-
 		if (result.Earned > 0.0)
 		{
 			_state.Tokens +=
 				result.Earned;
 
-
 			_state.RunEarnedTokens +=
 				result.Earned;
-
 
 			_state.Stats.AddEarned(
 				result.Earned
 			);
 		}
 
-
 		string message =
 			"Production completed instantly.";
-
 
 		if (result.Earned > 0.0)
 		{
@@ -238,7 +227,6 @@ public sealed class ShopService
 				)
 				+ " Tokens";
 		}
-
 
 		if (
 			result.PipelineInputProduced
@@ -253,7 +241,6 @@ public sealed class ShopService
 				+ " Pipeline Material";
 		}
 
-
 		if (result.ResearchPointsAwarded > 0)
 		{
 			message +=
@@ -261,7 +248,6 @@ public sealed class ShopService
 				+ result.ResearchPointsAwarded
 				+ " RP";
 		}
-
 
 		message +=
 			" • "
@@ -271,7 +257,6 @@ public sealed class ShopService
 					? " cycle"
 					: " cycles"
 			);
-
 
 		return new ShopResult(
 			true,
@@ -284,16 +269,15 @@ public sealed class ShopService
 	{
 		foreach (
 			RoomState room
-			in _state.RoomStates
+				in _state.RoomStates
 		)
 		{
 			if (!room.Unlocked)
 				continue;
 
-
 			foreach (
 				SlotData slot
-				in room.Slots
+					in room.Slots
 			)
 			{
 				if (
@@ -305,7 +289,6 @@ public sealed class ShopService
 				}
 			}
 		}
-
 
 		return false;
 	}
@@ -324,29 +307,25 @@ public sealed class ShopService
 			);
 		}
 
-
 		double cost =
 			GetProductionUpgradeCost();
-
 
 		if (!TrySpend(cost))
 			return NotEnough();
 
-
 		_state.Shop.ProductionUpgradeLevel++;
-
 
 		return new ShopResult(
 			true,
 			"Permanent production increased to +"
-			+ (
-				_state.Shop.ProductionUpgradeLevel
-				* GameConfig.ShopProductionUpgradeBonus
-				* 100.0
-			).ToString(
-				"0"
-			)
-			+ "%."
+				+ (
+					_state.Shop.ProductionUpgradeLevel
+					* GameConfig.ShopProductionUpgradeBonus
+					* 100.0
+				).ToString(
+					"0"
+				)
+				+ "%."
 		);
 	}
 
@@ -364,17 +343,13 @@ public sealed class ShopService
 			);
 		}
 
-
 		double cost =
 			GetOfflineUpgradeCost();
-
 
 		if (!TrySpend(cost))
 			return NotEnough();
 
-
 		_state.Shop.OfflineUpgradeLevel++;
-
 
 		return new ShopResult(
 			true,
@@ -386,21 +361,42 @@ public sealed class ShopService
 	private bool TrySpend(
 		double amount)
 	{
+		double wholeAmount =
+			WholeShardCost(
+				amount
+			);
+
 		if (
-			amount <= 0.0
+			wholeAmount <= 0.0
 			|| _state.Shop.DataShards
-			< amount
+			< wholeAmount
 		)
 		{
 			return false;
 		}
 
-
 		_state.Shop.DataShards -=
-			amount;
-
+			wholeAmount;
 
 		return true;
+	}
+
+
+	private static double WholeShardCost(
+		double amount)
+	{
+		if (
+			double.IsNaN(amount)
+			|| double.IsInfinity(amount)
+			|| amount <= 0.0
+		)
+		{
+			return 0.0;
+		}
+
+		return Math.Ceiling(
+			amount - 0.000000001
+		);
 	}
 
 

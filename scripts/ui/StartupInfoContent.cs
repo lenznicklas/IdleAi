@@ -29,13 +29,20 @@ public static class StartupInfoContent
 		"WHAT'S NEW";
 
 	public const string Subheadline =
-		"News, content and useful information from the latest build.";
+		"Halloween season is here! Check out the latest content and offers.";
 
 
 	public static IReadOnlyList<StartupInfoItem> Build()
 	{
 		return
 		[
+			new StartupInfoItem(
+				"HALLOWEEN SEASON",
+				"HALLOWEEN SEASON IS HERE!",
+				"The Halloween Bot Skin Pack is now featured in Shop Offers for 40 Data Shards instead of 50.",
+				"res://assets/bots/halloween_skin/offer.png"
+			),
+
 			new StartupInfoItem(
 				"NEW ENDGAME",
 				"THE SINGULARITY",
@@ -48,13 +55,6 @@ public static class StartupInfoContent
 				"BOT DURABILITY",
 				"Bots now have working-time durability. Repair broken Bots or replace them when their automation shuts down.",
 				"res://assets/shop/shop_cosmetics.png"
-			),
-
-			new StartupInfoItem(
-				"SHOP & COSMETICS",
-				"SKINS AND FUTURE CONTENT",
-				"New skin packs, events, balance notes and other announcements can appear here in future updates.",
-				"res://assets/ui/shop.png"
 			)
 		];
 	}

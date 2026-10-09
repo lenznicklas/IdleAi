@@ -35,6 +35,9 @@ public sealed class BotSkinService
 	public string EquippedBotSkinId { get; private set; } =
 		BotSkinCatalog.DefaultSkinId;
 
+	public double DataShards =>
+		_state.Shop.DataShards;
+
 
 	public BotSkinService(
 		GameState state)
@@ -75,25 +78,13 @@ public sealed class BotSkinService
 	}
 
 
-	/*
-	 * Development-only token grant used by the existing Shop access-code
-	 * field. Keeping the GameState access here avoids changing the public
-	 * constructor of SecretKorpoSkinController or GameUiController.
-	 *
-	 * This changes only the current Token balance. It deliberately does not
-	 * touch earned-token statistics, RunEarnedTokens or leaderboard progress.
-	 */
 	public BotSkinResult GrantDebugTokens(
 		double amount)
 	{
 		if (
 			amount <= 0.0
-			|| double.IsNaN(
-				amount
-			)
-			|| double.IsInfinity(
-				amount
-			)
+			|| double.IsNaN(amount)
+			|| double.IsInfinity(amount)
 		)
 		{
 			return new BotSkinResult(
@@ -172,16 +163,78 @@ public sealed class BotSkinService
 			);
 		}
 
-		if (IsOwned(skinId))
+		return BuyAndEquipInternal(
+			skin,
+			Math.Ceiling(
+				skin.Cost
+			),
+			null
+		);
+	}
+
+
+	/*
+	 * Used by limited Shop offers.
+	 *
+	 * The catalog keeps the regular price (Halloween = 50), while the
+	 * seasonal offer can grant the exact same ownership for a lower,
+	 * whole-number Data Shard price.
+	 */
+	public BotSkinResult BuyAndEquipAtPrice(
+		string skinId,
+		double offeredPrice,
+		string? successMessage = null)
+	{
+		if (
+			double.IsNaN(offeredPrice)
+			|| double.IsInfinity(offeredPrice)
+			|| offeredPrice < 0.0
+		)
+		{
+			return new BotSkinResult(
+				false,
+				"Invalid skin offer price."
+			);
+		}
+
+		if (
+			!BotSkinCatalog.TryGet(
+				skinId,
+				out SkinDefinition skin
+			)
+		)
+		{
+			return new BotSkinResult(
+				false,
+				"Unknown skin."
+			);
+		}
+
+		return BuyAndEquipInternal(
+			skin,
+			Math.Ceiling(
+				offeredPrice
+			),
+			successMessage
+		);
+	}
+
+
+	private BotSkinResult BuyAndEquipInternal(
+		SkinDefinition skin,
+		double price,
+		string? successMessage)
+	{
+		if (IsOwned(skin.Id))
 		{
 			return Equip(
-				skinId
+				skin.Id
 			);
 		}
 
 		if (
 			BotSkinCatalog.IsSecret(
-				skinId
+				skin.Id
 			)
 		)
 		{
@@ -193,7 +246,7 @@ public sealed class BotSkinService
 
 		if (
 			_state.Shop.DataShards
-			< skin.Cost
+			< price
 		)
 		{
 			return new BotSkinResult(
@@ -203,7 +256,7 @@ public sealed class BotSkinService
 		}
 
 		_state.Shop.DataShards -=
-			skin.Cost;
+			price;
 
 		_ownedSkinIds.Add(
 			skin.Id
@@ -220,8 +273,12 @@ public sealed class BotSkinService
 
 		return new BotSkinResult(
 			true,
-			skin.Name
-			+ " Bot Skin purchased and equipped!"
+			string.IsNullOrWhiteSpace(
+				successMessage
+			)
+				? skin.Name
+					+ " Bot Skin purchased and equipped!"
+				: successMessage
 		);
 	}
 
@@ -265,7 +322,7 @@ public sealed class BotSkinService
 			return new BotSkinResult(
 				false,
 				skin.Name
-				+ " is already equipped."
+					+ " is already equipped."
 			);
 		}
 
@@ -281,7 +338,7 @@ public sealed class BotSkinService
 		return new BotSkinResult(
 			true,
 			skin.Name
-			+ " equipped."
+				+ " equipped."
 		);
 	}
 
@@ -315,10 +372,6 @@ public sealed class BotSkinService
 		);
 	}
 
-
-	// ==================================================
-	// LOAD
-	// ==================================================
 
 	private void Load()
 	{
@@ -379,11 +432,10 @@ public sealed class BotSkinService
 			}
 
 			if (
-				save.EquippedBotSkinId
-					.Equals(
-						BotSkinCatalog.DefaultSkinId,
-						StringComparison.OrdinalIgnoreCase
-					)
+				save.EquippedBotSkinId.Equals(
+					BotSkinCatalog.DefaultSkinId,
+					StringComparison.OrdinalIgnoreCase
+				)
 			)
 			{
 				EquippedBotSkinId =
@@ -411,7 +463,7 @@ public sealed class BotSkinService
 		{
 			GD.PushWarning(
 				"Could not load cosmetic save: "
-				+ exception.Message
+					+ exception.Message
 			);
 
 			_ownedSkinIds.Clear();
@@ -425,10 +477,6 @@ public sealed class BotSkinService
 		}
 	}
 
-
-	// ==================================================
-	// SAVE
-	// ==================================================
 
 	private void Save()
 	{
@@ -486,7 +534,7 @@ public sealed class BotSkinService
 		{
 			GD.PushWarning(
 				"Could not save cosmetics: "
-				+ exception.Message
+					+ exception.Message
 			);
 
 			try

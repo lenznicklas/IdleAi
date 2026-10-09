@@ -6,7 +6,6 @@ using System.Text.RegularExpressions;
 
 namespace IdleAi;
 
-
 /*
  * Seasonal Shop layer.
  *
@@ -37,9 +36,7 @@ public sealed partial class HalloweenOfferShopController
 				| RegexOptions.CultureInvariant
 		);
 
-
 	private readonly Game _root;
-
 	private readonly BotSkinService _skinService;
 
 	private VBoxContainer _content =
@@ -53,26 +50,19 @@ public sealed partial class HalloweenOfferShopController
 
 	private Control? _shopPage;
 
-
 	public event Action<string>? MessageRequested;
-
 	public event Action? StateChanged;
-
 
 	public HalloweenOfferShopController(
 		Game root,
 		BotSkinService skinService)
 	{
-		_root =
-			root;
-
-		_skinService =
-			skinService;
+		_root = root;
+		_skinService = skinService;
 
 		Name =
 			"HalloweenOfferShopController";
 	}
-
 
 	public void Initialize()
 	{
@@ -102,7 +92,6 @@ public sealed partial class HalloweenOfferShopController
 		);
 	}
 
-
 	public override void _Process(
 		double delta)
 	{
@@ -124,7 +113,6 @@ public sealed partial class HalloweenOfferShopController
 		 */
 		NormalizeShopShardText();
 	}
-
 
 	public void Refresh()
 	{
@@ -199,7 +187,6 @@ public sealed partial class HalloweenOfferShopController
 			_skinService.DataShards
 			< HalloweenOfferPrice;
 	}
-
 
 	public void ReorderMainShopSections()
 	{
@@ -276,8 +263,7 @@ public sealed partial class HalloweenOfferShopController
 			}
 		);
 
-		int targetIndex =
-			0;
+		int targetIndex = 0;
 
 		foreach (
 			SectionGroup group
@@ -296,7 +282,6 @@ public sealed partial class HalloweenOfferShopController
 			}
 		}
 	}
-
 
 	private void CreateOffersSection()
 	{
@@ -473,6 +458,25 @@ public sealed partial class HalloweenOfferShopController
 		oldPrice.HorizontalAlignment =
 			HorizontalAlignment.Left;
 
+		/*
+		 * ShopUi.CreateLabel() enables WordSmart autowrap globally. Inside an
+		 * HBox that allowed both price labels to collapse to almost zero width,
+		 * so Godot wrapped one character per line (the vertical text bug).
+		 * Price strings are intentionally single-line UI, so disable wrapping
+		 * and give each side a real minimum width.
+		 */
+		oldPrice.AutowrapMode =
+			TextServer.AutowrapMode.Off;
+
+		oldPrice.SizeFlagsHorizontal =
+			Control.SizeFlags.ExpandFill;
+
+		oldPrice.CustomMinimumSize =
+			new Vector2(
+				120,
+				28
+			);
+
 		priceRow.AddChild(
 			oldPrice
 		);
@@ -487,6 +491,18 @@ public sealed partial class HalloweenOfferShopController
 
 		salePrice.HorizontalAlignment =
 			HorizontalAlignment.Left;
+
+		salePrice.AutowrapMode =
+			TextServer.AutowrapMode.Off;
+
+		salePrice.SizeFlagsHorizontal =
+			Control.SizeFlags.ExpandFill;
+
+		salePrice.CustomMinimumSize =
+			new Vector2(
+				190,
+				32
+			);
 
 		salePrice.AddThemeColorOverride(
 			"font_color",
@@ -543,7 +559,6 @@ public sealed partial class HalloweenOfferShopController
 		);
 	}
 
-
 	private void BuyOrEquipHalloween()
 	{
 		BotSkinResult result;
@@ -586,7 +601,6 @@ public sealed partial class HalloweenOfferShopController
 		Refresh();
 	}
 
-
 	private static Texture2D? LoadOfferTexture()
 	{
 		if (
@@ -605,7 +619,6 @@ public sealed partial class HalloweenOfferShopController
 			BotRarity.Common
 		);
 	}
-
 
 	private void NormalizeShopShardText()
 	{
@@ -628,7 +641,6 @@ public sealed partial class HalloweenOfferShopController
 			);
 		}
 	}
-
 
 	private void NormalizeNodeText(
 		Node node)
@@ -658,7 +670,6 @@ public sealed partial class HalloweenOfferShopController
 			);
 		}
 	}
-
 
 	private static string NormalizeShardText(
 		string text)
@@ -738,7 +749,6 @@ public sealed partial class HalloweenOfferShopController
 		);
 	}
 
-
 	private void NormalizeHeaderBalance(
 		Node node)
 	{
@@ -768,7 +778,6 @@ public sealed partial class HalloweenOfferShopController
 		}
 	}
 
-
 	private static bool IsPureNumber(
 		string text)
 	{
@@ -786,7 +795,6 @@ public sealed partial class HalloweenOfferShopController
 			out double _
 		);
 	}
-
 
 	private static bool TryParseNumber(
 		string value,
@@ -806,7 +814,6 @@ public sealed partial class HalloweenOfferShopController
 		);
 	}
 
-
 	private static string FormatWholeShardAmount(
 		double amount)
 	{
@@ -819,7 +826,6 @@ public sealed partial class HalloweenOfferShopController
 				CultureInfo.InvariantCulture
 			);
 	}
-
 
 	private void CreateSectionHeader(
 		string title,
@@ -854,17 +860,14 @@ public sealed partial class HalloweenOfferShopController
 			"margin_left",
 			14
 		);
-
 		margin.AddThemeConstantOverride(
 			"margin_right",
 			14
 		);
-
 		margin.AddThemeConstantOverride(
 			"margin_top",
 			8
 		);
-
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
 			8
@@ -917,7 +920,6 @@ public sealed partial class HalloweenOfferShopController
 		);
 	}
 
-
 	private Node? DetachBottomSpacer()
 	{
 		if (_content.GetChildCount() == 0)
@@ -943,7 +945,6 @@ public sealed partial class HalloweenOfferShopController
 		return candidate;
 	}
 
-
 	private void RestoreBottomSpacer(
 		Node? bottomSpace)
 	{
@@ -952,7 +953,6 @@ public sealed partial class HalloweenOfferShopController
 			_content.AddChild(
 				bottomSpace
 			);
-
 			return;
 		}
 
@@ -971,7 +971,6 @@ public sealed partial class HalloweenOfferShopController
 		);
 	}
 
-
 	private static MarginContainer CreateCardMargin()
 	{
 		MarginContainer margin =
@@ -981,17 +980,14 @@ public sealed partial class HalloweenOfferShopController
 			"margin_left",
 			14
 		);
-
 		margin.AddThemeConstantOverride(
 			"margin_top",
 			14
 		);
-
 		margin.AddThemeConstantOverride(
 			"margin_right",
 			14
 		);
-
 		margin.AddThemeConstantOverride(
 			"margin_bottom",
 			14
@@ -1000,18 +996,13 @@ public sealed partial class HalloweenOfferShopController
 		return margin;
 	}
 
-
 	private static string? GetKnownSectionTitle(
 		Node node)
 	{
-		string? text =
-			FindKnownTitleRecursive(
-				node
-			);
-
-		return text;
+		return FindKnownTitleRecursive(
+			node
+		);
 	}
-
 
 	private static string? FindKnownTitleRecursive(
 		Node node)
@@ -1044,7 +1035,6 @@ public sealed partial class HalloweenOfferShopController
 		return null;
 	}
 
-
 	private static int GetPriority(
 		string title)
 	{
@@ -1064,13 +1054,10 @@ public sealed partial class HalloweenOfferShopController
 			};
 	}
 
-
 	private sealed class SectionGroup
 	{
 		public int Priority { get; }
-
 		public int OriginalIndex { get; }
-
 		public List<Node> Nodes { get; } =
 			[];
 
@@ -1078,11 +1065,8 @@ public sealed partial class HalloweenOfferShopController
 			int priority,
 			int originalIndex)
 		{
-			Priority =
-				priority;
-
-			OriginalIndex =
-				originalIndex;
+			Priority = priority;
+			OriginalIndex = originalIndex;
 		}
 	}
 }

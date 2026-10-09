@@ -4,12 +4,12 @@ using System.Collections.Generic;
 
 namespace IdleAi;
 
-
 /*
  * Small runtime UI/pacing fixes that need to work with pages which are
  * created/rebuilt dynamically:
  *
  * - adds assets/ui/x.png to MAP / SHOP / LAB
+ * - aligns every page X to that page's real top/right header border
  * - closes those pages through their existing BottomBar buttons, so all
  *   existing cleanup/navigation logic still runs
  * - prevents skipping rooms on the map
@@ -31,51 +31,54 @@ public sealed partial class NavigationPolishController
 	private const float CloseButtonSize =
 		62.0f;
 
-	private const float CloseButtonRightPadding =
+	/*
+	 * These values deliberately mirror the actual fixed-header geometry:
+	 *
+	 * MAP  -> MapController header: right 22, top safeTop + 16
+	 * SHOP -> ShopMargin right 18, fixed header top safeTop + 6
+	 * LAB  -> LabMargin right 18, fixed header top safeTop + 6
+	 *
+	 * The previous hard-coded 16/12 pair made the icon sit outside the visual
+	 * top/right lines, especially obvious on the map header.
+	 */
+	private const float MapCloseButtonRightPadding =
+		22.0f;
+
+	private const float MapCloseButtonTopPadding =
 		16.0f;
 
-	private const float CloseButtonTopPadding =
-		12.0f;
+	private const float OverlayCloseButtonRightPadding =
+		18.0f;
+
+	private const float OverlayCloseButtonTopPadding =
+		6.0f;
 
 	private static readonly Texture2D CloseTexture =
 		GD.Load<Texture2D>(
 			"res://assets/ui/x.png"
 		);
 
-
 	private readonly Game _root;
-
 	private readonly GameState _state;
-
 	private readonly SingularityService? _singularity;
-
 
 	private readonly Dictionary<int, Button>
 		_normalRoomButtons =
 			[];
 
 	private Button? _singularityRoomButton;
-
 	private Label? _shopShardValueLabel;
-
 	private double _remaining;
-
 
 	public NavigationPolishController(
 		Game root,
 		GameState state,
 		SingularityService? singularity)
 	{
-		_root =
-			root;
-
-		_state =
-			state;
-
-		_singularity =
-			singularity;
+		_root = root;
+		_state = state;
+		_singularity = singularity;
 	}
-
 
 	public override void _Ready()
 	{
@@ -85,32 +88,24 @@ public sealed partial class NavigationPolishController
 			RefreshEverything;
 	}
 
-
 	public override void _Process(
 		double delta)
 	{
-		_remaining -=
-			delta;
+		_remaining -= delta;
 
 		if (_remaining > 0.0)
 			return;
 
-		_remaining =
-			RefreshIntervalSeconds;
-
+		_remaining = RefreshIntervalSeconds;
 		RefreshEverything();
 	}
-
 
 	private void RefreshEverything()
 	{
 		EnsurePageCloseButtons();
-
 		RefreshRoomUnlockGuards();
-
 		RefreshShopShardDisplay();
 	}
-
 
 	// ==================================================
 	// TOP-RIGHT PAGE CLOSE BUTTONS
@@ -133,7 +128,6 @@ public sealed partial class NavigationPolishController
 			"BottomBar/Margin/HBox/LabButton"
 		);
 	}
-
 
 	private void EnsurePageCloseButton(
 		string pagePath,
@@ -207,37 +201,59 @@ public sealed partial class NavigationPolishController
 		float safeTop =
 			GetSafeTopInset();
 
-		button.AnchorLeft =
-			1.0f;
+		Vector2 padding =
+			GetPageCloseButtonPadding(
+				pagePath
+			);
 
-		button.AnchorTop =
-			0.0f;
-
-		button.AnchorRight =
-			1.0f;
-
-		button.AnchorBottom =
-			0.0f;
+		button.AnchorLeft = 1.0f;
+		button.AnchorTop = 0.0f;
+		button.AnchorRight = 1.0f;
+		button.AnchorBottom = 0.0f;
 
 		button.OffsetLeft =
-			-CloseButtonRightPadding
+			-padding.X
 			- CloseButtonSize;
 
 		button.OffsetTop =
 			safeTop
-			+ CloseButtonTopPadding;
+			+ padding.Y;
 
 		button.OffsetRight =
-			-CloseButtonRightPadding;
+			-padding.X;
 
 		button.OffsetBottom =
 			safeTop
-			+ CloseButtonTopPadding
+			+ padding.Y
 			+ CloseButtonSize;
 
 		button.MoveToFront();
 	}
 
+	private static Vector2 GetPageCloseButtonPadding(
+		string pagePath)
+	{
+		return pagePath switch
+		{
+			"MapPage" =>
+				new Vector2(
+					MapCloseButtonRightPadding,
+					MapCloseButtonTopPadding
+				),
+
+			"ShopPage" or "LabPage" =>
+				new Vector2(
+					OverlayCloseButtonRightPadding,
+					OverlayCloseButtonTopPadding
+				),
+
+			_ =>
+				new Vector2(
+					OverlayCloseButtonRightPadding,
+					OverlayCloseButtonTopPadding
+				)
+		};
+	}
 
 	private void ClosePageThroughNavigation(
 		string navigationButtonPath)
@@ -302,7 +318,6 @@ public sealed partial class NavigationPolishController
 		RestoreRoomChromeIfNoFullPageIsOpen();
 	}
 
-
 	private void RestoreRoomChromeIfNoFullPageIsOpen()
 	{
 		bool pageVisible =
@@ -332,7 +347,6 @@ public sealed partial class NavigationPolishController
 			roomChrome.Show();
 		}
 	}
-
 
 	private float GetSafeTopInset()
 	{
@@ -377,7 +391,6 @@ public sealed partial class NavigationPolishController
 			24.0f
 		);
 	}
-
 
 	// ==================================================
 	// SEQUENTIAL ROOM UNLOCK GUARD
@@ -431,8 +444,7 @@ public sealed partial class NavigationPolishController
 					roomButton
 				);
 
-			blocker.Visible =
-				blocked;
+			blocker.Visible = blocked;
 
 			if (blocked)
 			{
@@ -452,7 +464,6 @@ public sealed partial class NavigationPolishController
 			mapPage
 		);
 	}
-
 
 	private Button? GetNormalRoomButton(
 		Control mapPage,
@@ -485,13 +496,11 @@ public sealed partial class NavigationPolishController
 		{
 			_normalRoomButtons[
 				roomIndex
-			] =
-				found;
+			] = found;
 		}
 
 		return found;
 	}
-
 
 	private void RefreshSingularityUnlockGuard(
 		Control mapPage)
@@ -538,8 +547,7 @@ public sealed partial class NavigationPolishController
 				_singularityRoomButton
 			);
 
-		blocker.Visible =
-			blocked;
+		blocker.Visible = blocked;
 
 		if (!blocked)
 			return;
@@ -554,7 +562,6 @@ public sealed partial class NavigationPolishController
 				previousRoomIndex
 			);
 	}
-
 
 	private bool CanAdvanceFromRoom(
 		int previousRoomIndex)
@@ -591,7 +598,6 @@ public sealed partial class NavigationPolishController
 		return true;
 	}
 
-
 	private string GetRequirementMessage(
 		int previousRoomIndex)
 	{
@@ -615,8 +621,7 @@ public sealed partial class NavigationPolishController
 				+ " first.";
 		}
 
-		int missingSlots =
-			0;
+		int missingSlots = 0;
 
 		foreach (
 			SlotData slot
@@ -633,7 +638,6 @@ public sealed partial class NavigationPolishController
 			+ missingSlots
 			+ " remaining).";
 	}
-
 
 	private static Control EnsureUnlockBlocker(
 		Button roomButton)
@@ -700,7 +704,6 @@ public sealed partial class NavigationPolishController
 		return blocker;
 	}
 
-
 	private void ApplyRequirementText(
 		Button roomButton,
 		int previousRoomIndex)
@@ -710,8 +713,7 @@ public sealed partial class NavigationPolishController
 				previousRoomIndex
 			];
 
-		int missingSlots =
-			0;
+		int missingSlots = 0;
 
 		foreach (
 			SlotData slot
@@ -754,9 +756,7 @@ public sealed partial class NavigationPolishController
 				|| label.Text == "PREVIOUS ROOM LOCKED"
 			)
 			{
-				label.Text =
-					stateText;
-
+				label.Text = stateText;
 				continue;
 			}
 
@@ -779,12 +779,10 @@ public sealed partial class NavigationPolishController
 				)
 			)
 			{
-				label.Text =
-					badgeText;
+				label.Text = badgeText;
 			}
 		}
 	}
-
 
 	private static Button?
 		FindButtonContainingExactLabel(
@@ -820,7 +818,6 @@ public sealed partial class NavigationPolishController
 		return null;
 	}
 
-
 	private static bool ContainsExactLabel(
 		Node root,
 		string exactText)
@@ -854,7 +851,6 @@ public sealed partial class NavigationPolishController
 
 		return false;
 	}
-
 
 	// ==================================================
 	// SHOP DATA SHARDS AS WHOLE NUMBERS
@@ -934,7 +930,6 @@ public sealed partial class NavigationPolishController
 		}
 	}
 
-
 	private static Label? FindShopShardValueLabel(
 		Control shopPage)
 	{
@@ -988,7 +983,6 @@ public sealed partial class NavigationPolishController
 		return null;
 	}
 
-
 	private static Node? FindDescendantByName(
 		Node root,
 		string name)
@@ -1020,7 +1014,6 @@ public sealed partial class NavigationPolishController
 
 		return null;
 	}
-
 
 	private static IEnumerable<T>
 		FindDescendants<T>(

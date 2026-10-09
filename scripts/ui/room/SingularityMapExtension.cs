@@ -3,7 +3,6 @@ using System;
 
 namespace IdleAi;
 
-
 /*
  * Adds The Singularity to the existing ROOM NETWORK without requiring a second
  * hand-maintained copy of MapController.cs.
@@ -14,11 +13,23 @@ namespace IdleAi;
  */
 public sealed partial class SingularityMapExtension
 {
+	/*
+	 * Singularity intentionally gets a slightly wider card than the regular
+	 * rooms. Its long name and inner dark information panel need more breathing
+	 * room; at 270 px the dark panel sat almost on top of the rounded outer
+	 * border on narrow/mobile rendering.
+	 */
 	private const float NodeWidth =
-		270.0f;
+		300.0f;
 
 	private const float NodeHeight =
 		178.0f;
+
+	private const float InfoPanelWidth =
+		160.0f;
+
+	private const float BadgeWidth =
+		244.0f;
 
 	private static readonly Vector2 SingularityPosition =
 		new(
@@ -51,11 +62,8 @@ public sealed partial class SingularityMapExtension
 		);
 
 	private readonly Game _root;
-
 	private readonly GameState _state;
-
 	private readonly SingularityService _service;
-
 	private readonly SingularityController _controller;
 
 	private Control _mapPage =
@@ -79,11 +87,8 @@ public sealed partial class SingularityMapExtension
 	private SingularityMapLine _line =
 		null!;
 
-
 	public event Action<string>? MessageRequested;
-
 	public event Action? GameStateChanged;
-
 
 	public SingularityMapExtension(
 		Game root,
@@ -91,19 +96,11 @@ public sealed partial class SingularityMapExtension
 		SingularityService service,
 		SingularityController controller)
 	{
-		_root =
-			root;
-
-		_state =
-			state;
-
-		_service =
-			service;
-
-		_controller =
-			controller;
+		_root = root;
+		_state = state;
+		_service = service;
+		_controller = controller;
 	}
-
 
 	public void Initialize()
 	{
@@ -122,7 +119,6 @@ public sealed partial class SingularityMapExtension
 			GD.PushWarning(
 				"Singularity map: Map ScrollContainer not found."
 			);
-
 			return;
 		}
 
@@ -136,7 +132,6 @@ public sealed partial class SingularityMapExtension
 			GD.PushWarning(
 				"Singularity map: map center not found."
 			);
-
 			return;
 		}
 
@@ -150,9 +145,7 @@ public sealed partial class SingularityMapExtension
 				&& control.CustomMinimumSize.X >= 600.0f
 			)
 			{
-				_canvas =
-					control;
-
+				_canvas = control;
 				break;
 			}
 		}
@@ -162,12 +155,10 @@ public sealed partial class SingularityMapExtension
 			GD.PushWarning(
 				"Singularity map: canvas not found."
 			);
-
 			return;
 		}
 
 		HideFutureCard();
-
 		CreateConnectionLine();
 		CreateRoomNode();
 
@@ -179,7 +170,6 @@ public sealed partial class SingularityMapExtension
 
 		Refresh();
 	}
-
 
 	private void HideFutureCard()
 	{
@@ -198,7 +188,6 @@ public sealed partial class SingularityMapExtension
 			}
 		}
 	}
-
 
 	private void CreateConnectionLine()
 	{
@@ -242,7 +231,6 @@ public sealed partial class SingularityMapExtension
 			_service.Unlocked
 		);
 	}
-
 
 	private void CreateRoomNode()
 	{
@@ -336,7 +324,7 @@ public sealed partial class SingularityMapExtension
 
 				Size =
 					new Vector2(
-						142,
+						InfoPanelWidth,
 						116
 					),
 
@@ -374,17 +362,14 @@ public sealed partial class SingularityMapExtension
 			"margin_left",
 			10
 		);
-
 		infoMargin.AddThemeConstantOverride(
 			"margin_top",
 			9
 		);
-
 		infoMargin.AddThemeConstantOverride(
 			"margin_right",
 			10
 		);
-
 		infoMargin.AddThemeConstantOverride(
 			"margin_bottom",
 			9
@@ -461,7 +446,7 @@ public sealed partial class SingularityMapExtension
 
 				Size =
 					new Vector2(
-						214,
+						BadgeWidth,
 						30
 					),
 
@@ -488,7 +473,6 @@ public sealed partial class SingularityMapExtension
 		);
 	}
 
-
 	private void OnPressed()
 	{
 		Input.VibrateHandheld(
@@ -510,7 +494,6 @@ public sealed partial class SingularityMapExtension
 			if (!result.Changed)
 			{
 				Refresh();
-
 				return;
 			}
 
@@ -519,10 +502,8 @@ public sealed partial class SingularityMapExtension
 		}
 
 		_mapPage.Hide();
-
 		_controller.Open();
 	}
-
 
 	private void OnMapVisibilityChanged()
 	{
@@ -537,7 +518,6 @@ public sealed partial class SingularityMapExtension
 			)
 			.CallDeferred();
 	}
-
 
 	public void Refresh()
 	{
@@ -612,7 +592,6 @@ public sealed partial class SingularityMapExtension
 		UpdateProgressLabel();
 	}
 
-
 	private void UpdateProgressLabel()
 	{
 		foreach (
@@ -632,8 +611,7 @@ public sealed partial class SingularityMapExtension
 				continue;
 			}
 
-			int normalUnlocked =
-				0;
+			int normalUnlocked = 0;
 
 			foreach (
 				RoomState room
@@ -659,7 +637,6 @@ public sealed partial class SingularityMapExtension
 			break;
 		}
 	}
-
 
 	private void ApplyNodeStyle(
 		bool unlocked)
@@ -731,7 +708,6 @@ public sealed partial class SingularityMapExtension
 				);
 	}
 
-
 	private void RefreshBadgeStyle(
 		PanelContainer badge)
 	{
@@ -780,7 +756,6 @@ public sealed partial class SingularityMapExtension
 		);
 	}
 
-
 	private static StyleBoxFlat CreateButtonStyle(
 		Color background,
 		Color border,
@@ -813,7 +788,6 @@ public sealed partial class SingularityMapExtension
 		};
 	}
 
-
 	private static Label CreateLabel(
 		int size,
 		string text)
@@ -841,7 +815,6 @@ public sealed partial class SingularityMapExtension
 		return label;
 	}
 
-
 	private static T? FindDescendant<T>(
 		Node root)
 		where T : Node
@@ -865,7 +838,6 @@ public sealed partial class SingularityMapExtension
 
 		return null;
 	}
-
 
 	private static System.Collections.Generic.List<T>
 		FindDescendants<T>(
@@ -897,34 +869,23 @@ public sealed partial class SingularityMapExtension
 		return result;
 	}
 
-
 	private sealed partial class SingularityMapLine
 		: Control
 	{
 		private Vector2 _from;
-
 		private Vector2 _to;
-
 		private bool _active;
-
 
 		public void Configure(
 			Vector2 from,
 			Vector2 to,
 			bool active)
 		{
-			_from =
-				from;
-
-			_to =
-				to;
-
-			_active =
-				active;
-
+			_from = from;
+			_to = to;
+			_active = active;
 			QueueRedraw();
 		}
-
 
 		public override void _Draw()
 		{

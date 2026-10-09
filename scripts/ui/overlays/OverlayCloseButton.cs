@@ -8,20 +8,21 @@ public static class OverlayCloseButton
 	private const string TexturePath =
 		"res://assets/ui/x.png";
 
-
 	private const float DefaultSize =
 		52.0f;
 
-
+	/*
+	 * The close icon should follow the actual top/right panel lines instead of
+	 * floating inward with an arbitrary 14 px gap. Callers can still pass a
+	 * custom margin when a specific overlay needs one.
+	 */
 	private const float DefaultMargin =
-		14.0f;
-
+		0.0f;
 
 	private static readonly Texture2D CloseTexture =
 		GD.Load<Texture2D>(
 			TexturePath
 		);
-
 
 	public static TextureButton Add(
 		Control panel,
@@ -47,16 +48,13 @@ public static class OverlayCloseButton
 					Control.MouseFilterEnum.Ignore
 			};
 
-
 		layer.SetAnchorsAndOffsetsPreset(
 			Control.LayoutPreset.FullRect
 		);
 
-
 		panel.AddChild(
 			layer
 		);
-
 
 		TextureButton button =
 			new()
@@ -81,11 +79,9 @@ public static class OverlayCloseButton
 					"Close"
 			};
 
-
 		button.SetAnchorsPreset(
 			Control.LayoutPreset.TopRight
 		);
-
 
 		button.OffsetLeft =
 			-(
@@ -93,31 +89,24 @@ public static class OverlayCloseButton
 				+ size
 			);
 
-
 		button.OffsetTop =
 			margin;
 
-
 		button.OffsetRight =
 			-margin;
-
 
 		button.OffsetBottom =
 			margin
 			+ size;
 
-
 		button.Pressed +=
 			closeAction;
-
 
 		layer.AddChild(
 			button
 		);
 
-
 		layer.MoveToFront();
-
 
 		return button;
 	}

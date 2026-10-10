@@ -20,16 +20,16 @@ public sealed partial class SingularityMapExtension
 	 * border on narrow/mobile rendering.
 	 */
 	private const float NodeWidth =
-		300.0f;
+		330.0f;
 
 	private const float NodeHeight =
-		178.0f;
+		190.0f;
 
 	private const float InfoPanelWidth =
-		160.0f;
+		146.0f;
 
 	private const float BadgeWidth =
-		244.0f;
+		276.0f;
 
 	private static readonly Vector2 SingularityPosition =
 		new(
@@ -274,8 +274,8 @@ public sealed partial class SingularityMapExtension
 			{
 				Position =
 					new Vector2(
-						12,
-						27
+						16,
+						35
 					),
 
 				Size =
@@ -318,14 +318,14 @@ public sealed partial class SingularityMapExtension
 			{
 				Position =
 					new Vector2(
-						116,
-						18
+						136,
+						28
 					),
 
 				Size =
 					new Vector2(
 						InfoPanelWidth,
-						116
+						104
 					),
 
 				MouseFilter =
@@ -440,8 +440,8 @@ public sealed partial class SingularityMapExtension
 			{
 				Position =
 					new Vector2(
-						28,
-						139
+						27,
+						151
 					),
 
 				Size =
@@ -482,6 +482,20 @@ public sealed partial class SingularityMapExtension
 
 		if (!_service.Unlocked)
 		{
+			bool room4Unlocked =
+				_state.RoomStates.Count > 3
+				&& _state.RoomStates[3].Unlocked;
+
+			if (!room4Unlocked)
+			{
+				MessageRequested?.Invoke(
+					"Unlock Room 4 first."
+				);
+
+				Refresh();
+				return;
+			}
+
 			SingularityActionResult result =
 				_service.Unlock(
 					_state
@@ -554,14 +568,20 @@ public sealed partial class SingularityMapExtension
 					1.0f
 				);
 
+		bool room4Unlocked =
+			_state.RoomStates.Count > 3
+			&& _state.RoomStates[3].Unlocked;
+
 		_badgeLabel.Text =
 			unlocked
 				? "ENTER"
-				: "UNLOCK • "
-					+ NumberFormatter.Format(
-						SingularityService
-							.TestUnlockTokenCost
-					);
+				: !room4Unlocked
+					? "UNLOCK ROOM 4 FIRST"
+					: "UNLOCK • "
+						+ NumberFormatter.Format(
+							SingularityService
+								.TestUnlockTokenCost
+						);
 
 		ApplyNodeStyle(
 			unlocked

@@ -6,31 +6,20 @@ namespace IdleAi;
 internal sealed class ResearchCardView
 {
 	public ResearchDefinition Research { get; private set; }
-
-
 	public Control Root { get; }
 
-
 	private readonly PanelContainer _panel;
-
 	private readonly TextureRect _icon;
-
 	private readonly Label _name;
-
 	private readonly Label _description;
-
 	private readonly Label _status;
-
 	private readonly Button _button;
-
 
 	public ResearchCardView(
 		ResearchDefinition research,
 		Action<string> startRequested)
 	{
-		Research =
-			research;
-
+		Research = research;
 
 		(
 			Root,
@@ -40,17 +29,10 @@ internal sealed class ResearchCardView
 			_description,
 			_status,
 			_button
-		) =
-			Create(
-				startRequested
-			);
+		) = Create(startRequested);
 
-
-		SetResearch(
-			research
-		);
+		SetResearch(research);
 	}
-
 
 	private (
 		Control,
@@ -60,42 +42,32 @@ internal sealed class ResearchCardView
 		Label,
 		Label,
 		Button
-	) Create(
-		Action<string> startRequested)
+	) Create(Action<string> startRequested)
 	{
 		MarginContainer outer =
 			new()
-				{
-					SizeFlagsHorizontal =
-						Control.SizeFlags.ExpandFill
-				};
-
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
 
 		outer.AddThemeConstantOverride(
 			"margin_left",
 			22
 		);
-
-
 		outer.AddThemeConstantOverride(
 			"margin_right",
 			22
 		);
 
-
 		PanelContainer panel =
 			new()
-				{
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							118
-						),
-
-					SizeFlagsHorizontal =
-						Control.SizeFlags.ExpandFill
-				};
-
+			{
+				CustomMinimumSize =
+					new Vector2(0, 124),
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
 
 		panel.AddThemeStyleboxOverride(
 			"panel",
@@ -104,142 +76,97 @@ internal sealed class ResearchCardView
 			)
 		);
 
-
-		outer.AddChild(
-			panel
-		);
-
+		outer.AddChild(panel);
 
 		MarginContainer margin =
-			LabUi.CreateMargin(
-				11
-			);
-
-
-		panel.AddChild(
-			margin
-		);
-
+			LabUi.CreateMargin(11);
+		panel.AddChild(margin);
 
 		HBoxContainer row =
 			new()
-				{
-					SizeFlagsHorizontal =
-						Control.SizeFlags.ExpandFill
-				};
-
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
 
 		row.AddThemeConstantOverride(
 			"separation",
 			10
 		);
-
-
-		margin.AddChild(
-			row
-		);
-
+		margin.AddChild(row);
 
 		TextureRect icon =
 			LabUi.CreateIcon(
 				LabUi.ResearchLockedIcon,
 				50
 			);
-
-
-		row.AddChild(
-			icon
-		);
-
+		row.AddChild(icon);
 
 		VBoxContainer text =
 			new()
-				{
-					SizeFlagsHorizontal =
-						Control.SizeFlags.ExpandFill
-				};
-
+			{
+				SizeFlagsHorizontal =
+					Control.SizeFlags.ExpandFill
+			};
 
 		text.AddThemeConstantOverride(
 			"separation",
 			2
 		);
 
-
 		Label name =
-			LabUi.CreateLeftLabel(
-				17
-			);
-
-
-		text.AddChild(
-			name
+			LabUi.CreateLeftLabel(17);
+		name.AddThemeColorOverride(
+			"font_color",
+			new Color(
+				0.90f,
+				0.96f,
+				1.0f,
+				1.0f
+			)
 		);
-
+		text.AddChild(name);
 
 		Label description =
-			LabUi.CreateLeftLabel(
-				12
-			);
-
-
+			LabUi.CreateLeftLabel(12);
 		description.AutowrapMode =
 			TextServer.AutowrapMode.WordSmart;
-
-
-		text.AddChild(
-			description
+		description.AddThemeColorOverride(
+			"font_color",
+			new Color(
+				0.59f,
+				0.70f,
+				0.80f,
+				1.0f
+			)
 		);
-
+		text.AddChild(description);
 
 		Label status =
-			LabUi.CreateLeftLabel(
-				11
-			);
+			LabUi.CreateLeftLabel(11);
+		text.AddChild(status);
 
-
-		text.AddChild(
-			status
-		);
-
-
-		row.AddChild(
-			text
-		);
-
+		row.AddChild(text);
 
 		Button button =
 			new()
-				{
-					CustomMinimumSize =
-						new Vector2(
-							126,
-							54
-						),
+			{
+				CustomMinimumSize =
+					new Vector2(126, 54),
+				FocusMode =
+					Control.FocusModeEnum.None
+			};
 
-					FocusMode =
-						Control.FocusModeEnum.None
-				};
-
-
+		ShopUi.ApplyPrimaryButtonStyle(button);
 		button.AddThemeFontSizeOverride(
 			"font_size",
-			11
+			12
 		);
-
 
 		button.Pressed +=
-			() =>
-				startRequested(
-					Research.Id
-				);
+			() => startRequested(Research.Id);
 
-
-		row.AddChild(
-			button
-		);
-
-
+		row.AddChild(button);
 
 		return (
 			outer,
@@ -252,28 +179,21 @@ internal sealed class ResearchCardView
 		);
 	}
 
-
 	public void SetResearch(
 		ResearchDefinition research)
 	{
-		Research =
-			research;
-
+		Research = research;
 
 		if (_name != null)
 		{
-			_name.Text =
-				Research.Name;
+			_name.Text = Research.Name;
 		}
-
 
 		if (_description != null)
 		{
-			_description.Text =
-				Research.Description;
+			_description.Text = Research.Description;
 		}
 	}
-
 
 	public void Apply(
 		Texture2D icon,
@@ -282,33 +202,31 @@ internal sealed class ResearchCardView
 		string buttonText,
 		bool disabled)
 	{
-		_icon.Texture =
-			icon;
-
-
-		_status.Text =
-			status;
-
-
+		_icon.Texture = icon;
+		_status.Text = status;
 		_status.AddThemeColorOverride(
 			"font_color",
 			border
 		);
 
+		_button.Text = buttonText;
+		_button.Disabled = disabled;
 
-		_button.Text =
-			buttonText;
+		StyleBoxFlat style =
+			LabUi.CreateResearchNodeStyle(border);
 
-
-		_button.Disabled =
-			disabled;
-
+		style.ShadowColor =
+			new Color(
+				border.R,
+				border.G,
+				border.B,
+				disabled ? 0.05f : 0.12f
+			);
+		style.ShadowSize = disabled ? 2 : 6;
 
 		_panel.AddThemeStyleboxOverride(
 			"panel",
-			LabUi.CreateResearchNodeStyle(
-				border
-			)
+			style
 		);
 	}
 }

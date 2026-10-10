@@ -11,6 +11,10 @@ namespace IdleAi;
  * cross-Sector adjacency all keep their existing coordinates. Only the visual
  * Sector frame grows outward, so the outer Nodes no longer sit directly on
  * the border / look clipped.
+ *
+ * The sector frame itself is now deliberately text-free. The header already
+ * shows the current sector, so the per-frame CURRENT / SECTOR N / output text
+ * is redundant and only adds visual clutter.
  */
 public sealed partial class SingularityController
 {
@@ -111,6 +115,50 @@ public sealed partial class SingularityController
 			 */
 			view.Frame.MouseFilter =
 				Control.MouseFilterEnum.Ignore;
+
+			/*
+			 * The main Singularity header already exposes the current Sector.
+			 * Hide the three redundant labels inside each individual Sector box:
+			 * - CURRENT
+			 * - SECTOR N
+			 * - the output/status line below SECTOR N
+			 *
+			 * RefreshSectorMapView() still updates these labels internally, but
+			 * this recurring visual pass keeps them hidden even after refreshes or
+			 * sector virtualization creates a new frame.
+			 */
+			if (
+				view.CurrentBadge != null
+				&& GodotObject.IsInstanceValid(
+					view.CurrentBadge
+				)
+			)
+			{
+				view.CurrentBadge.Visible =
+					false;
+			}
+
+			if (
+				view.Title != null
+				&& GodotObject.IsInstanceValid(
+					view.Title
+				)
+			)
+			{
+				view.Title.Visible =
+					false;
+			}
+
+			if (
+				view.Output != null
+				&& GodotObject.IsInstanceValid(
+					view.Output
+				)
+			)
+			{
+				view.Output.Visible =
+					false;
+			}
 		}
 	}
 }

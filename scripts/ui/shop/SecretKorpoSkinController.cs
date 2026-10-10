@@ -111,10 +111,6 @@ public sealed class SecretKorpoSkinController
 
 		_halloweenOffer.Initialize();
 
-		/*
-		 * ACCESS CODE is created after OFFERS and then included in the final
-		 * reorder, so it remains physically last.
-		 */
 		CreateCodeEntryAtBottom();
 
 		FindCollectionContent();
@@ -346,6 +342,13 @@ public sealed class SecretKorpoSkinController
 			)
 		)
 		{
+			/*
+			 * Keep the Access Code card clean. The normal MessageRequested path
+			 * is the game's short-lived popup/toast and is enough feedback here.
+			 */
+			_codeStatus.Text =
+				"";
+
 			Refresh();
 
 			MessageRequested?.Invoke(
@@ -389,6 +392,12 @@ public sealed class SecretKorpoSkinController
 				BotSkinCatalog.KorpoSkinId
 			);
 
+		/*
+		 * GameUiController already routes MessageRequested through SetMessage,
+		 * i.e. the existing short-lived popup/toast. Do not mirror the success
+		 * text into _codeStatus, otherwise "... UNLOCKED" remains permanently
+		 * visible in the Access Code section.
+		 */
 		MessageRequested?.Invoke(
 			result.Message
 		);
@@ -401,6 +410,14 @@ public sealed class SecretKorpoSkinController
 			);
 
 			_codeInput.Clear();
+
+			_codeStatus.Text =
+				"";
+
+			_codeStatus.AddThemeColorOverride(
+				"font_color",
+				ShopUi.TextSecondary
+			);
 
 			EnsureSecretCard();
 
@@ -840,22 +857,24 @@ public sealed class SecretKorpoSkinController
 			_redeemButton.Disabled =
 				false;
 
+			/*
+			 * Success is intentionally NOT persisted in the Access Code card.
+			 * The success message is emitted via MessageRequested in Redeem() and
+			 * therefore appears briefly through the game's existing popup/toast.
+			 */
 			if (unlocked)
 			{
 				if (
-					string.IsNullOrWhiteSpace(
-						_codeStatus.Text
-					)
-					|| _codeStatus.Text
-						== "CODE REDEEMED"
+					_codeStatus.Text
+						!= "DEBUG REWARD: +50ab TOKENS"
 				)
 				{
 					_codeStatus.Text =
-						"SECRET KORPO UNLOCKED";
+						"";
 
 					_codeStatus.AddThemeColorOverride(
 						"font_color",
-						ShopUi.Green
+						ShopUi.TextSecondary
 					);
 				}
 			}

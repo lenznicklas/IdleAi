@@ -656,11 +656,14 @@ public sealed partial class SingularityMapExtension
 
 		if (current)
 		{
+			// CURRENT is shown only in the bottom badge. Keeping the
+			// info-panel line as the normal action text avoids the duplicate
+			// CURRENT / CURRENT presentation in the map card.
 			_stateLabel.Text =
-				"CURRENT";
+				"TAP TO ENTER";
 
 			_stateLabel.Modulate =
-				Accent;
+				Colors.White;
 
 			_badgeLabel.Text =
 				"CURRENT";

@@ -41,7 +41,8 @@ public sealed class BotSkinShopController
 	// Keep this VBox as the first child of the collection scroll margin.
 	// SecretKorpoSkinController currently discovers the collection through this hierarchy.
 	private VBoxContainer _collectionContent = null!;
-	private GridContainer _skinGrid = null!;
+	private GridContainer _ownedSkinGrid = null!;
+	private GridContainer _availableSkinGrid = null!;
 
 	private Label _collectionShardLabel = null!;
 	private MobileScrollController _collectionMobileScroll = null!;
@@ -251,16 +252,25 @@ public sealed class BotSkinShopController
 		_collectionContent.AddThemeConstantOverride("separation", 14);
 		collectionHost.AddChild(_collectionContent);
 
-		// Two-column slot-like table.
-		_skinGrid = new GridContainer
-		{
-			Name = "BotSkinCollectionGrid",
-			Columns = GridColumns,
-			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
-		};
-		_skinGrid.AddThemeConstantOverride("h_separation", 12);
-		_skinGrid.AddThemeConstantOverride("v_separation", 12);
-		_collectionContent.AddChild(_skinGrid);
+		CreateSectionHeader(
+			_collectionContent,
+			"OWNED SKINS",
+            "Equipped and unlocked bot packs."
+		);
+
+		_ownedSkinGrid = CreateSkinGrid("BotSkinOwnedGrid");
+		_collectionContent.AddChild(_ownedSkinGrid);
+
+		AddCollectionDivider(_collectionContent);
+
+		CreateSectionHeader(
+			_collectionContent,
+			"AVAILABLE TO BUY",
+            "Unlock more bot appearances with Data Shards."
+		);
+
+		_availableSkinGrid = CreateSkinGrid("BotSkinAvailableGrid");
+		_collectionContent.AddChild(_availableSkinGrid);
 
 		CreateDefaultSkinCard();
 
@@ -443,7 +453,7 @@ public sealed class BotSkinShopController
 			0.66f
 		);
 		panel.AddThemeStyleboxOverride("panel", panelStyle);
-		_skinGrid.AddChild(panel);
+		_availableSkinGrid.AddChild(panel);
 
 		MarginContainer margin = new();
 		margin.AddThemeConstantOverride("margin_left", 10);
@@ -537,6 +547,7 @@ public sealed class BotSkinShopController
 		box.AddChild(button);
 
 		return new SkinCardView(
+			panel,
 			status,
 			button,
 			cost
@@ -640,6 +651,7 @@ public sealed class BotSkinShopController
 		}
 
 		EnsureSecretCard();
+		RefreshCollectionGrouping();
 		RefreshDefaultCard();
 
 		foreach (SkinDefinition skin in BotSkinCatalog.GetAll())
@@ -678,6 +690,90 @@ public sealed class BotSkinShopController
 		}
 
 		CreateSkinCard(secretSkin);
+	}
+
+	private void RefreshCollectionGrouping()
+	{
+		int ownedIndex = 0;
+		int availableIndex = 0;
+
+		if (_defaultCard != null)
+		{
+			PlaceCard(
+				_defaultCard,
+				_ownedSkinGrid,
+				ownedIndex++
+			);
+		}
+
+		foreach (SkinDefinition skin in BotSkinCatalog.GetAll())
+		{
+			if (
+				skin.Target != SkinTarget.Bots
+				|| !_cards.TryGetValue(skin.Id, out SkinCardView? card)
+			)
+			{
+				continue;
+			}
+
+			if (_service.IsOwned(skin.Id))
+			{
+				PlaceCard(
+					card,
+					_ownedSkinGrid,
+					ownedIndex++
+				);
+			}
+			else
+			{
+				PlaceCard(
+					card,
+					_availableSkinGrid,
+					availableIndex++
+				);
+			}
+		}
+
+		if (
+			_cards.TryGetValue(
+				BotSkinCatalog.KorpoSkinId,
+				out SkinCardView? secretCard
+			)
+		)
+		{
+			PlaceCard(
+				secretCard,
+				_ownedSkinGrid,
+				ownedIndex
+			);
+		}
+	}
+
+	private static void PlaceCard(
+		SkinCardView card,
+		GridContainer target,
+		int index)
+	{
+		if (!GodotObject.IsInstanceValid(card.Panel))
+			return;
+
+		Node? currentParent = card.Panel.GetParent();
+
+		if (currentParent != target)
+		{
+			currentParent?.RemoveChild(card.Panel);
+			target.AddChild(card.Panel);
+		}
+
+		int maxIndex = Math.Max(
+			0,
+			target.GetChildCount() - 1
+		);
+
+		target.MoveChild(
+			card.Panel,
+			Math.Min(index, maxIndex)
+		);
 	}
 
 	private void RefreshSkinCard(
@@ -975,6 +1071,37 @@ public sealed class BotSkinShopController
 		return button;
 	}
 
+	private static GridContainer CreateSkinGrid(
+		string name)
+	{
+		GridContainer grid = new()
+		{
+			Name = name,
+			Columns = GridColumns,
+			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
+		};
+
+		grid.AddThemeConstantOverride("h_separation", 12);
+		grid.AddThemeConstantOverride("v_separation", 12);
+
+		return grid;
+	}
+
+	private static void AddCollectionDivider(
+		VBoxContainer parent)
+	{
+		AddSpacer(parent, 4);
+
+		HSeparator divider = new()
+		{
+			CustomMinimumSize = new Vector2(0, 22),
+			MouseFilter = Control.MouseFilterEnum.Ignore
+		};
+
+		parent.AddChild(divider);
+		AddSpacer(parent, 4);
+	}
+
 	private static void CreateSectionHeader(
 		VBoxContainer parent,
 		string title,
@@ -1120,15 +1247,18 @@ public sealed class BotSkinShopController
 
 	private sealed class SkinCardView
 	{
+		public PanelContainer Panel { get; }
 		public Label Status { get; }
 		public Button Button { get; }
 		public double Cost { get; }
 
 		public SkinCardView(
+			PanelContainer panel,
 			Label status,
 			Button button,
 			double cost)
 		{
+			Panel = panel;
 			Status = status;
 			Button = button;
 			Cost = cost;

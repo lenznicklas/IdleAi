@@ -38,6 +38,8 @@ public sealed class MachineSkinShopController
 	private MarginContainer _collectionScrollMargin = null!;
 	private PanelContainer _collectionHeader = null!;
 	private VBoxContainer _collectionContent = null!;
+	private GridContainer _ownedSkinGrid = null!;
+	private GridContainer _availableSkinGrid = null!;
 	private Label _collectionShardLabel = null!;
 	private MobileScrollController _collectionMobileScroll = null!;
 	private SkinPreviewOverlay _previewOverlay = null!;
@@ -233,8 +235,28 @@ public sealed class MachineSkinShopController
 		_collectionContent.AddThemeConstantOverride("separation", 14);
 		_collectionScrollMargin.AddChild(_collectionContent);
 
+		CreateSectionHeader(
+			_collectionContent,
+			"OWNED SKINS",
+            "Default and purchased machine packs."
+		);
+
+		_ownedSkinGrid = CreateSkinGrid("MachineSkinOwnedGrid");
+		_collectionContent.AddChild(_ownedSkinGrid);
+
+		AddCollectionDivider(_collectionContent);
+
+		CreateSectionHeader(
+			_collectionContent,
+			"AVAILABLE TO BUY",
+            "Unlock more machine appearances with Data Shards."
+		);
+
+		_availableSkinGrid = CreateSkinGrid("MachineSkinAvailableGrid");
+		_collectionContent.AddChild(_availableSkinGrid);
+
 		for (int roomIndex = 0; roomIndex < _state.Rooms.Count; roomIndex++)
-			CreateRoomSection(roomIndex);
+			CreateRoomCards(roomIndex);
 
 		CreatePreviewCycleTimer();
 		CreateCollectionHeader();
@@ -337,26 +359,10 @@ public sealed class MachineSkinShopController
 		_collectionHeader.MoveToFront();
 	}
 
-	private void CreateRoomSection(
+	private void CreateRoomCards(
 		int roomIndex)
 	{
 		RoomData room = _state.Rooms[roomIndex];
-
-		CreateSectionHeader(
-			_collectionContent,
-			room.Name.ToUpperInvariant(),
-            "Tap a preview to inspect all four machine tiers."
-		);
-
-		GridContainer grid = new()
-		{
-			Name = "MachineSkinGrid_Room" + (roomIndex + 1),
-			Columns = GridColumns,
-			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
-		};
-		grid.AddThemeConstantOverride("h_separation", 12);
-		grid.AddThemeConstantOverride("v_separation", 12);
-		_collectionContent.AddChild(grid);
 
 		Texture2D?[] defaultTextures =
 		[
@@ -367,10 +373,10 @@ public sealed class MachineSkinShopController
 		];
 
 		MachineSkinCardView defaultCard = CreateCollectionCard(
-			grid,
+			_ownedSkinGrid,
 			roomIndex,
 			MachineSkinCatalog.DefaultSkinId,
-			"DEFAULT",
+			room.Name.ToUpperInvariant() + " • DEFAULT",
 			0.0,
 			defaultTextures,
 			true,
@@ -379,12 +385,8 @@ public sealed class MachineSkinShopController
 
 		_defaultCards[roomIndex] = defaultCard;
 
-		bool anyPack = false;
-
 		foreach (MachineSkinDefinition skin in MachineSkinCatalog.GetForRoom(roomIndex))
 		{
-			anyPack = true;
-
 			Texture2D?[] machineTextures =
 			[
 				skin.MachineTextures.Count > 0 ? skin.MachineTextures[0] : null,
@@ -394,10 +396,14 @@ public sealed class MachineSkinShopController
 			];
 
 			MachineSkinCardView card = CreateCollectionCard(
-				grid,
+				_service.IsOwned(skin.Id)
+					? _ownedSkinGrid
+					: _availableSkinGrid,
 				roomIndex,
 				skin.Id,
-				skin.Name.ToUpperInvariant(),
+				room.Name.ToUpperInvariant()
+					+ " • "
+					+ skin.Name.ToUpperInvariant(),
 				skin.Cost,
 				machineTextures,
 				skin.IsComplete,
@@ -407,13 +413,6 @@ public sealed class MachineSkinShopController
 			_skinCards[skin.Id] = card;
 		}
 
-		if (!anyPack)
-		{
-			Label empty = ShopUi.CreateMutedLabel(13);
-			empty.Text = "No machine skin packs available for this room yet.";
-			empty.CustomMinimumSize = new Vector2(0, 52);
-			grid.AddChild(empty);
-		}
 	}
 
 	private MachineSkinCardView CreateCollectionCard(
@@ -535,6 +534,7 @@ public sealed class MachineSkinShopController
 		box.AddChild(button);
 
 		return new MachineSkinCardView(
+			panel,
 			roomIndex,
 			skinId,
 			status,
@@ -644,6 +644,8 @@ public sealed class MachineSkinShopController
 				+ FormatShardAmount(_state.Shop.DataShards);
 		}
 
+		RefreshCollectionGrouping();
+
 		foreach (KeyValuePair<int, MachineSkinCardView> pair in _defaultCards)
 		{
 			MachineSkinCardView card = pair.Value;
@@ -706,6 +708,74 @@ public sealed class MachineSkinShopController
 
 			card.Button.Disabled = _state.Shop.DataShards < skin.Cost;
 		}
+	}
+
+	private void RefreshCollectionGrouping()
+	{
+		int ownedIndex = 0;
+		int availableIndex = 0;
+
+		for (int roomIndex = 0; roomIndex < _state.Rooms.Count; roomIndex++)
+		{
+			if (_defaultCards.TryGetValue(roomIndex, out MachineSkinCardView? defaultCard))
+			{
+				PlaceCard(
+					defaultCard,
+					_ownedSkinGrid,
+					ownedIndex++
+				);
+			}
+		}
+
+		foreach (MachineSkinDefinition skin in MachineSkinCatalog.GetAll())
+		{
+			if (!_skinCards.TryGetValue(skin.Id, out MachineSkinCardView? card))
+				continue;
+
+			if (_service.IsOwned(skin.Id))
+			{
+				PlaceCard(
+					card,
+					_ownedSkinGrid,
+					ownedIndex++
+				);
+			}
+			else
+			{
+				PlaceCard(
+					card,
+					_availableSkinGrid,
+					availableIndex++
+				);
+			}
+		}
+	}
+
+	private static void PlaceCard(
+		MachineSkinCardView card,
+		GridContainer target,
+		int index)
+	{
+		if (!GodotObject.IsInstanceValid(card.Panel))
+			return;
+
+		Node? currentParent = card.Panel.GetParent();
+
+		if (currentParent != target)
+		{
+			currentParent?.RemoveChild(card.Panel);
+			target.AddChild(card.Panel);
+		}
+
+		int maxIndex = Math.Max(
+			0,
+			target.GetChildCount() - 1
+		);
+
+		target.MoveChild(
+			card.Panel,
+			Math.Min(index, maxIndex)
+		);
 	}
 
 	private static void SetActive(
@@ -905,6 +975,37 @@ public sealed class MachineSkinShopController
 		return button;
 	}
 
+	private static GridContainer CreateSkinGrid(
+		string name)
+	{
+		GridContainer grid = new()
+		{
+			Name = name,
+			Columns = GridColumns,
+			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill
+		};
+
+		grid.AddThemeConstantOverride("h_separation", 12);
+		grid.AddThemeConstantOverride("v_separation", 12);
+
+		return grid;
+	}
+
+	private static void AddCollectionDivider(
+		VBoxContainer parent)
+	{
+		AddSpacer(parent, 4);
+
+		HSeparator divider = new()
+		{
+			CustomMinimumSize = new Vector2(0, 22),
+			MouseFilter = Control.MouseFilterEnum.Ignore
+		};
+
+		parent.AddChild(divider);
+		AddSpacer(parent, 4);
+	}
+
 	private static void CreateSectionHeader(
 		VBoxContainer parent,
 		string title,
@@ -1007,6 +1108,7 @@ public sealed class MachineSkinShopController
 
 	private sealed class MachineSkinCardView
 	{
+		public PanelContainer Panel { get; }
 		public int RoomIndex { get; }
 		public string SkinId { get; }
 		public Label Status { get; }
@@ -1015,6 +1117,7 @@ public sealed class MachineSkinShopController
 		public bool AssetsComplete { get; }
 
 		public MachineSkinCardView(
+			PanelContainer panel,
 			int roomIndex,
 			string skinId,
 			Label status,
@@ -1022,6 +1125,7 @@ public sealed class MachineSkinShopController
 			double cost,
 			bool assetsComplete)
 		{
+			Panel = panel;
 			RoomIndex = roomIndex;
 			SkinId = skinId;
 			Status = status;

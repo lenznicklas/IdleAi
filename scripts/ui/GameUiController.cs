@@ -744,8 +744,6 @@ public sealed class GameUiController
 
 	private void OpenSettings()
 	{
-		ClosePages();
-
 		_details.Close();
 		_stats.Hide();
 		_prestige.Hide();

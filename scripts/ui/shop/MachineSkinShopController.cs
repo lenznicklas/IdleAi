@@ -14,6 +14,13 @@ public sealed class MachineSkinShopController
 	private const float CollectionBottomPadding = 260.0f;
 	private const int GridColumns = 2;
 
+	private const double PreviewCycleSeconds = 5.0;
+	private const double PreviewFadeOutSeconds = 0.20;
+	private const double PreviewFadeInSeconds = 0.34;
+
+	private static readonly Vector2 PreviewTransitionScale =
+		new(0.94f, 0.94f);
+
 	private readonly Game _root;
 	private readonly GameState _state;
 	private readonly MachineSkinService _service;
@@ -34,6 +41,9 @@ public sealed class MachineSkinShopController
 	private Label _collectionShardLabel = null!;
 	private MobileScrollController _collectionMobileScroll = null!;
 	private SkinPreviewOverlay _previewOverlay = null!;
+	private Timer _previewCycleTimer = null!;
+
+	private readonly List<RotatingPreviewState> _rotatingPreviews = new();
 
 	private readonly Dictionary<string, MachineSkinCardView> _skinCards =
 		new(StringComparer.OrdinalIgnoreCase);
@@ -226,6 +236,7 @@ public sealed class MachineSkinShopController
 		for (int roomIndex = 0; roomIndex < _state.Rooms.Count; roomIndex++)
 			CreateRoomSection(roomIndex);
 
+		CreatePreviewCycleTimer();
 		CreateCollectionHeader();
 
 		_collectionMobileScroll = new MobileScrollController
@@ -451,7 +462,14 @@ public sealed class MachineSkinShopController
 		name.AddThemeColorOverride("font_color", accent);
 		box.AddChild(name);
 
-		Texture2D? previewTexture = PickRandomTexture(machineTextures);
+		List<Texture2D> availableTextures = CollectAvailableTextures(machineTextures);
+		int previewIndex = availableTextures.Count > 0
+			? Random.Shared.Next(availableTextures.Count)
+			: -1;
+
+		Texture2D? previewTexture = previewIndex >= 0
+			? availableTextures[previewIndex]
+			: null;
 
 		TextureButton preview = new()
 		{
@@ -488,6 +506,17 @@ public sealed class MachineSkinShopController
 		};
 
 		box.AddChild(preview);
+
+		if (availableTextures.Count > 1)
+		{
+			_rotatingPreviews.Add(
+				new RotatingPreviewState(
+					preview,
+					availableTextures,
+					previewIndex
+				)
+			);
+		}
 
 		Label status = ShopUi.CreateMutedLabel(11);
 		status.CustomMinimumSize = new Vector2(0, 26);
@@ -528,6 +557,8 @@ public sealed class MachineSkinShopController
 		_collectionRoot.Show();
 		_collectionRoot.MoveToFront();
 		_collectionHeader.MoveToFront();
+
+		StartPreviewCycling();
 	}
 
 	public void CloseCollection()
@@ -537,6 +568,7 @@ public sealed class MachineSkinShopController
 
 		_previewOverlay?.Close();
 		_collectionMobileScroll?.ResetMotion();
+		StopPreviewCycling();
 		_collectionRoot.Hide();
 		_mainLayout?.Show();
 	}
@@ -685,7 +717,129 @@ public sealed class MachineSkinShopController
 		card.Button.Disabled = true;
 	}
 
-	private static Texture2D? PickRandomTexture(
+	private void CreatePreviewCycleTimer()
+	{
+		_previewCycleTimer = new Timer
+		{
+			Name = "MachineSkinPreviewCycleTimer",
+			WaitTime = PreviewCycleSeconds,
+			OneShot = false,
+			Autostart = false
+		};
+
+		_previewCycleTimer.Timeout += CyclePreviewImages;
+		_collectionRoot.AddChild(_previewCycleTimer);
+	}
+
+	private void StartPreviewCycling()
+	{
+		if (
+			_previewCycleTimer == null
+			|| _rotatingPreviews.Count == 0
+		)
+		{
+			return;
+		}
+
+		_previewCycleTimer.Stop();
+		_previewCycleTimer.Start(PreviewCycleSeconds);
+	}
+
+	private void StopPreviewCycling()
+	{
+		_previewCycleTimer?.Stop();
+
+		foreach (RotatingPreviewState state in _rotatingPreviews)
+		{
+			state.Transition?.Kill();
+			state.Transition = null;
+
+			if (!GodotObject.IsInstanceValid(state.Preview))
+				continue;
+
+			state.Preview.Modulate = Colors.White;
+			state.Preview.Scale = Vector2.One;
+		}
+	}
+
+	private void CyclePreviewImages()
+	{
+		if (!CollectionVisible)
+			return;
+
+		foreach (RotatingPreviewState state in _rotatingPreviews)
+			AnimatePreviewToNextTexture(state);
+	}
+
+	private void AnimatePreviewToNextTexture(
+		RotatingPreviewState state)
+	{
+		if (
+			!GodotObject.IsInstanceValid(state.Preview)
+			|| state.Textures.Count < 2
+		)
+		{
+			return;
+		}
+
+		int nextIndex = state.CurrentIndex;
+
+		while (nextIndex == state.CurrentIndex)
+			nextIndex = Random.Shared.Next(state.Textures.Count);
+
+		state.Transition?.Kill();
+
+		state.Preview.PivotOffset = state.Preview.Size / 2.0f;
+		state.Preview.Modulate = Colors.White;
+		state.Preview.Scale = Vector2.One;
+
+		Tween tween = _root.CreateTween();
+		state.Transition = tween;
+
+		tween.SetTrans(Tween.TransitionType.Cubic);
+		tween.SetEase(Tween.EaseType.InOut);
+
+		tween.TweenProperty(
+			state.Preview,
+			"modulate:a",
+			0.0f,
+			PreviewFadeOutSeconds
+		);
+
+		tween.Parallel().TweenProperty(
+			state.Preview,
+			"scale",
+			PreviewTransitionScale,
+			PreviewFadeOutSeconds
+		);
+
+		tween.TweenCallback(
+			Callable.From(() =>
+			{
+				if (!GodotObject.IsInstanceValid(state.Preview))
+					return;
+
+				state.CurrentIndex = nextIndex;
+				state.Preview.TextureNormal = state.Textures[nextIndex];
+			})
+		);
+
+		tween.TweenProperty(
+			state.Preview,
+			"modulate:a",
+			1.0f,
+			PreviewFadeInSeconds
+		);
+
+		tween.Parallel().TweenProperty(
+			state.Preview,
+			"scale",
+			Vector2.One,
+			PreviewFadeInSeconds
+		);
+	}
+
+	private static List<Texture2D> CollectAvailableTextures(
 		IReadOnlyList<Texture2D?> textures)
 	{
 		List<Texture2D> available = new();
@@ -696,12 +850,7 @@ public sealed class MachineSkinShopController
 				available.Add(texture);
 		}
 
-		if (available.Count == 0)
-			return null;
-
-		return available[
-			Random.Shared.Next(available.Count)
-		];
+		return available;
 	}
 
 	private static string FormatShardAmount(
@@ -836,6 +985,24 @@ public sealed class MachineSkinShopController
 		float top = safeArea.Position.Y * scaleY;
 
 		return MathF.Max(top, 26.0f);
+	}
+
+	private sealed class RotatingPreviewState
+	{
+		public TextureButton Preview { get; }
+		public IReadOnlyList<Texture2D> Textures { get; }
+		public int CurrentIndex { get; set; }
+		public Tween? Transition { get; set; }
+
+		public RotatingPreviewState(
+			TextureButton preview,
+			IReadOnlyList<Texture2D> textures,
+			int currentIndex)
+		{
+			Preview = preview;
+			Textures = textures;
+			CurrentIndex = currentIndex;
+		}
 	}
 
 	private sealed class MachineSkinCardView

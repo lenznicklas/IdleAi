@@ -360,7 +360,7 @@ public sealed partial class HalloweenOfferShopController
 					CustomMinimumSize =
 						new Vector2(
 							0,
-							190
+							270
 						),
 
 					SizeFlagsHorizontal =
@@ -370,7 +370,7 @@ public sealed partial class HalloweenOfferShopController
 						TextureRect.ExpandModeEnum.IgnoreSize,
 
 					StretchMode =
-						TextureRect.StretchModeEnum.KeepAspectCentered,
+						TextureRect.StretchModeEnum.KeepAspectCovered,
 
 					MouseFilter =
 						Control.MouseFilterEnum.Ignore

@@ -34,7 +34,7 @@ public sealed partial class SingularityMapExtension
 	private static readonly Vector2 SingularityPosition =
 		new(
 			48.0f,
-			26.0f
+			12.0f
 		);
 
 	private static readonly Vector2 QuantumCenter =
@@ -86,6 +86,13 @@ public sealed partial class SingularityMapExtension
 
 	private SingularityMapLine _line =
 		null!;
+
+	/*
+	 * MapPage is shared by the normal rooms and The Singularity. Remember when
+	 * MAP was opened from Singularity so closing MAP can return to it instead
+	 * of falling back to the last normal room stored in GameState.
+	 */
+	private bool _returnToSingularityAfterMap;
 
 	public event Action<string>? MessageRequested;
 	public event Action? GameStateChanged;
@@ -161,6 +168,7 @@ public sealed partial class SingularityMapExtension
 		HideFutureCard();
 		CreateConnectionLine();
 		CreateRoomNode();
+		HookNormalRoomButtons();
 
 		_mapPage.VisibilityChanged +=
 			OnMapVisibilityChanged;
@@ -515,22 +523,111 @@ public sealed partial class SingularityMapExtension
 			Refresh();
 		}
 
+		/*
+		 * This close is intentional: the Singularity card itself was pressed.
+		 * Open() below owns the transition, so the generic MAP-close restore must
+		 * not run a second time.
+		 */
+		_returnToSingularityAfterMap =
+			false;
+
 		_mapPage.Hide();
 		_controller.Open();
 	}
 
-	private void OnMapVisibilityChanged()
+	private void HookNormalRoomButtons()
+	{
+		foreach (
+			Button button
+				in FindDescendants<Button>(
+					_canvas
+				)
+		)
+		{
+			if (button == _roomButton)
+				continue;
+
+			/*
+			 * MapController's room callback is already connected before this
+			 * extension is initialized. After a successful normal-room selection
+			 * Game.ClosePages() hides MAP. Check that final state deferred so a
+			 * failed locked-room purchase keeps Singularity as the return target.
+			 */
+			button.Pressed +=
+				() =>
+					Callable
+						.From(
+							CancelSingularityReturnIfMapClosed
+						)
+						.CallDeferred();
+		}
+	}
+
+	private void CancelSingularityReturnIfMapClosed()
 	{
 		if (!_mapPage.Visible)
+		{
+			_returnToSingularityAfterMap =
+				false;
+		}
+	}
+
+	private void OnMapVisibilityChanged()
+	{
+		if (_mapPage.Visible)
+		{
+			/*
+			 * Capture this BEFORE hiding the Singularity page. It is the missing
+			 * state that previously caused MAP -> close to return to a normal room.
+			 */
+			_returnToSingularityAfterMap =
+				_controller.Visible;
+
+			if (_returnToSingularityAfterMap)
+			{
+				_controller.Hide();
+			}
+
+			Callable
+				.From(
+					Refresh
+				)
+				.CallDeferred();
+
 			return;
+		}
 
-		_controller.Hide();
+		if (_returnToSingularityAfterMap)
+		{
+			RestoreSingularityAfterMapClose();
+		}
+	}
 
-		Callable
-			.From(
-				Refresh
-			)
-			.CallDeferred();
+	private async void RestoreSingularityAfterMapClose()
+	{
+		/*
+		 * Wait one frame. A normal room selection closes MAP synchronously, then
+		 * its button callback clears the return flag via CallDeferred(). This
+		 * small delay prevents Singularity from reopening over a room the player
+		 * explicitly selected.
+		 */
+		await _root.ToSignal(
+			_root.GetTree(),
+			SceneTree.SignalName.ProcessFrame
+		);
+
+		if (
+			!_returnToSingularityAfterMap
+			|| _mapPage.Visible
+		)
+		{
+			return;
+		}
+
+		_returnToSingularityAfterMap =
+			false;
+
+		_controller.Open();
 	}
 
 	public void Refresh()
@@ -548,40 +645,63 @@ public sealed partial class SingularityMapExtension
 		bool unlocked =
 			_service.Unlocked;
 
+		bool current =
+			_returnToSingularityAfterMap
+			&& _mapPage.Visible;
+
 		_icon.Texture =
 			unlocked
 				? UnlockedIcon
 				: LockedIcon;
 
-		_stateLabel.Text =
-			unlocked
-				? "TAP TO ENTER"
-				: "LOCKED";
+		if (current)
+		{
+			_stateLabel.Text =
+				"CURRENT";
 
-		_stateLabel.Modulate =
-			unlocked
-				? Colors.White
-				: new Color(
+			_stateLabel.Modulate =
+				Accent;
+
+			_badgeLabel.Text =
+				"CURRENT";
+		}
+		else if (unlocked)
+		{
+			_stateLabel.Text =
+				"TAP TO ENTER";
+
+			_stateLabel.Modulate =
+				Colors.White;
+
+			_badgeLabel.Text =
+				"ENTER";
+		}
+		else
+		{
+			_stateLabel.Text =
+				"LOCKED";
+
+			_stateLabel.Modulate =
+				new Color(
 					0.64f,
 					0.67f,
 					0.72f,
 					1.0f
 				);
 
-		bool room4Unlocked =
-			_state.RoomStates.Count > 3
-			&& _state.RoomStates[3].Unlocked;
+			bool room4Unlocked =
+				_state.RoomStates.Count > 3
+				&& _state.RoomStates[3].Unlocked;
 
-		_badgeLabel.Text =
-			unlocked
-				? "ENTER"
-				: !room4Unlocked
+			_badgeLabel.Text =
+				!room4Unlocked
 					? "UNLOCK ROOM 4 FIRST"
 					: "UNLOCK • "
 						+ NumberFormatter.Format(
 							SingularityService
 								.TestUnlockTokenCost
 						);
+		}
 
 		ApplyNodeStyle(
 			unlocked

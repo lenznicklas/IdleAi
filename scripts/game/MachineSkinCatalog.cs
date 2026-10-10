@@ -20,6 +20,18 @@ public static class MachineSkinCatalog
 	public const string Room4RetroSkinId =
 		"room_4_retro";
 
+	public const string Room1LabSkinId =
+		"room_1_lab";
+
+	public const string Room2LabSkinId =
+		"room_2_lab";
+
+	public const string Room3LabSkinId =
+		"room_3_lab";
+
+	public const string Room4LabSkinId =
+		"room_4_lab";
+
 
 	private static readonly IReadOnlyList<MachineSkinDefinition>
 		Skins =
@@ -30,6 +42,20 @@ public static class MachineSkinCatalog
 
 				skinId:
 					Room1RetroSkinId,
+
+				roomFolder:
+					"room_1",
+
+				roomName:
+					"Garage"
+			),
+
+			CreateLabSkin(
+				roomIndex:
+					0,
+
+				skinId:
+					Room1LabSkinId,
 
 				roomFolder:
 					"room_1",
@@ -52,6 +78,20 @@ public static class MachineSkinCatalog
 					"Server Room"
 			),
 
+			CreateLabSkin(
+				roomIndex:
+					1,
+
+				skinId:
+					Room2LabSkinId,
+
+				roomFolder:
+					"room_2",
+
+				roomName:
+					"Server Room"
+			),
+
 			CreateRetroSkin(
 				roomIndex:
 					2,
@@ -66,12 +106,40 @@ public static class MachineSkinCatalog
 					"Data Center"
 			),
 
+			CreateLabSkin(
+				roomIndex:
+					2,
+
+				skinId:
+					Room3LabSkinId,
+
+				roomFolder:
+					"room_3",
+
+				roomName:
+					"Data Center"
+			),
+
 			CreateRetroSkin(
 				roomIndex:
 					3,
 
 				skinId:
 					Room4RetroSkinId,
+
+				roomFolder:
+					"room_4",
+
+				roomName:
+					"Quantum Lab"
+			),
+
+			CreateLabSkin(
+				roomIndex:
+					3,
+
+				skinId:
+					Room4LabSkinId,
 
 				roomFolder:
 					"room_4",
@@ -190,6 +258,65 @@ public static class MachineSkinCatalog
 				LoadTexture(
 					basePath
 						+ "machine4.png"
+				)
+			]
+		);
+	}
+
+
+	// ==================================================
+	// LAB PACKS
+	// ==================================================
+
+	private static MachineSkinDefinition CreateLabSkin(
+		int roomIndex,
+		string skinId,
+		string roomFolder,
+		string roomName)
+	{
+		string basePath =
+			"res://assets/machines/"
+			+ roomFolder
+			+ "/skin_lab/";
+
+
+		return new MachineSkinDefinition(
+			skinId,
+
+			"Lab",
+
+			"Experimental lab machine pack for "
+				+ roomName
+				+ ". Replaces all four machines and the empty slot.",
+
+			roomIndex,
+
+			50.0,
+
+			LoadTexture(
+				basePath
+					+ "empty.png"
+			),
+
+			[
+				LoadTexture(
+					basePath
+						+ "machine_1.png"
+				),
+
+				LoadTexture(
+					basePath
+						+ "machine_2.png"
+				),
+
+				LoadTexture(
+					basePath
+						+ "machine_3.png"
+				),
+
+				LoadTexture(
+					basePath
+						+ "machine_4.png"
 				)
 			]
 		);

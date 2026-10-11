@@ -34,6 +34,7 @@ public partial class Game : Control
 		CreateLabUi();
 		CreateMobileUi();
 		SetupSaveSystem();
+		InitializePurchasesAndRecover();
 
 		OfflineProgressResult loadResult =
 			LoadGame();
@@ -43,7 +44,7 @@ public partial class Game : Control
 		_ui.UpdateAll();
 		_labUi.Refresh();
 
-		if (_saveManager.LastLoadFailed)
+		if (_saveManager.LastLoadFailed || _purchases.RecoveryBlocked)
 		{
 			_ui.SetMessage(
 				"Save data could not be recovered. Autosave is blocked so the existing files are preserved."
@@ -227,6 +228,7 @@ public partial class Game : Control
 
 	public override void _ExitTree()
 	{
+		_rewardedAds?.Dispose();
 		SaveGame();
 	}
 
@@ -438,17 +440,21 @@ public partial class Game : Control
 		);
 	}
 
-	private void SaveGame()
+	private void SaveGame() => TrySaveGame();
+
+	private bool TrySaveGame()
 	{
 		if (
 			_saveManager == null
 			|| _saveManager.LastLoadFailed
+			|| _purchases?.RecoveryBlocked == true
 		)
 		{
-			return;
+			return false;
 		}
 
 		SaveGameData save = _services.Save.CreateSave(GetCurrentUnixTime());
+		if (_purchases != null && !_purchases.BeforeGameSave(save)) return false;
 
 		bool saveOk =
 			_saveManager.SaveData(
@@ -468,6 +474,8 @@ public partial class Game : Control
 				_state.Shop.DataShards
 			);
 		}
+		if (saveOk) _purchases?.GameSaved();
+		return saveOk;
 	}
 
 	private OfflineProgressResult LoadGame()

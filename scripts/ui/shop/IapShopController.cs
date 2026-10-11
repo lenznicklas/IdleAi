@@ -14,13 +14,7 @@ public sealed class IapShopController
 
 	private readonly Game _root;
 
-	private readonly GameState _state;
-
-	private readonly ShopService _shopService;
-
-	private readonly GooglePlayBillingService _billing =
-		new();
-
+	private readonly IapPurchaseCoordinator _billing;
 
 	private VBoxContainer _content =
 		null!;
@@ -51,19 +45,13 @@ public sealed class IapShopController
 
 	public IapShopController(
 		Game root,
-		GameState state,
-		ShopService shopService)
+		IapPurchaseCoordinator purchases)
 	{
 		_root =
 			root;
 
 
-		_state =
-			state;
-
-
-		_shopService =
-			shopService;
+		_billing = purchases;
 	}
 
 
@@ -122,8 +110,11 @@ public sealed class IapShopController
 				);
 
 
-		_billing.ConsumablePurchaseReady +=
-			OnConsumablePurchaseReady;
+		_billing.RewardGranted += () =>
+		{
+			Input.VibrateHandheld(24, 0.18f);
+			StateChanged?.Invoke();
+		};
 
 
 		_billing.Initialize();
@@ -689,103 +680,6 @@ public sealed class IapShopController
 
 		_billing.Purchase(
 			productId
-		);
-
-
-		Refresh();
-	}
-
-
-	private void OnConsumablePurchaseReady(
-		string productId,
-		string purchaseToken,
-		int quantity)
-	{
-		if (
-			!IapCatalog.TryGet(
-				productId,
-				out IapProductDefinition product
-			)
-		)
-		{
-			GD.PushError(
-				"Paid Google Play purchase returned unknown product: "
-					+ productId
-			);
-
-			return;
-		}
-
-
-		int safeQuantity =
-			Math.Max(
-				1,
-				quantity
-			);
-
-
-		int reward =
-			product.ShardAmount
-			* safeQuantity;
-
-
-		ShopResult result =
-			_shopService.GrantDataShards(
-				reward
-			);
-
-
-		if (!result.Changed)
-		{
-			GD.PushError(
-				"Paid Google Play purchase could not grant Data Shards."
-			);
-
-
-			MessageRequested?.Invoke(
-				"Purchase completed, but the reward could not be added."
-			);
-
-
-			return;
-		}
-
-
-		/*
-		 * Game is subscribed to GameUiController.StateChanged and
-		 * immediately writes the normal game save.
-		 */
-		StateChanged?.Invoke();
-
-
-		/*
-		 * After the reward save is requested, record the token and
-		 * consume the Google Play purchase so this consumable can
-		 * be bought again.
-		 */
-		_billing.CompleteConsumableGrant(
-			purchaseToken
-		);
-
-
-		Input.VibrateHandheld(
-			24,
-			0.18f
-		);
-
-
-		MessageRequested?.Invoke(
-			result.Message
-		);
-
-
-		GD.Print(
-			"Idle AI IAP granted | product=",
-			productId,
-			" | quantity=",
-			safeQuantity,
-			" | shards=",
-			reward
 		);
 
 

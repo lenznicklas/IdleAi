@@ -257,3 +257,90 @@ Manual/device checks remaining:
 - [ ] Save/restart after Prestige; normal offline earnings after Prestige; next Prestige after earning threshold again.
 
 - [x] Final `dotnet build`: 0 warnings, 0 errors (initial full compilation: 344 existing CS8632 warnings); `git diff --check` passed; full diff and new files reviewed.
+
+## External integrations regression phase
+
+Automated workflow coverage (desktop/headless, no native SDK simulation):
+
+- [x] Shop construction does not initialize ads; first button intent initializes once; load/show tap spam is suppressed.
+- [x] No shards on load/show alone; earned callback grants exactly +5 through real ShopService/Economy; same ShopResult message.
+- [x] Duplicate/stale earned callbacks, failed show, dismissal without reward, duplicate close and old callbacks during the next show never double-grant.
+- [x] Next show resets reward eligibility; dismissal reloads once; load/show exceptions return to usable states; late load after disposal is destroyed.
+- [x] All five products grant exact shards; quantity 3 multiplies; quantity 0/-1 clamps to 1; unknown products, blank tokens and overflow grant nothing.
+- [x] Grant → successful save → completion order; failed grant/save never completes; duplicate processed tokens never grant; successful completion once; result message preserved.
+- [x] Failed save/finalization retries retain one grant; failed journal reservation does not grant.
+- [x] Recovery before main-save replacement, after replacement/before ledger, after ledger/before cleanup; later gameplay progress preserved; failed saves/ledger recoveries retain journal; corrupt/incomplete/ambiguous recovery records fail closed.
+- [x] Existing processed-token ledger format loads; old/new tokens survive restart; temp replacement preserved; ledger write failure returns false and does not mark the failed token processed.
+- [x] One tick forwards achievements, official Level and Prestige, same Firebase scores; next tick sees updated scores; unavailable branch fails independently; no duplicate timer registration; cadence 1.0 seconds.
+
+Run after main game build (all user files isolated under /tmp):
+
+```sh
+dotnet build
+dotnet build tests/Integrations/Integrations.csproj --no-restore
+XDG_DATA_HOME=/tmp/idle-ai-integrations-tests godot-mono --headless --path tests/Integrations
+```
+
+Required manual Android/native verification — pending; desktop tests do not prove SDK functionality:
+
+Rewarded ads:
+
+- [ ] Open Shop; it opens without AdMob initialization/crash.
+- [ ] Press rewarded-ad button; SDK initializes and ad loads; existing load status/button state and messages appear.
+- [ ] Tap ready ad; it displays; earn reward; exactly +5 Data Shards; reward persists after restart.
+- [ ] Close rewarded ad; next ad loads and can grant +5 once.
+- [ ] Cancel/dismiss without earning; no reward.
+- [ ] Load failure and show failure recover with existing messages/retry UI; next attempt works.
+- [ ] Repeated taps during load/show/close do not show the same ad twice or double-grant.
+- [ ] Background/resume during load/show/reward/close; no crash, duplicate reward or frozen button.
+
+Billing:
+
+- [ ] Product details load and original localized Play prices/status/buttons display.
+- [ ] Buy each original product; exact 100/400/900/2000/5500 shard reward; success message/haptic unchanged.
+- [ ] Cancel purchase; no reward/finalization.
+- [ ] Successful purchase, restart, reconnect/query owned purchases; no duplicate reward.
+- [ ] Consumable can be purchased again after consumption.
+- [ ] Offline/network failure/reconnect; pending purchase (if supported) grants only after confirmed payment.
+- [ ] Existing user://idle_ai_iap_ledger.json survives and old processed tokens do not regrant.
+- [ ] Interrupted grant/save/ledger/consume boundaries recover safely; failed save/ledger does not consume; pending rewards retry after a successful save.
+- [ ] Existing corruption lock preserves main save/backup; malformed recovery journal preserves files and blocks unsafe saves/purchases.
+
+Play Games:
+
+- [ ] Authentication, all existing achievement unlocks and retries.
+- [ ] Official total Level leaderboard and official Prestige leaderboard both submit correctly.
+- [ ] Score updates after level gain and Prestige; lifetime total Level semantics unchanged.
+- [ ] Deferred initialization still follows normal scene/UI startup; no duplicate sync timers on resume.
+
+Firebase:
+
+- [ ] Play Games → Firebase login and token refresh; offline/network errors recover.
+- [ ] Existing username profile loads; first-time username overlay appears at the correct time.
+- [ ] New valid username, validation errors and duplicate/case-insensitive username rejection.
+- [ ] Custom Top 25, exact own rank and own score inclusion for Level and Prestige.
+- [ ] Existing usernameLower/profile/Firestore behavior unchanged; no Google display name leaks.
+- [ ] Official and custom leaderboards both remain active.
+
+Deferred and compatibility:
+
+- [ ] Readability, bot durability UI, Singularity startup/map refresh, navigation polish and startup info order unchanged.
+- [ ] Android export succeeds with existing plugins, AdMob IDs, Play Games IDs, billing catalog and Firebase project/rules.
+- [ ] Main save version/schema unchanged; old saves, backup recovery, existing IAP ledger and independent Singularity saves load.
+
+Final automated verification:
+
+| Suite | Assertions | Result |
+|---|---:|---|
+| Integrations | 175 | Passed |
+| GameSave | 3,416 | Passed |
+| OfflineProgress | 663 | Passed |
+| Prestige | 37,568 | Passed |
+| Settings | 47 | Passed |
+| SettingsAudio | 10 | Passed; existing shutdown resource diagnostics |
+| Singularity | 197 | Passed |
+
+- [x] Final `dotnet build`: 0 warnings / 0 errors (incremental; full compile: 339 existing CS8632 warnings).
+- [x] `git diff --check` passes; all remaining integration search occurrences classified in REFACTOR_SERVICES.md.
+- [x] Catalog, achievement adapter/IDs/predicates, Firebase adapters/config/schema, main DTO/version and SaveManager unchanged byte-for-byte; original ad IDs retained.
+- [ ] Android/native checklist above remains required; automated success covers first-party orchestration only.

@@ -28,7 +28,7 @@ public sealed class LeaderboardOverlayController
 
 	private readonly Game _root;
 
-	private readonly FirebaseAliasService _aliases;
+	private readonly OnlineProfileService _aliases;
 
 	private readonly UsernameSetupOverlayController _usernameSetup;
 
@@ -92,20 +92,11 @@ public sealed class LeaderboardOverlayController
 
 	public LeaderboardOverlayController(
 		Game root,
-		GooglePlayGamesAchievementService playGames,
-		FirebaseAliasService aliases,
+		OnlineProfileService aliases,
 		UsernameSetupOverlayController usernameSetup)
 	{
 		_root =
 			root;
-
-		/*
-		 * Kept in the constructor signature so the existing Game bootstrap
-		 * remains compatible. Google Play is still used for score submission,
-		 * but custom rows no longer depend on Google identity data.
-		 */
-		_ =
-			playGames;
 
 		_aliases =
 			aliases;

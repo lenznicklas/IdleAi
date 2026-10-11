@@ -1369,40 +1369,22 @@ public sealed class GooglePlayBillingService
 	// GRANT + CONSUME
 	// ==================================================
 
-	public void CompleteConsumableGrant(
-		string purchaseToken)
+	public bool IsPurchaseProcessed(string token) => _processedPurchaseTokens.Contains(token);
+
+	public bool CompleteConsumableGrant(string purchaseToken)
 	{
-		if (
-			string.IsNullOrWhiteSpace(
-				purchaseToken
-			)
-		)
+		if (string.IsNullOrWhiteSpace(purchaseToken)) return false;
+		bool added = _processedPurchaseTokens.Add(purchaseToken);
+		if (!SaveLedger())
 		{
-			return;
+			if (added) _processedPurchaseTokens.Remove(purchaseToken);
+			return false;
 		}
-
-
-		_processedPurchaseTokens.Add(
-			purchaseToken
-		);
-
-
-		_processingPurchaseTokens.Remove(
-			purchaseToken
-		);
-
-
-		SaveLedger();
-
-
-		ConsumePurchase(
-			purchaseToken
-		);
-
-
+		_processingPurchaseTokens.Remove(purchaseToken);
+		ConsumePurchase(purchaseToken);
 		Changed?.Invoke();
+		return true;
 	}
-
 
 	private void ConsumePurchase(
 		string purchaseToken)
@@ -1561,7 +1543,7 @@ public sealed class GooglePlayBillingService
 	}
 
 
-	private void SaveLedger()
+	private bool SaveLedger()
 	{
 		string path =
 			ProjectSettings.GlobalizePath(
@@ -1645,6 +1627,7 @@ public sealed class GooglePlayBillingService
 				overwrite:
 					true
 			);
+			return true;
 		}
 		catch (Exception exception)
 		{
@@ -1672,6 +1655,7 @@ public sealed class GooglePlayBillingService
 				// Keep the original error as the useful one.
 			}
 		}
+		return false;
 	}
 
 

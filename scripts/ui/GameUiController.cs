@@ -409,7 +409,8 @@ public sealed class GameUiController
 			new ShopController(
 				_root,
 				_state,
-				_shopService
+				_shopService,
+				_root.RewardedAds
 			);
 
 		_shop.MessageRequested += SetMessage;
@@ -423,7 +424,7 @@ public sealed class GameUiController
 		/*
 		 * Build the dynamic Shop UI only on the first shop open.
 		 * Rewarded AdMob initialization is handled separately by
-		 * ShopController when the player requests a video.
+		 * RewardedAdCoordinator when the player requests a video.
 		 */
 	}
 
@@ -435,14 +436,12 @@ public sealed class GameUiController
 		_shop.Initialize();
 
 		/*
-		 * Google Play Billing lives in its own Shop controller.
-		 * This keeps the existing AdMob / skin Shop code isolated.
+		 * Purchase cards use the session purchase coordinator.
 		 */
 		_iapShop =
 			new IapShopController(
 				_root,
-				_state,
-				_shopService
+				_root.Purchases
 			);
 
 		_iapShop.MessageRequested +=
@@ -451,12 +450,7 @@ public sealed class GameUiController
 		_iapShop.StateChanged +=
 			() =>
 			{
-				/*
-				 * Game subscribes to GameUiController.StateChanged
-				 * with SaveGame(), so the newly purchased Shards
-				 * are persisted before the consumable is finalized.
-				 */
-				StateChanged?.Invoke();
+				// The coordinator has already saved and finalized the reward.
 
 				UpdateAll();
 

@@ -1,27 +1,6 @@
 using Godot;
 using System;
 
-using AdMobMobileAds =
-	PoingStudios.AdMob.Api.MobileAds;
-
-using AdMobRewardedAd =
-	PoingStudios.AdMob.Api.RewardedAd;
-
-using AdMobRewardedAdLoader =
-	PoingStudios.AdMob.Api.RewardedAdLoader;
-
-using AdMobAdRequest =
-	PoingStudios.AdMob.Api.Core.AdRequest;
-
-using AdMobRewardedAdLoadCallback =
-	PoingStudios.AdMob.Api.Listeners.RewardedAdLoadCallback;
-
-using AdMobFullScreenContentCallback =
-	PoingStudios.AdMob.Api.Listeners.FullScreenContentCallback;
-
-using AdMobRewardListener =
-	PoingStudios.AdMob.Api.Listeners.OnUserEarnedRewardListener;
-
 namespace IdleAi;
 
 public sealed class ShopController
@@ -37,15 +16,6 @@ public sealed class ShopController
 
 	private const int BottomScrollPadding =
 		180;
-
-	private const int RewardedAdShardReward =
-		5;
-
-	private const string AndroidRewardedAdUnitId =
-		"ca-app-pub-3940256099942544/5224354917";
-
-	private const string IosRewardedAdUnitId =
-		"ca-app-pub-3940256099942544/1712485313";
 
 	private static readonly Texture2D FiveShardsIcon =
 		GD.Load<Texture2D>(
@@ -116,19 +86,7 @@ public sealed class ShopController
 	private Button _offlineUpgradeButton =
 		null!;
 
-	private AdMobRewardedAd _rewardedAd =
-		null!;
-
-	private AdMobFullScreenContentCallback _rewardedFullScreenCallback =
-		null!;
-
-	private AdMobRewardListener _rewardListener =
-		null!;
-
-	private bool _adMobInitialized;
-	private bool _rewardedAdLoading;
-	private bool _rewardedAdShowing;
-	private bool _rewardGrantedForCurrentAd;
+	private readonly RewardedAdCoordinator _ads;
 
 	public event Action<string>? MessageRequested;
 	public event Action? StateChanged;
@@ -140,7 +98,8 @@ public sealed class ShopController
 	public ShopController(
 		Game root,
 		GameState state,
-		ShopService service)
+		ShopService service,
+		RewardedAdCoordinator ads)
 	{
 		_root =
 			root;
@@ -148,8 +107,15 @@ public sealed class ShopController
 		_state =
 			state;
 
-		_service =
-			service;
+		_service = service;
+		_ads = ads;
+		_ads.StateChanged += RefreshRewardedAdOffer;
+		_ads.MessageRequested += message => MessageRequested?.Invoke(message);
+		_ads.RewardEarned += () =>
+		{
+			Refresh();
+			Input.VibrateHandheld(14, 0.12f);
+		};
 	}
 
 	// ==================================================
@@ -850,204 +816,10 @@ public sealed class ShopController
 				"Watch one video and receive 5 Data Shards.",
 				_rewardedAdStatus,
 				ShopUi.Gold,
-				ShowRewardedVideo
+				_ads.ShowRewardedVideo
 			);
 
 		RefreshRewardedAdOffer();
-	}
-
-	private void EnsureAdMobInitialized()
-	{
-		if (_adMobInitialized)
-			return;
-
-		/*
-		 * The project.godot included with this fix contains
-		 * Poing v5's required test App IDs.
-		 *
-		 * This method is deliberately reached only after the
-		 * user presses the rewarded-video button. Opening SHOP
-		 * itself never calls into the native ads plugin.
-		 */
-		AdMobMobileAds.Initialize();
-
-		_adMobInitialized =
-			true;
-	}
-
-	private void LoadRewardedAd()
-	{
-		if (
-			_rewardedAdLoading
-			|| _rewardedAdShowing
-		)
-		{
-			return;
-		}
-
-		EnsureAdMobInitialized();
-
-		DestroyRewardedAd();
-
-		_rewardedAdLoading =
-			true;
-
-		RefreshRewardedAdOffer();
-
-		AdMobRewardedAdLoadCallback loadCallback =
-			new()
-			{
-				OnAdLoaded =
-					ad =>
-					{
-						_rewardedAdLoading =
-							false;
-
-						_rewardedAd =
-							ad;
-
-						ConfigureRewardedAdCallbacks();
-						RefreshRewardedAdOffer();
-					},
-
-				OnAdFailedToLoad =
-					error =>
-					{
-						_rewardedAdLoading =
-							false;
-
-						_rewardedAd =
-							null!;
-
-						GD.PushWarning(
-							"Rewarded Ad failed to load: "
-							+ error.Message
-						);
-
-						RefreshRewardedAdOffer();
-					}
-			};
-
-		new AdMobRewardedAdLoader()
-			.Load(
-				GetRewardedAdUnitId(),
-				new AdMobAdRequest(),
-				loadCallback
-			);
-	}
-
-	private void ConfigureRewardedAdCallbacks()
-	{
-		if (_rewardedAd == null)
-			return;
-
-		_rewardedFullScreenCallback =
-			new AdMobFullScreenContentCallback
-			{
-				OnAdDismissedFullScreenContent =
-					() =>
-					{
-						_rewardedAdShowing =
-							false;
-
-						DestroyRewardedAd();
-						LoadRewardedAd();
-					},
-
-				OnAdFailedToShowFullScreenContent =
-					error =>
-					{
-						_rewardedAdShowing =
-							false;
-
-						MessageRequested?.Invoke(
-							"Video could not be shown. Please try again."
-						);
-
-						GD.PushWarning(
-							"Rewarded Ad failed to show: "
-							+ error.Message
-						);
-
-						DestroyRewardedAd();
-					}
-			};
-
-		_rewardedAd.FullScreenContentCallback =
-			_rewardedFullScreenCallback;
-	}
-
-	private void ShowRewardedVideo()
-	{
-		if (_rewardedAdShowing)
-			return;
-
-		if (_rewardedAd == null)
-		{
-			if (!_rewardedAdLoading)
-			{
-				LoadRewardedAd();
-			}
-
-			MessageRequested?.Invoke(
-				"Reward video is loading. Tap again when it is ready."
-			);
-
-			return;
-		}
-
-		_rewardGrantedForCurrentAd =
-			false;
-
-		_rewardedAdShowing =
-			true;
-
-		RefreshRewardedAdOffer();
-
-		_rewardListener =
-			new AdMobRewardListener
-			{
-				OnUserEarnedReward =
-					_reward =>
-						GrantRewardedAdShards()
-			};
-
-		_rewardedAd.Show(
-			_rewardListener
-		);
-	}
-
-	private void GrantRewardedAdShards()
-	{
-		if (_rewardGrantedForCurrentAd)
-			return;
-
-		_rewardGrantedForCurrentAd =
-			true;
-
-		HandleResult(
-			_service.GrantDataShards(
-				RewardedAdShardReward
-			)
-		);
-	}
-
-	private void DestroyRewardedAd()
-	{
-		if (_rewardedAd == null)
-			return;
-
-		_rewardedAd.Destroy();
-
-		_rewardedAd =
-			null!;
-	}
-
-	private string GetRewardedAdUnitId()
-	{
-		return OS.GetName() == "iOS"
-			? IosRewardedAdUnitId
-			: AndroidRewardedAdUnitId;
 	}
 
 	private void RefreshRewardedAdOffer()
@@ -1060,7 +832,7 @@ public sealed class ShopController
 			return;
 		}
 
-		if (_rewardedAdShowing)
+		if (_ads.IsShowing)
 		{
 			_rewardedAdStatus.Text =
 				"COMPLETE THE VIDEO TO CLAIM YOUR REWARD";
@@ -1079,7 +851,7 @@ public sealed class ShopController
 			return;
 		}
 
-		if (_rewardedAd != null)
+		if (_ads.IsReady)
 		{
 			_rewardedAdStatus.Text =
 				"VIDEO READY";
@@ -1098,7 +870,7 @@ public sealed class ShopController
 			return;
 		}
 
-		if (_rewardedAdLoading)
+		if (_ads.IsLoading)
 		{
 			_rewardedAdStatus.Text =
 				"LOADING REWARDED VIDEO...";

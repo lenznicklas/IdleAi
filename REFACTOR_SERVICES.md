@@ -605,3 +605,86 @@ Full diff review confirms unchanged threshold, eligibility, messages, multiplier
 Next major refactor recommendation: remove temporary MachineDetailsOverlay level mutations by moving production upgrade previews into a pure domain quote operation. This would tighten authoritative progression boundaries without changing game balance or UI design.
 
 Final verification: exact `dotnet build` succeeded (incremental build: 0 warnings, 0 errors); `git diff --check` passed. New service/harness sources and the complete tracked diff were reviewed. Work remains uncommitted on refactor/services. Manual/device checks remain pending.
+
+## External integration ownership (refactor/services)
+
+The integration audit covered billing purchase readiness, token processing and temp-file ledger writes; all Shop AdMob callbacks and UI states; Play Games authentication, achievement predicates and official score submissions; Firebase authentication, username validation/reservation, Firestore reads/writes; both overlays; and deferred Game initialization/timer call sites. No code was moved until the following ownership map was established.
+
+| Integration | Previous UI → policy → adapter → gameplay → persistence | New ownership |
+|---|---|---|
+| Rewarded ads | ShopController owned SDK objects, initialization/load/show callbacks, reward guard, IDs, grant and UI; ShopService → Economy; UI StateChanged → Game save | ShopController presents coordinator state/forwards intent → RewardedAdCoordinator owns lazy lifecycle/reward policy → AdMobRewardedAdAdapter wraps the same Poing SDK; coordinator grants through ShopService/Economy; session composition subscribes reward notification to save/UI refresh |
+| Consumable IAP | IapShopController owned billing, catalog mapping, quantity, grant, StateChanged save request and CompleteConsumableGrant; GooglePlayBillingService owned SDK/token ledger/consume | IapShopController presents product/status/price and forwards Buy → IapPurchaseCoordinator/IapGrantWorkflow → existing billing adapter; ShopService/Economy grants, injected main-save callback must succeed, billing persists token then consumes |
+| Play Games | Game partial created achievement adapter, Firebase node, overlays and 1-second Timer; Game directly called all sync adapters | Deferred OnlineIntegrationCoordinator composes adapters/overlays; PlayGamesSyncService owns the one-second Timer and PlayGamesSyncWorkflow fans out independently to achievements, official leaderboards and Firebase scores |
+| Firebase | Game created FirebaseAliasService and synced scores; username/leaderboard overlays depended directly on it (leaderboard also accepted an unused Google adapter) | OnlineProfileService is the stable overlay facade; FirebaseAliasService remains the authentication/token-refresh/username/Firestore adapter; online sync forwards current scores through the facade |
+
+```mermaid
+flowchart LR
+  ShopUI[ShopController] --> Ads[RewardedAdCoordinator]
+  Ads --> AdSDK[AdMobRewardedAdAdapter / existing Poing SDK]
+  Ads --> Shop[ShopService → EconomyService]
+  IapUI[IapShopController] --> Purchase[IapPurchaseCoordinator / IapGrantWorkflow]
+  Purchase --> Billing[GooglePlayBillingService]
+  Purchase --> Shop
+  Purchase --> Save[Injected main save / GameSaveService / SaveManager]
+  Purchase --> Journal[IapGrantJournal]
+  Billing --> Ledger[Existing IAP token ledger → consumption]
+  Deferred[Game deferred bootstrap] --> Online[OnlineIntegrationCoordinator]
+  Online --> Sync[PlayGamesSyncService / PlayGamesSyncWorkflow]
+  Sync --> Google[GooglePlayGamesAchievementService]
+  Sync --> Profile[OnlineProfileService]
+  Overlays[Username and leaderboard overlays] --> Profile
+  Profile --> Firebase[FirebaseAliasService / existing HTTP and Firestore]
+```
+
+### Rewarded-ad workflow
+
+Constructing the session coordinator or opening Shop does not initialize AdMob. Only rewarded-button intent initializes and loads the SDK. First tap loads; another tap when ready shows, preserving existing messages and status/button text. Dismissal destroys and reloads; failed show destroys and returns to the retry state; load errors retain warning logging and return to the retry button. Exceptions cannot leave loading/showing stuck.
+
+Each load/show attempt has a generation. Only the active showing generation can earn; its guard is set before granting or notifying observers. Duplicate earned callbacks, stale callbacks from a previous show, callbacks after failure/dismissal, repeated taps, and duplicate terminal callbacks cannot add another reward. Reward is **exactly 5 Data Shards**, through ShopService.GrantDataShards → EconomyService, with the existing ShopResult message and vibration. Session composition requests the normal save and refreshes UI. Exit invalidates callbacks and destroys the handle. Native SDK types and Android/iOS unit IDs are confined to AdMobRewardedAdAdapter, with the original IDs and platform selection unchanged.
+
+### IAP workflow and persistence ordering
+
+The financially significant order is explicit:
+
+1. Billing filters purchase state, supported product and processed/processing tokens, then reports a ready consumable.
+2. The coordinator queues ready tokens; the workflow validates the catalog, clamps quantity with Math.Max(1, quantity), and calculates exact catalog shards × quantity. Overflow is rejected without completion.
+3. Before granting, write and flush a small recovery journal containing the token, prospective reward-save snapshot and active-save fingerprint. Failure to reserve means no grant.
+4. Grant through ShopService.GrantDataShards → EconomyService. A failed grant cancels the reservation and never completes.
+5. Invoke the injected main-save delegate. Game keeps its Action-compatible SaveGame wrapper and exposes a private bool TrySaveGame result. SaveManager, main DTO/schema, SaveVersion and corruption lock are unchanged.
+6. Only after a successful main save and durable journal proof does billing add the token, flush/replace the existing ledger and consume. CompleteConsumableGrant now returns bool; ledger failure removes the tentative in-memory token and prevents consumption.
+7. Clear the journal, notify UI/haptics and show the same successful ShopResult message. Failed saves/ledger writes retain a pending workflow; later successful saves or purchase intent retry without granting twice. Additional ready purchases are queued rather than lost during a failed save.
+
+The pre-existing two-file crash gap required a separate **user://idle_ai_iap_grant.json** write-ahead journal (with .tmp replacement), rather than changing either existing schema. Every main save while a grant is pending records its exact prospective snapshot before replacing the save; successful writes establish a durable fingerprint. Startup recovery runs after SaveManager setup but **before normal load, offline settlement or startup save**, without initializing native billing. It replays the reward snapshot only when the active file is the recorded pre-grant save; recognized reward/previous-confirmed saves need only token recording. A later gameplay save is preserved. Unknown fingerprints, malformed journals and unrecoverable main saves fail closed and preserve files. The existing processed ledger prevents replay after token recording; consumption is retried normally when billing initializes and queries owned purchases.
+
+The recovery journal is transient purchase recovery data, not a main-save field. **user://idle_ai_iap_ledger.json**, its **user://idle_ai_iap_ledger.tmp.json** path, ProcessedPurchaseTokens list, sorted serialization and write/flush/replace semantics are preserved. No tokens are added to SaveGameData.
+
+### Online sync and deferred startup
+
+Game.PlayGamesAchievements.cs became Game.DeferredFeatures.cs (same Godot UID). _EnterTree + CallDeferred still initializes readability, bot durability UI, online composition, Singularity, navigation polish, then startup info in the original order. Game retains the integration composition call and the existing Singularity refresh subscription, with no direct Google/Firebase sync calls.
+
+OnlineIntegrationCoordinator owns adapter and overlay composition. PlayGamesSyncService guards repeated initialization and owns exactly one repeating 1.0-second Timer. Each tick calls the unchanged achievement adapter, unchanged official leaderboard adapter, and OnlineProfileService.SyncScores using ProgressionService.GetTotalLevel and PrestigeCount. Failures in one branch do not prevent another branch. Stats buttons and the Singularity map still refresh after the tick.
+
+Achievement conditions/IDs are untouched: first production/running machine, bot spending/ownership, Level 150 or historical claim, completed research, Prestige >= 1, Server Room history and Quantum Lab history. Official Google larger-is-better score behavior remains in its adapter. Firebase still owns its original clamping, deduplication, authenticated writes, Top 25 reads and own-rank logic. Unique username validation, usernameLower, error strings, identity privacy and Firestore schema/rules are unchanged. Overlays receive only OnlineProfileService; the unused Google adapter constructor argument was removed. Remote profile/leaderboard data stays remote.
+
+### Remaining search occurrences and verification boundary
+
+- GooglePlayBillingService, ConsumablePurchaseReady and CompleteConsumableGrant: billing adapter definitions plus IapPurchaseCoordinator composition/recovery; no UI workflow occurrences.
+- AdMob SDK types: AdMobRewardedAdAdapter only (apart from the existing addon SDK implementation).
+- RewardedAdShardReward: coordinator constant and grant; exactly 5. _rewardGrantedForCurrentAd is gone from UI, replaced by coordinator generation/earned state.
+- GooglePlayGamesAchievementService: adapter definition, OnlineIntegrationCoordinator composition, PlayGamesSyncService calls, plus explanatory comments.
+- FirebaseAliasService: adapter partials, OnlineIntegrationCoordinator composition, OnlineProfileService delegation, plus explanatory comments.
+- SyncAchievements/SyncLeaderboards: adapter definitions and PlayGamesSyncService only. SyncInGameLeaderboardScores: adapter definition and OnlineProfileService only.
+
+The deterministic Godot integration harness uses lightweight ad handles, first-party save/grant/completion delegates and real ShopService/Economy. It checks ad lifecycle and exactly-once reward, every product and quantity behavior, failure/retry ordering, processed-token prevention, timer registration/fanout, crash recovery and ledger write failure. These tests **do not establish that Android native ads, real purchases, authentication or Firebase login work**. Full Android regression is listed in REFACTOR_TEST_CHECKLIST.md.
+
+Remaining debt: achievement predicates still share the native achievement adapter (intentionally untouched), FirebaseAliasService retains its existing substantial HTTP/auth implementation and separate Play Games authentication handling, and overlay subscriptions assume the existing one-Game-per-session lifetime. The existing billing ledger has no backup/corruption-recovery redesign. Manual file editing/restoring unrelated save histories is outside automatic recovery; ambiguous pending journal histories are blocked instead of guessing. After device verification, consider focused adapter lifecycle/disconnect cleanup and extracting achievement predicates in a separate phase; no generic integration framework is needed.
+
+### Files and final automated results
+
+Changed: Game.cs (save result and persistence hooks), GooglePlayBillingService.cs (processed-token query and durable completion result), GameUiController.cs, ShopController.cs, IapShopController.cs, UsernameSetupOverlayController.cs and LeaderboardOverlayController.cs. Game.PlayGamesAchievements.cs/.uid was replaced by Game.DeferredFeatures.cs/.uid; Game.Integrations.cs contains session composition.
+
+Added under scripts/game: AdMobRewardedAdAdapter.cs, RewardedAdCoordinator.cs, IapPurchaseCoordinator.cs, IapGrantWorkflow.cs, IapGrantJournal.cs, OnlineIntegrationCoordinator.cs/.uid, OnlineProfileService.cs, PlayGamesSyncService.cs/.uid and PlayGamesSyncWorkflow.cs. Added tests/Integrations/{Integrations.csproj,Program.cs.txt,Runner.cs,Runner.tscn,project.godot}; updated both refactor documents.
+
+Final results: Integrations **175** assertions; GameSave **3,416**; OfflineProgress **663**; Prestige **37,568**; Settings **47**; SettingsAudio **10**; Singularity **197**. All exited successfully. Final `dotnet build`: **0 warnings, 0 errors** (incremental); full compilation emitted **339 existing CS8632 nullable-context warnings**. Test builds retain cached NU1900 vulnerability-feed warnings where present; SettingsAudio still emits shutdown ObjectDB/resource diagnostics despite passing assertions and exiting 0. `git diff --check` passed.
+
+Compatibility was additionally verified byte-for-byte against HEAD for IapCatalog, GooglePlayGamesAchievementService, both FirebaseAliasService partials, FirebaseConfig, SaveData, GameSaveService and SaveManager. Android/iOS ad unit strings were compared against the original controller. Post-refactor searches leave SDK/policy references only in the relevant adapters/coordinators/facade and explanatory comments, with no UI grant/save/complete workflow.

@@ -91,7 +91,7 @@ public partial class MachineSlot
 				+ time
 				+ "s";
 
-			_progressBar.Value =
+			_progressBar.UpdateProgress(
 				Math.Clamp(
 					(
 						cycleDuration
@@ -104,15 +104,14 @@ public partial class MachineSlot
 					* 100.0,
 					0.0,
 					100.0
-				);
+				), running: true);
 		}
 		else
 		{
 			_statusLabel.Text =
 				"BOT BROKEN • TAP START";
 
-			_progressBar.Value =
-				100.0;
+			_progressBar.UpdateProgress(100.0, running: false);
 		}
 	}
 }

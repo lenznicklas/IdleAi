@@ -32,7 +32,7 @@ public partial class MachineSlot : Control
 	private TextureButton _startButton = null!;
 	private Control _botVisual = null!;
 	private TextureButton _botButton = null!;
-	private ProgressBar _progressBar = null!;
+	private MachineCycleBarView _progressBar = null!;
 	private Label _statusLabel = null!;
 	private Button _unlockButton = null!;
 
@@ -108,58 +108,7 @@ public partial class MachineSlot : Control
 				0.18f
 			);
 
-		StyleBoxFlat progressBackground =
-			new()
-			{
-				BgColor =
-					new Color(
-						0.035f,
-						0.045f,
-						0.055f,
-						0.96f
-					),
-
-				CornerRadiusTopLeft =
-					9,
-
-				CornerRadiusTopRight =
-					9,
-
-				CornerRadiusBottomLeft =
-					9,
-
-				CornerRadiusBottomRight =
-					9
-			};
-
-		StyleBoxFlat progressFill =
-			new()
-			{
-				BgColor =
-					accent,
-
-				CornerRadiusTopLeft =
-					9,
-
-				CornerRadiusTopRight =
-					9,
-
-				CornerRadiusBottomLeft =
-					9,
-
-				CornerRadiusBottomRight =
-					9
-			};
-
-		_progressBar.AddThemeStyleboxOverride(
-			"background",
-			progressBackground
-		);
-
-		_progressBar.AddThemeStyleboxOverride(
-			"fill",
-			progressFill
-		);
+		_progressBar.SetAccent(accent);
 
 		_unlockButton.AddThemeStyleboxOverride(
 			"normal",
@@ -813,27 +762,7 @@ public partial class MachineSlot : Control
 	private void CreateProgressArea(
 		VBoxContainer parent)
 	{
-		_progressBar =
-			new ProgressBar
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						18
-					),
-
-				MinValue =
-					0.0,
-
-				MaxValue =
-					100.0,
-
-				Value =
-					100.0,
-
-				ShowPercentage =
-					false
-			};
+		_progressBar = new MachineCycleBarView();
 
 		parent.AddChild(
 			_progressBar
@@ -939,6 +868,7 @@ public partial class MachineSlot : Control
 			"LOCKED";
 
 		_actionHolder.Hide();
+		_progressBar.Clear();
 		_progressBar.Hide();
 		_statusLabel.Hide();
 
@@ -1043,12 +973,8 @@ public partial class MachineSlot : Control
 				/ cycleDuration
 				* 100.0;
 
-			_progressBar.Value =
-				Math.Clamp(
-					progress,
-					0.0,
-					100.0
-				);
+			_progressBar.UpdateProgress(
+				Math.Clamp(progress, 0.0, 100.0), running: true);
 
 			string time =
 				Math.Max(
@@ -1083,8 +1009,7 @@ public partial class MachineSlot : Control
 
 		StopMachineAnimation();
 
-		_progressBar.Value =
-			100.0;
+		_progressBar.UpdateProgress(100.0, running: false);
 
 		if (slot.HasBot)
 		{
@@ -1108,7 +1033,11 @@ public partial class MachineSlot : Control
 	// MACHINE ANIMATION
 	// ==================================================
 
-	public void PulseCycleCompletion() => _visualEffects.CycleCompleted();
+	public void PulseCycleCompletion()
+	{
+		_visualEffects.CycleCompleted();
+		_progressBar.CycleCompleted();
+	}
 
 	private void StartMachineAnimation()
 	{

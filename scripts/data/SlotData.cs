@@ -5,6 +5,19 @@ namespace IdleAi;
 
 public sealed class SlotData
 {
+	/// <summary>Returns a slot to its normal run starting state, including bot runtime.</summary>
+	public void ResetForNewRun(bool unlocked)
+	{
+		Unlocked = unlocked;
+		MachineTier = 0;
+		MachineLevel = 1;
+		ResetDataShardMilestones();
+		ClearBot();
+		IsRunning = false;
+		CycleRemaining = 0.0;
+		RuntimeCycleDuration = 0.0;
+	}
+
 	public bool Unlocked { get; set; }
 
 

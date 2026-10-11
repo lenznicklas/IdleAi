@@ -9,6 +9,7 @@ public sealed class GameServices
 	public ProductionService Production { get; }
 	public BotService Bots { get; }
 	public PrestigeService Prestige { get; }
+	public NormalRunResetService RunReset { get; }
 	public LabService Lab { get; }
 	public OfflineProgressService Offline { get; }
 	public GameSaveService Save { get; }
@@ -31,6 +32,7 @@ public sealed class GameServices
 		ProductionService production,
 		BotService bots,
 		PrestigeService prestige,
+		NormalRunResetService runReset,
 		LabService lab,
 		OfflineProgressService offline,
 		GameSaveService save,
@@ -49,6 +51,7 @@ public sealed class GameServices
 		Production = production;
 		Bots = bots;
 		Prestige = prestige;
+		RunReset = runReset;
 		Lab = lab;
 		Offline = offline;
 		Save = save;

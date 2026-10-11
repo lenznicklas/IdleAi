@@ -14,7 +14,8 @@ public static class GameServiceFactory
 		ProgressionService progression = new(state, economy);
 		ProductionService production = new(state, economy, pipeline);
 		BotService bots = new(state, economy);
-		PrestigeService prestige = new(state, economy);
+		NormalRunResetService runReset = new(state, economy);
+		PrestigeService prestige = new(state, runReset);
 		LabService lab = new(state, economy);
 		OfflineProgressService offline = new(state, economy, lab);
 		ShopService shop = new(state, economy, production);
@@ -35,7 +36,7 @@ public static class GameServiceFactory
         GameSettingsService settings = new(settingsPersistence, audio.SetSoundEnabled, haptics);
 
 		return new GameServices(
-			state, economy, progression, production, bots, prestige, lab, offline, save,
+			state, economy, progression, production, bots, prestige, runReset, lab, offline, save,
 			shop, pipeline, infrastructure, quantum, botSkins, machineSkins,
 			levelRewards, settings, settingsPersistence, audio, haptics);
 	}

@@ -514,3 +514,94 @@ XDG_DATA_HOME=/tmp/idle-ai-settings-audio XDG_CONFIG_HOME=/tmp/idle-ai-settings-
 Post-refactor repository search: first-party AudioServer/AudioStreamPlayer and music path references belong to AudioService (plus test fixtures); the addon sample remains separate. Settings filename/JsonSerializer references belong to SettingsPersistenceService. Other JsonSerializer uses are existing cosmetics, billing, Firebase, main/Singularity save stores. Other ResourceLoader uses load fonts, UI textures, cosmetics or the main scene. IsVibrationEnabled and the exact settings _current field are gone; other _current-prefixed fields are unrelated UI/Firebase state. VibrateHandheld UI calls go through Input, then HapticsService; hardware access exists once in Input. No gameplay, Singularity, main-save schema/migration, SaveVersion 21, SaveManager, UI layout or asset changes.
 
 Recommended next major refactor: audit Google Play Billing purchase orchestration, ledger persistence and SDK boundary for focused extraction while preserving exactly-once grants and save-before-finalization behavior. This is a future phase, not part of these changes.
+
+
+## Prestige contract audit (before implementation)
+
+The original PrestigeService owns eligibility, count saturation, lifetime-level preservation, messages, and a private ResetNormalProgress method that mutates every room and slot. The following table records the complete pre-refactor contract. “Retained” means no Prestige mutation; derived values may change with normal run resets.
+
+| Field / system | Reset on Prestige? | Retained on Prestige? | Original owner / operation |
+|---|---|---|---|
+| Tokens; RunEarnedTokens | Both to 0 | No | Prestige → EconomyService.ResetRunTokens; no stats transactions |
+| CurrentRoomIndex | To 0 | No | Prestige direct assignment |
+| RoomState.Unlocked | Index 0 true, all others false | No | Prestige room loop |
+| RoomState.DataShardUnlockRewardClaimed | No | Exact value | No reset |
+| SlotData.Unlocked | Only room index 0, slot index 0 true | No | Prestige slot loop |
+| MachineTier; MachineLevel | 0; 1, including locked slots | No | Prestige direct assignments |
+| ClaimedDataShardMilestones | Clear | No | Prestige → SlotData.ResetDataShardMilestones |
+| BotRarity; BotPurchasePrice | null; 0 | No | Prestige → SlotData.ClearBot |
+| BotDurabilityInitialized; BotDurabilitySecondsRemaining | false; 0 | No | SlotData.ClearBot |
+| HasBot; BotBroken; HasWorkingBot; maximum durability; durability ratio | Derived: false, false, false, 0, 0 | No independent state | SlotData derived properties |
+| IsRunning; CycleRemaining; RuntimeCycleDuration | false; 0; 0 | No | Prestige direct assignments |
+| Pipeline Compute/Data/Model/Output levels | All 1 | No | PipelineData.Reset on every room |
+| Pipeline RawInput/Compute/Data/Model buffers | All 0 | No | PipelineData.Reset |
+| Pipeline Compute/Data/Model/Output cycle remaining | All 0 | No | PipelineData.Reset |
+| Pipeline LastMachineInputPerSecond; LastTokenOutputPerSecond | Both 0 | No | PipelineData.Reset |
+| Infrastructure Power/Cooling/Storage levels | All 1 | No | InfrastructureData.Reset on every room |
+| Quantum Stability; Energy | QuantumMaximumStability; QuantumStartingEnergy | No | QuantumData.Reset on every room |
+| Quantum OverclockIndex; RecoveryMode | 0; false | No | QuantumData.Reset |
+| Quantum Stabilizer/EnergyCore/Amplifier levels | All 1 | No | QuantumData.Reset |
+| PrestigeCount | Increment once, saturate at int.MaxValue | Prior count plus increment | PrestigeService |
+| AiCores (legacy) | No | Exact value; no award | No reset |
+| Prestige production multiplier | Recomputed from count, unchanged softcap formula | Permanent bonus | PrestigeData |
+| LifetimeLevelBase | max(0, captured total minus reset run level) | Visible Total Level preserved, including saturation | PrestigeService using ProgressionService calculations |
+| Current run level | Recomputed from unlocked room/slot machine levels and completed tiers | No | ProgressionService.CalculateCurrentRunLevel |
+| Total Level | No drop or extra levels for valid gameplay state | Captured visible total | ProgressionService.CalculateTotalLevel (int saturation) |
+| Shop.DataShards | No; no Prestige reward | Exact balance | No reset |
+| Shop.HighestClaimedLevelReward | No | Exact claim history | No reset |
+| Shop.ProductionBoostEndUnix; BotLuckBoostEndUnix | No | Exact timestamps, ordinary expiry continues | No reset |
+| Shop.ProductionUpgradeLevel; OfflineUpgradeLevel | No | Exact levels | No reset |
+| Lab.Unlocked; ResearchPoints | No | Exact values | No reset |
+| Lab.CompletedResearch | No | Exact set | No reset |
+| Lab.ActiveResearchId; ActiveResearchEndUnix | No | Exact ID and timestamp, ordinary completion continues | No reset |
+| Stats.TotalEarned; OfflineEarned; TotalSpent; SlotUnlockSpent; MachineSpending | No | Exact counters/dictionary | No reset or earning/spending transaction |
+| Room/machine catalog definitions and collection identities | No | Exact definitions and objects | No replacement |
+| Bot skins; Machine skins | No | Owned/equipped state and independent stores | Separate skin services, no Prestige calls |
+| Settings / Audio / Haptics | No | Preferences, instances and independent store | No Prestige calls |
+| Singularity Matter / Nodes / Sectors / Cores / Bots / runtime / save / offline | No | Entire independent subsystem | No Prestige references |
+| Level rewards | No reset or automatic claim | Claimed rewards cannot recur; future claims use preserved total | LevelRewardService uses progression and HighestClaimedLevelReward |
+| Achievements | No reset or direct SDK calls | Existing polling; Prestigious uses PrestigeCount >= 1 | GooglePlayGamesAchievementService |
+| Leaderboard Prestige score | Count increases (saturates) | Existing submission logic | Play Games / Firebase callers read PrestigeCount |
+| Leaderboard Total Level score | Preserved | Existing submission logic | Callers read progression.GetTotalLevel |
+| Save/load | No schema/version/migration change; no save inside service | Version 21 normal DTO and independent stores | GameSaveService captures/hydrates count, lifetime base, rooms, currencies, Lab, Shop and Stats |
+| Offline progress | No reset operation or settlement inside Prestige | Existing offline architecture | OfflineProgressService independent |
+
+Eligibility uses RunEarnedTokens >= 1_000_000_000_000_000_000.0, independent of current spendable Tokens. Failure and success messages remain unchanged. Failed eligibility mutates nothing. The audit was completed before reset implementation changes.
+
+
+### New normal run reset ownership
+
+GameServiceFactory composes and GameServices exposes one NormalRunResetService using the session's GameState and EconomyService. PrestigeService owns eligibility, saturating count increment, lifetime preservation orchestration, multiplier previews and result messages. Existing constructors remain compatible by creating the focused reset collaborator; production composition injects the shared instance.
+
+Dependency flow: GameServices → PrestigeService → NormalRunResetService → EconomyService + GameState.RoomStates → RoomState.ResetForNewRun → PipelineData.Reset / InfrastructureData.Reset / QuantumData.Reset + SlotData.ResetForNewRun → ResetDataShardMilestones / ClearBot. No circular dependencies, reset interfaces, registry, broadcasts or lifecycle framework.
+
+NormalRunResetService resets Tokens/run earnings through EconomyService, selects room index 0, and resets each normal room with an explicit starting-room flag. RoomState owns unlock defaults, domain resets and slot enumeration, preserving DataShardUnlockRewardClaimed. SlotData owns unlock/tier/level defaults, machine milestones, bot removal/durability and cycle runtime resets. No objects are replaced. Pipeline, Infrastructure, Quantum and ClearBot definitions/defaults are unchanged.
+
+Lifetime flow remains capture CalculateTotalLevel → saturating count increment → reset normal run → CalculateCurrentRunLevel → LifetimeLevelBase = Math.Max(0, capturedTotal - resetRunLevel) → return original message using calculated total. Normally the reset run level is 1; it is calculated rather than hardcoded. Existing static calculations are retained because they are the authoritative pure state calculations and adding another instance dependency/accessor provides no behavior benefit. Level formulas and saturation remain untouched. This preserves Total Level and leaderboard inputs, without reopening claimed rewards; future rewards use lifetime total as before.
+
+### Regression verification and mutation search
+
+The isolated tests/Prestige Godot harness uses the same hosting pattern as GameSave, supplying only BotCatalog textures in memory. It verifies below/exact/above threshold, eligibility with zero spendable balance, unchanged messages, count saturation, repeat threshold requirements, all reset/default fields including runtime-only fields, all retained DTO fields, object identity, level saturation and lifetime base, unchanged multiplier formula, reward history and future claims, and save → Prestige → save → load. A frozen copy of the audited pre-refactor operation acts as a full saved-state equivalence oracle in addition to explicit reset expectations, across 24 populated fixtures. The independent services test seeds nondefault cosmetic ownership/equipment and Singularity state using test-only reflection; it compares runtime state and the independent Singularity save, and verifies disabled settings without extra save/audio/haptic calls. No production test seam or save schema changes were added.
+
+Results: Prestige 37,568 assertions; GameSave 3,416; OfflineProgress 663; Settings 47; Singularity 197; SettingsAudio 10 — all passed. The initial full game compilation succeeded with 0 errors and 344 existing CS8632 warnings. The test build reports the unavailable NuGet vulnerability feed warning; packages restored and compilation succeeded. Singularity's deliberately corrupt-save fixture emits its expected warning. SettingsAudio passes but emits resource cleanup warnings at exit.
+
+Post-change search of Unlocked / MachineTier / MachineLevel / IsRunning / CycleRemaining / RuntimeCycleDuration assignments, ClearBot and Pipeline/Infrastructure/Quantum Reset calls found no subsystem reset details in PrestigeService. Remaining occurrences are classified as:
+
+| Location | Reason retained |
+|---|---|
+| RoomState / SlotData | Domain-owned new-run defaults, bot lifecycle, DTO snapshot/hydration |
+| ProgressionService | Authoritative slot/room unlocking and tier upgrading |
+| ProductionService | Live cycle start/finish and offline simulation runtime |
+| BotService | Bot purchase/repair/sale cycle handling; sale uses ClearBot |
+| EconomyService | Runtime cycle-duration calculation |
+| LabService | Lab unlock and research cycle rescaling |
+| GameSaveService | Saved room hydration and missing-system compatibility defaults |
+| SingularityService / SingularityPersistenceService | Independent Singularity unlock/hydration; untouched |
+| MachineDetailsOverlay | Temporary target-level production preview then restoration; separate potential refactor |
+| Startup object initializers / DTO definitions / tests | Initial defaults, persistence mappings and fixtures, not Prestige policy |
+
+Full diff review confirms unchanged threshold, eligibility, messages, multiplier/level formulas, Shop/Lab values, reward values, room/slot defaults, SaveVersion 21, DTO schema, SaveManager/JSON/migrations, settings and Singularity implementation. No currency reward was added. Save compatibility is verified by the existing GameSave suite and the new post-Prestige round trip.
+
+Next major refactor recommendation: remove temporary MachineDetailsOverlay level mutations by moving production upgrade previews into a pure domain quote operation. This would tighten authoritative progression boundaries without changing game balance or UI design.
+
+Final verification: exact `dotnet build` succeeded (incremental build: 0 warnings, 0 errors); `git diff --check` passed. New service/harness sources and the complete tracked diff were reviewed. Work remains uncommitted on refactor/services. Manual/device checks remain pending.

@@ -1,0 +1,213 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using IdleAi;
+
+class Program
+{
+    static int checks;
+    static void Eq(object actual, object expected, string label)
+    {
+        if (!Equals(actual, expected)) throw new Exception($"{label}: {actual} != {expected}");
+        checks++;
+    }
+    // Compare every DTO property recursively, without relying on JSON formatting.
+    static void Same(object actual, object expected, string path)
+    {
+        if (actual == null || expected == null) { Eq(actual, expected, path); return; }
+        if (actual is string || actual.GetType().IsValueType) { Eq(actual, expected, path); return; }
+        if (actual is System.Collections.IEnumerable aa && expected is System.Collections.IEnumerable bb)
+        {
+            var a = aa.Cast<object>().ToArray(); var b = bb.Cast<object>().ToArray();
+            Eq(a.Length, b.Length, path + ".Count");
+            for (int i = 0; i < a.Length; i++) Same(a[i], b[i], path + $"[{i}]");
+            return;
+        }
+        foreach (var p in actual.GetType().GetProperties()) Same(p.GetValue(actual), p.GetValue(expected), path + "." + p.Name);
+    }
+    static (GameState state, EconomyService economy, GameSaveService saves) Create()
+    {
+        // Four normal rooms with the production default of eight slots, without loading Godot textures.
+        var rooms = new List<RoomData>();
+        for (int r = 0; r < 4; r++) rooms.Add(new RoomData("Test" + r, null, null,
+            [new MachineData("Test", 100, 1, 1, 100, null), new MachineData("Tier2", 100, 1, 1, 100, null)], 0));
+        var s = new GameState(rooms);
+        for (int r = 0; r < 4; r++)
+        {
+            var room = new RoomState { Unlocked = r == 0, DataShardUnlockRewardClaimed = r == 0 };
+            for (int i = 0; i < 8; i++) room.Slots.Add(new SlotData { Unlocked = r == 0 && i == 0 });
+            s.RoomStates.Add(room);
+        }
+        var e = new EconomyService(s);
+        return (s, e, new GameSaveService(s, e));
+    }
+    static SaveGameData Fixture(int version = 21)
+    {
+        var d = new SaveGameData {
+            SaveVersion = version, Tokens = 12345.75, RunEarnedTokens = 87654.25, LifetimeLevelBase = 222,
+            LastSaveUnix = 1000, CurrentRoomIndex = 3, AiCores = 42, PrestigeCount = 7,
+            LabUnlocked = true, ResearchPoints = 456.5, CompletedResearch = [ResearchCatalog.EfficientHardware1Id],
+            ActiveResearchId = ResearchCatalog.OfflineServersId, ActiveResearchEndUnix = 2000,
+            DataShards = 321.5, HighestClaimedLevelReward = 600, ShopProductionBoostEndUnix = 1500,
+            ShopBotLuckBoostEndUnix = 1600, ShopProductionUpgradeLevel = 2, ShopOfflineUpgradeLevel = 4,
+            Stats = new StatsSaveData { TotalEarned = 10000.5, OfflineEarned = 222.5, TotalSpent = 700,
+                SlotUnlockSpent = 200, MachineSpending = new() { ["Test"] = 500 } }
+        };
+        for (int r = 0; r < 4; r++)
+        {
+            var room = new RoomSaveData { Unlocked = true, DataShardUnlockRewardClaimed = true,
+                Pipeline = new PipelineSaveData { ComputeLevel = 2, DataLevel = 3, ModelLevel = 4, OutputLevel = 5,
+                    RawInputBuffer = 11.5, ComputeBuffer = 12.5, DataBuffer = 13.5, ModelBuffer = 14.5,
+                    ComputeCycleRemaining = .1, DataCycleRemaining = .2, ModelCycleRemaining = .3, OutputCycleRemaining = .4 },
+                Infrastructure = new InfrastructureSaveData { PowerLevel = 2, CoolingLevel = 3, StorageLevel = 4 },
+                Quantum = new QuantumSaveData { Stability = 50, Energy = 200, OverclockIndex = 3,
+                    StabilizerLevel = 2, EnergyCoreLevel = 3, AmplifierLevel = 4, RecoveryMode = true }
+            };
+            var rarities = Enum.GetValues<BotRarity>();
+            for (int i = 0; i < 8; i++) room.Slots.Add(new SlotSaveData { Unlocked = i != 7,
+                MachineTier = 0, MachineLevel = i + 1, ClaimedDataShardMilestones = [150, 300],
+                BotRarity = rarities[i % rarities.Length], BotPurchasePrice = 55.25 + i,
+                BotDurabilityInitialized = true, BotDurabilitySecondsRemaining = i == 0 ? 0 : 12.5,
+                IsRunning = i != 0, CycleRemaining = .25 + i });
+            d.Rooms.Add(room);
+        }
+        return d;
+    }
+    // Independent baseline oracle copied from the audited pre-refactor operation.
+    static void LegacyPrestige(GameState s, EconomyService e)
+    {
+        int total = ProgressionService.CalculateTotalLevel(s);
+        if (s.Prestige.PrestigeCount < int.MaxValue) s.Prestige.PrestigeCount++;
+        e.ResetRunTokens(); s.CurrentRoomIndex = 0;
+        for (int r = 0; r < s.RoomStates.Count; r++)
+        {
+            var room = s.RoomStates[r]; room.Unlocked = r == 0;
+            room.Pipeline.Reset(); room.Infrastructure.Reset(); room.Quantum.Reset();
+            for (int i = 0; i < room.Slots.Count; i++)
+            {
+                var slot = room.Slots[i]; slot.Unlocked = r == 0 && i == 0;
+                slot.MachineTier = 0; slot.MachineLevel = 1; slot.ResetDataShardMilestones();
+                slot.ClearBot(); slot.IsRunning = false; slot.CycleRemaining = 0; slot.RuntimeCycleDuration = 0;
+            }
+        }
+        s.LifetimeLevelBase = Math.Max(0, total - ProgressionService.CalculateCurrentRunLevel(s));
+    }
+    static void ResetExpected(GameState s)
+    {
+        Eq(s.Tokens, 0.0, "Tokens"); Eq(s.RunEarnedTokens, 0.0, "run earnings");
+        Eq(s.CurrentRoomIndex, 0, "current room");
+        for (int r = 0; r < s.RoomStates.Count; r++)
+        {
+            var room = s.RoomStates[r]; Eq(room.Unlocked, r == 0, "room unlock");
+            Same(room.Pipeline, new PipelineData(), "pipeline defaults incl runtime");
+            Same(room.Infrastructure, new InfrastructureData(), "infrastructure defaults");
+            Same(room.Quantum, new QuantumData(), "quantum defaults");
+            foreach (var slot in room.Slots.Select((value, index) => (value, index)))
+                Same(slot.value, new SlotData { Unlocked = r == 0 && slot.index == 0 }, "slot defaults incl bot/runtime/milestones");
+        }
+    }
+    public static void Main()
+    {
+        const double threshold = 1_000_000_000_000_000_000.0;
+        var (s, e, save) = Create(); save.ApplySave(Fixture());
+        var prestige = new PrestigeService(s, new NormalRunResetService(s, e));
+        Eq(prestige.GetRequiredRunTokens(), threshold, "threshold");
+        s.RunEarnedTokens = Math.BitDecrement(threshold); s.Tokens = threshold * 2;
+        var beforeFailure = save.CreateSave(1000);
+        Eq(prestige.CanPrestige(), false, "below threshold even with affordable balance");
+        var failure = prestige.Prestige(); Eq(failure.Success, false, "failure");
+        Eq(failure.Message, "Earn " + NumberFormatter.Format(threshold - s.RunEarnedTokens) + " more Tokens this run to prestige.", "failure message");
+        Same(save.CreateSave(1000), beforeFailure, "failed operation unchanged");
+        foreach (double earned in new[] { threshold, threshold * 100 })
+        foreach (int count in new[] { 0, 7, int.MaxValue - 1, int.MaxValue })
+        foreach (int lifetime in new[] { 0, 222, int.MaxValue })
+        {
+            var (a, ae, am) = Create(); var (b, be, bm) = Create();
+            var fixture = Fixture(); fixture.RunEarnedTokens = earned; fixture.Tokens = 0;
+            fixture.PrestigeCount = count; fixture.LifetimeLevelBase = lifetime;
+            am.ApplySave(fixture); bm.ApplySave(fixture);
+            // Nonzero tiers, every room, mixed locked slots, broken and healthy bots.
+            for (int r = 0; r < 4; r++)
+            {
+                foreach (var slot in a.RoomStates[r].Slots) { slot.MachineTier = 1; slot.RuntimeCycleDuration = 12; }
+                foreach (var slot in b.RoomStates[r].Slots) { slot.MachineTier = 1; slot.RuntimeCycleDuration = 12; }
+                a.RoomStates[r].Pipeline.LastMachineInputPerSecond = b.RoomStates[r].Pipeline.LastMachineInputPerSecond = 17;
+                a.RoomStates[r].Pipeline.LastTokenOutputPerSecond = b.RoomStates[r].Pipeline.LastTokenOutputPerSecond = 19;
+                a.RoomStates[r].DataShardUnlockRewardClaimed = b.RoomStates[r].DataShardUnlockRewardClaimed = r % 2 == 0;
+            }
+            int total = ProgressionService.CalculateTotalLevel(a);
+            var permanentShop = am.CreateSave(1000); var stats = a.Stats.ToSaveData();
+            var lab = a.Lab; var shop = a.Shop; var rooms = a.RoomStates.ToArray();
+            var p = new PrestigeService(a, ae); double nextMultiplier = p.GetProductionMultiplierAfterNextPrestige();
+            Eq(p.CanPrestige(), true, "eligible based on run earnings, zero balance");
+            var result = p.Prestige(); Eq(result.Success, true, "success");
+            Eq(a.Prestige.PrestigeCount, count == int.MaxValue ? count : count + 1, "count once and saturation");
+            Eq(ProgressionService.CalculateTotalLevel(a), total, "total level/leaderboard preserved");
+            Eq(a.LifetimeLevelBase, total - 1, "base subtracts starting slot level");
+            Eq(p.GetProductionMultiplier(), nextMultiplier, "multiplier preview");
+            Eq(p.GetProductionMultiplier(), 1 + (1 - Math.Exp(-(double)a.Prestige.PrestigeCount / 20)) * (GameConfig.PrestigeMaximumProductionMultiplier - 1), "unchanged multiplier formula");
+            Eq(result.Message, "Prestige complete! Total Level remains " + total + ". Permanent production x" + p.GetProductionMultiplier().ToString("F2"), "success message");
+            ResetExpected(a); LegacyPrestige(b, be);
+            Same(am.CreateSave(1000), bm.CreateSave(1000), "legacy equivalence all saved fields");
+            Same(a.Stats.ToSaveData(), stats, "no earning/spending transactions");
+            Eq(ReferenceEquals(a.Lab, lab), true, "Lab identity"); Eq(ReferenceEquals(a.Shop, shop), true, "Shop identity");
+            for (int r = 0; r < 4; r++) { Eq(ReferenceEquals(rooms[r], a.RoomStates[r]), true, "room identity"); Eq(a.RoomStates[r].DataShardUnlockRewardClaimed, r % 2 == 0, "permanent room reward claim"); }
+            Eq(a.Shop.DataShards, permanentShop.DataShards, "shards no award");
+            Eq(a.Shop.HighestClaimedLevelReward, permanentShop.HighestClaimedLevelReward, "reward claim retained");
+            Eq(a.Lab.ActiveResearchEndUnix, fixture.ActiveResearchEndUnix, "research end retained");
+            var (loaded, _, lm) = Create(); lm.ApplySave(am.CreateSave(1000));
+            Same(lm.CreateSave(1000), am.CreateSave(1000), "save-prestige-save-load");
+            Eq(ProgressionService.CalculateTotalLevel(loaded), total, "loaded total");
+            Eq(p.Prestige().Success, false, "second prestige requires fresh earnings");
+            Eq(a.Prestige.PrestigeCount, count == int.MaxValue ? count : count + 1, "failed repeat count");
+            ae.AddEarnedTokens(threshold); Eq(p.Prestige().Success, true, "second after earning again");
+            Eq(ProgressionService.CalculateTotalLevel(a), total, "repeated total unchanged");
+        }
+        var (rewardState, re, _) = Create(); var progression = new ProgressionService(rewardState, re);
+        var rewards = new LevelRewardService(rewardState, progression, re);
+        rewardState.RoomStates[0].Slots[0].MachineLevel = 300;
+        Eq(rewards.Claim(150).Changed, true, "first reward"); Eq(rewards.Claim(300).Changed, true, "second reward");
+        re.AddEarnedTokens(threshold); new PrestigeService(rewardState, re).Prestige();
+        Eq(rewards.Claim(150).Changed, false, "cannot reclaim 150"); Eq(rewards.Claim(300).Changed, false, "cannot reclaim 300");
+        Eq(rewards.NextRewardLevel, 450, "next lifetime reward"); Eq(rewards.HasClaimableReward, false, "no artificial reward");
+        rewardState.RoomStates[0].Slots[0].MachineLevel += 150;
+        Eq(rewards.CanClaim(450), true, "future reward uses lifetime total");
+        Eq(rewards.Claim(450).Changed, true, "future reward claim");
+        // These services own state outside GameState. Seed nondefault runtime state without
+        // buying cosmetics or advancing Singularity (those operations belong to other suites).
+        var botSkins = new BotSkinService(rewardState, re);
+        var machineSkins = new MachineSkinService(rewardState, re);
+        var flags = BindingFlags.Instance | BindingFlags.NonPublic;
+        ((HashSet<string>)typeof(BotSkinService).GetField("_ownedSkinIds", flags).GetValue(botSkins)).Add("nature_overgrown");
+        typeof(BotSkinService).GetProperty("EquippedBotSkinId").SetValue(botSkins, "nature_overgrown");
+        ((HashSet<string>)typeof(MachineSkinService).GetField("_ownedSkinIds", flags).GetValue(machineSkins)).Add("room_1_retro");
+        ((Dictionary<int, string>)typeof(MachineSkinService).GetField("_equippedByRoom", flags).GetValue(machineSkins))[0] = "room_1_retro";
+        int soundCalls = 0, settingsSaves = 0, vibrations = 0;
+        var haptics = new HapticsService((_, _) => vibrations++);
+        var settings = new GameSettingsService(() => new GameSettingsData { SoundEnabled = false, VibrationEnabled = false },
+            _ => settingsSaves++, _ => soundCalls++, haptics);
+        var singularity = new SingularityService(rewardState);
+        var singularityData = (SingularitySaveData)typeof(SingularityService).GetField("_data", flags).GetValue(singularity);
+        singularityData.Unlocked = true; singularityData.Matter = 123456; singularityData.CoreLevel = 7;
+        singularityData.Sectors[0].CoreUnlocked = true; singularityData.Sectors[0].CoreLevel = 9;
+        singularityData.Sectors[0].Nodes.Add(new SingularityNodeData { Type = SingularityNodeType.Compute,
+            Level = 3, InvestedMatter = 222, BotRarity = BotRarity.Common, BotPurchasePriceMatter = 111,
+            BotDurabilityInitialized = true, BotDurabilitySecondsRemaining = 17 });
+        singularity.Save();
+        var singularityJson = System.Text.Json.JsonSerializer.Serialize(singularityData);
+        string singularityPath = Godot.ProjectSettings.GlobalizePath("user://singularity_save.json");
+        string singularityFile = System.IO.File.ReadAllText(singularityPath);
+        re.AddEarnedTokens(threshold); new PrestigeService(rewardState, re).Prestige();
+        Eq(botSkins.IsOwned("nature_overgrown"), true, "bot skin ownership");
+        Eq(botSkins.EquippedBotSkinId, "nature_overgrown", "bot skin equipment");
+        Eq(machineSkins.IsOwned("room_1_retro"), true, "machine skin ownership");
+        Eq(machineSkins.GetEquippedSkinId(0), "room_1_retro", "machine skin equipment");
+        Eq(settings.SoundEnabled, false, "sound retained"); Eq(settings.VibrationEnabled, false, "vibration retained");
+        Eq(soundCalls, 1, "no audio reapplication"); Eq(settingsSaves, 0, "no settings write");
+        Eq(vibrations, 0, "no haptic call"); Eq(haptics.VibrationEnabled, false, "haptics policy retained");
+        Eq(System.Text.Json.JsonSerializer.Serialize(singularityData), singularityJson, "Singularity entire state");
+        Eq(System.IO.File.ReadAllText(singularityPath), singularityFile, "Singularity independent save unchanged");
+        Console.WriteLine($"Prestige regression: {checks} assertions passed.");
+    }
+}

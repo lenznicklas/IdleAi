@@ -217,3 +217,43 @@ Manual checks still required (Godot/device, using copied saves):
 - [ ] Only one background music player exists during normal startup and repeated composition.
 - [ ] Android physical vibration and audio work as before.
 - [ ] App pause/resume audio behavior remains acceptable and matches the prior build.
+
+
+## Prestige reset ownership regression
+
+- [x] Pre-implementation reset/retain contract table recorded in REFACTOR_SERVICES.md.
+- [x] Below threshold refuses without mutations; exact 1e18 RunEarnedTokens qualifies with zero balance; above threshold qualifies; messages unchanged.
+- [x] Count increments once and saturates at int.MaxValue; multiplier preview and existing formula match.
+- [x] Tokens and RunEarnedTokens zero without earning/spending transactions.
+- [x] Current room 0; only first room and its first slot unlocked; tier 0 / level 1 on every slot.
+- [x] Machine cycles stop, remaining/duration zero; bots removed, price/durability/initialized/broken/runtime states reset; milestones cleared.
+- [x] Every Pipeline level/buffer/cycle/runtime rate resets; Infrastructure defaults; Quantum stability/energy/overclock/levels/recovery defaults.
+- [x] Total Level retained including saturated totals; LifetimeLevelBase subtracts actual reset run level; repeated Prestige adds no artificial level.
+- [x] Data Shards, all Shop upgrade/boost fields and claim history, room reward claims, AiCores retained; no Prestige currency reward.
+- [x] Lab unlock/points/completed/active research and timestamp retained; Stats all counters and machine spending retained.
+- [x] Nondefault bot/machine cosmetic ownership/equipment unaffected; disabled settings retained without new persistence/audio/haptic calls.
+- [x] Nondefault Singularity nodes/bots/durability/Matter/sectors/cores/state and independent save unchanged.
+- [x] Claimed level rewards cannot recur; future reward eligibility continues at correct lifetime total.
+- [x] Save → Prestige → save → load has identical expected result; second Prestige requires earning threshold again.
+- [x] Saved-state equivalence with frozen original reset operation across 24 populated combinations, plus explicit runtime/default checks: 37,568 assertions passed.
+- [x] Existing suites passed: GameSave 3,416; OfflineProgress 663; Settings 47; Singularity 197; SettingsAudio 10.
+- [x] Achievement and leaderboard readers audited: Prestigious still uses count >= 1, total leaderboard reads preserved level, Prestige leaderboard reads count; no SDK calls added.
+
+Run after game build:
+
+```sh
+dotnet build tests/Prestige/Prestige.csproj
+XDG_DATA_HOME=/tmp/idle-ai-prestige-tests godot-mono --headless --path tests/Prestige
+```
+
+Manual/device checks remaining:
+
+- [ ] Prestige button below threshold, exactly at threshold and far above threshold; count +1; second Prestige only after fresh threshold earnings.
+- [ ] Total Level visually unchanged; total-level leaderboard unchanged; Prestige leaderboard increases; Prestigious achievement still unlocks normally.
+- [ ] Garage resets, Server Room and later rooms lock; first slot remains unlocked; all other slots/machines reset; bots disappear without durability leaking into replacement bots.
+- [ ] Pipeline, Infrastructure and Quantum reset to existing defaults.
+- [ ] Lab/research and Data Shards behave exactly as before; Shop permanent upgrades and timed boosts survive; level rewards cannot be reclaimed.
+- [ ] Settings, bot skins, machine skins and all Singularity progression unchanged.
+- [ ] Save/restart after Prestige; normal offline earnings after Prestige; next Prestige after earning threshold again.
+
+- [x] Final `dotnet build`: 0 warnings, 0 errors (initial full compilation: 344 existing CS8632 warnings); `git diff --check` passed; full diff and new files reviewed.

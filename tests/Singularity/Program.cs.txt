@@ -1,0 +1,288 @@
+using Godot;
+using IdleAi;
+using System;
+using System.Linq;
+using System.Text.Json;
+
+public static class Program
+{
+    private const string Path = "user://singularity_save.json";
+    private static int _assertions;
+    private static long _now = 1_000_000;
+    private static readonly JsonSerializerOptions Json = new() { WriteIndented = true };
+    private static void Check(bool value, string name)
+    {
+        _assertions++;
+        if (!value) throw new Exception(name);
+    }
+    private static void Equal(double actual, double expected, string name) =>
+        Check(Math.Abs(actual - expected) <= Math.Max(1e-12, Math.Abs(expected) * 1e-12), $"{name}: {actual:R} != {expected:R}");
+    private static void Write(SingularitySaveData data)
+    {
+        using var file = Godot.FileAccess.Open(Path, Godot.FileAccess.ModeFlags.Write);
+        file.StoreString(JsonSerializer.Serialize(data, Json));
+    }
+    private static SingularitySaveData Read()
+    {
+        using var file = Godot.FileAccess.Open(Path, Godot.FileAccess.ModeFlags.Read);
+        return JsonSerializer.Deserialize<SingularitySaveData>(file.GetAsText())!;
+    }
+    private static void Clear() => DirAccess.RemoveAbsolute(ProjectSettings.GlobalizePath(Path));
+    private static SingularityService Service(GameState? state = null, double roll = 0) => new(state, () => _now, () => roll);
+    private static GameState Normal()
+    {
+        var state = new GameState([]);
+        for (int i = 0; i < 4; i++)
+        {
+            var room = new RoomState { Unlocked = true };
+            for (int n = 0; n < 8; n++) room.Slots.Add(new SlotData { Unlocked = true });
+            state.RoomStates.Add(room);
+        }
+        return state;
+    }
+    private sealed class Domain
+    {
+        internal readonly SingularitySaveData Data = new() { Unlocked = true };
+        internal readonly SingularityEconomy Economy;
+        internal readonly SingularitySectorService Sectors;
+        internal readonly SingularityBotService Bots;
+        internal readonly SingularityNodeService Nodes;
+        internal readonly SingularityProductionService Production;
+        internal readonly SingularityPersistenceService Persistence;
+        internal readonly SingularityOfflineService Offline;
+        internal int Notifications, Saves, Rolls;
+        internal double Roll;
+        internal Domain(LabData? lab = null)
+        {
+            Economy = new(Data);
+            Sectors = new(Data, Economy, Notify, () => Saves++);
+            Bots = new(Data, Sectors, Economy, Notify, lab, () => { Rolls++; return Roll; });
+            Nodes = new(Data, Sectors, Economy, Notify);
+            Production = new(Data, Sectors, Bots);
+            Persistence = new(Data, Sectors, Bots, () => _now);
+            Offline = new(Data, Bots, Production, Persistence, Economy, () => Notifications++, () => _now);
+            Sectors.EnsureSector(0);
+        }
+        private void Notify() { Saves++; Notifications++; }
+        internal SingularityNodeData Node(int sector, int node, SingularityNodeType type, int level = 1)
+        {
+            var result = Sectors.GetNode(sector, node);
+            result.Type = type; result.Level = level;
+            return result;
+        }
+    }
+    public static void Main()
+    {
+        // Runner must have its own XDG_DATA_HOME: this harness only touches its isolated user:// store.
+        Check(ProjectSettings.GlobalizePath(Path).Contains("Singularity regression tests"), "isolated project profile");
+        DefaultsAndUnlock(); CoresAndSectors(); Nodes(); Production(); Bots(); Persistence(); Offline(); Events();
+        Clear();
+        Console.WriteLine($"Singularity: {_assertions} assertions passed.");
+    }
+    private static void DefaultsAndUnlock()
+    {
+        Clear(); var state = Normal(); var service = Service(state);
+        Check(!service.Unlocked, "default locked"); Equal(service.Matter, 0, "default Matter");
+        Check(service.SectorCount == 1 && service.CurrentSectorIndex == 0 && service.CoreCount == 1, "default sector/core");
+        Check(service.GetSector(0).Nodes.Count == 8 && service.CoreLevel == 1, "default nodes/core level");
+        Equal(service.GetTotalOutputPerSecond(), 0, "locked output");
+        service.Update(10); Equal(service.Matter, 0, "locked Update");
+        Check(!service.Unlock(state).Changed, "insufficient Tokens"); Equal(state.Tokens, 0, "failed unlock Tokens");
+        state.Tokens = SingularityService.TestUnlockTokenCost;
+        state.RoomStates[3].Slots[7].Unlocked = false;
+        Check(!service.Unlock(state).Changed, "normal progression prerequisite"); Equal(state.Tokens, SingularityService.TestUnlockTokenCost, "prerequisite no spend");
+        state.RoomStates[3].Slots[7].Unlocked = true;
+        int events = 0; service.Changed += () => events++;
+        var result = service.Unlock(state, new EconomyService(state));
+        Check(result.Changed && result.Message == "SINGULARITY ONLINE • SECTOR 1 CORE INSTALLED", "unlock/message");
+        Equal(state.Tokens, 0, "unlock spends exactly once"); Equal(state.Stats.TotalSpent, SingularityService.TestUnlockTokenCost, "unlock stats");
+        Check(service.Unlocked && events == 1, "unlock notifies once");
+        Check(!service.Unlock(state).Changed && events == 1, "duplicate unlock");
+        Equal(service.Matter, 0, "normal unlock leaves Matter");
+        Equal(service.GetTotalOutputPerSecond(), .05, "first core output");
+    }
+    private static void CoresAndSectors()
+    {
+        var d = new Domain(); d.Data.Matter = 10000;
+        Equal(d.Sectors.GetSectorCoreUnlockCost(0), 0, "first core free");
+        for (int i = 1; i <= 5; i++) Equal(d.Sectors.GetSectorCoreUnlockCost(i), 250 * Math.Pow(4, i-1), "core unlock cost");
+        Check(!d.Sectors.UnlockSectorCore(-1).Changed && !d.Sectors.UnlockSectorCore(1).Changed, "invalid core");
+        d.Sectors.GetSector(1); Check(!d.Sectors.IsSectorCoreUnlocked(1), "later core locked");
+        Check(d.Sectors.UnlockSectorCore(1).Changed, "later core unlock"); Equal(d.Data.Matter, 9750, "core spend");
+        Check(!d.Sectors.UnlockSectorCore(1).Changed, "duplicate core no charge"); Equal(d.Data.Matter, 9750, "duplicate balance");
+        Equal(d.Sectors.GetSectorCoreUpgradeCost(0), 100, "first upgrade price");
+        Check(d.Sectors.UpgradeSectorCore(0).Changed, "core upgrade"); Equal(d.Data.CoreLevel, 2, "legacy first core level mirror");
+        Equal(d.Sectors.GetSectorCoreUpgradeCost(0), 215, "core cost progression");
+        Equal(d.Sectors.GetSectorCoreUpgradeCost(1), 300, "sector upgrade scaling");
+        Equal(d.Production.GetSectorCoreOutputPerSecond(0), .05*1.42, "core level output");
+        Equal(d.Production.GetSectorComputeCoreMultiplier(0), 1.1, "core compute multiplier");
+        Check(!d.Sectors.CanUnlockNextSector(), "frontier must be full");
+        for (int i=0;i<8;i++) d.Node(1,i,SingularityNodeType.Compute);
+        Check(d.Sectors.CanUnlockNextSector(), "full frontier");
+        Equal(d.Sectors.GetNextSectorUnlockCost(), 3750, "sector cost progression");
+        Check(d.Sectors.UnlockNextSector().Changed, "new sector");
+        Check(d.Data.CurrentSectorIndex==2 && d.Data.Sectors.Count==3 && !d.Data.Sectors[2].CoreUnlocked, "new sector selected/locked core");
+        Check(d.Sectors.GoToPreviousSector() && d.Sectors.GoToNextExistingSector(), "navigation");
+        int notifications=d.Notifications; d.Sectors.SelectSector(0); Check(d.Notifications==notifications, "select never notifies");
+        d.Sectors.GetSector(8);
+        var positions = new[] {new Vector2I(0,0),new Vector2I(1,0),new Vector2I(1,1),new Vector2I(0,1),new Vector2I(-1,1),new Vector2I(-1,0),new Vector2I(-1,-1),new Vector2I(0,-1),new Vector2I(1,-1)};
+        for(int i=0;i<positions.Length;i++) Check(d.Sectors.GetSectorGridPosition(i)==positions[i], "spiral position "+i);
+        Check(d.Sectors.TryGetCrossSectorNeighbor(0,2,out int sector,out int node) && sector==1 && node==6, "east index lookup");
+        Check(d.Sectors.TryGetCrossSectorNeighbor(1,6,out sector,out node) && sector==0 && node==2, "west reciprocal lookup");
+        Check(d.Sectors.TryGetCrossSectorNeighbor(0,0,out sector,out node) && sector==7 && node==4, "north lookup");
+        Check(d.Sectors.TryGetCrossSectorNeighbor(0,4,out sector,out node) && sector==3 && node==0, "south lookup");
+        Check(!d.Sectors.TryGetCrossSectorNeighbor(0,1,out _,out _), "diagonal no link");
+        d.Sectors.RebuildGridIndex(); Check(d.Sectors.TryGetCrossSectorNeighbor(0,6,out sector,out node)&&sector==5&&node==2,"rebuilt index");
+    }
+    private static void Nodes()
+    {
+        var d=new Domain();
+        Check(d.Nodes.IsNodeTypeUnlocked(SingularityNodeType.Compute)&&d.Nodes.IsNodeTypeUnlocked(SingularityNodeType.Amplifier),"immediate types");
+        Check(!d.Nodes.IsNodeTypeUnlocked(SingularityNodeType.Cooling)&&!d.Nodes.IsNodeTypeUnlocked(SingularityNodeType.Quantum),"locked types");
+        for(int i=1;i<5;i++)
+        {
+            d.Sectors.GetSector(i).CoreUnlocked=true;
+            Check(d.Nodes.IsNodeTypeUnlocked(SingularityNodeType.Cooling)==(i>=2),"Cooling requires 3 cores");
+            Check(d.Nodes.IsNodeTypeUnlocked(SingularityNodeType.Quantum)==(i>=4),"Quantum requires 5 cores");
+        }
+        Check(!d.Nodes.BuildNode(0,0,SingularityNodeType.Compute).Changed,"insufficient Matter"); Equal(d.Data.Matter,0,"failed spend");
+        d.Data.Matter=10; Check(d.Nodes.BuildNode(0,0,SingularityNodeType.Compute).Changed,"Compute build"); Equal(d.Data.Matter,0,"exact build spend");
+        Equal(d.Sectors.GetNode(0,0).InvestedMatter,10,"build investment");
+        Equal(d.Nodes.GetBuildCost(0,SingularityNodeType.Amplifier),45*1.22,"global growth");
+        Equal(d.Nodes.GetBuildCost(2,SingularityNodeType.Compute),10*9*1.22,"sector cost scaling");
+        d.Data.Matter=10000;
+        Check(d.Nodes.BuildNode(0,1,SingularityNodeType.Amplifier).Changed,"Amplifier build");
+        Check(d.Nodes.BuildNode(0,2,SingularityNodeType.Cooling).Changed,"Cooling build");
+        Check(d.Nodes.BuildNode(0,3,SingularityNodeType.Quantum).Changed,"Quantum build");
+        Check(!d.Nodes.BuildNode(0,0,SingularityNodeType.Compute).Changed,"occupied no spend");
+        double before=d.Data.Matter;
+        Check(d.Nodes.UpgradeNode(0,0).Changed,"node upgrade"); Equal(before-d.Data.Matter,18,"upgrade exactly once");
+        Equal(d.Sectors.GetNode(0,0).InvestedMatter,28,"upgrade investment"); Equal(d.Nodes.GetNodeUpgradeCost(0,0),18*1.85,"node upgrade progression");
+        Equal(d.Nodes.GetNodeSellRefund(0,0),28.0/3,"node refund"); before=d.Data.Matter;
+        Check(d.Nodes.SellNode(0,0).Changed,"node sale"); Equal(d.Data.Matter,before+28.0/3,"refund credited");
+        Check(d.Sectors.GetNode(0,0).Type==SingularityNodeType.Empty&&d.Sectors.GetNode(0,0).InvestedMatter==0,"sale clears state");
+        Check(!d.Nodes.SellNode(0,0).Changed,"duplicate sale");
+        var legacy=d.Node(0,4,SingularityNodeType.Compute,3);
+        Equal(d.Nodes.GetNodeSellRefund(0,4),(10+18+18*1.85)/3,"legacy investment estimate");
+        Check(d.Nodes.UpgradeNode(0,4).Changed,"legacy upgrade"); Equal(legacy.InvestedMatter,10+18+18*1.85+18*Math.Pow(1.85,2),"legacy upgrade investment");
+    }
+    private static void Production()
+    {
+        var d=new Domain(); d.Node(0,2,SingularityNodeType.Compute);
+        Equal(d.Production.GetNodeDisplayedOutput(0,2),.25,"Compute output"); Equal(d.Production.GetTotalOutputPerSecond(),.30,"total core plus Compute");
+        d.Node(0,1,SingularityNodeType.Amplifier,2); Equal(d.Production.GetNodeDisplayedOutput(0,2),.25*1.3,"local Amplifier");
+        d.Node(0,3,SingularityNodeType.Cooling,3); Equal(d.Production.GetNodeDisplayedOutput(0,2),.25*1.3*1.3,"Cooling multiplication");
+        d.Node(0,5,SingularityNodeType.Quantum,2); Equal(d.Production.GetNodeDisplayedOutput(0,2),.25*1.3*1.3*1.24,"Quantum");
+        d.Node(1,6,SingularityNodeType.Amplifier,4); Equal(d.Production.GetNodeDisplayedOutput(0,2),.25*1.3*1.3*1.6*1.24,"cross-sector Amplifier (locked neighbor core still buffs)");
+        d.Sectors.GetSector(1).CoreUnlocked=true;
+        Equal(d.Production.GetSectorOutputPerSecond(0),.05+.25*(1.3*1.3*1.6)*1.24,"sector aggregate order");
+        Equal(d.Production.GetTotalOutputPerSecond(),.05+.25*(1.3*1.3*1.6)*1.24+.05*1.35,"all sector total");
+        d.Sectors.GetSector(0).CoreLevel=3;
+        Equal(d.Production.GetNodeDisplayedOutput(0,2),.25*1.3*1.3*1.6*1.24*1.2,"core multiplier last");
+        Equal(d.Production.GetNodeDisplayedOutput(0,1),0,"support displayed output");
+        // Legacy direct sector queries can still report node output in a locked sector.
+        d.Node(2,0,SingularityNodeType.Compute); Equal(d.Production.GetSectorOutputPerSecond(2),.25,"locked-sector query compatibility");
+        d.Data.Unlocked=false; Equal(d.Production.GetTotalOutputPerSecond(),0,"locked aggregate gate");
+        foreach(var (index,neighbor,opposite) in new[]{(0,7,4),(2,1,6),(4,3,0),(6,5,2)})
+        {
+            var cross=new Domain(); cross.Node(0,index,SingularityNodeType.Compute);
+            cross.Node(neighbor,opposite,SingularityNodeType.Amplifier,3);
+            Equal(cross.Production.GetNodeDisplayedOutput(0,index),.25*1.45,"cross-sector amplification direction "+index);
+        }
+        var bots=new Domain();
+        var compute=bots.Node(0,2,SingularityNodeType.Compute,2);
+        var amplifier=bots.Node(0,1,SingularityNodeType.Amplifier,2);
+        var cooling=bots.Node(0,3,SingularityNodeType.Cooling,2);
+        var quantum=bots.Node(0,5,SingularityNodeType.Quantum,2);
+        var external=bots.Node(1,6,SingularityNodeType.Amplifier,2);
+        foreach(var botNode in new[]{compute,amplifier,cooling,quantum,external}) botNode.BotRarity=BotRarity.Rare;
+        double bot=BotCatalog.GetMultiplier(BotRarity.Rare)+.1;
+        double expected=.25*1.58*bot*((1+.15*2*bot)*(1+.10*2*bot)*(1+.15*2*bot))*(1+.12*2*bot);
+        Equal(bots.Production.GetNodeDisplayedOutput(0,2),expected,"bot effects on every production type and external neighbor");
+        Equal(bots.Production.GetSectorOutputPerSecond(0),.05+expected,"core receives no Quantum or bot multiplier");
+        foreach(var botNode in new[]{compute,amplifier,cooling,quantum,external}) {botNode.BotDurabilityInitialized=true;botNode.BotDurabilitySecondsRemaining=0;}
+        Equal(bots.Production.GetNodeDisplayedOutput(0,2),.25*1.58*(1.3*1.2*1.3)*1.24,"broken support bots retain only base node effect");
+    }
+    private static void Bots()
+    {
+        var d=new Domain(); d.Node(0,0,SingularityNodeType.Compute); d.Data.Matter=1000;
+        Equal(d.Bots.GetNodeBotPurchaseCost(0,0),30,"bot price");
+        Check(d.Bots.BuyNodeBot(0,0).Changed,"bot purchase"); Equal(d.Data.Matter,970,"bot exact spend"); Check(d.Rolls==1,"single roll");
+        var node=d.Sectors.GetNode(0,0); Check(node.BotRarity==BotRarity.Common&&node.BotDurabilityInitialized,"rarity/initialization");
+        Equal(node.BotDurabilitySecondsRemaining,BotCatalog.GetWorkingLifetimeSeconds(BotRarity.Common),"full durability");
+        Equal(d.Bots.GetNodeBotEffectiveMultiplier(0,0),BotCatalog.GetMultiplier(BotRarity.Common)+.1,"resonance");
+        Check(!d.Bots.BuyNodeBot(0,0).Changed&&d.Rolls==1,"duplicate no roll/spend");
+        Check(!d.Nodes.SellNode(0,0).Changed,"bot blocks node sale");
+        d.Bots.ConsumeSingularityBotWork(node.BotDurabilitySecondsRemaining/2); Equal(d.Bots.GetNodeBotDurabilityRatio(0,0),.5,"durability consumption");
+        Equal(d.Bots.GetNodeBotRepairCost(0,0),3,"partial repair cost"); Check(d.Bots.RepairNodeBot(0,0).Changed,"repair"); Equal(d.Data.Matter,967,"repair spend");
+        Check(!d.Bots.RepairNodeBot(0,0).Changed,"full repair rejection");
+        d.Bots.ConsumeSingularityBotWork(node.BotDurabilitySecondsRemaining+1); Check(node.BotBroken,"broken");
+        Equal(d.Bots.GetNodeBotEffectiveMultiplier(0,0),1,"broken bonus gone"); Equal(d.Bots.GetNodeBotRepairCost(0,0),6,"full repair fraction");
+        d.Data.Matter=0; Check(!d.Bots.RepairNodeBot(0,0).Changed&&node.BotBroken,"insufficient repair");
+        Equal(d.Bots.GetNodeBotSellRefund(0,0),10,"bot refund"); Check(d.Bots.SellNodeBot(0,0).Changed,"bot sale"); Equal(d.Data.Matter,10,"bot refund credited"); Check(!node.HasBot&&node.BotPurchasePriceMatter==0&&!node.BotDurabilityInitialized,"bot clear");
+        Check(!d.Bots.SellNodeBot(0,0).Changed,"duplicate bot sale");
+        d.Node(1,0,SingularityNodeType.Compute,2); Equal(d.Bots.GetNodeBotPurchaseCost(1,0),30*2.4*1.35,"bot price scaling");
+        var chances=d.Bots.GetNodeBotRarityChances(); Equal(chances.Common+chances.Rare+chances.Epic+chances.Legendary,1,"rarity sum");
+        foreach(var (roll,rarity) in new[]{(0.0,BotRarity.Common),(chances.Common+.00001,BotRarity.Rare),(chances.Common+chances.Rare+.00001,BotRarity.Epic),(.999999,BotRarity.Legendary)})
+        {
+            d.Roll=roll; d.Data.Matter=1000; Check(d.Bots.BuyNodeBot(0,0).Changed,"rarity purchase"); Check(node.BotRarity==rarity,"rarity intervals"); d.Bots.SellNodeBot(0,0);
+        }
+        var lab=new LabData(); lab.Unlocked=true;
+        var power=ResearchCatalog.All.First(r=>r.BotPowerBonus>0); lab.LoadCompletedResearch(new[]{power.Id});
+        var researched=new Domain(lab); var rn=researched.Node(0,0,SingularityNodeType.Compute); rn.BotRarity=BotRarity.Rare;
+        Equal(researched.Bots.GetNodeBotEffectiveMultiplier(0,0),(BotCatalog.GetMultiplier(BotRarity.Rare)+.1)*(1+power.BotPowerBonus),"research bot power");
+        var luck=ResearchCatalog.All.First(r=>r.RareBotChanceBonus>0); lab.LoadCompletedResearch(new[]{luck.Id});
+        Equal(researched.Bots.GetNodeBotRarityChances().Rare,chances.Rare+luck.RareBotChanceBonus,"research rarity");
+        rn.BotDurabilityInitialized=false; researched.Bots.ConsumeSingularityBotWork(1); Equal(rn.BotDurabilitySecondsRemaining,BotCatalog.GetWorkingLifetimeSeconds(BotRarity.Rare)-1,"legacy durability initialized before work");
+        researched.Sectors.GetSector(0).CoreUnlocked=false; double remaining=rn.BotDurabilitySecondsRemaining; researched.Bots.ConsumeSingularityBotWork(10); Equal(rn.BotDurabilitySecondsRemaining,remaining,"locked core no wear");
+    }
+    private static void Persistence()
+    {
+        var d=new Domain(); d.Data.Matter=123.45; d.Data.CurrentSectorIndex=1;
+        var node=d.Node(1,2,SingularityNodeType.Compute,3); d.Sectors.GetSector(1).CoreUnlocked=true;
+        node.InvestedMatter=500; node.BotRarity=BotRarity.Epic; node.BotPurchasePriceMatter=70; node.BotDurabilityInitialized=true; node.BotDurabilitySecondsRemaining=123;
+        d.Persistence.Save(); string before=JsonSerializer.Serialize(Read()); var loaded=new Domain(); loaded.Persistence.Load();
+        Check(JsonSerializer.Serialize(loaded.Data)==before,"full DTO save/load roundtrip"); Equal(loaded.Data.LastSaveUnix,_now,"timestamp"); Check(loaded.Data.SaveVersion==4,"version unchanged");
+        var legacy=new SingularitySaveData{SaveVersion=2,CoreLevel=7,CurrentSectorIndex=2};
+        legacy.Sectors.Add(new SingularitySectorData()); legacy.Sectors.Add(new SingularitySectorData{CoreUnlocked=true,CoreLevel=99});
+        legacy.Sectors[0].Nodes.Add(new SingularityNodeData{Type=SingularityNodeType.Compute,BotRarity=BotRarity.Common});
+        Write(legacy); loaded.Persistence.Load(); Check(loaded.Data.Sectors.Count==3&&loaded.Data.Sectors.All(s=>s.Nodes.Count==8),"legacy sectors padded");
+        Check(loaded.Data.Sectors[0].CoreUnlocked&&loaded.Data.Sectors[0].CoreLevel==7&&!loaded.Data.Sectors[1].CoreUnlocked&&loaded.Data.Sectors[1].CoreLevel==1,"pre-v3 core migration");
+        Equal(loaded.Data.Sectors[0].Nodes[0].BotDurabilitySecondsRemaining,BotCatalog.GetWorkingLifetimeSeconds(BotRarity.Common),"legacy bot migration");
+        loaded.Data.Sectors[0].Nodes[0].BotDurabilitySecondsRemaining=-5; loaded.Persistence.Save(); loaded.Persistence.Load(); Equal(loaded.Data.Sectors[0].Nodes[0].BotDurabilitySecondsRemaining,0,"broken load clamp");
+        using(var file=Godot.FileAccess.Open(Path,Godot.FileAccess.ModeFlags.Write)) file.StoreString("{\"saveversion\":4,\"matter\":42,\"unlocked\":true}");
+        loaded.Persistence.Load(); Equal(loaded.Data.Matter,42,"case insensitive JSON");
+        using(var file=Godot.FileAccess.Open(Path,Godot.FileAccess.ModeFlags.Write)) file.StoreString("bad JSON");
+        loaded.Persistence.Load(); Check(!loaded.Data.Unlocked&&loaded.Data.Sectors.Count==1&&loaded.Data.Sectors[0].CoreUnlocked,"corrupt fallback unchanged");
+    }
+    private static void Offline()
+    {
+        var d=new Domain(); Equal(d.Offline.ApplyOfflineIncomeFromTimestamp(_now,_now+100),2.5,"50 percent offline"); Equal(d.Data.Matter,2.5,"offline grant");
+        Equal(d.Offline.ApplyOfflineIncomeFromTimestamp(_now,_now+20*86400),.05*7*86400*.5,"seven day cap");
+        Equal(d.Offline.ApplyOfflineIncomeFromTimestamp(0,_now),0,"invalid timestamp"); Equal(d.Offline.ApplyOfflineIncomeFromTimestamp(_now,_now-1),0,"backwards timestamp");
+        var node=d.Node(0,0,SingularityNodeType.Compute); node.BotRarity=BotRarity.Common; node.BotDurabilityInitialized=true; node.BotDurabilitySecondsRemaining=10;
+        double boost=BotCatalog.GetMultiplier(BotRarity.Common)+.1;
+        Equal(d.Offline.ApplyOfflineIncomeFromTimestamp(_now,_now+100),((.05+.25*boost)*10+.30*90)*.5,"offline split at bot break"); Check(node.BotBroken,"offline bot breaks");
+        var fresh=new Domain(); fresh.Offline.HandleApplicationPaused(); _now+=100;
+        Equal(fresh.Offline.HandleApplicationResumed(),2.5,"resume offline"); Equal(fresh.Offline.HandleApplicationResumed(),0,"repeated resume no double credit"); Equal(fresh.Data.Matter,2.5,"one resume grant"); Check(fresh.Notifications==1,"one resume event");
+        fresh.Offline.HandleApplicationPaused(); Equal(fresh.Offline.HandleApplicationResumed(),0,"zero resume"); Check(fresh.Notifications==1,"zero resume no notify");
+        fresh.Persistence.Save(); _now+=100; var service=Service(); Equal(service.ConsumePendingOfflineEarnings(),2.5,"startup pending"); Equal(service.ConsumePendingOfflineEarnings(),0,"pending consumed once"); Equal(Read().LastSaveUnix,_now,"positive startup settlement saves now"); Equal(Read().Matter,5,"startup offline saved");
+        var again=Service(); Equal(again.ConsumePendingOfflineEarnings(),0,"restart same timestamp no double credit");
+    }
+    private static void Events()
+    {
+        Clear(); var state=Normal(); state.Tokens=SingularityService.TestUnlockTokenCost; var service=Service(state);
+        int events=0;
+        service.Changed+=()=>{ events++; Equal(Read().Matter,service.Matter,"save precedes notification"); Check(Read().Unlocked==service.Unlocked,"unlock saved before notification"); };
+        service.Unlock(state); Check(events==1,"unlock event");
+        service.GetSector(0); service.GetNode(0,0); service.GetTotalOutputPerSecond(); service.GetNodeBotRarityChances(); Check(events==1,"queries no notify");
+        service.Update(200); Equal(service.Matter,10,"frame grant"); Check(events==1,"frame no event");
+        service.Update(0); service.Update(-10); Equal(service.Matter,10,"nonpositive delta");
+        Check(service.BuildNode(0,0,SingularityNodeType.Compute).Changed&&events==2,"build one event");
+        Check(!service.BuildNode(0,1,SingularityNodeType.Compute).Changed&&events==2,"failure no event");
+        Check(service.SellNode(0,0).Changed&&events==3,"sale one event");
+        Equal(state.Tokens,0,"Matter actions leave Tokens");
+        var normalEconomy=new EconomyService(state); normalEconomy.GrantTokens(100); double matter=service.Matter; normalEconomy.TrySpendTokens(10); Equal(service.Matter,matter,"normal purchase leaves Matter");
+        service.HandleApplicationPaused(); _now+=100; Equal(service.HandleApplicationResumed(),2.5,"facade resume"); Check(events==4,"resume event"); Equal(service.HandleApplicationResumed(),0,"facade duplicate resume"); Check(events==4,"duplicate resume no event");
+    }
+}

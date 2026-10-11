@@ -357,3 +357,97 @@ GameSave passes 3,416 assertions: full current DTO roundtrip and save/load/save,
 Recommended next major refactor: isolate gameplay action orchestration currently in Game (result handling, refresh and action-triggered saves) from UI wiring, with existing domain services and persistence boundaries retained. Device/runtime checks remain pending in REFACTOR_TEST_CHECKLIST.md.
 
 Final phase verification: `dotnet build` succeeded with 0 errors and 353 existing CS8632 warnings. The headless test project build succeeded with 0 warnings/errors. Final runs passed 3,416 persistence and 663 offline assertions. `git diff --check` passed. Full tracked diff and new service/test sources reviewed; SaveManager, all data/DTO classes, offline formulas, room/slot defaults, balance/reward/level formulas, independent stores, Singularity and external SDK code have no changes. Work remains uncommitted on refactor/services.
+
+## Singularity audit (before extraction)
+
+The old 2,563-line facade owned normal unlock eligibility/Token spending, Matter balance/spend/refunds, sector creation/access/current selection, Core unlock/upgrade/output, spiral grid/cache/index, node unlock/build/upgrade/sale/investment, local and cross-sector neighbors, Compute output, Amplifier/Cooling adjacency, Quantum multipliers, bot purchase/rarity/durability/repair/sale/power, aggregate/frame production, offline settlement/pending rewards/pause/resume, independent JSON/file persistence and migrations, Changed and all action messages.
+
+Compatibility observations: locked defaults still install Sector 0 Core; GetSector ensures sectors and normalizes node counts; SelectSector saves without Changed; Update produces before durability consumption and never notifies/saves; actions mutate -> Save -> Changed once; failed actions do neither. Resume saves even with zero income and notifies only positive income. Startup randomizes -> loads/migrates -> ensures Sector 0 -> rebuilds grid -> settles offline -> saves only positive earnings. Offline recalculates at each bot break, at 50% and seven days maximum. Save failures warn and still allow action notification. Corruption falls back to defaults. No schema or balance changes are authorized.
+
+First-party public-member call-site inventory (identical after extraction):
+
+Game.PlayGamesAchievements constructs SingularityService(GameState) and passes that facade to controllers; it calls no additional members.
+
+- scripts/ui/NavigationPolishController.cs: Unlocked
+- scripts/ui/room/SingularityMapExtension.cs: Changed, Unlock, Unlocked, TestUnlockTokenCost
+- scripts/ui/room/SingularityController.cs: NodesPerSector, BuildNode, CanUnlockNextSector, Changed, ConsumePendingOfflineEarnings, CoreCount, CurrentSectorIndex, GetBuildCost, GetFrontierSectorIndex, GetNextSectorUnlockCost, GetNode, GetNodeDisplayedOutput, GetNodeSellRefund, GetNodeUnlockText, GetNodeUpgradeCost, GetSector, GetSectorCoreLevel, GetSectorCoreOutputPerSecond, GetSectorCoreUnlockCost, GetSectorCoreUpgradeCost, GetSectorOutputPerSecond, GetTotalOutputPerSecond, HandleApplicationPaused, HandleApplicationResumed, IsNodeTypeUnlocked, IsSectorCoreUnlocked, Matter, Save, SectorCount, SelectSector, SellNode, UnlockNextSector, UnlockSectorCore, Unlocked, Update, UpgradeNode, UpgradeSectorCore
+- scripts/ui/room/SingularityController.SmoothPan.cs: CurrentSectorIndex, SectorCount
+- scripts/ui/room/SingularityController.Bots.cs: NodesPerSector, BuyNodeBot, CurrentSectorIndex, GetNode, GetNodeBotDurabilityRatio, GetNodeBotEffectiveMultiplier, GetNodeBotPurchaseCost, GetNodeBotRarityChances, GetNodeBotRepairCost, GetNodeBotSellRefund, RepairNodeBot, SectorCount, SellNodeBot
+- scripts/ui/room/SingularityController.NodeTouchStyles.cs: Changed, GetSector
+
+All original public methods/properties/constants/events, including unused compatibility aliases and static Core output, remain available.
+
+## Singularity component extraction
+
+SingularityService remains the sole public entry point. Its 2,563 lines are now 366 lines of facade API, normal unlock orchestration, frame orchestration, initialization and notification ordering. No UI/controller, scene, image, navigation, balancing, DTO, main-game service or external integration was changed.
+
+```mermaid
+flowchart TD
+    UI[Existing UI / controllers] --> F[SingularityService facade]
+    F --> E[SingularityEconomy]
+    F --> S[SingularitySectorService]
+    F --> N[SingularityNodeService]
+    F --> B[SingularityBotService]
+    F --> P[SingularityProductionService]
+    F --> J[SingularityPersistenceService]
+    F --> O[SingularityOfflineService]
+    F -->|Initial unlock only| Normal[RoomUnlockRules + normal EconomyService]
+    N --> S
+    N --> E
+    B --> S
+    B --> E
+    B --> Lab[Optional GameState.Lab]
+    P --> S
+    P --> B
+    O --> P
+    O --> B
+    O --> E
+    O --> J
+    J --> S
+    J --> B
+```
+
+All seven components and the facade share the same SingularitySaveData instance, including its original sector/node objects. No second runtime state model exists. Persistence copies the seven root DTO properties into that shared instance on load; it keeps the deserialized sector/node objects. Component construction has no domain mutations before the randomized Bot RNG is ready. Startup retains load/migrations -> ensure Sector 0 -> rebuild index -> settle LastSaveUnix -> save positive offline earnings. Internal optional clock/roll delegates allow deterministic tests; the public constructor still uses Godot time and a randomized Godot RandomNumberGenerator.
+
+| File under scripts/game/singularity | Owner / responsibilities |
+| --- | --- |
+| SingularityEconomy.cs | Sole runtime Matter writer: CanAfford, TrySpend, GrantProduction, Refund; retains original comparison and arithmetic semantics. No normal currency or stats. |
+| SingularitySectorService.cs | Sector creation/access, first-Core installation, current sector, frontier progression, Core unlock/upgrade/cost/levels/count, deterministic spiral cache and grid lookup, reciprocal cardinal cross-sector neighbor relationships. |
+| SingularityNodeService.cs | Type unlock thresholds/text, global built count, build/upgrade costs and investment, legacy investment estimate, sale restrictions and one-third refund. Bot removal uses the Bot component's static clearing helper. |
+| SingularityBotService.cs | Purchase prices/storage, rarity probabilities/research and RNG, durability initialization/work/breakpoints, repair prices/20% full repair, one-third sale, working multiplier and +0.10 resonance. Only this component receives optional LabData, rather than whole GameState. |
+| SingularityProductionService.cs | Core output/scaling and Compute Core multiplier, base Compute output, local ring adjacency, external adjacency, Amplifier and Cooling factors, sector Quantum sum, bot effects, per-node display output, sector and total output. Original expression grouping and multiplication/accumulation order remain unchanged. |
+| SingularityPersistenceService.cs | Independent user://singularity_save.json store, SaveVersion 4, original indented/case-insensitive JSON options, file read/write and warnings, LastSaveUnix, pre-v3 Core and bot durability migrations/normalization. No backup/temp/recovery scheme added. |
+| SingularityOfflineService.cs | 50% efficiency, seven-day cap, durability-aware chunks ending at each bot break, Matter settlement, pending startup earnings, pause timestamp/resume reset/save and positive-income notification. Independent of normal OfflineProgressService. |
+
+The existing SingularitySaveData, SingularitySectorData and SingularityNodeData are unchanged. Persistence retains missing-file defaults, corrupt-file warning/fallback, null JSON/default behavior, migration order, timestamp-before-serialization/write and catch boundaries. It does not use GameSaveService or SaveManager. Runtime Matter transactions never touch Tokens or Data Shards; normal initial unlock still checks RoomUnlockRules and spends/records normal Tokens through EconomyService. Lab effects are read live from the original optional Lab reference through the Bot component; production obtains those bot effects from that component.
+
+Public API remains unchanged: unlock overloads; Update; sector/node access; Core status/level/cost/output/multiplier and upgrade/unlock aliases; node unlock/text/build/cost/upgrade/sale/refund; all bot cost/rarity/durability/multiplier/purchase/repair/sale methods; sector frontier/unlock/select/previous/next; displayed/sector/total production and built count; pending-offline consumption/pause/resume; Save; existing constants/properties and Changed. Static GetCoreOutputPerSecond(int) and compatibility aliases BuyNextCore/GetNextCoreCost/UpgradeCore remain. Call-site inventory above was searched again after extraction; no public caller needs a change.
+
+Mutation components invoke facade callbacks at the original SaveAndNotify positions. SaveAndNotify still calls Save before Changed even when Save catches an error. SelectSector saves without notification. Frame Update computes and grants full-frame output before consuming bot work; it never saves/notifies, and it intentionally retains the existing distinction from offline breakpoint simulation. Resume clears its pause timestamp, saves, then notifies once only if income was positive. Read-only queries never raise Changed, including legacy GetSector ensure behavior.
+
+Post-extraction search classification:
+
+- `_data.Matter +=` / `-=`: only SingularityEconomy (production/refund credits and TrySpend); the only separate assignment is DTO hydration in Persistence.Reset. The facade reads Matter and delegates transactions.
+- `FileAccess`, `JsonSerializer` and JSON options: only SingularityPersistenceService within this domain. Other independent/main stores and test fixture file/JSON code remain separate owners.
+- `RandomNumberGenerator`: only SingularityBotService within this domain; runtime still randomizes once and uses Randf. Test-only roll delegates do not change runtime RNG.
+- `ApplyOfflineIncomeFromTimestamp`: implementation and resume call only in SingularityOfflineService; facade invokes it once after constructor load. Normal offline implementation remains separate.
+- `SaveAndNotify`: only facade implementation and callback wiring; components call their supplied callback at the original action points.
+- Spiral/grid cache fields and grid/index neighbor lookup: only SingularitySectorService. Production asks that component for cross-sector neighbors; it does not limit buffs to the current sector or require the neighbor's Core online.
+- Bot durability mutation: runtime initialization/clear/work in SingularityBotService; load-time compatibility clamp in SingularityPersistenceService. DTO declarations/normal bots/test fixture writes retain their own scope.
+
+New regression harness: tests/Singularity/{Singularity.csproj,Program.cs.txt,Runner.cs,Runner.tscn,project.godot}; AssemblyInfo.cs grants only the Singularity test assembly internal access. The headless native Godot host is needed for BotCatalog; Runner supplies in-memory bot textures while keeping the real catalog values. Domain fixtures use explicit clock/roll inputs and independent expected costs/formulas. File tests use an isolated test project/profile and a fixed test timestamp, never player saves. The deliberately corrupt fixture emits the existing load warning.
+
+```sh
+dotnet build
+dotnet build tests/Singularity/Singularity.csproj
+XDG_DATA_HOME=/tmp/idle-ai-singularity-tests godot-mono --headless --path tests/Singularity
+dotnet run --project tests/OfflineProgress/OfflineProgress.csproj
+dotnet build tests/GameSave/GameSave.csproj
+XDG_DATA_HOME=/tmp/idle-ai-save-tests godot-mono --headless --path tests/GameSave
+```
+
+The Singularity harness covers all 37 requested regression areas, plus all four cardinal Amplifier boundaries, locked-neighbor compatibility, every production type's bot effect, broken support bots, prerequisite failure, legacy investment and save-before-notify ordering. A whitespace-normalized comparison of 65 moved method bodies against the original (accounting for dependency qualification, clock/roll delegation and centralized transactions) found no algorithm changes; persistence hydration and facade constructor/unlock/frame orchestration were reviewed separately. Manual/device/performance checks remain in REFACTOR_TEST_CHECKLIST.md.
+
+Recommended next refactor: extract Game action-result/refresh/save orchestration, retaining the established domain, economy and persistence owners. Singularity UI/map refactoring is outside this phase.
+
+Final automated results: Singularity passes 197 deterministic assertions; existing normal offline passes 663; existing headless GameSave passes 3,416. `dotnet build` succeeds with zero errors (full compilation reports 349 existing nullable-annotation warnings; newly extracted files enable nullable annotations). Singularity test build also succeeds with zero errors; warnings concern the unavailable NuGet vulnerability-data feed and Godot's generated Main type colliding with the referenced game assembly, not test failures. The public declaration comparison found all 54 original method/constructor signatures unchanged, plus unchanged properties/constants/event. `git diff --check` passes. Work remains uncommitted on refactor/services; device/manual checks are pending.

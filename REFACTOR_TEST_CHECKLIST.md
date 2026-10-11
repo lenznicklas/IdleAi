@@ -157,3 +157,42 @@ Manual regression required on Godot/device (pending):
 - [x] Final `dotnet build`: 0 errors, 353 existing CS8632 warnings; test project: 0 warnings/errors.
 - [x] Final headless persistence run: 3,416 assertions passed; offline run: 663 assertions passed.
 - [x] Full diff review and `git diff --check` passed; SaveManager, DTO/data classes, independent stores, formulas and SDK callbacks unchanged.
+
+## Singularity domain extraction
+
+Automated regression harness and isolated-profile commands are documented in REFACTOR_SERVICES.md.
+
+- [x] Default locked state, installed first Sector/Core, eight empty nodes and zero aggregate output.
+- [x] Normal progression prerequisite, first unlock, duplicate unlock, insufficient Tokens, exact normal spend/stats and unchanged Matter.
+- [x] Later Core unlock, upgrade, legacy level mirror, unlock/upgrade cost progression and output multipliers.
+- [x] Compute/Amplifier builds; Cooling at exactly 3 Cores and Quantum at exactly 5; all four node types build.
+- [x] Global node growth, sector scaling, node upgrade/investment, sale restrictions and exact one-third refund, legacy investment estimate.
+- [x] Failed Matter purchases leave balance/state unchanged; successful transactions spend exactly once.
+- [x] Compute/Core output, local Amplifier, Cooling, Quantum, total production and formula order.
+- [x] Cross-sector Amplifier in all four cardinal directions; reciprocal neighbor/index lookup and locked-neighbor compatibility.
+- [x] Bot purchase/rarity intervals/research, price storage/scaling, repair/sale/refunds, durability consumption/legacy initialization, broken bonus and locked-Core no-wear.
+- [x] Research Bot-power multiplier; bots on every output/support type; broken support bots retain base node effects.
+- [x] Deterministic spiral positions, grid index rebuilding and current-sector navigation/select semantics.
+- [x] Full DTO file roundtrip, current version/timestamp, case-insensitive JSON, pre-v3 Cores, legacy bot durability, broken clamp and corrupt fallback.
+- [x] 50% offline Matter, seven-day cap, invalid/backwards timestamps, exact bot-break settlement, pause/resume and duplicate resume.
+- [x] Constructor-load settlement/save, pending reward consumed once, immediate restart never double-credits.
+- [x] Changed after mutation/save, once per successful action, no events for failures/queries/frame Update/SelectSector; positive resume once.
+- [x] Matter actions leave normal Tokens untouched; normal purchases leave Matter untouched.
+- [x] All original public facade members retained and callers unchanged; original formulas/action bodies compared.
+
+Manual checks still required (Godot/device, using copied saves):
+
+- [ ] Unlock Singularity and enter it; inspect first Sector/Core and map locked/unlocked state.
+- [ ] Build and upgrade every node type; sell a node; exercise every insufficient-Matter path.
+- [ ] Upgrade Cores and open additional sectors; verify frontier/Core prerequisites.
+- [ ] Sector scrolling/navigation and cross-sector links; Amplifier across a sector boundary.
+- [ ] Buy bots; verify rarity/output, durability wear/break, repair and sale.
+- [ ] Cold-load offline Matter and Android pause/resume; repeated resume/restart never double-credits.
+- [ ] Save/restart with current save and a copied old Singularity save; verify migrations and separate store.
+- [ ] Shop/Lab remain accessible from Singularity; map locked/unlocked state still reflects ownership.
+- [ ] Normal Tokens unchanged by Matter purchases; Singularity Matter unchanged by normal purchases.
+- [ ] Performance with many sectors; compare against pre-refactor gameplay.
+
+- [x] Singularity suite: 197 deterministic assertions passed.
+- [x] Existing normal offline suite: 663 assertions passed; existing GameSave suite: 3,416 assertions passed.
+- [x] `dotnet build` succeeds with zero errors; public declarations, ownership searches and `git diff --check` verified.

@@ -243,7 +243,15 @@ public sealed partial class SingularityMapExtension
             if (_controller.Visible)
             {
                 _singularityIsCurrentRoom = true;
-                _controller.Hide();
+
+                // Settings is a modal over the current room, so keep its
+                // background visible unless a full page also covers it.
+                if (_mapPage.Visible
+                    || (_shopPage?.Visible ?? false)
+                    || (_labPage?.Visible ?? false))
+                {
+                    _controller.Hide();
+                }
             }
 
             if (_singularityIsCurrentRoom)
@@ -262,7 +270,7 @@ public sealed partial class SingularityMapExtension
             return;
         }
 
-        if (_singularityIsCurrentRoom)
+        if (_singularityIsCurrentRoom && !_controller.Visible)
         {
             QueueSingularityRestore();
         }
@@ -541,7 +549,7 @@ public sealed partial class SingularityMapExtension
         {
             _stateLabel.Text = "TAP TO ENTER";
             _stateLabel.Modulate = Colors.White;
-            _badgeLabel.Text = "CURRENT";
+            _badgeLabel.Text = "● CURRENT";
         }
         else if (unlocked)
         {

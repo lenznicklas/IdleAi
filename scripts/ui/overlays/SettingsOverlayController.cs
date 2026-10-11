@@ -588,6 +588,8 @@ public sealed class SettingsOverlayController
 	private void OnDimInput(
 		InputEvent @event)
 	{
+		_overlay.GetViewport().SetInputAsHandled();
+
 		bool released =
 			@event
 				is InputEventScreenTouch touch
@@ -602,10 +604,6 @@ public sealed class SettingsOverlayController
 
 		if (!released)
 			return;
-
-		_overlay
-			.GetViewport()
-			.SetInputAsHandled();
 
 		Callable
 			.From(

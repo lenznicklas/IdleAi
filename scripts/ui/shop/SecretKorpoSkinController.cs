@@ -33,8 +33,11 @@ public sealed class SecretKorpoSkinController
 	private LineEdit _codeInput =
 		null!;
 
-	private Label _codeStatus =
-		null!;
+	private PanelContainer _codeToast = null!;
+
+	private Label _codeToastLabel = null!;
+
+	private Tween? _codeToastTween;
 
 	private Button _redeemButton =
 		null!;
@@ -112,6 +115,7 @@ public sealed class SecretKorpoSkinController
 		_halloweenOffer.Initialize();
 
 		CreateCodeEntryAtBottom();
+		CreateCodeToast();
 
 		FindCollectionContent();
 
@@ -171,18 +175,6 @@ public sealed class SecretKorpoSkinController
 
 		margin.AddChild(
 			box
-		);
-
-		_codeStatus =
-			ShopUi.CreateMutedLabel(
-				13
-			);
-
-		_codeStatus.HorizontalAlignment =
-			HorizontalAlignment.Left;
-
-		box.AddChild(
-			_codeStatus
 		);
 
 		HBoxContainer row =
@@ -292,135 +284,98 @@ public sealed class SecretKorpoSkinController
 	}
 
 
+	private void CreateCodeToast()
+	{
+		CanvasLayer layer = new()
+		{
+			Name = "AccessCodeToastLayer",
+			Layer = 100
+		};
+		_root.AddChild(layer);
+
+		CenterContainer center = new()
+		{
+			MouseFilter = Control.MouseFilterEnum.Ignore
+		};
+		layer.AddChild(center);
+		center.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		center.OffsetLeft = 24;
+		center.OffsetRight = -24;
+
+		_codeToast = new PanelContainer
+		{
+			Name = "AccessCodeToast",
+			MouseFilter = Control.MouseFilterEnum.Ignore
+		};
+		StyleBoxFlat style = ShopUi.CreatePanelStyle();
+		style.ContentMarginLeft = 22;
+		style.ContentMarginRight = 22;
+		style.ContentMarginTop = 18;
+		style.ContentMarginBottom = 18;
+		_codeToast.AddThemeStyleboxOverride("panel", style);
+		center.AddChild(_codeToast);
+
+		_codeToastLabel = ShopUi.CreateMutedLabel(20);
+		_codeToastLabel.CustomMinimumSize = new Vector2(280, 0);
+		_codeToastLabel.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+		_codeToastLabel.HorizontalAlignment = HorizontalAlignment.Center;
+		_codeToastLabel.MouseFilter = Control.MouseFilterEnum.Ignore;
+		_codeToast.AddChild(_codeToastLabel);
+		_codeToast.Hide();
+	}
+
+	private void ShowCodeMessage(string message, bool reward = false)
+	{
+		_codeToastTween?.Kill();
+		_codeToastLabel.Text = message;
+		_codeToastLabel.AddThemeColorOverride(
+			"font_color", reward ? ShopUi.Green : ShopUi.TextSecondary);
+		_codeToast.Modulate = Colors.White;
+		_codeToast.Show();
+
+		_codeToastTween = _root.CreateTween();
+		_codeToastTween.TweenInterval(3.0);
+		_codeToastTween.TweenProperty(_codeToast, "modulate:a", 0.0f, 0.25);
+		_codeToastTween.TweenCallback(Callable.From(_codeToast.Hide));
+	}
+
 	private void Redeem()
 	{
-		string code =
-			_codeInput.Text.Trim();
+		string code = _codeInput.Text.Trim();
 
-		if (
-			code.Equals(
-				DebugTokenCode,
-				StringComparison.OrdinalIgnoreCase
-			)
-		)
+		if (code.Equals(DebugTokenCode, StringComparison.OrdinalIgnoreCase))
 		{
-			BotSkinResult debugResult =
-				_service.GrantDebugTokens(
-					DebugTokenReward
-				);
+			BotSkinResult result = _service.GrantDebugTokens(DebugTokenReward);
+			ShowCodeMessage(
+				result.Changed ? "You got 50ab Tokens!" : result.Message,
+				result.Changed);
 
-			MessageRequested?.Invoke(
-				debugResult.Message
-			);
-
-			if (debugResult.Changed)
+			if (result.Changed)
 			{
-				_codeStatus.Text =
-					"DEBUG REWARD: +50ab TOKENS";
-
-				_codeStatus.AddThemeColorOverride(
-					"font_color",
-					ShopUi.Green
-				);
-
 				_codeInput.Clear();
-
-				Input.VibrateHandheld(
-					24,
-					0.18f
-				);
-
+				Input.VibrateHandheld(24, 0.18f);
 				StateChanged?.Invoke();
 			}
-
 			return;
 		}
 
-		if (
-			_service.IsOwned(
-				BotSkinCatalog.KorpoSkinId
-			)
-		)
+		if (!code.Equals(SecretCode, StringComparison.OrdinalIgnoreCase))
 		{
-			/*
-			 * Keep the Access Code card clean. The normal MessageRequested path
-			 * is the game's short-lived popup/toast and is enough feedback here.
-			 */
-			_codeStatus.Text =
-				"";
-
-			Refresh();
-
-			MessageRequested?.Invoke(
-				"Secret KORPO Bot Skin already unlocked."
-			);
-
-			return;
-		}
-
-		if (
-			!code.Equals(
-				SecretCode,
-				StringComparison.OrdinalIgnoreCase
-			)
-		)
-		{
-			_codeStatus.Text =
-				"INVALID CODE";
-
-			_codeStatus.AddThemeColorOverride(
-				"font_color",
-				new Color(
-					1.0f,
-					0.38f,
-					0.38f,
-					1.0f
-				)
-			);
-
 			_codeInput.SelectAll();
-
-			MessageRequested?.Invoke(
-				"Invalid access code."
-			);
-
+			ShowCodeMessage("Invalid access code.");
 			return;
 		}
 
-		BotSkinResult result =
-			_service.UnlockSecretSkin(
-				BotSkinCatalog.KorpoSkinId
-			);
+		BotSkinResult skinResult = _service.UnlockSecretSkin(BotSkinCatalog.KorpoSkinId);
+		ShowCodeMessage(
+			skinResult.Changed ? "You got the KORPO Bot Skin!" : skinResult.Message,
+			skinResult.Changed);
 
-		/*
-		 * GameUiController already routes MessageRequested through SetMessage,
-		 * i.e. the existing short-lived popup/toast. Do not mirror the success
-		 * text into _codeStatus, otherwise "... UNLOCKED" remains permanently
-		 * visible in the Access Code section.
-		 */
-		MessageRequested?.Invoke(
-			result.Message
-		);
-
-		if (result.Changed)
+		if (skinResult.Changed)
 		{
-			Input.VibrateHandheld(
-				24,
-				0.18f
-			);
-
 			_codeInput.Clear();
-
-			_codeStatus.Text =
-				"";
-
-			_codeStatus.AddThemeColorOverride(
-				"font_color",
-				ShopUi.TextSecondary
-			);
-
+			Input.VibrateHandheld(24, 0.18f);
 			EnsureSecretCard();
-
 			StateChanged?.Invoke();
 		}
 
@@ -838,60 +793,6 @@ public sealed class SecretKorpoSkinController
 			_service.IsOwned(
 				BotSkinCatalog.KorpoSkinId
 			);
-
-		if (
-			_codeStatus != null
-			&& _codeInput != null
-			&& _redeemButton != null
-		)
-		{
-			_codeInput.Editable =
-				true;
-
-			_codeInput.PlaceholderText =
-				"ENTER CODE";
-
-			_redeemButton.Text =
-				"REDEEM";
-
-			_redeemButton.Disabled =
-				false;
-
-			/*
-			 * Success is intentionally NOT persisted in the Access Code card.
-			 * The success message is emitted via MessageRequested in Redeem() and
-			 * therefore appears briefly through the game's existing popup/toast.
-			 */
-			if (unlocked)
-			{
-				if (
-					_codeStatus.Text
-						!= "DEBUG REWARD: +50ab TOKENS"
-				)
-				{
-					_codeStatus.Text =
-						"";
-
-					_codeStatus.AddThemeColorOverride(
-						"font_color",
-						ShopUi.TextSecondary
-					);
-				}
-			}
-			else if (
-				_codeStatus.Text
-					!= "DEBUG REWARD: +50ab TOKENS"
-			)
-			{
-				_codeStatus.Text =
-					"";
-
-				_codeStatus.AddThemeColorOverride(
-					"font_color",
-					ShopUi.TextSecondary
-				);
-			}
-		}
 
 		_halloweenOffer?.Refresh();
 

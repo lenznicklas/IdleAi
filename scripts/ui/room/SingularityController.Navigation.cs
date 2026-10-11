@@ -22,6 +22,12 @@ public sealed partial class SingularityController
 
         _bottomBar.Show();
         _bottomBar.MoveToFront();
+
+        // GUI hit testing follows tree order, independently of ZIndex.
+        // Keep the modal ahead of navigation after restoring room chrome.
+        Control? settings = _root.GetNodeOrNull<Control>("SettingsOverlay");
+        if (settings?.Visible == true)
+            settings.MoveToFront();
     }
 
     public void PrepareNormalRoomSelectionFromExternalNavigation()

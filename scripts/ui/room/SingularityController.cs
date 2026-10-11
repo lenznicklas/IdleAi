@@ -221,9 +221,6 @@ public sealed partial class SingularityController
 	private SingularityPanInput _panInput =
 		null!;
 
-	private Button _centerMapButton =
-		null!;
-
 	private readonly Dictionary<int, SectorMapView>
 		_sectorMapViews =
 			[];
@@ -1181,8 +1178,7 @@ public sealed partial class SingularityController
 				{
 					"BottomBar/Margin/HBox/MapButton",
 					"BottomBar/Margin/HBox/LabButton",
-					"BottomBar/Margin/HBox/ShopButton",
-					"BottomBar/Margin/HBox/SettingsButton"
+					"BottomBar/Margin/HBox/ShopButton"
 				}
 		)
 		{
@@ -1339,69 +1335,6 @@ public sealed partial class SingularityController
 				),
 			OnMapPanDelta,
 			OnMapPanEnded
-		);
-
-
-		_centerMapButton =
-			new Button
-			{
-				Name =
-					"CenterMapButton",
-
-				Text =
-					"◎ CENTER",
-
-				AnchorLeft =
-					1.0f,
-
-				AnchorTop =
-					1.0f,
-
-				AnchorRight =
-					1.0f,
-
-				AnchorBottom =
-					1.0f,
-
-				OffsetLeft =
-					-145.0f,
-
-				OffsetTop =
-					-62.0f,
-
-				OffsetRight =
-					-14.0f,
-
-				OffsetBottom =
-					-14.0f,
-
-				FocusMode =
-					Control.FocusModeEnum.None,
-
-				ZIndex =
-					20
-			};
-
-		ApplyGoldButtonStyle(
-			_centerMapButton
-		);
-
-		_centerMapButton.Pressed +=
-			() =>
-			{
-				if (_panInput.ShouldSuppressClick)
-					return;
-
-				PlayHaptic();
-
-				CenterOnSector(
-					_service.CurrentSectorIndex,
-					true
-				);
-			};
-
-		_mapViewport.AddChild(
-			_centerMapButton
 		);
 
 
@@ -2068,8 +2001,9 @@ public sealed partial class SingularityController
 		Label currentBadge =
 			CreateLabel(
 				10,
-				"CURRENT"
+				""
 			);
+		currentBadge.Hide();
 
 		currentBadge.Position =
 			new Vector2(
@@ -2432,7 +2366,7 @@ public sealed partial class SingularityController
 		);
 
 		view.CurrentBadge.Visible =
-			isCurrent;
+			false;
 
 		view.Title.Text =
 			"SECTOR "

@@ -9,11 +9,6 @@ public partial class Game : Control
 	private const int SaveVersion = 21;
 	private const double AutosaveIntervalSeconds = 10.0;
 
-	private readonly record struct GameLoadResult(
-		double OfflineEarned,
-		LabResult ResearchResult
-	);
-
 	private GameServices _services = null!;
 
 	private GameState _state => _services?.State!;
@@ -22,6 +17,7 @@ public partial class Game : Control
 	private ProductionService _production => _services?.Production!;
 	private BotService _bots => _services?.Bots!;
 	private PrestigeService _prestige => _services?.Prestige!;
+	private OfflineProgressService _offline => _services?.Offline!;
 	private LabService _labService => _services?.Lab!;
 	private ShopService _shopService => _services?.Shop!;
 	private PipelineService _pipelineService => _services?.Pipeline!;
@@ -31,18 +27,6 @@ public partial class Game : Control
 	private GameUiController _ui = null!;
 	private MobileUiAdapter _mobileUi = null!;
 	private SaveManager _saveManager = null!;
-
-	/*
-	 * Android/iOS do not necessarily destroy the process when the display is
-	 * switched off. The old code only calculated offline income in LoadGame(),
-	 * so a suspend -> resume inside the same process paid nothing.
-	 *
-	 * These values snapshot the exact economy state when the app is paused.
-	 */
-	private bool _applicationPaused;
-	private long _pauseUnix;
-	private double _pauseBaseIncomePerSecond;
-	private long _pauseProductionBoostEndUnix;
 
 	public override void _Ready()
 	{
@@ -54,7 +38,7 @@ public partial class Game : Control
 		CreateMobileUi();
 		SetupSaveSystem();
 
-		GameLoadResult loadResult =
+		OfflineProgressResult loadResult =
 			LoadGame();
 
 		_production.PrepareAfterLoad();
@@ -126,34 +110,22 @@ public partial class Game : Control
 		}
 
 		if (
-			_applicationPaused
-			|| _saveManager == null
+			_saveManager == null
+			|| _offline.IsPaused
 		)
 		{
 			return;
 		}
 
-		_applicationPaused =
-			true;
-
-		_pauseUnix =
-			GetCurrentUnixTime();
-
-		_pauseBaseIncomePerSecond =
-			_economy
-				.GetTotalIncomeWithoutTemporaryShopBoost();
-
-		_pauseProductionBoostEndUnix =
-			_state.Shop
-				.ProductionBoostEndUnix;
+		OfflinePauseSnapshot pause = _offline.CapturePauseSnapshot(GetCurrentUnixTime());
 
 		SaveGame();
 
 		GD.Print(
 			"Idle AI PAUSED | unix=",
-			_pauseUnix,
+			pause.Unix,
 			" | baseIncome=",
-			_pauseBaseIncomePerSecond
+			pause.BaseIncomePerSecond
 		);
 	}
 
@@ -167,50 +139,11 @@ public partial class Game : Control
 			return;
 		}
 
-		if (!_applicationPaused)
+		if (_services == null || !_offline.IsPaused)
 			return;
 
-		_applicationPaused =
-			false;
-
-		long now =
-			GetCurrentUnixTime();
-
-		if (
-			_pauseUnix <= 0
-			|| now <= _pauseUnix
-		)
-		{
-			_pauseUnix =
-				0;
-
+		if (!_offline.ApplyResume(GetCurrentUnixTime(), out OfflineProgressResult resumeResult))
 			return;
-		}
-
-		SaveGameData suspendedSnapshot =
-			new()
-			{
-				LastSaveUnix =
-					_pauseUnix,
-
-				ShopProductionBoostEndUnix =
-					_pauseProductionBoostEndUnix
-			};
-
-		GameLoadResult resumeResult =
-			ApplyOfflineIncomeAndResearch(
-				suspendedSnapshot,
-				_pauseBaseIncomePerSecond
-			);
-
-		_pauseUnix =
-			0;
-
-		_pauseBaseIncomePerSecond =
-			0.0;
-
-		_pauseProductionBoostEndUnix =
-			0;
 
 		_production.PrepareAfterLoad();
 
@@ -591,7 +524,7 @@ public partial class Game : Control
 		}
 	}
 
-	private GameLoadResult LoadGame()
+	private OfflineProgressResult LoadGame()
 	{
 		LabResult noResearchResult =
 			new(
@@ -601,7 +534,7 @@ public partial class Game : Control
 
 		if (!_saveManager.HasSave())
 		{
-			return new GameLoadResult(
+			return new OfflineProgressResult(
 				0.0,
 				noResearchResult
 			);
@@ -612,7 +545,7 @@ public partial class Game : Control
 
 		if (save == null)
 		{
-			return new GameLoadResult(
+			return new OfflineProgressResult(
 				0.0,
 				noResearchResult
 			);
@@ -835,223 +768,7 @@ public partial class Game : Control
 			);
 		}
 
-		double savedBaseIncome =
-			save.SaveVersion < 19
-				? _economy
-					.GetTotalIncomeWithoutTemporaryShopBoost()
-				: GetMigratedOfflineIncomePerSecond(
-					save
-				);
-
-		return ApplyOfflineIncomeAndResearch(
-			save,
-			savedBaseIncome
-		);
-	}
-
-	private GameLoadResult ApplyOfflineIncomeAndResearch(
-		SaveGameData save,
-		double savedBaseIncome)
-	{
-		long now =
-			GetCurrentUnixTime();
-
-		if (now <= save.LastSaveUnix)
-		{
-			return new GameLoadResult(
-				0.0,
-				_labService.Update()
-			);
-		}
-
-		double offlineEarned =
-			0.0;
-
-		LabResult researchResult =
-			new(
-				false,
-				""
-			);
-
-		bool researchFinished =
-			_state.Lab.HasActiveResearch
-			&& _state.Lab.ActiveResearchEndUnix <= now;
-
-		if (!researchFinished)
-		{
-			offlineEarned +=
-				ApplyOfflineIncomeBetween(
-					save.LastSaveUnix,
-					now,
-					savedBaseIncome,
-					save.ShopProductionBoostEndUnix
-				);
-
-			return new GameLoadResult(
-				offlineEarned,
-				researchResult
-			);
-		}
-
-		long researchEnd =
-			_state.Lab.ActiveResearchEndUnix;
-
-		if (researchEnd > save.LastSaveUnix)
-		{
-			offlineEarned +=
-				ApplyOfflineIncomeBetween(
-					save.LastSaveUnix,
-					researchEnd,
-					savedBaseIncome,
-					save.ShopProductionBoostEndUnix
-				);
-
-			researchResult =
-				_labService.Update();
-
-			double postResearchBaseIncome =
-				_economy
-					.GetTotalIncomeWithoutTemporaryShopBoost();
-
-			offlineEarned +=
-				ApplyOfflineIncomeBetween(
-					researchEnd,
-					now,
-					postResearchBaseIncome,
-					save.ShopProductionBoostEndUnix
-				);
-		}
-		else
-		{
-			researchResult =
-				_labService.Update();
-
-			double currentBaseIncome =
-				_economy
-					.GetTotalIncomeWithoutTemporaryShopBoost();
-
-			offlineEarned +=
-				ApplyOfflineIncomeBetween(
-					save.LastSaveUnix,
-					now,
-					currentBaseIncome,
-					save.ShopProductionBoostEndUnix
-				);
-		}
-
-		return new GameLoadResult(
-			offlineEarned,
-			researchResult
-		);
-	}
-
-	private static double GetMigratedOfflineIncomePerSecond(
-		SaveGameData save)
-	{
-		double income =
-			save.IncomePerSecond;
-
-		if (
-			save.SaveVersion >= 15
-			|| income <= 0.0
-		)
-		{
-			return income;
-		}
-
-		bool boostWasActiveWhenSaved =
-			save.ShopProductionBoostEndUnix
-			> save.LastSaveUnix;
-
-		if (!boostWasActiveWhenSaved)
-		{
-			return income;
-		}
-
-		double boostMultiplier =
-			GameConfig.ShopTemporaryProductionMultiplier;
-
-		if (boostMultiplier <= 0.0)
-		{
-			return income;
-		}
-
-		return income
-			/ boostMultiplier;
-	}
-
-	private double ApplyOfflineIncomeBetween(
-		long periodStartUnix,
-		long periodEndUnix,
-		double baseIncomePerSecond,
-		long productionBoostEndUnix)
-	{
-		long totalOfflineSeconds =
-			periodEndUnix
-			- periodStartUnix;
-
-		if (
-			totalOfflineSeconds <= 0
-			|| baseIncomePerSecond <= 0.0
-		)
-		{
-			return 0.0;
-		}
-
-		double offlineFactor =
-			Math.Clamp(
-				GameConfig.BaseOfflineIncomeFactor
-					+ _state.Lab
-						.GetOfflineIncomeBonus()
-					+ _state.Shop
-						.GetOfflineIncomeBonus(),
-				0,
-				1
-			);
-
-		long boostOverlapEnd =
-			Math.Min(
-				periodEndUnix,
-				productionBoostEndUnix
-			);
-
-		long boostedSeconds =
-			Math.Max(
-				0,
-				boostOverlapEnd
-					- periodStartUnix
-			);
-
-		boostedSeconds =
-			Math.Min(
-				boostedSeconds,
-				totalOfflineSeconds
-			);
-
-		long normalSeconds =
-			totalOfflineSeconds
-				- boostedSeconds;
-
-		double normalIncome =
-			baseIncomePerSecond
-				* normalSeconds;
-
-		double boostedIncome =
-			baseIncomePerSecond
-				* boostedSeconds
-				* GameConfig
-					.ShopTemporaryProductionMultiplier;
-
-		double amount =
-			(
-				normalIncome
-					+ boostedIncome
-			)
-			* offlineFactor;
-
-		_economy.AddOfflineTokens(amount);
-
-		return amount;
+		return _offline.ApplyFromSave(save, GetCurrentUnixTime());
 	}
 
 	private static long GetCurrentUnixTime()

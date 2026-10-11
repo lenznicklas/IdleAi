@@ -10,6 +10,7 @@ public sealed class GameServices
 	public BotService Bots { get; }
 	public PrestigeService Prestige { get; }
 	public LabService Lab { get; }
+	public OfflineProgressService Offline { get; }
 	public ShopService Shop { get; }
 	public PipelineService Pipeline { get; }
 	public InfrastructureService Infrastructure { get; }
@@ -27,6 +28,7 @@ public sealed class GameServices
 		BotService bots,
 		PrestigeService prestige,
 		LabService lab,
+		OfflineProgressService offline,
 		ShopService shop,
 		PipelineService pipeline,
 		InfrastructureService infrastructure,
@@ -43,6 +45,7 @@ public sealed class GameServices
 		Bots = bots;
 		Prestige = prestige;
 		Lab = lab;
+		Offline = offline;
 		Shop = shop;
 		Pipeline = pipeline;
 		Infrastructure = infrastructure;

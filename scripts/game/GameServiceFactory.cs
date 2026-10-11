@@ -16,6 +16,7 @@ public static class GameServiceFactory
 		BotService bots = new(state, economy);
 		PrestigeService prestige = new(state, economy);
 		LabService lab = new(state, economy);
+		OfflineProgressService offline = new(state, economy, lab);
 		ShopService shop = new(state, economy, production);
 
 		// Skin constructors load cosmetics before room views or the main save.
@@ -26,7 +27,7 @@ public static class GameServiceFactory
 		GameSettingsService settings = new(root);
 
 		return new GameServices(
-			state, economy, progression, production, bots, prestige, lab,
+			state, economy, progression, production, bots, prestige, lab, offline,
 			shop, pipeline, infrastructure, quantum, botSkins, machineSkins,
 			levelRewards, settings);
 	}

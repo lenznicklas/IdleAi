@@ -89,3 +89,28 @@ Unchecked items require manual verification; compilation does not prove gameplay
 - [ ] Prestige preserves lifetime-level behavior; Play Games level leaderboard scores and achievements remain unchanged.
 - [ ] Singularity availability/unlock matches the existing Room 4/all-slots map prerequisite, with unchanged Token price/spending and existing-owned access. Check before/after completing Room 4 slots and with insufficient Tokens; separate Matter/save behavior remains unchanged.
 - [ ] Save/reload retains room states, first-slot initialization and reward flags, including historical saves.
+
+## Normal offline extraction regression matrix
+
+Automated: build then `dotnet run --project tests/OfflineProgress/OfflineProgress.csproj`.
+
+- [x] Zero and negative elapsed; short/base income; year-long interval (normal game has NO time cap).
+- [x] Offline upgrade levels 0, 4, 15 and efficiency clamp.
+- [x] Boost entire interval, halfway expiry, already expired; research before/at/after boost expiry.
+- [x] Research incomplete, due at/before save, one second after save, halfway, near end, exactly end.
+- [x] Production multiplier and offline-efficiency research changes; invalid research clearing; locked Lab and no research.
+- [x] Pre-v15/pre-v19/current income selection and retained legacy boost normalization helper.
+- [x] Equivalent cold-load/resume snapshots; duplicate pause, repeated resume, resume without pause, backwards resume.
+- [x] Exact Tokens, RunEarnedTokens, TotalEarned and OfflineEarned.
+
+Required manual checks (pending):
+
+- [ ] Fresh launch, current save, older save; verify startup failure/research/earnings/default message precedence and resume earnings/research precedence.
+- [ ] Close/reopen after short and long periods; verify full uncapped normal earnings (Singularity's separate cap unchanged).
+- [ ] Android screen off/background/resume, repeated cycles; iOS lifecycle; desktop does not use mobile path.
+- [ ] Background with production boost; return before/after expiration.
+- [ ] Research incomplete/completed while away; completion while boost active and after boost expires.
+- [ ] Offline upgrade level 0 and upgraded efficiency; exact offline Token amount and all four counters.
+- [ ] Save immediately after resume; restart immediately after resume does not double-pay.
+- [ ] Prestige followed by offline period; Lab locked; no active research.
+- [ ] Production bots/cycle state prepared after load/resume; Singularity offline income unchanged.

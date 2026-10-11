@@ -389,7 +389,9 @@ public sealed class LabService
 	// UPDATE
 	// ==================================================
 
-	public LabResult Update()
+	public LabResult Update() => Update(GetCurrentUnixTime());
+
+	public LabResult Update(long nowUnix)
 	{
 		if (!_state.Lab.HasActiveResearch)
 		{
@@ -401,7 +403,7 @@ public sealed class LabService
 
 
 		if (
-			GetRemainingResearchSeconds()
+			Math.Max(0.0, _state.Lab.ActiveResearchEndUnix - nowUnix)
 			> 0.0
 		)
 		{

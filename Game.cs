@@ -1,12 +1,9 @@
 using Godot;
-using System;
-using System.Linq;
 
 namespace IdleAi;
 
 public partial class Game : Control
 {
-	private const int SaveVersion = 21;
 	private const double AutosaveIntervalSeconds = 10.0;
 
 	private GameServices _services = null!;
@@ -451,58 +448,7 @@ public partial class Game : Control
 			return;
 		}
 
-		SaveGameData save =
-			new()
-			{
-				SaveVersion = SaveVersion,
-				Tokens = _state.Tokens,
-				RunEarnedTokens = _state.RunEarnedTokens,
-				LifetimeLevelBase = _state.LifetimeLevelBase,
-				LastSaveUnix = GetCurrentUnixTime(),
-				IncomePerSecond =
-					_economy
-						.GetTotalIncomeWithoutTemporaryShopBoost(),
-				CurrentRoomIndex = _state.CurrentRoomIndex,
-				AiCores = _state.Prestige.AiCores,
-				PrestigeCount = _state.Prestige.PrestigeCount,
-				LabUnlocked = _state.Lab.Unlocked,
-				ResearchPoints = _state.Lab.ResearchPoints,
-				CompletedResearch =
-					_state.Lab.CompletedResearch
-						.ToList(),
-				ActiveResearchId = _state.Lab.ActiveResearchId,
-				ActiveResearchEndUnix = _state.Lab.ActiveResearchEndUnix,
-				DataShards = _state.Shop.DataShards,
-				HighestClaimedLevelReward =
-					_state.Shop.HighestClaimedLevelReward,
-				ShopProductionBoostEndUnix = _state.Shop.ProductionBoostEndUnix,
-				ShopBotLuckBoostEndUnix = _state.Shop.BotLuckBoostEndUnix,
-				ShopProductionUpgradeLevel = _state.Shop.ProductionUpgradeLevel,
-				ShopOfflineUpgradeLevel = _state.Shop.OfflineUpgradeLevel,
-				Rooms =
-					_state.RoomStates
-						.Select(
-							room =>
-								new RoomSaveData
-								{
-									Unlocked = room.Unlocked,
-									DataShardUnlockRewardClaimed =
-										room.DataShardUnlockRewardClaimed,
-									Pipeline = room.Pipeline.ToSaveData(),
-									Infrastructure = room.Infrastructure.ToSaveData(),
-									Quantum = room.Quantum.ToSaveData(),
-									Slots =
-										room.Slots
-											.Select(
-												slot =>
-													slot.ToSaveData()
-											)
-											.ToList()
-								}
-						)
-						.ToList(),
-				Stats = _state.Stats.ToSaveData()
-			};
+		SaveGameData save = _services.Save.CreateSave(GetCurrentUnixTime());
 
 		bool saveOk =
 			_saveManager.SaveData(
@@ -551,215 +497,21 @@ public partial class Game : Control
 			);
 		}
 
-		_state.Tokens = save.Tokens;
-		_state.RunEarnedTokens = save.RunEarnedTokens;
-		_state.LifetimeLevelBase =
-			save.SaveVersion >= 21
-				? Math.Max(
-					0,
-					save.LifetimeLevelBase
-				)
-				: 0;
-		_state.Prestige.AiCores = save.AiCores;
-		_state.Prestige.PrestigeCount = save.PrestigeCount;
-		_state.Lab.Unlocked = save.LabUnlocked;
-		_state.Lab.ResearchPoints = save.ResearchPoints;
-
-		_state.Lab.LoadCompletedResearch(
-			save.CompletedResearch
-		);
-
-		_state.Lab.ActiveResearchId =
-			save.ActiveResearchId;
-
-		_state.Lab.ActiveResearchEndUnix =
-			save.ActiveResearchEndUnix;
-
-		_state.Shop.DataShards =
-			save.SaveVersion < 13
-				? GameConfig.InitialDataShards
-				: save.DataShards;
-
-		_state.Shop.HighestClaimedLevelReward =
-			save.SaveVersion < 20
-				? 0
-				: Math.Max(
-					0,
-					save.HighestClaimedLevelReward
-				);
+		GameLoadStateResult loadState = _services.Save.ApplySave(save);
 
 		GD.Print(
 			"Idle AI LOAD | saveVersion=",
 			save.SaveVersion,
 			" | lifetimeBase=",
-			_state.LifetimeLevelBase,
+			loadState.RestoredLifetimeLevelBase,
 			" | levelRewardClaim=",
 			_state.Shop.HighestClaimedLevelReward,
 			" | dataShards=",
 			_state.Shop.DataShards
 		);
 
-		_state.Shop.ProductionBoostEndUnix =
-			save.ShopProductionBoostEndUnix;
-
-		_state.Shop.BotLuckBoostEndUnix =
-			save.ShopBotLuckBoostEndUnix;
-
-		_state.Shop.ProductionUpgradeLevel =
-			save.ShopProductionUpgradeLevel;
-
-		_state.Shop.OfflineUpgradeLevel =
-			save.ShopOfflineUpgradeLevel;
-
-		for (
-			int roomIndex = 0;
-			roomIndex < Math.Min(
-				save.Rooms.Count,
-				_state.RoomStates.Count
-			);
-			roomIndex++
-		)
+		if (loadState.LifetimeLevelMigrated)
 		{
-			RoomSaveData savedRoom =
-				save.Rooms[
-					roomIndex
-				];
-
-			RoomState room =
-				_state.RoomStates[
-					roomIndex
-				];
-
-			room.Unlocked =
-				savedRoom.Unlocked;
-
-			if (save.SaveVersion < 14)
-			{
-				room.DataShardUnlockRewardClaimed =
-					roomIndex == 0
-					|| savedRoom.Unlocked;
-			}
-			else
-			{
-				room.DataShardUnlockRewardClaimed =
-					savedRoom
-						.DataShardUnlockRewardClaimed;
-			}
-
-			if (
-				save.SaveVersion >= 16
-				&& savedRoom.Pipeline != null
-			)
-			{
-				room.Pipeline.LoadFromSaveData(
-					savedRoom.Pipeline
-				);
-			}
-			else
-			{
-				room.Pipeline.Reset();
-			}
-
-			if (
-				save.SaveVersion >= 18
-				&& savedRoom.Infrastructure != null
-			)
-			{
-				room.Infrastructure.LoadFromSaveData(
-					savedRoom.Infrastructure
-				);
-			}
-			else
-			{
-				room.Infrastructure.Reset();
-			}
-
-			if (
-				save.SaveVersion >= 19
-				&& savedRoom.Quantum != null
-			)
-			{
-				room.Quantum.LoadFromSaveData(
-					savedRoom.Quantum
-				);
-			}
-			else
-			{
-				room.Quantum.Reset();
-			}
-
-			for (
-				int slotIndex = 0;
-				slotIndex < Math.Min(
-					savedRoom.Slots.Count,
-					room.Slots.Count
-				);
-				slotIndex++
-			)
-			{
-				room.Slots[
-					slotIndex
-				].LoadFromSaveData(
-					savedRoom.Slots[
-						slotIndex
-					]
-				);
-			}
-		}
-
-		_state.CurrentRoomIndex =
-			Math.Clamp(
-				save.CurrentRoomIndex,
-				0,
-				_state.Rooms.Count - 1
-			);
-
-		if (
-			!_state.RoomStates[
-				_state.CurrentRoomIndex
-			].Unlocked
-		)
-		{
-			_state.CurrentRoomIndex =
-				0;
-		}
-
-		if (save.Stats != null)
-		{
-			_state.Stats.LoadFromSaveData(
-				save.Stats
-			);
-		}
-
-		/*
-		 * Migration for pre-v21 saves:
-		 *
-		 * Older saves did not remember the exact amount lost at previous
-		 * prestiges. We cannot reconstruct that exact historical value, but
-		 * the Level Reward Road remembers the highest claimed 150-level
-		 * milestone. Use it as a safe lower bound so an old player is never
-		 * migrated below a reward level they had already reached.
-		 */
-		if (
-			save.SaveVersion < 21
-			&& _state.Prestige.PrestigeCount > 0
-			&& _state.Shop.HighestClaimedLevelReward > 0
-		)
-		{
-			int currentRunLevel =
-				ProgressionService
-					.CalculateCurrentRunLevel(
-						_state
-					);
-
-			_state.LifetimeLevelBase =
-				Math.Max(
-					0,
-					_state.Shop
-						.HighestClaimedLevelReward
-						- currentRunLevel
-				);
-
 			GD.Print(
 				"Idle AI MIGRATION v21 | totalLevelFloor=",
 				_state.Shop.HighestClaimedLevelReward,

@@ -114,3 +114,46 @@ Required manual checks (pending):
 - [ ] Save immediately after resume; restart immediately after resume does not double-pay.
 - [ ] Prestige followed by offline period; Lab locked; no active research.
 - [ ] Production bots/cycle state prepared after load/resume; Singularity offline income unchanged.
+
+## Normal save mapping / migration extraction
+
+Automated commands and fixture design are documented in REFACTOR_SERVICES.md.
+
+- [x] Current SaveVersion remains 21; DTO schema/defaults and serializer unchanged.
+- [x] Full current roundtrip and save -> load -> save compares every persisted DTO property.
+- [x] Exact Tokens, RunEarnedTokens, Data Shards, stats and spending dictionary.
+- [x] Lab unlock/points/completed/active research ID and timestamp; Prestige/AiCores/count/lifetime base.
+- [x] All four rooms, eight slots each, unlock/reward flags; every slot field, every bot rarity, price, healthy/broken/legacy durability, running cycles and milestones.
+- [x] Pipeline levels/buffers/cycles; Infrastructure levels; Quantum stability/energy/overclock/levels/recovery.
+- [x] Level reward claims, shop upgrade levels and both temporary boost timestamps.
+- [x] Current room index clamp and locked-room fallback.
+- [x] Missing/new/null fields, missing/excess rooms/slots, special-room null resets and existing leaf clamps/runtime-only clearing.
+- [x] Version fixtures 0, 1, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 cover every hydration migration branch.
+- [x] Prestige/claim lifetime migration lower bound (positive, zero and negative outcomes); current negative clamps.
+- [x] Loading/reloading creates no earned/spend stats, duplicate rewards, Prestige or offline settlement; active research stays active until offline step.
+- [x] Separate offline settlement integration for historical/current saves; existing offline suite unchanged (663 assertions).
+- [x] Main creation/hydration source-equivalence comparison with pre-refactor code; searches classify remaining persistence references.
+
+Manual regression required on Godot/device (pending):
+
+- [ ] Fresh install, fresh game save and reload: first machine/default rooms/slots unchanged.
+- [ ] Existing current-version save and an older save if available (use copies).
+- [ ] Rooms remain unlocked correctly; slot states and machine tiers/levels remain correct.
+- [ ] Bots remain present; rarity/price and bot durability survive restart, including broken bots.
+- [ ] Tokens, Data Shards and all stats exact after accounting for expected offline settlement.
+- [ ] Active research survives restart; completed research remains completed.
+- [ ] Pipeline, Infrastructure and Quantum state survive restart.
+- [ ] Prestige count and lifetime level exact; level rewards cannot be reclaimed.
+- [ ] Shop boost timers, permanent production upgrade and offline upgrade survive restart.
+- [ ] Close/reopen offline earnings remain correct, including boost expiry/research completion.
+- [ ] Android pause/resume saves and settles once; initial post-load save still occurs.
+- [ ] Corrupted main + good backup recovers (isolated profile).
+- [ ] Corrupted main + corrupted backup blocks overwrite and preserves files (isolated profile).
+- [ ] Autosave still runs every 10 seconds; exit saves; action-triggered saves persist.
+- [ ] Rewarded-ad grant saves successfully.
+- [ ] IAP grant/save/acknowledge/consume/finalization sequence still works and deduplicates.
+- [ ] Singularity save and offline progression remain completely independent; settings/cosmetics/machine skins/IAP ledger remain independent.
+
+- [x] Final `dotnet build`: 0 errors, 353 existing CS8632 warnings; test project: 0 warnings/errors.
+- [x] Final headless persistence run: 3,416 assertions passed; offline run: 663 assertions passed.
+- [x] Full diff review and `git diff --check` passed; SaveManager, DTO/data classes, independent stores, formulas and SDK callbacks unchanged.

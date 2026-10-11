@@ -1,0 +1,202 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using IdleAi;
+
+class Program
+{
+    static int checks;
+    static void Eq(object actual, object expected, string label)
+    {
+        if (!Equals(actual, expected)) throw new Exception($"{label}: {actual} != {expected}");
+        checks++;
+    }
+    // Compare every DTO property recursively, without relying on JSON formatting.
+    static void Same(object actual, object expected, string path)
+    {
+        if (actual == null || expected == null) { Eq(actual, expected, path); return; }
+        if (actual is string || actual.GetType().IsValueType) { Eq(actual, expected, path); return; }
+        if (actual is System.Collections.IEnumerable aa && expected is System.Collections.IEnumerable bb)
+        {
+            var a = aa.Cast<object>().ToArray(); var b = bb.Cast<object>().ToArray();
+            Eq(a.Length, b.Length, path + ".Count");
+            for (int i = 0; i < a.Length; i++) Same(a[i], b[i], path + $"[{i}]");
+            return;
+        }
+        foreach (var p in actual.GetType().GetProperties()) Same(p.GetValue(actual), p.GetValue(expected), path + "." + p.Name);
+    }
+    static (GameState state, EconomyService economy, GameSaveService saves) Create()
+    {
+        // Four normal rooms with the production default of eight slots, without loading Godot textures.
+        var rooms = new List<RoomData>();
+        for (int r = 0; r < 4; r++) rooms.Add(new RoomData("Test" + r, null, null,
+            [new MachineData("Test", 100, 1, 1, 100, null)], 0));
+        var s = new GameState(rooms);
+        for (int r = 0; r < 4; r++)
+        {
+            var room = new RoomState { Unlocked = r == 0, DataShardUnlockRewardClaimed = r == 0 };
+            for (int i = 0; i < 8; i++) room.Slots.Add(new SlotData { Unlocked = r == 0 && i == 0 });
+            s.RoomStates.Add(room);
+        }
+        var e = new EconomyService(s);
+        return (s, e, new GameSaveService(s, e));
+    }
+    static SaveGameData Fixture(int version = 21)
+    {
+        var d = new SaveGameData {
+            SaveVersion = version, Tokens = 12345.75, RunEarnedTokens = 87654.25, LifetimeLevelBase = 222,
+            LastSaveUnix = 1000, CurrentRoomIndex = 3, AiCores = 42, PrestigeCount = 7,
+            LabUnlocked = true, ResearchPoints = 456.5, CompletedResearch = [ResearchCatalog.EfficientHardware1Id],
+            ActiveResearchId = ResearchCatalog.OfflineServersId, ActiveResearchEndUnix = 2000,
+            DataShards = 321.5, HighestClaimedLevelReward = 600, ShopProductionBoostEndUnix = 1500,
+            ShopBotLuckBoostEndUnix = 1600, ShopProductionUpgradeLevel = 2, ShopOfflineUpgradeLevel = 4,
+            Stats = new StatsSaveData { TotalEarned = 10000.5, OfflineEarned = 222.5, TotalSpent = 700,
+                SlotUnlockSpent = 200, MachineSpending = new() { ["Test"] = 500 } }
+        };
+        for (int r = 0; r < 4; r++)
+        {
+            var room = new RoomSaveData { Unlocked = true, DataShardUnlockRewardClaimed = true,
+                Pipeline = new PipelineSaveData { ComputeLevel = 2, DataLevel = 3, ModelLevel = 4, OutputLevel = 5,
+                    RawInputBuffer = 11.5, ComputeBuffer = 12.5, DataBuffer = 13.5, ModelBuffer = 14.5,
+                    ComputeCycleRemaining = .1, DataCycleRemaining = .2, ModelCycleRemaining = .3, OutputCycleRemaining = .4 },
+                Infrastructure = new InfrastructureSaveData { PowerLevel = 2, CoolingLevel = 3, StorageLevel = 4 },
+                Quantum = new QuantumSaveData { Stability = 50, Energy = 200, OverclockIndex = 3,
+                    StabilizerLevel = 2, EnergyCoreLevel = 3, AmplifierLevel = 4, RecoveryMode = true }
+            };
+            var rarities = Enum.GetValues<BotRarity>();
+            for (int i = 0; i < 8; i++) room.Slots.Add(new SlotSaveData { Unlocked = i != 7,
+                MachineTier = 0, MachineLevel = i + 1, ClaimedDataShardMilestones = [150, 300],
+                BotRarity = rarities[i % rarities.Length], BotPurchasePrice = 55.25 + i,
+                BotDurabilityInitialized = true, BotDurabilitySecondsRemaining = i == 0 ? 0 : 12.5,
+                IsRunning = i != 0, CycleRemaining = .25 + i });
+            d.Rooms.Add(room);
+        }
+        return d;
+    }
+    public static void Main()
+    {
+        var (s, e, m) = Create(); var fixture = Fixture();
+        var result = m.ApplySave(fixture);
+        Eq(result.LifetimeLevelMigrated, false, "current migration");
+        fixture.IncomePerSecond = e.GetTotalIncomeWithoutTemporaryShopBoost();
+        Same(m.CreateSave(1000), fixture, "current roundtrip");
+        var (s2, _, m2) = Create(); m2.ApplySave(m.CreateSave(1000));
+        Same(m2.CreateSave(1000), fixture, "save load save");
+        m2.ApplySave(fixture);
+        Eq(s2.RoomStates[0].Slots[1].RuntimeCycleDuration, 0.0, "runtime cycle reset");
+        Same(m2.CreateSave(1000), fixture, "repeat hydration no rewards/stats/prestige/offline");
+        Eq(s2.Lab.ActiveResearchId, fixture.ActiveResearchId, "hydration does not complete research");
+        // Snapshot collections are detached, preserving existing leaf semantics.
+        var snapshot = m.CreateSave(1000); s.Lab.CompleteResearch("extra");
+        s.RoomStates[0].Slots[0].ClaimedDataShardMilestones.Add(999);
+        s.Stats.AddMachineSpending("Test", 1);
+        var original = Fixture(); original.IncomePerSecond = fixture.IncomePerSecond;
+        Same(snapshot, original, "snapshot independence");
+        Eq(fixture.Stats.MachineSpending["Test"], 501.0, "existing stats hydration dictionary ownership");
+        foreach (int version in new[] { 0, 1, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21 })
+        {
+            var (v, _, mapper) = Create(); var d = Fixture(version);
+            var r = mapper.ApplySave(d);
+            Eq(v.Shop.DataShards, version < 13 ? GameConfig.InitialDataShards : d.DataShards, $"v{version} shards");
+            Eq(v.Shop.HighestClaimedLevelReward, version < 20 ? 0 : 600, $"v{version} claim");
+            int expectedBase = version >= 21 ? 222 : version == 20 ? Math.Max(0, 600 - ProgressionService.CalculateCurrentRunLevel(v)) : 0;
+            Eq(v.LifetimeLevelBase, expectedBase, $"v{version} base");
+            Eq(r.LifetimeLevelMigrated, version == 20, $"v{version} migration branch");
+            Eq(v.Prestige.PrestigeCount, 7, "no prestige trigger");
+            for (int i = 0; i < 4; i++)
+            {
+                Same(v.RoomStates[i].Pipeline.ToSaveData(), version < 16 ? new PipelineSaveData() : d.Rooms[i].Pipeline, "pipeline gate");
+                Same(v.RoomStates[i].Infrastructure.ToSaveData(), version < 18 ? new InfrastructureSaveData() : d.Rooms[i].Infrastructure, "infrastructure gate");
+                Same(v.RoomStates[i].Quantum.ToSaveData(), version < 19 ? new QuantumSaveData() : d.Rooms[i].Quantum, "quantum gate");
+                Eq(v.RoomStates[i].Slots.Count, 8, "slot count");
+            }
+        }
+        foreach (int version in new[] { 13, 14, 21 })
+        {
+            var (v, _, mapper) = Create(); var d = Fixture(version);
+            for (int i = 0; i < 4; i++) { d.Rooms[i].Unlocked = i == 1; d.Rooms[i].DataShardUnlockRewardClaimed = false; }
+            d.CurrentRoomIndex = 3; mapper.ApplySave(d);
+            Eq(v.CurrentRoomIndex, 0, "locked fallback");
+            for (int i = 0; i < 4; i++) Eq(v.RoomStates[i].DataShardUnlockRewardClaimed, version < 14 && i < 2, "room reward gate");
+        }
+        foreach (int index in new[] { -99, 0, 2, 99 })
+        { var (v, _, mapper) = Create(); var d = Fixture(); d.CurrentRoomIndex = index; mapper.ApplySave(d); Eq(v.CurrentRoomIndex, Math.Clamp(index, 0, 3), "index clamp"); }
+        foreach (int prestige in new[] { 0, 2 })
+        foreach (int claim in new[] { -1, 0, 1, 600 })
+        { var (v, _, mapper) = Create(); var d = Fixture(20); d.PrestigeCount = prestige; d.HighestClaimedLevelReward = claim;
+          mapper.ApplySave(d); Eq(v.LifetimeLevelBase, prestige > 0 && claim > 0 ? Math.Max(0, claim - ProgressionService.CalculateCurrentRunLevel(v)) : 0, "lifetime lower bound"); }
+        {
+            var (v, _, mapper) = Create(); var d = new SaveGameData { SaveVersion = 21, LifetimeLevelBase = -1, HighestClaimedLevelReward = -1 };
+            mapper.ApplySave(d); Eq(v.LifetimeLevelBase, 0, "negative base"); Eq(v.Shop.HighestClaimedLevelReward, 0, "negative claim");
+            Eq(v.RoomStates[0].Slots[0].Unlocked, true, "missing rooms retain defaults");
+            Eq(v.RoomStates[3].Unlocked, false, "default locked");
+            d.Rooms = [new RoomSaveData { Unlocked = true, Pipeline = null, Infrastructure = null, Quantum = null }];
+            v.RoomStates[0].Pipeline.ComputeLevel = 99; v.RoomStates[0].Infrastructure.PowerLevel = 99; v.RoomStates[0].Quantum.Energy = 999;
+            d.Stats = null; v.Stats.AddEarned(88); d.CompletedResearch = null; mapper.ApplySave(d);
+            Same(v.RoomStates[0].Pipeline.ToSaveData(), new PipelineSaveData(), "null pipeline reset");
+            Same(v.RoomStates[0].Infrastructure.ToSaveData(), new InfrastructureSaveData(), "null infrastructure reset");
+            Same(v.RoomStates[0].Quantum.ToSaveData(), new QuantumSaveData(), "null quantum reset");
+            Eq(v.Stats.TotalEarned, 88.0, "null stats retains state"); Eq(v.Lab.CompletedResearch.Count, 0, "null research");
+            Eq(v.RoomStates[0].Slots[0].Unlocked, true, "missing slots retain defaults");
+        }
+        foreach (var rarity in Enum.GetValues<BotRarity>())
+        foreach (bool initialized in new[] { false, true })
+        foreach (double seconds in new[] { -1.0, 0, 12, double.MaxValue })
+        {
+            var (v, _, mapper) = Create(); var d = Fixture(); var slot = d.Rooms[0].Slots[0];
+            slot.BotRarity = rarity; slot.BotDurabilityInitialized = initialized; slot.BotDurabilitySecondsRemaining = seconds; slot.IsRunning = true;
+            slot.ClaimedDataShardMilestones = null; mapper.ApplySave(d);
+            var loaded = v.RoomStates[0].Slots[0]; double max = BotCatalog.GetWorkingLifetimeSeconds(rarity);
+            Eq(loaded.BotDurabilitySecondsRemaining, initialized ? Math.Clamp(seconds, 0, max) : max, "durability migration/clamp");
+            Eq(loaded.IsRunning, !initialized || seconds > 0, "working bot gate"); Eq(loaded.ClaimedDataShardMilestones.Count, 0, "null milestones");
+        }
+        {
+            var (v, _, mapper) = Create(); var d = Fixture(); d.Rooms[0].Slots[0].BotRarity = null;
+            mapper.ApplySave(d); var slot = v.RoomStates[0].Slots[0]; Eq(slot.BotDurabilityInitialized, false, "absent bot flag"); Eq(slot.BotDurabilitySecondsRemaining, 0.0, "absent bot seconds");
+            d.CompletedResearch = ["", " ", "x", "x"]; d.Stats.MachineSpending = null; mapper.ApplySave(d);
+            Eq(v.Lab.CompletedResearch.Count, 1, "research filter"); Eq(v.Stats.GetMachineSpending("Test"), 0.0, "null stats dictionary");
+            d.Rooms.Add(new RoomSaveData()); d.Rooms[0].Slots.Add(new SlotSaveData()); mapper.ApplySave(d);
+            Eq(v.RoomStates.Count, 4, "extra room ignored"); Eq(v.RoomStates[0].Slots.Count, 8, "extra slot ignored");
+        }
+        {
+            var (v, _, mapper) = Create(); var d = Fixture(); var room = d.Rooms[0];
+            room.Pipeline = new PipelineSaveData { ComputeLevel = -1, DataLevel = 0, ModelLevel = -2, OutputLevel = 0,
+                RawInputBuffer = -1, ComputeBuffer = -2, DataBuffer = -3, ModelBuffer = -4,
+                ComputeCycleRemaining = -1, DataCycleRemaining = -2, ModelCycleRemaining = -3, OutputCycleRemaining = -4 };
+            room.Infrastructure = new InfrastructureSaveData { PowerLevel = -1, CoolingLevel = 0, StorageLevel = -2 };
+            room.Quantum = new QuantumSaveData { Stability = -1, Energy = -2, OverclockIndex = -1,
+                StabilizerLevel = 0, EnergyCoreLevel = -1, AmplifierLevel = -2, RecoveryMode = true };
+            v.RoomStates[0].Pipeline.LastMachineInputPerSecond = 99;
+            v.RoomStates[0].Pipeline.LastTokenOutputPerSecond = 99;
+            room.Slots[0].MachineTier = -2; room.Slots[0].MachineLevel = -3;
+            room.Slots[0].BotPurchasePrice = -4; room.Slots[0].CycleRemaining = -5;
+            mapper.ApplySave(d);
+            Same(v.RoomStates[0].Pipeline.ToSaveData(), new PipelineSaveData(), "pipeline clamps");
+            Same(v.RoomStates[0].Infrastructure.ToSaveData(), new InfrastructureSaveData(), "infrastructure clamps");
+            Same(v.RoomStates[0].Quantum.ToSaveData(), new QuantumSaveData { Stability = 0, Energy = 0, RecoveryMode = true }, "quantum clamps");
+            Eq(v.RoomStates[0].Pipeline.LastMachineInputPerSecond, 0.0, "runtime input cleared");
+            Eq(v.RoomStates[0].Pipeline.LastTokenOutputPerSecond, 0.0, "runtime output cleared");
+            Eq(v.RoomStates[0].Slots[0].MachineTier, -2, "raw slot tier preserved");
+            Eq(v.RoomStates[0].Slots[0].MachineLevel, -3, "raw slot level preserved");
+            Eq(v.RoomStates[0].Slots[0].BotPurchasePrice, -4.0, "raw price preserved");
+            Eq(v.RoomStates[0].Slots[0].CycleRemaining, -5.0, "raw cycle preserved");
+            room.Quantum.Stability = double.MaxValue; room.Quantum.OverclockIndex = 99;
+            mapper.ApplySave(d); Eq(v.RoomStates[0].Quantum.Stability, GameConfig.QuantumMaximumStability, "stability upper clamp");
+            Eq(v.RoomStates[0].Quantum.OverclockIndex, 4, "overclock upper clamp");
+        }
+        // Offline settlement is explicitly subsequent, and still selects old income from hydrated state.
+        foreach (int version in new[] { 12, 18, 19, 21 })
+        {
+            var (v, economy, mapper) = Create(); var d = Fixture(version); d.ActiveResearchId = null; d.IncomePerSecond = 777;
+            mapper.ApplySave(d); Eq(v.Tokens, d.Tokens, "no offline during hydration");
+            double income = version < 19 ? economy.GetTotalIncomeWithoutTemporaryShopBoost() : 777;
+            double efficiency = Math.Clamp(GameConfig.BaseOfflineIncomeFactor + v.Shop.GetOfflineIncomeBonus() + v.Lab.GetOfflineIncomeBonus(), 0, 1);
+            var offline = new OfflineProgressService(v, economy, new LabService(v, economy));
+            var r = offline.ApplyFromSave(d, 1100);
+            Eq(r.OfflineEarned, income * 100 * GameConfig.ShopTemporaryProductionMultiplier * efficiency, "offline after hydration");
+            Eq(v.Tokens, d.Tokens + r.OfflineEarned, "separate offline credit");
+        }
+        Console.WriteLine($"GameSave passed {checks} deterministic assertions.");
+    }
+}

@@ -297,3 +297,63 @@ Deterministic harness: `dotnet build`, then `dotnet run --project tests/OfflineP
 Recommended next major refactor: a separately scoped save orchestration service, preserving DTO mapping, migrations, backup recovery and corruption protections; no save refactor was performed here.
 
 Final verification: `dotnet build` succeeded with 0 errors and 353 existing CS8632 warnings. Standalone harness passed 663 deterministic assertions. Migration helper and interval calculation were compared against HEAD and match verbatim. Game.cs search found none of the five removed calculation/pause symbols. First-party search found one normal settlement implementation; LabStatusView's efficiency reference is a display preview. Full changed-source/test/documentation diff reviewed; save schema/SaveVersion, SaveManager, balancing, research catalog, economy prices, Singularity and external integrations unchanged. `git diff --check` passed. Manual device/runtime checks above remain pending; changes are uncommitted on refactor/services.
+
+## Main-save audit before extraction
+
+Before this phase, Game.SaveGame constructed every top-level and room DTO and delegated leaf mapping to SlotData, PipelineData, InfrastructureData, QuantumData and StatsData. Game.LoadGame assigned balances, Lab, Prestige and Shop directly, restored rooms/slots, clamped navigation, restored stats and migrated lifetime levels, then called OfflineProgressService. SaveManager handled DTO/disk conversion and recovery.
+
+Existing compatibility rules (recorded before moving code):
+
+| Version/condition | Existing behavior |
+| --- | --- |
+| <13 | Replace saved DataShards with GameConfig.InitialDataShards. |
+| <14 | For restored rooms, room reward claimed is true for room 0 or an unlocked room. |
+| <16 or null Pipeline | Reset Pipeline; otherwise load its DTO. |
+| <18 or null Infrastructure | Reset Infrastructure; otherwise load its DTO. |
+| <19 or null Quantum | Reset Quantum; otherwise load its DTO. |
+| <20 | HighestClaimedLevelReward becomes 0; >=20 clamps it to >=0. |
+| <21 | Start LifetimeLevelBase at 0. With PrestigeCount >0 and a positive restored highest claim, set base to max(0, claim minus current run level). Thus only v20 normally has a usable claim for this migration. |
+| >=21 | Restore LifetimeLevelBase clamped to >=0. |
+| Bot absent | Clear durability initialized flag and seconds. |
+| Bot present, initialized flag absent/false | Initialize full rarity-specific durability, independent of main SaveVersion. |
+| Bot present, initialized flag true | Clamp seconds to [0, rarity lifetime], preserving broken bots. |
+| Slot running | Restore running only with a working bot; preserve CycleRemaining; clear RuntimeCycleDuration. |
+| Offline <19 | OfflineProgressService uses hydrated economy income excluding temporary boost. |
+| Offline <15 helper | Retained helper divides positive saved income by temporary multiplier when boost was active at save; currently bypassed by <19 income selection. |
+
+All top-level DTO fields are mapped, including legacy AiCores. Tokens and RunEarnedTokens are direct assignments, as are shards (except <13); no economy transactions occur. Lab completed research clears/rebuilds its set, skips blank IDs, accepts null and deduplicates; active research is assigned without completion. Stats are loaded only if non-null, and null MachineSpending becomes an empty dictionary. StatsData retains its existing dictionary ownership behavior.
+
+Rooms and slots restore by index through min(saved count, runtime count); missing entries retain defaults and excess entries are ignored. Room unlock flags load directly, without progression transactions. CurrentRoomIndex clamps to [0, Rooms.Count-1], then falls back to 0 for a locked room. Default creation remains Game.CreateRoomStates (eight slots per room, first room and its first slot unlocked, first room reward claimed).
+
+Pipeline loads levels >=1, nonnegative buffers/cycle times and clears its two runtime UI rates. Infrastructure levels clamp to >=1. Quantum clamps stability to [0, maximum], overclock to [0,4], levels to >=1 and energy to >=0, preserving RecoveryMode. Slot machine tier/level, price and milestones retain existing raw restoration (null milestones become empty). No other historical main hydration version branches exist. DTO initializers supply missing-field defaults; no new null/schema validation is introduced. Explicit null room/slot collections and an empty runtime room catalog are pre-existing unsupported hydration cases, left unchanged in this phase.
+
+## Completed normal save-domain extraction
+
+GameServices now owns GameSaveService, composed by GameServiceFactory using the existing GameState and EconomyService. Game keeps its SaveManager Node. Creation follows Game -> GameSaveService.CreateSave(nowUnix) -> SaveManager.SaveData(DTO). Loading follows SaveManager.LoadData -> GameSaveService.ApplySave -> OfflineProgressService.ApplyFromSave -> ProductionService.PrepareAfterLoad -> UI refresh/messages -> initial save, at the original lifecycle points.
+
+Public API: `GameSaveService(GameState, EconomyService)`, `SaveGameData CreateSave(long nowUnix)`, `GameLoadStateResult ApplySave(SaveGameData)`, and constant `SaveVersion = 21`. GameLoadStateResult contains RestoredLifetimeLevelBase (before the historical lower-bound migration) and LifetimeLevelMigrated, solely to retain Game's diagnostic log values. Load diagnostics now print after hydration rather than midway through hydration; they retain their successful-load values and precede offline settlement. No separate migration layer is needed. The service restores an already initialized state; it does not create fresh defaults, perform currency transactions, complete research, grant rewards, trigger prestige or settle offline earnings.
+
+All compatibility branches in the audit table remain verbatim in the save service or existing leaf data helpers. Leaf ToSaveData/LoadFromSaveData methods intentionally remain in SlotData, PipelineData, InfrastructureData, QuantumData and StatsData; the service coordinates them. No schema/property/default/version changes or player migrations were introduced. Existing normalization still means malformed DTOs need not round-trip byte-for-byte.
+
+SaveManager is entirely unchanged: paths, main/backup/temp files, flush, backup creation/restoration, serialization/deserialization/options, corruption lock/LastLoadFailed, timer/autosave event and deletion. Game retains the 10-second autosave setup, corruption guard, HasSave/LoadData null handling, save-success diagnostics, current clock and all lifecycle/action/integration save callbacks. No field mapping, version comparison, room/slot hydration or DTO construction remains in Game. SaveVersion is read there only for logging; runtime balances/claim/base are read only for diagnostics in SaveGame/LoadGame. Default RoomState creation remains in Game and is not hydration.
+
+Independent stores deliberately untouched: idle_ai_settings.json (GameSettingsService), idle_ai_cosmetics.json (BotSkinService), idle_ai_machine_skins.json (MachineSkinService), idle_ai_iap_ledger.json (billing), singularity_save.json (SingularityService). Singularity retains its version, Matter, sectors/cores/nodes/bots and offline system. Rewarded-ad and IAP grant -> save -> finalization sequences are unchanged.
+
+Post-refactor search classification (first-party production C#): `new SaveGameData` occurs in GameSaveService for the main snapshot and OfflineProgressService for an in-memory resume settlement input. Main hydration version checks occur only in GameSaveService; <19 income selection and >=15 helper gating remain in OfflineProgressService. Calls to leaf ToSaveData/LoadFromSaveData occur only in GameSaveService; their definitions remain in data classes. Separate-store SaveVersion assignments remain with those stores and Singularity. SaveManager and SaveJsonContext reference DTO types for unchanged serialization infrastructure. Tests construct in-memory DTO fixtures; no personal/player save data is included.
+
+New tests live in tests/GameSave: GameSave.csproj, Program.cs.txt, Runner.cs, Runner.tscn and project.godot (Godot may generate Runner.cs.uid). This isolated headless Godot project references the built game assembly. BotCatalog's static texture loads require a native Godot host; Runner supplies in-memory texture resources at those paths, leaving real numeric rarity definitions intact. Tests use explicit fixture expectations and recursive per-property DTO comparisons, not file or JSON formatting tests. The standalone OfflineProgress harness remains unchanged.
+
+Run from repository root:
+
+```sh
+dotnet build
+dotnet build tests/GameSave/GameSave.csproj
+XDG_DATA_HOME=/tmp/idle-ai-save-tests godot-mono --headless --path tests/GameSave
+dotnet run --project tests/OfflineProgress/OfflineProgress.csproj
+```
+
+GameSave passes 3,416 assertions: full current DTO roundtrip and save/load/save, exact balances/run/stats/Lab/research/Prestige/lifetime/shop fields, four rooms/eight slots, all bot rarities/durability states, cycles/milestones, all special-room DTOs, version boundaries 0/1/12/13/14/15/16/17/18/19/20/21, lifetime lower-bound guards, missing/null fields, null special-room resets, count truncation, index clamp/locked fallback, leaf clamping/runtime clearing, snapshot copies and existing stats dictionary ownership. Repeated hydration verifies no currency stats/rewards/prestige/offline settlement. Integrated historical/current offline checks prove settlement remains subsequent; existing OfflineProgress suite passes 663 assertions. A whitespace-normalized comparison against pre-refactor Game confirms creation and hydration are identical after removing logging, diagnostics bookkeeping and replacing clock access with the supplied argument.
+
+Recommended next major refactor: isolate gameplay action orchestration currently in Game (result handling, refresh and action-triggered saves) from UI wiring, with existing domain services and persistence boundaries retained. Device/runtime checks remain pending in REFACTOR_TEST_CHECKLIST.md.
+
+Final phase verification: `dotnet build` succeeded with 0 errors and 353 existing CS8632 warnings. The headless test project build succeeded with 0 warnings/errors. Final runs passed 3,416 persistence and 663 offline assertions. `git diff --check` passed. Full tracked diff and new service/test sources reviewed; SaveManager, all data/DTO classes, offline formulas, room/slot defaults, balance/reward/level formulas, independent stores, Singularity and external SDK code have no changes. Work remains uncommitted on refactor/services.

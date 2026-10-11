@@ -11,6 +11,7 @@ public sealed class GameServices
 	public PrestigeService Prestige { get; }
 	public LabService Lab { get; }
 	public OfflineProgressService Offline { get; }
+	public GameSaveService Save { get; }
 	public ShopService Shop { get; }
 	public PipelineService Pipeline { get; }
 	public InfrastructureService Infrastructure { get; }
@@ -29,6 +30,7 @@ public sealed class GameServices
 		PrestigeService prestige,
 		LabService lab,
 		OfflineProgressService offline,
+		GameSaveService save,
 		ShopService shop,
 		PipelineService pipeline,
 		InfrastructureService infrastructure,
@@ -46,6 +48,7 @@ public sealed class GameServices
 		Prestige = prestige;
 		Lab = lab;
 		Offline = offline;
+		Save = save;
 		Shop = shop;
 		Pipeline = pipeline;
 		Infrastructure = infrastructure;

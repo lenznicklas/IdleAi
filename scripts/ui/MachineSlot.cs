@@ -36,6 +36,7 @@ public partial class MachineSlot : Control
 	private Label _statusLabel = null!;
 	private Button _unlockButton = null!;
 
+	private MachineVisualEffectsController _visualEffects = null!;
 	private Tween? _machineTween;
 	private Tween? _machineReturnTween;
 	private Tween? _emptyPulseTween;
@@ -89,6 +90,8 @@ public partial class MachineSlot : Control
 			GetRoomAccentColor(
 				roomIndex
 			);
+
+		_visualEffects.SetTheme(roomIndex);
 
 		Color accentDark =
 			accent.Darkened(
@@ -455,6 +458,10 @@ public partial class MachineSlot : Control
 		_machineVisual.AddChild(
 			_machineButton
 		);
+
+		_visualEffects = new MachineVisualEffectsController();
+		_machineVisual.AddChild(_visualEffects);
+		_visualEffects.Configure(FindParent("ScrollContainer") as Control);
 
 		_machineBasePosition =
 			Vector2.Zero;
@@ -900,6 +907,7 @@ public partial class MachineSlot : Control
 		string unlockCost,
 		Texture2D emptyTexture)
 	{
+		_visualEffects.Clear();
 		StopMachineAnimation();
 		StopBotAnimation();
 
@@ -1020,9 +1028,12 @@ public partial class MachineSlot : Control
 						slot.MachineTier
 					);
 
+		_visualEffects.Refresh(slot, cycleDuration, _machineButton.TextureNormal);
+
 		if (slot.IsRunning)
 		{
 			StartMachineAnimation();
+			_machineTween?.SetSpeedScale((float)(1.2 / VisualProgressionRules.PulseSeconds(cycleDuration)));
 
 			double progress =
 				(
@@ -1096,6 +1107,8 @@ public partial class MachineSlot : Control
 	// ==================================================
 	// MACHINE ANIMATION
 	// ==================================================
+
+	public void PulseCycleCompletion() => _visualEffects.CycleCompleted();
 
 	private void StartMachineAnimation()
 	{

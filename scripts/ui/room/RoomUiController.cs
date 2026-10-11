@@ -94,6 +94,8 @@ public sealed class RoomUiController
 		null!;
 
 
+	private RoomVisualEffectsController _visualEffects = null!;
+
 	private AmbientBackgroundController _ambient =
 		null!;
 
@@ -197,6 +199,11 @@ public sealed class RoomUiController
 		ConfigureBackground();
 
 		CreateAmbientBackground();
+		_visualEffects = new RoomVisualEffectsController();
+		_root.AddChild(_visualEffects);
+		_visualEffects.Configure();
+		_production.CycleCompleted += OnVisualCycleCompleted;
+		_root.TreeExiting += () => _production.CycleCompleted -= OnVisualCycleCompleted;
 
 		CreateSlotViews();
 
@@ -1680,9 +1687,17 @@ public sealed class RoomUiController
 	// UPDATE
 	// ==================================================
 
+	private void OnVisualCycleCompleted(int roomIndex, SlotData slot)
+	{
+		if (roomIndex != _state.CurrentRoomIndex) return;
+		int index = _state.CurrentRoomState.Slots.IndexOf(slot);
+		if (index >= 0 && index < 8) GetMachineSlot(index).PulseCycleCompletion();
+	}
+
 	public void UpdateAll(
 		bool bringChromeToFront = true)
 	{
+		_visualEffects.Refresh(_state.CurrentRoomIndex, _state.CurrentRoomState);
 		_background.Texture =
 			_state.CurrentRoom.Background;
 

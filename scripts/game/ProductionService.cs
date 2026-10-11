@@ -17,6 +17,8 @@ public readonly record struct ProductionCompletionResult(
 
 public sealed class ProductionService
 {
+	public event Action<int, SlotData>? CycleCompleted;
+
 	private const double ManualCycleAdvanceSeconds =
 		0.5;
 
@@ -370,6 +372,8 @@ public sealed class ProductionService
 			slot.IsRunning =
 				false;
 		}
+
+		CycleCompleted?.Invoke(roomIndex, slot);
 
 		return new ProductionCompletionResult(
 			1,

@@ -44,6 +44,8 @@ public sealed class MachineDetailsOverlay
 		null!;
 
 
+	private MachineVisualEffectsController _visualEffects = null!;
+
 	private TextureRect _machineImage =
 		null!;
 
@@ -443,6 +445,9 @@ public sealed class MachineDetailsOverlay
 		_title.Text =
 			machine.MachineName;
 
+
+		_visualEffects.SetTheme(_roomIndex);
+		_visualEffects.Refresh(slot, cycleDuration, machine.Texture);
 
 		_machineImage.Texture =
 			machine.Texture;
@@ -1308,6 +1313,10 @@ public sealed class MachineDetailsOverlay
 		vbox.AddChild(
 			_machineImage
 		);
+
+		_visualEffects = new MachineVisualEffectsController();
+		_machineImage.AddChild(_visualEffects);
+		_visualEffects.Configure();
 
 
 		_level =

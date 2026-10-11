@@ -97,6 +97,32 @@ public sealed class MachineSkinService
 	}
 
 
+	public bool IsHalloweenPackOwned =>
+		MachineSkinCatalog.HalloweenSkinIds.All(IsOwned);
+
+	public bool IsHalloweenPackAvailable =>
+		MachineSkinCatalog.HalloweenSkinIds.All(id =>
+			MachineSkinCatalog.TryGet(id, out var skin) && skin.IsComplete);
+
+	public double DataShards => _state.Shop.DataShards;
+
+	public MachineSkinResult BuyHalloweenPack()
+	{
+		if (IsHalloweenPackOwned)
+			return new(false, "Halloween Machine Skin Pack is already owned.");
+		if (!IsHalloweenPackAvailable)
+			return new(false, "Halloween machine assets are not complete yet.");
+		if (!_economy.TrySpendDataShards(MachineSkinCatalog.HalloweenPackPrice))
+			return new(false, "Not enough Data Shards.");
+
+		// One payment grants missing skins in the existing ownership set.
+		foreach (string id in MachineSkinCatalog.HalloweenSkinIds)
+			_ownedSkinIds.Add(id);
+		Save();
+		return new(true, "Halloween Machine Skin Pack purchased for 100 Data Shards! Equip each room's skin in Machine Skin Collection.");
+	}
+
+
 	public MachineSkinResult BuyAndEquip(
 		string skinId)
 	{
@@ -112,6 +138,9 @@ public sealed class MachineSkinService
 				"Unknown machine skin."
 			);
 		}
+
+		if (MachineSkinCatalog.IsHalloween(skin.Id) && !IsOwned(skin.Id))
+			return new(false, "Unlock this skin with the Halloween Machine Skin Pack in Shop Offers.");
 
 		if (!skin.IsComplete)
 		{

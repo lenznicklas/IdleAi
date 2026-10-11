@@ -38,6 +38,10 @@ public sealed partial class HalloweenOfferShopController
 
 	private readonly Game _root;
 	private readonly BotSkinService _skinService;
+	private readonly MachineSkinService _machineService;
+	private Button _machineOfferButton = null!;
+	private Label _machineOfferStatus = null!;
+	private const string MachineOfferImagePath = "res://assets/shop/events/halloween_machine_skin.png";
 
 	private VBoxContainer _content =
 		null!;
@@ -55,10 +59,12 @@ public sealed partial class HalloweenOfferShopController
 
 	public HalloweenOfferShopController(
 		Game root,
-		BotSkinService skinService)
+		BotSkinService skinService,
+		MachineSkinService machineService)
 	{
 		_root = root;
 		_skinService = skinService;
+		_machineService = machineService;
 
 		Name =
 			"HalloweenOfferShopController";
@@ -80,6 +86,7 @@ public sealed partial class HalloweenOfferShopController
 			DetachBottomSpacer();
 
 		CreateOffersSection();
+		CreateMachineOfferCard();
 
 		RestoreBottomSpacer(
 			bottomSpace
@@ -116,6 +123,7 @@ public sealed partial class HalloweenOfferShopController
 
 	public void Refresh()
 	{
+		RefreshMachineOffer();
 		if (
 			_offerButton == null
 			|| _offerStatus == null
@@ -558,6 +566,94 @@ public sealed partial class HalloweenOfferShopController
 			_offerButton
 		);
 	}
+
+	private void CreateMachineOfferCard()
+	{
+		PanelContainer panel = new()
+		{
+			Name = "HalloweenMachineOfferCard",
+			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+			MouseFilter = Control.MouseFilterEnum.Pass
+		};
+		StyleBoxFlat style = ShopUi.CreatePanelStyle();
+		style.BorderColor = new Color(ShopUi.Gold.R, ShopUi.Gold.G, ShopUi.Gold.B, 0.86f);
+		panel.AddThemeStyleboxOverride("panel", style);
+		_content.AddChild(panel);
+		MarginContainer margin = CreateCardMargin();
+		panel.AddChild(margin);
+		VBoxContainer box = new() { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		box.AddThemeConstantOverride("separation", 10);
+		margin.AddChild(box);
+
+		TextureRect image = new()
+		{
+			Name = "HalloweenMachinePreview",
+			Texture = ResourceLoader.Exists(MachineOfferImagePath)
+				? GD.Load<Texture2D>(MachineOfferImagePath) : null,
+			CustomMinimumSize = new Vector2(0, 270),
+			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+			ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+			StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+			MouseFilter = Control.MouseFilterEnum.Ignore
+		};
+		box.AddChild(image);
+		Label kicker = ShopUi.CreateMutedLabel(12);
+		kicker.Text = "HALLOWEEN SEASON";
+		kicker.HorizontalAlignment = HorizontalAlignment.Left;
+		kicker.AddThemeColorOverride("font_color", ShopUi.Gold);
+		box.AddChild(kicker);
+		Label title = ShopUi.CreateLabel(22);
+		title.Text = "HALLOWEEN MACHINE SKIN PACK";
+		title.HorizontalAlignment = HorizontalAlignment.Left;
+		box.AddChild(title);
+		Label description = ShopUi.CreateMutedLabel(13);
+		description.Text = "Four Halloween machine skins: one each for Room 1 (Garage), Room 2 (Server Room), Room 3 (Data Center) and Room 4 (Quantum Lab). Equip each in Machine Skin Collection.";
+		description.HorizontalAlignment = HorizontalAlignment.Left;
+		box.AddChild(description);
+		Label price = ShopUi.CreateLabel(18);
+		price.Text = "100 DATA SHARDS";
+		price.HorizontalAlignment = HorizontalAlignment.Left;
+		price.AutowrapMode = TextServer.AutowrapMode.Off;
+		price.AddThemeColorOverride("font_color", ShopUi.Gold);
+		box.AddChild(price);
+		_machineOfferStatus = ShopUi.CreateMutedLabel(13);
+		_machineOfferStatus.HorizontalAlignment = HorizontalAlignment.Left;
+		_machineOfferStatus.CustomMinimumSize = new Vector2(0, 28);
+		box.AddChild(_machineOfferStatus);
+		_machineOfferButton = new Button
+		{
+			CustomMinimumSize = new Vector2(0, 54),
+			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+			FocusMode = Control.FocusModeEnum.None
+		};
+		ShopUi.ApplyPrimaryButtonStyle(_machineOfferButton);
+		_machineOfferButton.Pressed += () =>
+		{
+			MachineSkinResult result = _machineService.BuyHalloweenPack();
+			MessageRequested?.Invoke(result.Message);
+			if (result.Changed)
+			{
+				Input.VibrateHandheld(18, 0.14f);
+				StateChanged?.Invoke();
+			}
+			Refresh();
+		};
+		box.AddChild(_machineOfferButton);
+	}
+
+	private void RefreshMachineOffer()
+	{
+		if (_machineOfferButton == null) return;
+		bool owned = _machineService.IsHalloweenPackOwned;
+		bool available = _machineService.IsHalloweenPackAvailable;
+		_machineOfferStatus.Text = owned ? "OWNED"
+			: available ? "HALLOWEEN EVENT • ALL FOUR ROOMS" : "ASSETS INCOMPLETE";
+		_machineOfferStatus.AddThemeColorOverride("font_color", owned ? ShopUi.Green : ShopUi.Gold);
+		_machineOfferButton.Text = owned ? "OWNED" : available ? "BUY • 100 SHARDS" : "UNAVAILABLE";
+		_machineOfferButton.Disabled = owned || !available
+			|| _machineService.DataShards < MachineSkinCatalog.HalloweenPackPrice;
+	}
+
 
 	private void BuyOrEquipHalloween()
 	{

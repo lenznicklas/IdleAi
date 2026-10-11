@@ -695,6 +695,14 @@ public sealed class MachineSkinShopController
 				continue;
 			}
 
+			if (MachineSkinCatalog.IsHalloween(skin.Id))
+			{
+				card.Status.Text = "HALLOWEEN PACK • LOCKED";
+				card.Button.Text = "SHOP OFFERS";
+				card.Button.Disabled = true;
+				continue;
+			}
+
 			card.Status.Text = "NOT OWNED";
 			card.Status.AddThemeColorOverride(
 				"font_color",

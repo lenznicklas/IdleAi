@@ -33,9 +33,30 @@ public static class MachineSkinCatalog
 		"room_4_lab";
 
 
+	public const string Room1HalloweenSkinId = "room_1_halloween";
+	public const string Room2HalloweenSkinId = "room_2_halloween";
+	public const string Room3HalloweenSkinId = "room_3_halloween";
+	public const string Room4HalloweenSkinId = "room_4_halloween";
+	public const double HalloweenPackPrice = 100.0;
+
+	public static IReadOnlyList<string> HalloweenSkinIds { get; } =
+		System.Array.AsReadOnly(new[] {
+			Room1HalloweenSkinId, Room2HalloweenSkinId,
+			Room3HalloweenSkinId, Room4HalloweenSkinId
+		});
+
+	public static bool IsHalloween(string skinId) =>
+		System.Linq.Enumerable.Contains(HalloweenSkinIds, skinId,
+			System.StringComparer.OrdinalIgnoreCase);
+
+
 	private static readonly IReadOnlyList<MachineSkinDefinition>
 		Skins =
 		[
+			CreateHalloweenSkin(0, Room1HalloweenSkinId, "Garage"),
+			CreateHalloweenSkin(1, Room2HalloweenSkinId, "Server Room"),
+			CreateHalloweenSkin(2, Room3HalloweenSkinId, "Data Center"),
+			CreateHalloweenSkin(3, Room4HalloweenSkinId, "Quantum Lab"),
 			CreateRetroSkin(
 				roomIndex:
 					0,
@@ -320,6 +341,22 @@ public static class MachineSkinCatalog
 				)
 			]
 		);
+	}
+
+
+	private static MachineSkinDefinition CreateHalloweenSkin(
+		int roomIndex, string skinId, string roomName)
+	{
+		string basePath = $"res://assets/machines/room_{roomIndex + 1}/skin_halloween/";
+		return new MachineSkinDefinition(skinId, "Halloween",
+			$"Halloween machine skin for {roomName}. Included in the Halloween Machine Skin Pack.",
+			roomIndex, HalloweenPackPrice, LoadTexture(basePath + "empty.png"),
+			[
+				LoadTexture(basePath + "machine_1.png"),
+				LoadTexture(basePath + "machine_2.png"),
+				LoadTexture(basePath + "machine_3.png"),
+				LoadTexture(basePath + "machine_4.png")
+			]);
 	}
 
 

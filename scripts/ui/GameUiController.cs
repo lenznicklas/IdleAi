@@ -532,7 +532,8 @@ public sealed class GameUiController
 		_secretKorpoSkin =
 			new SecretKorpoSkinController(
 				_root,
-				_skinService
+				_skinService,
+				_machineSkinService
 			);
 
 		_secretKorpoSkin.MessageRequested +=
@@ -546,6 +547,7 @@ public sealed class GameUiController
 				UpdateAll();
 
 				_skinShop?.Refresh();
+				_machineSkinShop?.Refresh();
 				_secretKorpoSkin?.Refresh();
 			};
 

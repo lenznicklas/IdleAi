@@ -1,0 +1,59 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Text.Json;
+using Godot;
+using IdleAi;
+
+static class Program
+{
+    static int checks;
+    static void Check(bool value, string message)
+    { checks++; if (!value) throw new Exception(message); }
+    public static void Main()
+    {
+        Check(OS.GetEnvironment("XDG_DATA_HOME").Contains("halloween-test"), "Isolated profile required");
+        string path = ProjectSettings.GlobalizePath("user://idle_ai_machine_skins.json");
+        if (File.Exists(path)) File.Delete(path);
+        var state = new GameState(RoomCatalog.Create());
+        var service = new MachineSkinService(state);
+        Check(!service.IsHalloweenPackOwned && service.IsHalloweenPackAvailable, "Unowned complete pack");
+        Check(!service.BuyHalloweenPack().Changed, "Insufficient shards");
+        Check(MachineSkinCatalog.HalloweenSkinIds.All(id => !service.IsOwned(id)), "No partial grant on failure");
+        state.Shop.DataShards = 250;
+        Check(!service.BuyAndEquip(MachineSkinCatalog.Room1HalloweenSkinId).Changed, "Individual purchase blocked");
+        Check(service.BuyHalloweenPack().Changed && service.IsHalloweenPackOwned, "All four granted");
+        Check(state.Shop.DataShards == 150, "One 100 shard payment");
+        Check(!service.BuyHalloweenPack().Changed && state.Shop.DataShards == 150, "Owned purchase blocked");
+        for (int room = 0; room < 4; room++)
+        {
+            string id = MachineSkinCatalog.HalloweenSkinIds[room];
+            Check(MachineSkinCatalog.GetForRoom(room).Any(s => s.Id == id), "Room collection includes Halloween");
+            Check(MachineSkinCatalog.TryGet(id, out var skin) && skin.RoomIndex == room, "Correct room binding");
+            Check(service.Equip(id).Changed, "Equip room " + room);
+            Check(state.Rooms[room].EmptyTexture == skin.EmptyTexture, "Empty slot updated");
+            for (int tier = 0; tier < 4; tier++)
+                Check(state.Rooms[room].Machines[tier].Texture == skin.GetMachineTexture(tier), "Machine tier updated");
+        }
+        var loaded = new MachineSkinService(state);
+        Check(loaded.IsHalloweenPackOwned, "Ownership reload");
+        for (int room = 0; room < 4; room++)
+            Check(loaded.IsEquipped(room, MachineSkinCatalog.HalloweenSkinIds[room]), "Equip reload");
+        var archive = new AiArchiveProgressService(state, new ProgressionService(state, new EconomyService(state)),
+            new LabService(state), _ => false, loaded.IsOwned);
+        Check(archive.Capture().Categories.Single(c => c.Name == "SKINS").Entries.Count(e =>
+            e.Id.Contains("halloween") && e.Id.StartsWith("machine:") && e.Complete) == 4, "Archive derives all four owned skins");
+        File.WriteAllText(path, JsonSerializer.Serialize(new {
+            SaveVersion = 1, OwnedSkinIds = new[] { MachineSkinCatalog.Room1HalloweenSkinId, MachineSkinCatalog.Room2RetroSkinId },
+            EquippedSkinByRoom = new System.Collections.Generic.Dictionary<string,string> {
+                ["0"] = MachineSkinCatalog.Room4HalloweenSkinId }
+        }));
+        loaded = new MachineSkinService(state);
+        Check(!loaded.IsHalloweenPackOwned && loaded.IsOwned(MachineSkinCatalog.Room1HalloweenSkinId), "Partial ownership");
+        Check(loaded.GetEquippedSkinId(0) == MachineSkinCatalog.DefaultSkinId, "Cross room save rejected");
+        Check(loaded.BuyHalloweenPack().Changed && state.Shop.DataShards == 50, "Partial completion costs once");
+        Check(loaded.IsHalloweenPackOwned && loaded.IsOwned(MachineSkinCatalog.Room2RetroSkinId), "Existing ownership retained");
+        Check(new MachineSkinService(state).IsHalloweenPackOwned, "Partial completion persists");
+        Console.WriteLine($"Halloween machine pack: {checks} checks passed");
+    }
+}

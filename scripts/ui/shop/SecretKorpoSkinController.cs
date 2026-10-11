@@ -23,6 +23,7 @@ public sealed class SecretKorpoSkinController
 	private readonly Game _root;
 
 	private readonly BotSkinService _service;
+	private readonly MachineSkinService _machineService;
 
 
 	private VBoxContainer _shopContent =
@@ -58,8 +59,10 @@ public sealed class SecretKorpoSkinController
 
 	public SecretKorpoSkinController(
 		Game root,
-		BotSkinService service)
+		BotSkinService service,
+		MachineSkinService machineService)
 	{
+		_machineService = machineService;
 		_root =
 			root;
 
@@ -91,7 +94,8 @@ public sealed class SecretKorpoSkinController
 		_halloweenOffer =
 			new HalloweenOfferShopController(
 				_root,
-				_service
+				_service,
+				_machineService
 			);
 
 		_halloweenOffer.MessageRequested +=

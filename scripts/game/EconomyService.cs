@@ -11,6 +11,59 @@ public sealed class EconomyService
 		_state = state;
 	}
 
+	// Callers retain their existing amount validation, quotes and rounding.
+	// Keep the original less-than affordability comparison, including edge cases.
+	public bool CanAffordTokens(double amount) => !(_state.Tokens < amount);
+
+	public bool TrySpendTokens(double amount)
+	{
+		if (!CanAffordTokens(amount)) return false;
+		_state.Tokens -= amount;
+		return true;
+	}
+
+	// Separate recording preserves bulk-upgrade aggregation and action ordering.
+	public void RecordSlotSpending(double amount) => _state.Stats.AddSlotSpending(amount);
+
+	public void RecordMachineSpending(string category, double amount) =>
+		_state.Stats.AddMachineSpending(category, amount);
+
+	public void AddEarnedTokens(double amount)
+	{
+		if (amount <= 0.0) return;
+		_state.Tokens += amount;
+		_state.RunEarnedTokens += amount;
+		_state.Stats.AddEarned(amount);
+	}
+
+	// Offline settlement historically applies the amount unconditionally;
+	// StatsData retains its own positive-amount guard.
+	public void AddOfflineTokens(double amount)
+	{
+		_state.Tokens += amount;
+		_state.RunEarnedTokens += amount;
+		_state.Stats.AddOfflineEarned(amount);
+	}
+
+	public void GrantTokens(double amount) => _state.Tokens += amount;
+	public void RefundTokens(double amount) => _state.Tokens += amount;
+
+	public bool CanAffordDataShards(double amount) => !(_state.Shop.DataShards < amount);
+	public bool TrySpendDataShards(double amount)
+	{
+		if (!CanAffordDataShards(amount)) return false;
+		_state.Shop.DataShards -= amount;
+		return true;
+	}
+	public void GrantDataShards(double amount) => _state.Shop.DataShards += amount;
+	public void RefundDataShards(double amount) => _state.Shop.DataShards += amount;
+
+	public void ResetRunTokens()
+	{
+		_state.Tokens = 0.0;
+		_state.RunEarnedTokens = 0.0;
+	}
+
 	public double GetLevelUpgradeCost(
 		int roomIndex,
 		SlotData slot,

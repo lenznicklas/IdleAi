@@ -40,3 +40,30 @@ Unchecked items require manual verification; compilation does not prove gameplay
 - [ ] **Android build still succeeds:** Godot Android export with existing presets, signing and plugins; install and smoke-test.
 - [ ] **IAP consumables remain correct:** Purchase/restore/retry, exactly-once shards, persisted purchase ledger and completion after save.
 - [ ] **Main save recovery remains correct:** In isolated test copies only: invalid main + valid backup recovers; both invalid block autosave and preserve files.
+
+## Currency ownership phase
+
+- [x] `dotnet build`: 0 errors, 353 CS8632 warnings.
+- [x] Audit all first-party Token/shard writes and monetary Stats calls; classify remaining hydration/default/DTO writes in REFACTOR_SERVICES.md.
+- [x] Review full diff, exact message/category literals, unchanged constants/save files/SDK callbacks; `git diff --check`.
+- [x] Temporary built-assembly checks: earned/offline/grant/refund semantics, failed spends, category stats, bulk floating-point aggregation, fractional shards and prestige reset retention.
+- [ ] Normal machine production gives correct Tokens, lifetime TotalEarned and RunEarnedTokens; verify pipeline income too.
+- [ ] Slot unlock deducts exact cost and updates TotalSpent/SlotUnlockSpent.
+- [ ] Machine upgrades: 1x, 5x, 10x, MAX, partial affordability and tier; compare exact balance and named/total spending, including large balances and milestone behavior.
+- [ ] Bot purchase, repair and sale/refund: exact costs/refund, Bots/Bot Repairs stats; refunds leave earned/run/spent totals unchanged.
+- [ ] Room unlock: exact Token cost, slot spending, eligibility and existing shard reward behavior (current UnlockRoom does not grant shards).
+- [ ] Shard rewards and level reward claims: exact grant, claim marker, duplicate prevention and reload.
+- [ ] Laboratory unlock, Research Point purchase and research purchases: exact balances and existing categories; RP remains independent.
+- [ ] Pipeline, Infrastructure and Quantum upgrades: exact cost and stage/system/category stats.
+- [ ] Shop production boost, bot luck, permanent production/offline upgrades: unchanged whole-shard ceiling, duration/stacking and effects.
+- [ ] Instant production success: exact shard cost and Tokens/run/lifetime earnings; material/RP behavior unchanged.
+- [ ] Instant production failure/refund: no completed cycles restores exact charged shards, no Token credit.
+- [ ] Bot/machine skins and seasonal offers: exact quoted shard costs, ownership/equipment/save behavior.
+- [ ] Offline earnings: exact balance, run/lifetime/offline stats; cold load and suspend/resume, boost expiry and research completion splits.
+- [ ] Prestige: Tokens/run earnings zero; lifetime/offline/spending stats and shards retained; no new currency reward.
+- [ ] Secret/debug codes: same grants/messages/validation; Token grants leave run/lifetime/offline earnings unchanged.
+- [ ] Rewarded ads: one exact shard grant, same callback/save timing, failure grants nothing.
+- [ ] IAP grants where available: same shard amount, deduplication and grant -> save -> acknowledge/consume/finalize ordering.
+- [ ] Existing saves load identically; save/reload retains exact balances and stats, including legacy migration fixtures.
+- [ ] Singularity unlock: exact normal Token cost and slot-spending stats, failure/duplicate checks.
+- [ ] Singularity Matter production, purchases, refunds, offline settlement and independent saves remain unchanged.

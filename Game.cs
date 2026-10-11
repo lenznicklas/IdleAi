@@ -261,7 +261,7 @@ public partial class Game : Control
 
 		if (earned > 0.0)
 		{
-			AddEarnedTokens(
+			_economy.AddEarnedTokens(
 				earned
 			);
 		}
@@ -488,23 +488,6 @@ public partial class Game : Control
 		{
 			SaveGame();
 		}
-	}
-
-	private void AddEarnedTokens(
-		double amount)
-	{
-		if (amount <= 0)
-			return;
-
-		_state.Tokens +=
-			amount;
-
-		_state.RunEarnedTokens +=
-			amount;
-
-		_state.Stats.AddEarned(
-			amount
-		);
 	}
 
 	private void SetupSaveSystem()
@@ -1065,15 +1048,7 @@ public partial class Game : Control
 			)
 			* offlineFactor;
 
-		_state.Tokens +=
-			amount;
-
-		_state.RunEarnedTokens +=
-			amount;
-
-		_state.Stats.AddOfflineEarned(
-			amount
-		);
+		_economy.AddOfflineTokens(amount);
 
 		return amount;
 	}

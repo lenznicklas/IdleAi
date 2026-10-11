@@ -120,7 +120,7 @@ public sealed class ProgressionService
 				slotIndex
 			);
 
-		if (_state.Tokens < cost)
+		if (!_economy.TrySpendTokens(cost))
 		{
 			return new ProgressionResult(
 				false,
@@ -128,10 +128,8 @@ public sealed class ProgressionService
 			);
 		}
 
-		_state.Tokens -=
-			cost;
 
-		_state.Stats.AddSlotSpending(
+		_economy.RecordSlotSpending(
 			cost
 		);
 
@@ -387,11 +385,9 @@ public sealed class ProgressionService
 						slotIndex
 					);
 
-			if (_state.Tokens < cost)
+			if (!_economy.TrySpendTokens(cost))
 				break;
 
-			_state.Tokens -=
-				cost;
 
 			totalSpent +=
 				cost;
@@ -427,7 +423,7 @@ public sealed class ProgressionService
 			);
 		}
 
-		_state.Stats.AddMachineSpending(
+		_economy.RecordMachineSpending(
 			machine.MachineName,
 			totalSpent
 		);
@@ -486,7 +482,7 @@ public sealed class ProgressionService
 				slotIndex
 			);
 
-		if (_state.Tokens < cost)
+		if (!_economy.TrySpendTokens(cost))
 		{
 			return new ProgressionResult(
 				false,
@@ -494,10 +490,8 @@ public sealed class ProgressionService
 			);
 		}
 
-		_state.Tokens -=
-			cost;
 
-		_state.Stats.AddMachineSpending(
+		_economy.RecordMachineSpending(
 			machine.MachineName,
 			cost
 		);
@@ -573,7 +567,7 @@ public sealed class ProgressionService
 				roomIndex
 			);
 
-		if (_state.Tokens < cost)
+		if (!_economy.TrySpendTokens(cost))
 		{
 			return new ProgressionResult(
 				false,
@@ -581,10 +575,8 @@ public sealed class ProgressionService
 			);
 		}
 
-		_state.Tokens -=
-			cost;
 
-		_state.Stats.AddSlotSpending(
+		_economy.RecordSlotSpending(
 			cost
 		);
 

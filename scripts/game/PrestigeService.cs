@@ -12,10 +12,16 @@ public sealed class PrestigeService
 		1_000_000_000_000_000_000.0;
 
 	private readonly GameState _state;
+	private readonly EconomyService _economy;
+
+	public PrestigeService(GameState state)
+		: this(state, new EconomyService(state)) { }
 
 	public PrestigeService(
-		GameState state)
+		GameState state,
+		EconomyService economy)
 	{
+		_economy = economy;
 		_state =
 			state;
 	}
@@ -125,11 +131,7 @@ public sealed class PrestigeService
 
 	private void ResetNormalProgress()
 	{
-		_state.Tokens =
-			0.0;
-
-		_state.RunEarnedTokens =
-			0.0;
+		_economy.ResetRunTokens();
 
 		_state.CurrentRoomIndex =
 			0;

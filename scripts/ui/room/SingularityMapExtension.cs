@@ -47,6 +47,7 @@ public sealed partial class SingularityMapExtension
     private readonly Game _root;
     private readonly GameState _state;
     private readonly SingularityService _service;
+    private readonly EconomyService _economy;
     private readonly SingularityController _controller;
     private readonly MapController _map;
 
@@ -86,8 +87,10 @@ public sealed partial class SingularityMapExtension
         GameState state,
         SingularityService service,
         SingularityController controller,
-        MapController map)
+        MapController map,
+        EconomyService economy)
     {
+        _economy = economy;
         _root = root;
         _state = state;
         _service = service;
@@ -456,7 +459,7 @@ public sealed partial class SingularityMapExtension
                 return;
             }
 
-            SingularityActionResult result = _service.Unlock(_state);
+            SingularityActionResult result = _service.Unlock(_state, _economy);
             MessageRequested?.Invoke(result.Message);
 
             if (!result.Changed)

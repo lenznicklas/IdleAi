@@ -191,8 +191,12 @@ public sealed class SingularityService
 	}
 
 
+	public SingularityActionResult Unlock(GameState gameState) =>
+		Unlock(gameState, new EconomyService(gameState));
+
 	public SingularityActionResult Unlock(
-		GameState gameState)
+		GameState gameState,
+		EconomyService economy)
 	{
 		if (Unlocked)
 		{
@@ -203,8 +207,7 @@ public sealed class SingularityService
 		}
 
 		if (
-			gameState.Tokens
-			< TestUnlockTokenCost
+			!economy.TrySpendTokens(TestUnlockTokenCost)
 		)
 		{
 			return new SingularityActionResult(
@@ -217,10 +220,8 @@ public sealed class SingularityService
 			);
 		}
 
-		gameState.Tokens -=
-			TestUnlockTokenCost;
 
-		gameState.Stats.AddSlotSpending(
+		economy.RecordSlotSpending(
 			TestUnlockTokenCost
 		);
 

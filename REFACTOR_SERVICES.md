@@ -154,3 +154,79 @@ Phases 2–9 remain proposed work. Godot runtime, existing-save and Android chec
 - Compared against HEAD: Game is byte-for-byte unchanged outside CreateGameSystems; GameUiController is byte-for-byte unchanged outside its constructors. All existing service implementations, persistence/data definitions, scenes, assets, plugin configuration and gameplay constants are unchanged.
 - Manual Godot, historical-save, mobile integration and Android export checks have not been run; use REFACTOR_TEST_CHECKLIST.md. No automated gameplay tests added for this construction-only phase.
 - Changes remain uncommitted on `refactor/services`: two code files plus these two documentation files form a single separable phase-1 patch. No main-branch changes or unrelated user-file edits.
+
+
+## Currency phase: pre-change mutation audit
+
+Audited all first-party C# (Game.cs and scripts/**/*.cs; addon SDK code excluded).
+
+| Original location | Mutation / bookkeeping |
+| --- | --- |
+| Game.AddEarnedTokens | Machine/pipeline/frame production: Tokens + RunEarnedTokens + TotalEarned |
+| Game offline settlement final block | Tokens + RunEarnedTokens + OfflineEarned + TotalEarned; calculations untouched |
+| Game.LoadGame / save mapping | Restore Tokens, RunEarnedTokens, DataShards (legacy initial-shard branch); serialize balances and Stats |
+| ProgressionService.UnlockSlot / UnlockRoom | Tokens deduction + TotalSpent + SlotUnlockSpent |
+| ProgressionService.UpgradeLevel / UpgradeTier | Tokens deduction + TotalSpent + machine-name spending; bulk deductions individually, stats once using accumulated total |
+| BotService purchase / repair | Tokens deduction + TotalSpent + named Bots / Bot Repairs spending |
+| BotService sale | Tokens refund only; no earnings or spending reversal |
+| LabService.UnlockLab / BuyResearchPoints | Tokens deduction + TotalSpent + Laboratory / Research Points spending |
+| PipelineService / InfrastructureService / QuantumService upgrades | Tokens deduction + TotalSpent + existing named stage/system/upgrade spending |
+| SingularityService.Unlock | Normal Tokens deduction + TotalSpent + SlotUnlockSpent; Matter remains independent |
+| ShopService.GrantDataShards | Positive integer shards; ad and IAP controllers call this facade |
+| ShopService boost, luck, permanent production/offline upgrades, instant production | Shard deduction using existing ceiling(amount - 1e-9); failure refunds exact cost |
+| ShopService instant production success | Tokens + RunEarnedTokens + TotalEarned |
+| LevelRewardService.Claim | Fixed RewardDataShards grant; claim marker/order retained |
+| BotSkinService.GrantDebugTokens | Validated secret/debug grant: balance only |
+| BotSkinService / MachineSkinService purchases | Shards deducted at exact quoted price, without shop ceiling |
+| PrestigeService.ResetNormalProgress | Tokens and RunEarnedTokens reset to zero; no Token/shard prestige reward |
+| StatsData | Sole existing internal earned/offline/spending counters and machine dictionary mutations; save restoration |
+| GameState / ShopData / SaveData | Property declarations, initial shard default, persistence DTOs |
+
+Other monetary-looking resources audited: ResearchPoints are awarded by ProductionService and bulk machine upgrades, bought/spent by LabService, restored by Game. They remain the lab resource, outside this Token/shard phase. AiCores only restore from saves in current gameplay; prestige increments PrestigeCount. Room unlock reward flag and legacy machine shard milestone helpers do not currently grant shards; no new rewards introduced. All Singularity Matter/invested-Matter/node/bot/core mutations remain separate. UI has no direct normal currency writes: ad/IAP/secret callbacks use existing facades. External SDK lifecycle and grant -> save -> completion ordering remain untouched.
+
+## Completed currency ownership phase
+
+The existing EconomyService now owns normal Token and Data Shard writes. GameServices/GameServiceFactory retain explicit ownership and inject the same economy instance into the newly dependent services. Compatibility service constructors delegate to an EconomyService over the same state; they introduce no independent balance or persistence. Singularity's production caller passes the session economy to Unlock; the old Unlock signature remains compatible. Nothing else in Singularity was extracted.
+
+New API:
+
+- `CanAffordTokens(double)` / `TrySpendTokens(double)`
+- `RecordSlotSpending(double)` / `RecordMachineSpending(string, double)`
+- `AddEarnedTokens(double)` / `AddOfflineTokens(double)`
+- `GrantTokens(double)` / `RefundTokens(double)`
+- `CanAffordDataShards(double)` / `TrySpendDataShards(double)`
+- `GrantDataShards(double)` / `RefundDataShards(double)`
+- `ResetRunTokens()`
+
+Amount validation remains at the existing domain entry points. Affordability preserves the original `balance < cost` comparison (including its non-finite edge behavior); no new clamping or rounding. Spending records remain explicit because bots/repairs/research record after their existing state transitions, and bulk upgrades record one summed amount after all individual deductions. This avoids changing floating-point aggregation. All record methods delegate to unchanged StatsData, preserving TotalSpent, SlotUnlockSpent and exact existing machine category strings. Refunds do not reduce spending statistics.
+
+| Operation | Balance | Run earned | Lifetime earned | Offline earned |
+| --- | --- | --- | --- | --- |
+| Normal machine / pipeline income | + amount | + amount | + amount | unchanged |
+| Instant production success | + amount | + amount | + amount | unchanged |
+| Offline settlement | + amount | + amount | + positive amount | + positive amount |
+| Secret/debug/admin grant | + amount | unchanged | unchanged | unchanged |
+| Bot sale/refund | + refund | unchanged | unchanged | unchanged |
+| Prestige reset | zero | zero | unchanged | unchanged |
+
+Production keeps its original positive-income guards. Offline settlement still applies its final amount unconditionally, with StatsData retaining its own positive-amount guard. Offline calculation, research/boost settlement and frame ordering are unchanged. Current ad/IAP rewards grant shards through ShopService, not earned Tokens; no hypothetical Token purchase bookkeeping was added.
+
+Shard storage remains `GameState.Shop.DataShards` as double. ShopService retains `WholeShardCost` unchanged, including finite/positive validation and `Math.Ceiling(amount - 0.000000001)`. Skin services spend exact quoted prices, including seasonal prices. Instant-production failure refunds exactly the charged whole cost. Grants retain their existing integer entry points and fixed level-reward amount; no new shard statistics, rewards or balance normalization.
+
+Intentional remaining writes outside EconomyService:
+
+- Game.LoadGame restores Tokens, RunEarnedTokens and DataShards, including its unchanged legacy initial-shard migration. Save hydration is not a gameplay transaction and must not generate earnings/spending.
+- ShopData retains its initial-shard initializer. GameState and save DTO setters remain public as before; serialization object initializers copy balances rather than mutate gameplay currency.
+- StatsData retains its internal counters/dictionary and LoadFromSaveData. Only EconomyService invokes gameplay monetary stats updates now.
+- Lab ResearchPoints, legacy AiCores and Singularity Matter retain their original domain ownership; they are outside the requested Token/shard boundary.
+
+Verification:
+
+- `dotnet build`: succeeded, 0 errors, 353 CS8632 warnings; no project/warning policy changes.
+- Temporary executable harness against the built IdleAi assembly passed earned/offline/grant/refund distinctions, failed affordability, slot/machine categories, large-number bulk aggregation, exact fractional shard debit/refund, and reset retention. Run using installed .NET 10 with major roll-forward; not a Godot/device gameplay test.
+- Final currency-write/stat-call search: only economy gameplay mutations, Game hydration and existing data/DTO initialization/restoration remain.
+- Reviewed full diff. All changed C# string literals match HEAD, including player messages and category keys. Save/data definitions, GameConfig, SaveManager, serializers, billing, ad/IAP callback files and scenes are unchanged. Game changes are limited to earned method removal/call migration and the final offline credit.
+- `git diff --check`: passed. No save migration: main version remains 21, all independent save versions/formats/paths unchanged; historical save loading remains a manual check.
+- Manual runtime/device verification remains unchecked in REFACTOR_TEST_CHECKLIST.md. Work remains on refactor/services, uncommitted.
+
+Recommended next phase: consolidate normal progression/room eligibility entry points, retaining reward/level formulas and existing gates. Offline extraction and save extraction remain separate future work; neither is included here.

@@ -25,6 +25,7 @@ public sealed class BotSkinService
 
 
 	private readonly GameState _state;
+	private readonly EconomyService _economy;
 
 	private readonly HashSet<string> _ownedSkinIds =
 		new(
@@ -39,9 +40,14 @@ public sealed class BotSkinService
 		_state.Shop.DataShards;
 
 
+	public BotSkinService(GameState state)
+		: this(state, new EconomyService(state)) { }
+
 	public BotSkinService(
-		GameState state)
+		GameState state,
+		EconomyService economy)
 	{
+		_economy = economy;
 		_state =
 			state;
 
@@ -93,8 +99,7 @@ public sealed class BotSkinService
 			);
 		}
 
-		_state.Tokens +=
-			amount;
+		_economy.GrantTokens(amount);
 
 		return new BotSkinResult(
 			true,
@@ -245,8 +250,7 @@ public sealed class BotSkinService
 		}
 
 		if (
-			_state.Shop.DataShards
-			< price
+			!_economy.TrySpendDataShards(price)
 		)
 		{
 			return new BotSkinResult(
@@ -255,8 +259,6 @@ public sealed class BotSkinService
 			);
 		}
 
-		_state.Shop.DataShards -=
-			price;
 
 		_ownedSkinIds.Add(
 			skin.Id

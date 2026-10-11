@@ -244,7 +244,8 @@ public partial class Game
 				_state,
 				_singularityService,
 				_singularityController,
-				_ui.Map
+				_ui.Map,
+				_economy
 			);
 
 		_singularityMapExtension.MessageRequested +=

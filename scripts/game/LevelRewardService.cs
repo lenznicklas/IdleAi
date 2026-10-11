@@ -16,12 +16,18 @@ public sealed class LevelRewardService
 		10;
 
 	private readonly GameState _state;
+	private readonly EconomyService _economy;
 	private readonly ProgressionService _progression;
+
+	public LevelRewardService(GameState state, ProgressionService progression)
+		: this(state, progression, new EconomyService(state)) { }
 
 	public LevelRewardService(
 		GameState state,
-		ProgressionService progression)
+		ProgressionService progression,
+		EconomyService economy)
 	{
+		_economy = economy;
 		_state =
 			state;
 
@@ -134,8 +140,7 @@ public sealed class LevelRewardService
 			.HighestClaimedLevelReward =
 				milestoneLevel;
 
-		_state.Shop.DataShards +=
-			RewardDataShards;
+		_economy.GrantDataShards(RewardDataShards);
 
 		return new LevelRewardResult(
 			true,

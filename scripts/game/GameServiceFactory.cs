@@ -9,20 +9,20 @@ public static class GameServiceFactory
 		GameState state = new(RoomCatalog.Create());
 		EconomyService economy = new(state);
 		PipelineService pipeline = new(state, economy);
-		InfrastructureService infrastructure = new(state);
-		QuantumService quantum = new(state);
+		InfrastructureService infrastructure = new(state, economy);
+		QuantumService quantum = new(state, economy);
 		ProgressionService progression = new(state, economy);
 		ProductionService production = new(state, economy, pipeline);
 		BotService bots = new(state, economy);
-		PrestigeService prestige = new(state);
-		LabService lab = new(state);
+		PrestigeService prestige = new(state, economy);
+		LabService lab = new(state, economy);
 		ShopService shop = new(state, economy, production);
 
 		// Skin constructors load cosmetics before room views or the main save.
 		// Settings then loads preferences and starts music at the original point.
-		BotSkinService botSkins = new(state);
-		MachineSkinService machineSkins = new(state);
-		LevelRewardService levelRewards = new(state, progression);
+		BotSkinService botSkins = new(state, economy);
+		MachineSkinService machineSkins = new(state, economy);
+		LevelRewardService levelRewards = new(state, progression, economy);
 		GameSettingsService settings = new(root);
 
 		return new GameServices(

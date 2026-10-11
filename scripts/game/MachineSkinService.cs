@@ -25,6 +25,7 @@ public sealed class MachineSkinService
 
 
 	private readonly GameState _state;
+	private readonly EconomyService _economy;
 
 	private readonly HashSet<string> _ownedSkinIds =
 		new(
@@ -36,9 +37,14 @@ public sealed class MachineSkinService
 			new();
 
 
+	public MachineSkinService(GameState state)
+		: this(state, new EconomyService(state)) { }
+
 	public MachineSkinService(
-		GameState state)
+		GameState state,
+		EconomyService economy)
 	{
+		_economy = economy;
 		_state =
 			state;
 
@@ -124,8 +130,7 @@ public sealed class MachineSkinService
 		}
 
 		if (
-			_state.Shop.DataShards
-			< skin.Cost
+			!_economy.TrySpendDataShards(skin.Cost)
 		)
 		{
 			return new MachineSkinResult(
@@ -134,8 +139,6 @@ public sealed class MachineSkinService
 			);
 		}
 
-		_state.Shop.DataShards -=
-			skin.Cost;
 
 		_ownedSkinIds.Add(
 			skin.Id

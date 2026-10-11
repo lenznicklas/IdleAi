@@ -60,60 +60,23 @@ public sealed class GameUiController
 
 	public GameUiController(
 		Game root,
-		GameState state,
-		EconomyService economy,
-		ProgressionService progression,
-		ProductionService production,
-		BotService bots,
-		PrestigeService prestige,
-		ShopService shopService,
-		PipelineService pipelineService,
-		InfrastructureService infrastructureService,
-		QuantumService quantumService)
-		: this(
-			root, state, economy, progression, production, bots,
-			prestige, shopService, pipelineService,
-			infrastructureService, quantumService,
-			new BotSkinService(state),
-			new MachineSkinService(state),
-			new LevelRewardService(state, progression),
-			new GameSettingsService(root))
-	{
-	}
-
-	internal GameUiController(
-		Game root,
-		GameState state,
-		EconomyService economy,
-		ProgressionService progression,
-		ProductionService production,
-		BotService bots,
-		PrestigeService prestige,
-		ShopService shopService,
-		PipelineService pipelineService,
-		InfrastructureService infrastructureService,
-		QuantumService quantumService,
-		BotSkinService skinService,
-		MachineSkinService machineSkinService,
-		LevelRewardService levelRewardService,
-		GameSettingsService settingsService)
+		GameServices services)
 	{
 		_root = root;
-		_state = state;
-		_economy = economy;
-		_progression = progression;
-		_production = production;
-		_bots = bots;
-		_prestigeService = prestige;
-		_shopService = shopService;
-		_pipelineService = pipelineService;
-		_infrastructureService = infrastructureService;
-		_quantumService = quantumService;
-
-		_skinService = skinService;
-		_machineSkinService = machineSkinService;
-		_levelRewardService = levelRewardService;
-		_settingsService = settingsService;
+		_state = services.State;
+		_economy = services.Economy;
+		_progression = services.Progression;
+		_production = services.Production;
+		_bots = services.Bots;
+		_prestigeService = services.Prestige;
+		_shopService = services.Shop;
+		_pipelineService = services.Pipeline;
+		_infrastructureService = services.Infrastructure;
+		_quantumService = services.Quantum;
+		_skinService = services.BotSkins;
+		_machineSkinService = services.MachineSkins;
+		_levelRewardService = services.LevelRewards;
+		_settingsService = services.Settings;
 	}
 
 	public void Initialize()

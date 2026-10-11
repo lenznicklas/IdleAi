@@ -427,6 +427,7 @@ public sealed partial class SingularityMapExtension
 
         _stateLabel = CreateLabel(10, "");
         _stateLabel.HorizontalAlignment = HorizontalAlignment.Left;
+        MapLockPresentation.ConfigureLabel(_stateLabel);
         box.AddChild(_stateLabel);
 
         PanelContainer badge = new()
@@ -438,6 +439,7 @@ public sealed partial class SingularityMapExtension
         _roomButton.AddChild(badge);
 
         _badgeLabel = CreateLabel(11, "");
+        MapLockPresentation.ConfigureLabel(_badgeLabel);
         badge.AddChild(_badgeLabel);
         RefreshBadgeStyle(badge);
     }
@@ -539,29 +541,24 @@ public sealed partial class SingularityMapExtension
 
         if (current)
         {
-            _stateLabel.Text = "TAP TO ENTER";
+            MapLockPresentation.SetText(_stateLabel, "TAP TO ENTER");
             _stateLabel.Modulate = Colors.White;
-            _badgeLabel.Text = "● CURRENT";
+            MapLockPresentation.SetText(_badgeLabel, "● CURRENT");
         }
         else if (unlocked)
         {
-            _stateLabel.Text = "TAP TO ENTER";
+            MapLockPresentation.SetText(_stateLabel, "TAP TO ENTER");
             _stateLabel.Modulate = Colors.White;
-            _badgeLabel.Text = "ENTER";
+            MapLockPresentation.SetText(_badgeLabel, "ENTER");
         }
         else
         {
-            _stateLabel.Text = "LOCKED";
+            MapLockPresentation.SetText(_stateLabel, "LOCKED");
             _stateLabel.Modulate = new Color(0.64f, 0.67f, 0.72f, 1.0f);
 
-            bool eligible = RoomUnlockRules.CanUnlockSingularity(_state, out _);
-
-            _badgeLabel.Text = !eligible
-                ? "UNLOCK ROOM 4 FIRST"
-                : "UNLOCK • "
-                    + NumberFormatter.Format(
-                        SingularityService.TestUnlockTokenCost
-                    );
+            MapLockPresentation.SetText(_badgeLabel,
+                MapLockPresentation.GetRequirementBadge(_state, GameConfig.QuantumRoomIndex + 1,
+                    SingularityService.TestUnlockTokenCost, singularity: true));
         }
 
         ApplyNodeStyle(unlocked);

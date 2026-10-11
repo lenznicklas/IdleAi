@@ -118,7 +118,7 @@ public sealed class StatsOverlayController
 		AiArchiveOverlayController.Text(body, "AI ARCHIVE", 25, new Color("72dafa"));
 		AiArchiveOverlayController.Text(body, "Track everything you've discovered.", 17);
 		_archiveSummary = AiArchiveOverlayController.Text(body, "", 17);
-		body.AddChild(AiArchiveOverlayController.Button("OPEN AI ARCHIVE", archive.Open));
+		body.AddChild(AiArchiveOverlayController.NavigationButton("OPEN AI ARCHIVE", archive.Open));
 		list.AddChild(card); list.MoveChild(card, list.GetNode<Label>("Title").GetIndex());
 		list.GetNode<Label>("Title").Text = "STATISTICS";
 	}

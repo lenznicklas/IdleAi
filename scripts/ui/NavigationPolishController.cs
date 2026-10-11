@@ -398,6 +398,8 @@ public sealed partial class NavigationPolishController
 
 	private void RefreshRoomUnlockGuards()
 	{
+		// Card controllers own status/requirement labels. This timer only guards
+		// input; rewriting their text here would race MapController.Refresh().
 		Control? mapPage =
 			_root.GetNodeOrNull<Control>(
 				"MapPage"
@@ -448,15 +450,8 @@ public sealed partial class NavigationPolishController
 
 			if (blocked)
 			{
-				ApplyRequirementText(
-					roomButton,
-					roomIndex - 1
-				);
-
-				blocker.TooltipText =
-					GetRequirementMessage(
-						roomIndex - 1
-					);
+				string message = GetRequirementMessage(roomIndex - 1);
+				if (blocker.TooltipText != message) blocker.TooltipText = message;
 			}
 		}
 
@@ -506,7 +501,7 @@ public sealed partial class NavigationPolishController
 		Control mapPage)
 	{
 		int previousRoomIndex =
-			_state.RoomStates.Count - 1;
+			GameConfig.QuantumRoomIndex;
 
 		if (previousRoomIndex < 0)
 			return;
@@ -550,15 +545,8 @@ public sealed partial class NavigationPolishController
 		if (!blocked)
 			return;
 
-		ApplyRequirementText(
-			_singularityRoomButton,
-			previousRoomIndex
-		);
-
-		blocker.TooltipText =
-			GetRequirementMessage(
-				previousRoomIndex
-			);
+		string message = GetRequirementMessage(previousRoomIndex);
+		if (blocker.TooltipText != message) blocker.TooltipText = message;
 	}
 
 	private bool CanAdvanceFromRoom(int previousRoomIndex) =>
@@ -633,77 +621,6 @@ public sealed partial class NavigationPolishController
 		blocker.MoveToFront();
 
 		return blocker;
-	}
-
-	private void ApplyRequirementText(
-		Button roomButton,
-		int previousRoomIndex)
-	{
-		RoomState previousRoom =
-			_state.RoomStates[
-				previousRoomIndex
-			];
-
-		int missingSlots = RoomUnlockRules.CountLockedSlots(previousRoom);
-
-		string stateText =
-			previousRoom.Unlocked
-				? "COMPLETE PREVIOUS ROOM"
-				: "PREVIOUS ROOM LOCKED";
-
-		string badgeText =
-			previousRoom.Unlocked
-				? "UNLOCK "
-					+ missingSlots
-					+ " MORE SLOT"
-					+ (
-						missingSlots == 1
-							? ""
-							: "S"
-					)
-				: "UNLOCK ROOM "
-					+ (previousRoomIndex + 1)
-					+ " FIRST";
-
-		foreach (
-			Label label
-				in FindDescendants<Label>(
-					roomButton
-				)
-		)
-		{
-			if (
-				label.Text == "LOCKED"
-				|| label.Text == "COMPLETE PREVIOUS ROOM"
-				|| label.Text == "PREVIOUS ROOM LOCKED"
-			)
-			{
-				label.Text = stateText;
-				continue;
-			}
-
-			if (
-				label.Text.StartsWith(
-					"UNLOCK • ",
-					StringComparison.Ordinal
-				)
-				|| label.Text.StartsWith(
-					"UNLOCK ROOM ",
-					StringComparison.Ordinal
-				)
-				|| label.Text.StartsWith(
-					"UNLOCK 1 MORE SLOT",
-					StringComparison.Ordinal
-				)
-				|| label.Text.Contains(
-					" MORE SLOTS",
-					StringComparison.Ordinal
-				)
-			)
-			{
-				label.Text = badgeText;
-			}
-		}
 	}
 
 	private static Button?

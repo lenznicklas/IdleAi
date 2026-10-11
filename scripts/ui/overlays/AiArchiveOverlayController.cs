@@ -39,13 +39,18 @@ public sealed class AiArchiveOverlayController
         var body = new VBoxContainer(); margin.AddChild(body); body.AddThemeConstantOverride("separation", 14);
         var header = new Label { Text = "AI ARCHIVE", CustomMinimumSize = new Vector2(0, 56), VerticalAlignment = VerticalAlignment.Center };
         header.AddThemeFontSizeOverride("font_size", 30); header.AddThemeColorOverride("font_color", Cyan); body.AddChild(header);
-        _back = Button("‹  ALL CATEGORIES", Overview); body.AddChild(_back);
+        _back = NavigationButton("‹  ALL CATEGORIES", Overview); body.AddChild(_back);
         _scroll = new ScrollContainer { SizeFlagsVertical = Control.SizeFlags.ExpandFill, HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled };
         body.AddChild(_scroll);
         _content = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         _content.AddThemeConstantOverride("separation", 12); _scroll.AddChild(_content);
         _motion = new MobileScrollController(); _overlay.AddChild(_motion); _motion.Setup(_scroll);
-        OverlayCloseButton.Add(panel, () => { _motion.ResetMotion(); _overlay.Hide(); });
+        var close = OverlayCloseButton.Add(panel, () => { _motion.ResetMotion(); _overlay.Hide(); });
+        // Browsing gets only a small brightness response, with no tween or haptic.
+        close.ButtonDown += () => close.SelfModulate = new Color(0.92f, 0.92f, 0.92f);
+        close.ButtonUp += () => close.SelfModulate = Colors.White;
+        close.MouseExited += () => close.SelfModulate = Colors.White;
+        close.VisibilityChanged += () => close.SelfModulate = Colors.White;
     }
 
     private void Clear()
@@ -61,7 +66,7 @@ public sealed class AiArchiveOverlayController
         Text(_content, "Track everything you've discovered.", 18);
         foreach (var category in _snapshot.Categories)
         {
-            var button = Button($"{category.Name}    {category.Completed} / {category.Total}    ›", () => Category(category));
+            var button = NavigationButton($"{category.Name}    {category.Completed} / {category.Total}    ›", () => Category(category));
             if (category.Total > 0 && category.Completed == category.Total) button.AddThemeColorOverride("font_color", Gold);
             _content.AddChild(button);
         }
@@ -96,13 +101,20 @@ public sealed class AiArchiveOverlayController
         var label = new Label { Text = text, AutowrapMode = TextServer.AutowrapMode.WordSmart, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         label.AddThemeFontSizeOverride("font_size", size); label.AddThemeColorOverride("font_color", color ?? new Color("a4b9cf")); parent.AddChild(label); return label;
     }
-    internal static Button Button(string text, Action action)
+    internal static Button NavigationButton(string text, Action action)
     {
         var button = new Button { Text = text, CustomMinimumSize = new Vector2(0, 68), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         button.AddThemeFontSizeOverride("font_size", 20); button.AddThemeColorOverride("font_color", Cyan);
-        button.AddThemeStyleboxOverride("normal", Style(new Color("102039"), new Color("295672")));
-        button.AddThemeStyleboxOverride("hover", Style(new Color("18314c"), Cyan));
-        button.AddThemeStyleboxOverride("pressed", Style(new Color("0b1b30"), Gold));
+        // Navigation stays in the normal palette; gold is reserved for collection status.
+        // Define every interactive state so touch/keyboard input cannot fall back to a loud theme.
+        var background = new Color("102039");
+        var border = new Color("295672");
+        var pressed = Style(background.Darkened(0.08f), border);
+        button.AddThemeStyleboxOverride("normal", Style(background, border));
+        button.AddThemeStyleboxOverride("hover", Style(background.Lightened(0.035f), border));
+        button.AddThemeStyleboxOverride("pressed", pressed);
+        button.AddThemeStyleboxOverride("hover_pressed", pressed);
+        button.AddThemeStyleboxOverride("focus", Style(Colors.Transparent, border.Lightened(0.08f)));
         button.Pressed += action; return button;
     }
     internal static StyleBoxFlat Style(Color background, Color border) => new() {

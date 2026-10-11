@@ -89,8 +89,8 @@ public sealed partial class SingularityController
 	{
 		if (
 			_detailOverlay == null
-			|| !_detailOverlay.Visible
 			|| _detailIsCore
+			|| _detailViewKey == "sell-confirmation"
 			|| _selectedNode < 0
 			|| _detailContent == null
 		)
@@ -124,8 +124,7 @@ public sealed partial class SingularityController
 
 		if (existing != null)
 		{
-			existing.Text =
-				text;
+			if (existing.Text != text) existing.Text = text;
 
 			return;
 		}
@@ -149,6 +148,7 @@ public sealed partial class SingularityController
 					Control.FocusModeEnum.None
 			};
 
+		button.ClipText = true;
 		ApplyNodeTypeButtonStyle(
 			button,
 			GetNodeColor(

@@ -3117,9 +3117,15 @@ public sealed partial class SingularityController
 			12
 		);
 
-		margin.AddChild(
-			_detailContent
-		);
+		_detailScroll = new ScrollContainer
+		{
+			HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled,
+			SizeFlagsVertical = Control.SizeFlags.ExpandFill
+		};
+		margin.AddChild(_detailScroll);
+		_detailScroll.AddChild(_detailContent);
+		SizeDetailPanel();
+		_root.GetViewport().SizeChanged += SizeDetailPanel;
 
 
 		OverlayCloseButton.Add(
@@ -3189,6 +3195,7 @@ public sealed partial class SingularityController
 			return;
 		}
 
+		if (_detailViewKey == "sell-confirmation") return;
 		if (_detailIsCore)
 		{
 			BuildCoreOverlay();
@@ -3202,6 +3209,9 @@ public sealed partial class SingularityController
 
 	private void ClearDetailContent()
 	{
+		_detailValueUpdates.Clear();
+		_detailViewKey = null;
+		_detailScroll.ScrollVertical = 0;
 		foreach (
 			Node child
 				in _detailContent.GetChildren()
@@ -3218,10 +3228,9 @@ public sealed partial class SingularityController
 
 	private void BuildCoreOverlay()
 	{
-		ClearDetailContent();
-
-		int sectorIndex =
-			_service.CurrentSectorIndex;
+		int sectorIndex = _service.CurrentSectorIndex;
+		bool coreUnlocked = _service.IsSectorCoreUnlocked(sectorIndex);
+		if (!BeginDetailView($"core:{sectorIndex}:{coreUnlocked}")) return;
 
 		int sectorNumber =
 			sectorIndex + 1;
@@ -3249,8 +3258,11 @@ public sealed partial class SingularityController
 		);
 
 		AddBuildInfo(_detailContent, SingularityBuildRules.ModifierText(_service.GetSector(sectorIndex).Modifier));
-		var formations = _service.GetSectorFormations(sectorIndex);
-		AddBuildInfo(_detailContent, "Active formations: " + (formations.Count == 0 ? "none" : string.Join(", ", formations.Select(f => f.Name).Distinct())));
+		AddDetailValueInfo(_detailContent, () =>
+		{
+			var formations = _service.GetSectorFormations(sectorIndex);
+			return "Active formations: " + (formations.Count == 0 ? "none" : string.Join(", ", formations.Select(f => f.Name).Distinct()));
+		}, lines: 3);
 		AddFormationGuide(_detailContent);
 
 		TextureRect image =
@@ -3328,6 +3340,8 @@ public sealed partial class SingularityController
 						Control.FocusModeEnum.None
 				};
 
+			BindDetailButton(unlock, () => "UNLOCK CORE\n"
+				+ NumberFormatter.Format(_service.GetSectorCoreUnlockCost(sectorIndex)) + " MATTER");
 			ApplyGoldButtonStyle(
 				unlock
 			);
@@ -3347,6 +3361,7 @@ public sealed partial class SingularityController
 				unlock
 			);
 
+			FinishDetailView();
 			return;
 		}
 
@@ -3356,10 +3371,7 @@ public sealed partial class SingularityController
 			);
 
 		Label levelLabel =
-			CreateLabel(
-				20,
-				"CORE LEVEL " + level
-			);
+			CreateDetailValueLabel(20, () => "CORE LEVEL " + _service.GetSectorCoreLevel(sectorIndex));
 
 		_detailContent.AddChild(
 			levelLabel
@@ -3385,9 +3397,9 @@ public sealed partial class SingularityController
 		);
 
 		statBox.AddChild(
-			CreateLabel(
+			CreateDetailValueLabel(
 				14,
-				"Core generation: "
+				() => "Core generation: "
 					+ NumberFormatter.Format(
 						_service.GetSectorCoreOutputPerSecond(
 							sectorIndex
@@ -3398,9 +3410,9 @@ public sealed partial class SingularityController
 		);
 
 		statBox.AddChild(
-			CreateLabel(
+			CreateDetailValueLabel(
 				14,
-				"Sector Compute multiplier: x"
+				() => "Sector Compute multiplier: x"
 					+ _service
 						.GetSectorComputeCoreMultiplier(
 							sectorIndex
@@ -3410,9 +3422,9 @@ public sealed partial class SingularityController
 		);
 
 		statBox.AddChild(
-			CreateLabel(
+			CreateDetailValueLabel(
 				13,
-				"Unlocked Sector Cores: "
+				() => "Unlocked Sector Cores: "
 					+ _service.CoreCount
 			)
 		);
@@ -3439,6 +3451,9 @@ public sealed partial class SingularityController
 					Control.FocusModeEnum.None
 			};
 
+		BindDetailButton(upgrade, () => "UPGRADE CORE TO LEVEL "
+			+ (_service.GetSectorCoreLevel(sectorIndex) + 1) + "\n"
+			+ NumberFormatter.Format(_service.GetSectorCoreUpgradeCost(sectorIndex)) + " MATTER");
 		ApplyGoldButtonStyle(
 			upgrade
 		);
@@ -3457,18 +3472,19 @@ public sealed partial class SingularityController
 		_detailContent.AddChild(
 			upgrade
 		);
+		FinishDetailView();
 	}
 
 
 	private void BuildNodeOverlay()
 	{
-		ClearDetailContent();
-
 		SingularityNodeData node =
 			_service.GetNode(
 				_service.CurrentSectorIndex,
 				_selectedNode
 			);
+
+		if (!BeginDetailView($"node:{_service.CurrentSectorIndex}:{_selectedNode}:{node.Type}")) return;
 
 		if (
 			node.Type
@@ -3476,6 +3492,7 @@ public sealed partial class SingularityController
 		)
 		{
 			BuildEmptyNodeOverlay();
+			FinishDetailView();
 
 			return;
 		}
@@ -3483,6 +3500,7 @@ public sealed partial class SingularityController
 		BuildFilledNodeOverlay(
 			node
 		);
+		FinishDetailView();
 	}
 
 
@@ -3749,6 +3767,13 @@ public sealed partial class SingularityController
 					!unlocked
 			};
 
+		BindDetailButton(buy, () =>
+		{
+			bool coreReady = _service.IsSectorCoreUnlocked(_service.CurrentSectorIndex);
+			bool typeReady = _service.IsNodeTypeUnlocked(type);
+			return !coreReady ? "CORE\nLOCKED" : !typeReady ? "LOCKED\n" + _service.GetNodeUnlockText(type)
+				: "BUY\n" + NumberFormatter.Format(_service.GetBuildCost(_service.CurrentSectorIndex, type));
+		}, () => !_service.IsSectorCoreUnlocked(_service.CurrentSectorIndex) || !_service.IsNodeTypeUnlocked(type));
 		ApplyNodeTypeButtonStyle(
 			buy,
 			GetNodeColor(
@@ -3815,11 +3840,7 @@ public sealed partial class SingularityController
 
 
 		Label level =
-			CreateLabel(
-				19,
-				"LEVEL "
-					+ node.Level
-			);
+			CreateDetailValueLabel(19, () => "LEVEL " + _service.GetNode(_service.CurrentSectorIndex, _selectedNode).Level);
 
 		_detailContent.AddChild(
 			level
@@ -3871,7 +3892,7 @@ public sealed partial class SingularityController
 		);
 		AddBuildInfo(statBox, $"Quality: {node.Quality} (×{SingularityBuildRules.QualityMultiplier(node.Quality):0.00})", QualityColor(node.Quality));
 		AddBuildInfo(statBox, SingularityBuildRules.ModifierText(_service.GetCurrentSector().Modifier));
-		AddBuildInfo(statBox, _service.GetNodeBonuses(_service.CurrentSectorIndex, _selectedNode).Summary);
+		AddDetailValueInfo(statBox, () => _service.GetNodeBonuses(_service.CurrentSectorIndex, _selectedNode).Summary, lines: 4);
 
 
 		if (
@@ -3880,9 +3901,9 @@ public sealed partial class SingularityController
 		)
 		{
 			statBox.AddChild(
-				CreateLabel(
+				CreateDetailValueLabel(
 					14,
-					"Current output: "
+					() => "Current output: "
 						+ NumberFormatter.Format(
 							_service.GetNodeDisplayedOutput(
 								_service.CurrentSectorIndex,
@@ -3895,7 +3916,7 @@ public sealed partial class SingularityController
 		}
 		else
 		{
-			AddBuildInfo(statBox, _service.GetNodeEffectText(_service.CurrentSectorIndex, _selectedNode));
+			AddDetailValueInfo(statBox, () => _service.GetNodeEffectText(_service.CurrentSectorIndex, _selectedNode), lines: 2);
 		}
 
 
@@ -3930,6 +3951,8 @@ public sealed partial class SingularityController
 					Control.FocusModeEnum.None
 			};
 
+		BindDetailButton(upgrade, () => "UPGRADE TO LEVEL " + (_service.GetNode(_service.CurrentSectorIndex, _selectedNode).Level + 1) + "\n"
+			+ NumberFormatter.Format(_service.GetNodeUpgradeCost(_service.CurrentSectorIndex, _selectedNode)) + " MATTER");
 		ApplyNodeTypeButtonStyle(
 			upgrade,
 			accent
@@ -3980,6 +4003,8 @@ public sealed partial class SingularityController
 					Control.FocusModeEnum.None
 			};
 
+		BindDetailButton(sell, () => "SELL NODE\nREFUND "
+			+ NumberFormatter.Format(_service.GetNodeSellRefund(_service.CurrentSectorIndex, _selectedNode)) + " MATTER");
 		ApplySellButtonStyle(
 			sell
 		);
@@ -4027,6 +4052,7 @@ public sealed partial class SingularityController
 			);
 
 		ClearDetailContent();
+		_detailViewKey = "sell-confirmation";
 
 
 		Label title =
@@ -4148,6 +4174,7 @@ public sealed partial class SingularityController
 		_detailContent.AddChild(
 			cancel
 		);
+		FinishDetailView();
 	}
 
 
@@ -4222,11 +4249,7 @@ public sealed partial class SingularityController
 			result.Message
 		);
 
-		if (!result.Changed)
-			return;
-
-		RefreshAll();
-		RefreshOpenDetailOverlay();
+		// Successful actions already refresh through the service's Changed event.
 	}
 
 
@@ -4749,6 +4772,9 @@ public sealed partial class SingularityController
 				accent
 			)
 		);
+
+		button.AddThemeStyleboxOverride("hover_pressed",
+			CreateActionButtonStyle(accent.Darkened(0.58f), accent));
 
 		button.AddThemeStyleboxOverride(
 			"disabled",

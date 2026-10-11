@@ -98,6 +98,10 @@ public sealed partial class UiReadabilityController
 	}
 
 
+	// Dynamic detail views call this before becoming visible, avoiding a delayed
+	// font-size change during the periodic scan. AppliedMeta makes it idempotent.
+	public void ApplyToSubtree(Node node) => ApplyRecursively(node);
+
 	private void ApplyRecursively(
 		Node node)
 	{

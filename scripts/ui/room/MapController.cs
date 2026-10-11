@@ -121,6 +121,8 @@ public sealed partial class MapController
 			[];
 
 
+	private readonly Dictionary<int, RoomMapCardInputs> _lastRoomCardInputs = [];
+
 	public event Action<int>? RoomSelectedRequested;
 
 	public Func<bool>? ExternalRoomIsCurrent { get; set; }
@@ -177,6 +179,7 @@ public sealed partial class MapController
 
 	private void ClearOldMapUi()
 	{
+		_lastRoomCardInputs.Clear();
 		foreach (
 			Node child
 			in _page.GetChildren()
@@ -824,8 +827,7 @@ public sealed partial class MapController
 			HorizontalAlignment.Left;
 
 
-		stateLabel.AutowrapMode =
-			TextServer.AutowrapMode.WordSmart;
+		MapLockPresentation.ConfigureLabel(stateLabel);
 
 
 		infoBox.AddChild(
@@ -873,6 +875,7 @@ public sealed partial class MapController
 			);
 
 
+		MapLockPresentation.ConfigureLabel(badgeLabel);
 		badge.AddChild(
 			badgeLabel
 		);
@@ -1132,155 +1135,48 @@ public sealed partial class MapController
 
 	public void Refresh()
 	{
-		int unlockedCount =
-			0;
-
-
-		int count =
-			Math.Min(
-				_roomNodes.Count,
-				_state.RoomStates.Count
-			);
-
-
-		for (
-			int i = 0;
-			i < count;
-			i++
-		)
+		int unlockedCount = 0;
+		int count = Math.Min(_roomNodes.Count, _state.RoomStates.Count);
+		bool externalRoomIsCurrent = ExternalRoomIsCurrent?.Invoke() ?? false;
+		for (int i = 0; i < count; i++)
 		{
-			bool unlocked =
-				_state.RoomStates[
-					i
-				].Unlocked;
+			bool unlocked = _state.RoomStates[i].Unlocked;
+			bool current = unlocked && !externalRoomIsCurrent && i == _state.CurrentRoomIndex;
+			if (unlocked) unlockedCount++;
+			var previous = i > 0 ? _state.RoomStates[i - 1] : null;
+			var inputs = new RoomMapCardInputs(unlocked, current,
+				previous?.Unlocked ?? true,
+				!unlocked && previous != null ? RoomUnlockRules.CountLockedSlots(previous) : 0,
+				unlocked ? 0 : _progression.GetRoomUnlockCost(i));
 
-
-			bool current =
-				!(ExternalRoomIsCurrent?.Invoke() ?? false)
-				&& i
-				== _state.CurrentRoomIndex;
-
-
-			if (unlocked)
-			{
-				unlockedCount++;
-			}
-
-
-			Color accent =
-				RoomThemePalette.GetAccentColor(
-					i
-				);
-
-
-			RoomNodeView node =
-				_roomNodes[
-					i
-				];
-
-
-			node.Icon.Texture =
-				unlocked
-					? GetUnlockedRoomIcon(
-						i
-					)
-					: GetLockedRoomIcon(
-						i
-					);
-
-
-			node.CurrentMarker.Visible =
-				current;
-
-
-			ApplyNodeStyle(
-				node.Root,
-				accent,
-				current,
-				!unlocked
-			);
-
-
-			node.Badge.AddThemeStyleboxOverride(
-				"panel",
-				unlocked
-					? CreateBadgeStyle(
-						accent
-					)
-					: CreateLockedBadgeStyle()
-			);
-
-
-			if (current)
-			{
-				node.StateLabel.Text =
-					"CURRENT LOCATION";
-
-
-				node.StateLabel.Modulate =
-					Colors.White;
-
-
-				node.BadgeLabel.Text =
-					"● CURRENT";
-			}
-			else if (unlocked)
-			{
-				node.StateLabel.Text =
-					"TAP TO ENTER";
-
-
-				node.StateLabel.Modulate =
-					new Color(
-						0.72f,
-						0.84f,
-						0.94f,
-						1.0f
-					);
-
-
-				node.BadgeLabel.Text =
-					"ENTER";
-			}
-			else
-			{
-				double cost =
-					_progression
-						.GetRoomUnlockQuote(
-							i
-						).Cost;
-
-
-				node.StateLabel.Text =
-					"LOCKED";
-
-
-				node.StateLabel.Modulate =
-					new Color(
-						0.64f,
-						0.67f,
-						0.72f,
-						1.0f
-					);
-
-
-				node.BadgeLabel.Text =
-					"UNLOCK • "
-					+ NumberFormatter.Format(
-						cost
-					);
-			}
+			// Unrelated runtime/online refreshes must not recalculate static copy,
+			// replace styles or touch labels when progression has not changed.
+			if (_lastRoomCardInputs.TryGetValue(i, out var last) && last == inputs) continue;
+			var cardState = MapLockPresentation.GetRoomCardState(_state, i, inputs);
+			ApplyRoomCardState(i, cardState);
+			_lastRoomCardInputs[i] = inputs;
 		}
 
-
-		_progressLabel.Text =
-			unlockedCount
-			+ " / "
-			+ _state.Rooms.Count
-			+ " ROOMS DISCOVERED";
-
-
+		MapLockPresentation.SetText(_progressLabel,
+			unlockedCount + " / " + _state.Rooms.Count + " ROOMS DISCOVERED");
 		UpdateRouteData();
+	}
+
+	private void ApplyRoomCardState(int roomIndex, RoomMapCardState state)
+	{
+		// Compute the complete state before entering this sole card-label writer.
+		var node = _roomNodes[roomIndex];
+		Color accent = RoomThemePalette.GetAccentColor(roomIndex);
+		node.Icon.Texture = state.IsUnlocked ? GetUnlockedRoomIcon(roomIndex) : GetLockedRoomIcon(roomIndex);
+		node.CurrentMarker.Visible = state.IsCurrent;
+		ApplyNodeStyle(node.Root, accent, state.IsCurrent, !state.IsUnlocked);
+		node.Badge.AddThemeStyleboxOverride("panel",
+			state.IsUnlocked ? CreateBadgeStyle(accent) : CreateLockedBadgeStyle());
+		node.StateLabel.Modulate = state.IsCurrent ? Colors.White
+			: state.IsUnlocked ? new Color(0.72f, 0.84f, 0.94f, 1.0f)
+			: new Color(0.64f, 0.67f, 0.72f, 1.0f);
+		MapLockPresentation.SetText(node.StateLabel, state.StatusText);
+		MapLockPresentation.SetText(node.BadgeLabel, state.RequirementText);
 	}
 
 
@@ -1354,6 +1250,8 @@ public sealed partial class MapController
 		Refresh();
 
 
+		// Dynamic controls receive their final fonts before the first visible frame.
+		_root.GetNodeOrNull<UiReadabilityController>("UiReadabilityController")?.ApplyToSubtree(_page);
 		_page.Show();
 
 		_page.MoveToFront();

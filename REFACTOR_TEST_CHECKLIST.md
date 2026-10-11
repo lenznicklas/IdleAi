@@ -196,3 +196,24 @@ Manual checks still required (Godot/device, using copied saves):
 - [x] Singularity suite: 197 deterministic assertions passed.
 - [x] Existing normal offline suite: 663 assertions passed; existing GameSave suite: 3,416 assertions passed.
 - [x] `dotnet build` succeeds with zero errors; public declarations, ownership searches and `git diff --check` verified.
+
+
+## Settings / audio / haptics phase
+
+- [x] Settings deterministic harness: 47 assertions, including defaults, round trips, corrupt fallback, events, persistence, startup requests and vibration gating.
+- [x] Headless Godot audio harness: 10 assertions, real score.wav, -8 dB, one player, repeated facade construction, Master mute and Finished looping.
+- [x] Existing OfflineProgress 663, GameSave 3,416 and Singularity 197 assertions pass.
+- [x] dotnet build: 0 errors; repository responsibility search reviewed.
+- [ ] Fresh install: Sound ON and Vibration ON.
+- [ ] Disable Sound: music stops immediately and all game sound is muted through Master.
+- [ ] Restart with Sound disabled: no audible startup music before mute.
+- [ ] Re-enable Sound: music starts; allow song to reach its end and loop.
+- [ ] Disable Vibration: normal UI and Singularity interactions stop vibrating.
+- [ ] Re-enable Vibration: confirmation pulse and normal interactions vibrate again.
+- [ ] Restart with Vibration disabled: setting persists and requests remain suppressed.
+- [ ] Both preferences survive restart and Prestige.
+- [ ] Main-save deletion keeps settings, matching the prior independent-file behavior.
+- [ ] Existing installed settings JSON loads unchanged; corrupt JSON falls back safely.
+- [ ] Only one background music player exists during normal startup and repeated composition.
+- [ ] Android physical vibration and audio work as before.
+- [ ] App pause/resume audio behavior remains acceptable and matches the prior build.

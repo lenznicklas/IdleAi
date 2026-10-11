@@ -1,33 +1,15 @@
 namespace IdleAi;
 
-
-/*
- * Central vibration gate.
- *
- * All existing game files are inside namespace IdleAi and currently use only
- * Input.VibrateHandheld(...). Because this class lives in the same namespace,
- * those calls resolve here instead of directly to Godot.Input.
- *
- * Result: one setting disables vibration across the entire game without
- * touching every individual controller.
- */
+/// <summary>Compatibility boundary for all existing UI vibration calls.</summary>
 public static class Input
 {
-	public static void VibrateHandheld(
-		int durationMs = 500,
-		float amplitude = -1.0f)
-	{
-		if (
-			!GameSettingsService
-				.IsVibrationEnabled
-		)
-		{
-			return;
-		}
+    internal static HapticsService CreateHaptics() => new((duration, amplitude) =>
+        Godot.Input.VibrateHandheld(duration, amplitude));
 
-		Godot.Input.VibrateHandheld(
-			durationMs,
-			amplitude
-		);
-	}
+    private static HapticsService _haptics = CreateHaptics();
+
+    internal static void UseHaptics(HapticsService haptics) => _haptics = haptics;
+
+    public static void VibrateHandheld(int durationMs = 500, float amplitude = -1.0f) =>
+        _haptics.VibrateHandheld(durationMs, amplitude);
 }

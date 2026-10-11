@@ -20,6 +20,9 @@ public sealed class GameServices
 	public MachineSkinService MachineSkins { get; }
 	public LevelRewardService LevelRewards { get; }
 	public GameSettingsService Settings { get; }
+    public SettingsPersistenceService SettingsPersistence { get; }
+    public AudioService Audio { get; }
+    public HapticsService Haptics { get; }
 
 	internal GameServices(
 		GameState state,
@@ -38,7 +41,7 @@ public sealed class GameServices
 		BotSkinService botSkins,
 		MachineSkinService machineSkins,
 		LevelRewardService levelRewards,
-		GameSettingsService settings)
+		GameSettingsService settings, SettingsPersistenceService settingsPersistence, AudioService audio, HapticsService haptics)
 	{
 		State = state;
 		Economy = economy;
@@ -57,5 +60,8 @@ public sealed class GameServices
 		MachineSkins = machineSkins;
 		LevelRewards = levelRewards;
 		Settings = settings;
+        SettingsPersistence = settingsPersistence;
+        Audio = audio;
+        Haptics = haptics;
 	}
 }

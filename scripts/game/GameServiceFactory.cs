@@ -25,11 +25,18 @@ public static class GameServiceFactory
 		BotSkinService botSkins = new(state, economy);
 		MachineSkinService machineSkins = new(state, economy);
 		LevelRewardService levelRewards = new(state, progression, economy);
-		GameSettingsService settings = new(root);
+		SettingsPersistenceService settingsPersistence = new(
+            Godot.ProjectSettings.GlobalizePath(SettingsPersistenceService.SettingsSavePath),
+            Godot.ProjectSettings.GlobalizePath(SettingsPersistenceService.TemporarySettingsSavePath),
+            message => Godot.GD.PushWarning(message));
+        AudioService audio = AudioService.ForRoot(root);
+        HapticsService haptics = Input.CreateHaptics();
+        Input.UseHaptics(haptics);
+        GameSettingsService settings = new(settingsPersistence, audio.SetSoundEnabled, haptics);
 
 		return new GameServices(
 			state, economy, progression, production, bots, prestige, lab, offline, save,
 			shop, pipeline, infrastructure, quantum, botSkins, machineSkins,
-			levelRewards, settings);
+			levelRewards, settings, settingsPersistence, audio, haptics);
 	}
 }

@@ -451,3 +451,66 @@ The Singularity harness covers all 37 requested regression areas, plus all four 
 Recommended next refactor: extract Game action-result/refresh/save orchestration, retaining the established domain, economy and persistence owners. Singularity UI/map refactoring is outside this phase.
 
 Final automated results: Singularity passes 197 deterministic assertions; existing normal offline passes 663; existing headless GameSave passes 3,416. `dotnet build` succeeds with zero errors (full compilation reports 349 existing nullable-annotation warnings; newly extracted files enable nullable annotations). Singularity test build also succeeds with zero errors; warnings concern the unavailable NuGet vulnerability-data feed and Godot's generated Main type colliding with the referenced game assembly, not test failures. The public declaration comparison found all 54 original method/constructor signatures unchanged, plus unchanged properties/constants/event. `git diff --check` passes. Work remains uncommitted on refactor/services; device/manual checks are pending.
+
+
+## Settings, audio and haptics phase
+
+### Audit before implementation
+
+The previous GameSettingsService combined preference values, a private JSON DTO, file IO, static `_current`, music resource loading/player creation/Finished handling, and Master bus muting. `GameServiceFactory.Create` was the only first-party constructor caller, invoked in Game._Ready before the main save loads and UI construction. Searches for GameSettingsService, its setters/static property, vibration hardware calls, audio APIs and playback found no additional first-party soundtrack or SFX implementation. The addon AdMob sample has its own player, outside game composition.
+
+Startup was: install current settings instance, load independent settings, create child IdleAiBackgroundMusic, apply Master mute, play only when enabled. Sound changes updated the value, applied Master/playback, saved, emitted Changed; vibration changes updated the value (immediately visible to the static gate), saved, emitted Changed. Identical values did nothing. There were no settings Changed subscribers. SettingsOverlayController reads values using SetPressedNoSignal and refreshes at initialization, opening, toggles and normal GameUiController refresh. Enabling vibration confirms with a pulse after the setter. All first-party UI vibration calls, including Singularity, resolve through IdleAi.Input because they share its namespace.
+
+### New ownership
+
+```mermaid
+flowchart TD
+    Factory[GameServiceFactory] --> Settings[GameSettingsService]
+    Settings --> Persistence[SettingsPersistenceService]
+    Settings --> Audio[AudioService]
+    Settings --> Haptics[HapticsService]
+    UI[SettingsOverlayController] --> Settings
+    Calls[Existing UI vibration calls] --> Input[IdleAi.Input]
+    Input --> Haptics
+    Haptics --> Device[Godot.Input hardware boundary]
+    Audio --> Player[Game child AudioStreamPlayer]
+    Audio --> Master[Master audio bus]
+```
+
+GameServices exposes Settings, SettingsPersistence, Audio and Haptics. New production files are scripts/game/{GameSettingsData,SettingsPersistenceService,AudioService,HapticsService}.cs. GameSettingsService remains the public preferences facade: VibrationEnabled, SoundEnabled, SetVibrationEnabled(bool), SetSoundEnabled(bool), Changed. Its constructor receives persistence, an audio application action, and haptics; a delegate overload allows deterministic load/save/order tests without Godot. No interfaces or service locator were added.
+
+SettingsPersistenceService owns Load/Save, serialization, warnings and temporary-file cleanup. Production composition globalizes user://idle_ai_settings.json and user://idle_ai_settings.tmp.json. The JSON properties remain SaveVersion, VibrationEnabled, SoundEnabled; writes use SaveVersion 1, indented JSON, temporary WriteAllText then Move(overwrite: true). Missing files, null JSON, omitted properties and corruption retain the old defaults and fallback behavior. The DTO's SaveVersion has the previous implicit default 0 on absent JSON; facade writes still explicitly use 1. Load versions are not newly validated. Exceptions warn and save failures attempt temporary-file cleanup. Settings remain independent of main saves, main-save deletion and Prestige.
+
+AudioService owns ResourceLoader/GD.Load, score.wav, the Game child player, -8.0f dB, Finished restart and Master mute. SoundEnabled is public read-only runtime policy for future SFX; this phase adds no SFX implementation. A small private ConditionalWeakTable keyed by scene root returns one AudioService per root through ForRoot. This is audio ownership caching, not a global service registry. Construction creates no player; the first SetSoundEnabled call initializes it without autoplay, then applies Master mute before playback. Further calls reuse the player. Root destruction owns the player lifecycle. No Autoload, import setting or music asset changes.
+
+HapticsService owns an enabled boolean and an injected device action. GameSettingsService updates it before saving or notifying. Input keeps only a small compatibility reference to the active haptics gate, with an enabled fallback before composition; Input.CreateHaptics contains the sole Godot.Input.VibrateHandheld call. Every existing UI call and its parameters remain unchanged. It no longer reads a settings singleton.
+
+Startup remains at the same composition point: construct persistence and root-scoped audio (no playback), install haptics in Input, load preferences, update haptics, apply loaded sound state (create player, mute Master, optionally play), then build the rest of the GameServices result. Disabled saved sound never briefly starts. Changed ordering and no-op setters are preserved.
+
+Compatibility: pre-edit first-party constructor searches found only GameServiceFactory's new(root); GameUiController already takes GameServices and SettingsOverlayController takes the shared facade. Removed the unused root-taking settings constructor rather than retaining a path that could create duplicate players. Removed IsVibrationEnabled and _current after confirming Input was their only reader. Repeated facade creation with the composed audio service, and repeated ForRoot calls, cannot create another player. UI and Singularity files are unchanged.
+
+### Verification and search classification
+
+- tests/Settings: 47 deterministic assertions covering defaults; all four settings combinations; exact JSON names/version; legacy JSON; missing/null/partial/corrupt files; save failure cleanup; no-op setters; notification/save/runtime order; enabled/disabled load audio requests; immediate haptics policy and forwarded parameters.
+- tests/SettingsAudio: 10 headless Godot assertions covering the real linked music asset, one player, -8 dB, disabled startup, root ownership reuse, repeated settings construction, Master mute/unmute, re-enable and Finished gating/restart. The harness links the existing score.wav into its isolated project and imports it there; it does not change the game asset or its import.
+- Existing suites: OfflineProgress 663, GameSave 3,416, Singularity 197 assertions pass.
+- dotnet build: zero errors, 344 existing CS8632 warnings. Test restore may report NU1900 because the NuGet vulnerability feed is unavailable; assertions run successfully. Some audio harness runs emit Godot ObjectDB/resource diagnostics on engine shutdown after all assertions pass (exit code 0); a verbose rerun completed cleanly. This does not verify physical audio or mobile lifecycle behavior.
+
+Commands:
+
+```sh
+dotnet build
+dotnet run --project tests/Settings/Settings.csproj
+dotnet run --project tests/OfflineProgress/OfflineProgress.csproj
+dotnet build tests/GameSave/GameSave.csproj
+XDG_DATA_HOME=/tmp/idle-ai-save-tests godot-mono --headless --path tests/GameSave
+dotnet build tests/Singularity/Singularity.csproj
+XDG_DATA_HOME=/tmp/idle-ai-singularity-tests godot-mono --headless --path tests/Singularity
+XDG_DATA_HOME=/tmp/idle-ai-settings-audio XDG_CONFIG_HOME=/tmp/idle-ai-settings-config godot-mono --headless --editor --path tests/SettingsAudio --import
+dotnet build tests/SettingsAudio/SettingsAudio.csproj
+XDG_DATA_HOME=/tmp/idle-ai-settings-audio XDG_CONFIG_HOME=/tmp/idle-ai-settings-config godot-mono --headless --path tests/SettingsAudio
+```
+
+Post-refactor repository search: first-party AudioServer/AudioStreamPlayer and music path references belong to AudioService (plus test fixtures); the addon sample remains separate. Settings filename/JsonSerializer references belong to SettingsPersistenceService. Other JsonSerializer uses are existing cosmetics, billing, Firebase, main/Singularity save stores. Other ResourceLoader uses load fonts, UI textures, cosmetics or the main scene. IsVibrationEnabled and the exact settings _current field are gone; other _current-prefixed fields are unrelated UI/Firebase state. VibrateHandheld UI calls go through Input, then HapticsService; hardware access exists once in Input. No gameplay, Singularity, main-save schema/migration, SaveVersion 21, SaveManager, UI layout or asset changes.
+
+Recommended next major refactor: audit Google Play Billing purchase orchestration, ledger persistence and SDK boundary for focused extraction while preserving exactly-once grants and save-before-finalization behavior. This is a future phase, not part of these changes.

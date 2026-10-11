@@ -206,6 +206,9 @@ public sealed class SingularityService
 			);
 		}
 
+		if (!RoomUnlockRules.CanUnlockSingularity(gameState, out string reason))
+			return new SingularityActionResult(false, reason);
+
 		if (
 			!economy.TrySpendTokens(TestUnlockTokenCost)
 		)

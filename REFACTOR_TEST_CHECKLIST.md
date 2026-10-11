@@ -67,3 +67,25 @@ Unchecked items require manual verification; compilation does not prove gameplay
 - [ ] Existing saves load identically; save/reload retains exact balances and stats, including legacy migration fixtures.
 - [ ] Singularity unlock: exact normal Token cost and slot-spending stats, failure/duplicate checks.
 - [ ] Singularity Matter production, purchases, refunds, offline settlement and independent saves remain unchanged.
+
+
+## Progression / room eligibility phase
+
+- [x] Build: 0 errors, 353 existing CS8632 warnings.
+- [x] Direct built-assembly checks: invalid/bypass/stale-preview failures, insufficient balance, sequential unlocks, exact and duplicate spending, slot/reward initialization, legacy ownership, shared Singularity boundary.
+- [x] Search and classify every normal-room ownership write; only UnlockRoom performs a new gameplay unlock. Removed integration guard symbols are absent.
+- [x] Diff review: costs, slot/upgrade messages and algorithms, level/reward rules, save schema/migrations, scenes/node paths and integration internals unchanged.
+- [ ] Room 1 remains initially unlocked.
+- [ ] Locked Room 2 cannot unlock before every Room 1 slot is unlocked.
+- [ ] Room 2 unlocks with every Room 1 slot unlocked and enough Tokens.
+- [ ] Insufficient Tokens leaves ownership, balance and spending stats unchanged.
+- [ ] Exact room cost is deducted once; repeated selection never charges again; TotalSpent / SlotUnlockSpent match baseline.
+- [ ] Already-owned rooms always select, including older saves whose previous rooms/slots do not meet newer requirements.
+- [ ] Sequential Room 2 -> Room 3 -> Room 4 progression works.
+- [ ] Map locked/unlocked visuals and links remain correct; locked-room taps/tooltips show the same or reasonable prerequisite/cost message.
+- [ ] Selecting the current room works; Lab hiding/page closing and room-unlock animation remain correct.
+- [ ] Slot unlock flow and single/bulk/MAX/tier machine upgrades work with unchanged costs, messages and milestones.
+- [ ] Total level matches baseline; level rewards keep 150-level cadence, 10-shard amount, ordered claims, duplicate prevention and reload persistence.
+- [ ] Prestige preserves lifetime-level behavior; Play Games level leaderboard scores and achievements remain unchanged.
+- [ ] Singularity availability/unlock matches the existing Room 4/all-slots map prerequisite, with unchanged Token price/spending and existing-owned access. Check before/after completing Room 4 slots and with insufficient Tokens; separate Matter/save behavior remains unchanged.
+- [ ] Save/reload retains room states, first-slot initialization and reward flags, including historical saves.

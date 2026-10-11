@@ -430,6 +430,7 @@ public partial class Game : Control
 		if (
 			targetRoom < 0
 			|| targetRoom >= _state.Rooms.Count
+			|| targetRoom >= _state.RoomStates.Count
 		)
 		{
 			return;

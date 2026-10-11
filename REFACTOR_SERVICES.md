@@ -230,3 +230,46 @@ Verification:
 - Manual runtime/device verification remains unchecked in REFACTOR_TEST_CHECKLIST.md. Work remains on refactor/services, uncommitted.
 
 Recommended next phase: consolidate normal progression/room eligibility entry points, retaining reward/level formulas and existing gates. Offline extraction and save extraction remain separate future work; neither is included here.
+
+
+## Completed progression / room eligibility phase
+
+Pre-change entry-point map:
+
+- MapController room button Pressed emits RoomSelectedRequested. Its refresh reads ownership for icons/colors/labels/links and asks ProgressionService for the Lab-adjusted price.
+- GameUiController forwards the request synchronously, compares ownership before/after, and animates successful new-room entry.
+- Game subscribes OnRoomSelectedRequested, hides Lab, validates the target, calls UnlockRoom for unowned rooms, displays the result, selects successful/owned targets, closes pages, refreshes and saves. Failure refreshes without saving.
+- Game.PlayGamesAchievements.InitializeDeferredFeatures installed InstallSequentialRoomSelectionGuard, replacing Game's subscription with OnGuardedRoomSelectedRequested. This checked RoomUnlockRules before invoking Game; direct UnlockRoom calls bypassed it.
+- RoomUnlockRules checked previous-room ownership and every previous Slot, with already-owned compatibility. NavigationPolishController independently duplicated eligibility, missing-slot counts and requirement messages, and overlaid map blockers/requirement labels.
+- SingularityMapExtension click and badge checked Room 4 ownership; NavigationPolishController's Singularity blocker additionally required all Room 4 slots. SingularityService.Unlock checked only ownership of Singularity and Token affordability. No Quantum machine-level, energy or upgrade completion requirement was found at this boundary.
+- HandleSlotAction delegates locked slots to private UnlockSlot and owned slots to UpgradeSlot, which delegates to UpgradeMachineLevels or UpgradeMachineTier. There is no separate duplicated slot mutation to consolidate. Costs, machine initialization, milestone logic and messages remain unchanged.
+- PipelineService, InfrastructureService and QuantumService gate their own activity/upgrades on their configured normal room being owned and retain their own system prerequisites. They neither unlock normal rooms nor add requirements for buying the next room; left unchanged.
+- LevelRewardService depends on ProgressionService.GetTotalLevel only. Its separate 150-level / 10-shard ordered claim persistence and duplicate prevention are unchanged. Total/current-run level formulas, prestige lifetime base and all leaderboard/achievement/reward thresholds are unchanged.
+
+Final authoritative path:
+
+`MapController -> GameUiController -> Game.OnRoomSelectedRequested -> ProgressionService.UnlockRoom -> fresh GetRoomUnlockQuote -> RoomUnlockRules -> EconomyService.TrySpendTokens / RecordSlotSpending -> room + first-slot initialization + reward flag -> Game UI refresh / SaveGame -> UI unlock animation`.
+
+ProgressionService adds immutable RoomUnlockQuote (valid target, ownership, progression eligibility, cost, affordability, message, CanUnlock), GetRoomUnlockQuote and CanUnlockRoom. UnlockRoom retains ProgressionResult and re-evaluates the quote itself before any debit or mutation; callers need no precheck. CanUnlockRoom means a **new purchase** is possible; AlreadyUnlocked independently permits selection regardless of prerequisites or balance. Costs still use GetRoomUnlockCost and its existing Lab multiplier. Existing insufficiency, already-owned and success messages remain unchanged.
+
+RoomUnlockRules remains the sole pure prerequisite formula, shared by domain mutation and navigation previews. UI keeps existing blockers, labels, icons, node paths and layout; only its duplicated formulas/messages/count loop were replaced by helper calls. Map cost preview now uses the service quote. The helper's vacuous all-slots check is retained; normal rooms always initialize eight slots. No new malformed-save policy was added.
+
+Removed the guard-installed field, deferred install call, subscription replacement and guarded callback entirely. Play Games/Firebase internals are unchanged. Game's existing coordinator already had the target responsibilities and only needed a RoomStates bounds check.
+
+Singularity's normal boundary now shares CanUnlockSingularity, requiring the Quantum room (Room 4) and every slot, as the existing map blocker did. The final Singularity Unlock validates this before its unchanged Token cost/spending. Existing owned Singularity bypasses the prerequisite and remains selectable. The extension's ownership-only click check is removed and its badge uses the shared prerequisite. Requirement failures use shared room-name/remaining-slot messages. Matter, sectors, cores, nodes, bots and independent persistence are untouched.
+
+Remaining normal-room writes, classified after repository search:
+
+| Location | Classification |
+| --- | --- |
+| ProgressionService.UnlockRoom: roomState.Unlocked = true | Sole new normal-room gameplay unlock mutation |
+| Game.CreateRoomStates: roomIndex == 0 | New-run initialization; Room 1 starts owned |
+| Game.LoadGame: savedRoom.Unlocked | Save hydration; preserves older owned rooms without revalidation |
+| PrestigeService.ResetNormalProgress: roomIndex == 0 | Existing run reset; only Room 1 remains owned |
+| Game.SaveGame / save DTO declarations | Serialization copies/declarations, no gameplay unlock |
+| ProgressionService slot writes / Game slot initialization / prestige slot reset | Slot ownership, not room unlock paths |
+| LabService and SingularityService ownership/core writes | Separate domain states, not normal rooms |
+
+Verification: dotnet build succeeded, 0 errors, 353 existing CS8632 warnings. Temporary executable checks against the built assembly passed invalid targets, direct bypass attempts, stale-preview revalidation, insufficient balance with no mutation, Room 2 -> 3 -> 4, exact debit/TotalSpent/SlotUnlockSpent, duplicate calls, first-slot initialization/reward flag, legacy ownership and shared Singularity boundary. These are domain checks, not Godot/device tests. Final reference search found no removed guard symbols; diff review confirms unchanged constants, slot algorithms, level/reward formulas, integrations, save/data/schema/migrations and scene/node/resource paths. Main SaveVersion remains 21; no migration is required. Manual checks remain pending in REFACTOR_TEST_CHECKLIST.md.
+
+Recommended next phase: a separately scoped OfflineProgressService extraction, preserving settlement calculations and lifecycle ordering. No offline/save extraction or later integration phase was performed here.

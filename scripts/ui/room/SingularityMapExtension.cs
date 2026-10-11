@@ -448,17 +448,6 @@ public sealed partial class SingularityMapExtension
 
         if (!_service.Unlocked)
         {
-            bool room4Unlocked =
-                _state.RoomStates.Count > 3
-                && _state.RoomStates[3].Unlocked;
-
-            if (!room4Unlocked)
-            {
-                MessageRequested?.Invoke("Unlock Room 4 first.");
-                Refresh();
-                return;
-            }
-
             SingularityActionResult result = _service.Unlock(_state, _economy);
             MessageRequested?.Invoke(result.Message);
 
@@ -565,11 +554,9 @@ public sealed partial class SingularityMapExtension
             _stateLabel.Text = "LOCKED";
             _stateLabel.Modulate = new Color(0.64f, 0.67f, 0.72f, 1.0f);
 
-            bool room4Unlocked =
-                _state.RoomStates.Count > 3
-                && _state.RoomStates[3].Unlocked;
+            bool eligible = RoomUnlockRules.CanUnlockSingularity(_state, out _);
 
-            _badgeLabel.Text = !room4Unlocked
+            _badgeLabel.Text = !eligible
                 ? "UNLOCK ROOM 4 FIRST"
                 : "UNLOCK • "
                     + NumberFormatter.Format(

@@ -55,6 +55,11 @@ public static class RoomUnlockRules
 	}
 
 
+	// Normal-game boundary only; Singularity's internal progression stays separate.
+	public static bool CanUnlockSingularity(GameState state, out string message) =>
+		CanAdvanceFromRoom(state, GameConfig.QuantumRoomIndex, out message);
+
+
 	public static bool CanAdvanceFromRoom(
 		GameState state,
 		int previousRoomIndex,

@@ -18,6 +18,19 @@ public readonly record struct MachineUpgradeQuote(
 );
 
 
+public readonly record struct RoomUnlockQuote(
+	bool ValidTarget,
+	bool AlreadyUnlocked,
+	bool EligibleByProgression,
+	double Cost,
+	bool CanAfford,
+	string Message)
+{
+	public bool CanUnlock => ValidTarget && !AlreadyUnlocked
+		&& EligibleByProgression && CanAfford;
+}
+
+
 public sealed class ProgressionService
 {
 	private readonly GameState _state;
@@ -535,46 +548,43 @@ public sealed class ProgressionService
 	}
 
 
+	public RoomUnlockQuote GetRoomUnlockQuote(int roomIndex)
+	{
+		if (roomIndex < 0 || roomIndex >= _state.Rooms.Count
+			|| roomIndex >= _state.RoomStates.Count)
+			return new(false, false, false, 0, false, "Invalid room.");
+
+		double cost = GetRoomUnlockCost(roomIndex);
+		bool affordable = _economy.CanAffordTokens(cost);
+		if (_state.RoomStates[roomIndex].Unlocked)
+			return new(true, true, true, cost, affordable, "Room already unlocked.");
+
+		bool eligible = RoomUnlockRules.CanUnlockRoom(_state, roomIndex, out string reason);
+		return new(true, false, eligible, cost, affordable,
+			!eligible ? reason : !affordable
+				? $"You need {NumberFormatter.Format(cost)} Tokens."
+				: "");
+	}
+
+
+	public bool CanUnlockRoom(int roomIndex) =>
+		GetRoomUnlockQuote(roomIndex).CanUnlock;
+
+
 	public ProgressionResult UnlockRoom(
 		int roomIndex)
 	{
-		if (
-			roomIndex < 0
-			|| roomIndex >= _state.Rooms.Count
-		)
-		{
-			return new ProgressionResult(
-				false,
-				"Invalid room."
-			);
-		}
+		// Re-evaluate at the mutation boundary; previews never authorize a spend.
+		RoomUnlockQuote quote = GetRoomUnlockQuote(roomIndex);
+		if (!quote.CanUnlock)
+			return new ProgressionResult(false, quote.Message);
 
-		RoomState roomState =
-			_state.RoomStates[
-				roomIndex
-			];
-
-		if (roomState.Unlocked)
-		{
-			return new ProgressionResult(
-				false,
-				"Room already unlocked."
-			);
-		}
-
-		double cost =
-			GetRoomUnlockCost(
-				roomIndex
-			);
-
+		double cost = quote.Cost;
 		if (!_economy.TrySpendTokens(cost))
-		{
-			return new ProgressionResult(
-				false,
-				$"You need {NumberFormatter.Format(cost)} Tokens."
-			);
-		}
+			return new ProgressionResult(false,
+				$"You need {NumberFormatter.Format(cost)} Tokens.");
 
+		RoomState roomState = _state.RoomStates[roomIndex];
 
 		_economy.RecordSlotSpending(
 			cost

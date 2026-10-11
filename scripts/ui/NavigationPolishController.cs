@@ -538,9 +538,7 @@ public sealed partial class NavigationPolishController
 
 		bool blocked =
 			!singularityUnlocked
-			&& !CanAdvanceFromRoom(
-				previousRoomIndex
-			);
+			&& !RoomUnlockRules.CanUnlockSingularity(_state, out _);
 
 		Control blocker =
 			EnsureUnlockBlocker(
@@ -563,80 +561,13 @@ public sealed partial class NavigationPolishController
 			);
 	}
 
-	private bool CanAdvanceFromRoom(
-		int previousRoomIndex)
+	private bool CanAdvanceFromRoom(int previousRoomIndex) =>
+		RoomUnlockRules.CanAdvanceFromRoom(_state, previousRoomIndex, out _);
+
+	private string GetRequirementMessage(int previousRoomIndex)
 	{
-		if (
-			previousRoomIndex < 0
-			|| previousRoomIndex
-				>= _state.RoomStates.Count
-		)
-		{
-			return false;
-		}
-
-		RoomState previousRoom =
-			_state.RoomStates[
-				previousRoomIndex
-			];
-
-		if (!previousRoom.Unlocked)
-			return false;
-
-		if (previousRoom.Slots.Count == 0)
-			return false;
-
-		foreach (
-			SlotData slot
-				in previousRoom.Slots
-		)
-		{
-			if (!slot.Unlocked)
-				return false;
-		}
-
-		return true;
-	}
-
-	private string GetRequirementMessage(
-		int previousRoomIndex)
-	{
-		RoomState previousRoom =
-			_state.RoomStates[
-				previousRoomIndex
-			];
-
-		string previousName =
-			previousRoomIndex
-				< _state.Rooms.Count
-					? _state.Rooms[
-						previousRoomIndex
-					].Name
-					: "previous room";
-
-		if (!previousRoom.Unlocked)
-		{
-			return "Unlock "
-				+ previousName
-				+ " first.";
-		}
-
-		int missingSlots = 0;
-
-		foreach (
-			SlotData slot
-				in previousRoom.Slots
-		)
-		{
-			if (!slot.Unlocked)
-				missingSlots++;
-		}
-
-		return "Unlock all Slots in "
-			+ previousName
-			+ " first ("
-			+ missingSlots
-			+ " remaining).";
+		RoomUnlockRules.CanAdvanceFromRoom(_state, previousRoomIndex, out string message);
+		return message;
 	}
 
 	private static Control EnsureUnlockBlocker(
@@ -713,16 +644,7 @@ public sealed partial class NavigationPolishController
 				previousRoomIndex
 			];
 
-		int missingSlots = 0;
-
-		foreach (
-			SlotData slot
-				in previousRoom.Slots
-		)
-		{
-			if (!slot.Unlocked)
-				missingSlots++;
-		}
+		int missingSlots = RoomUnlockRules.CountLockedSlots(previousRoom);
 
 		string stateText =
 			previousRoom.Unlocked

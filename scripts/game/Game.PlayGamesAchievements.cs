@@ -49,7 +49,6 @@ public partial class Game
 	private StartupInfoOverlayController?
 		_startupInfoOverlay;
 
-	private bool _roomSelectionGuardInstalled;
 
 
 	public override void _EnterTree()
@@ -76,7 +75,6 @@ public partial class Game
 		InitializeBotDurabilityUi();
 		InitializePlayGamesAndFirebase();
 		InitializeSingularity();
-		InstallSequentialRoomSelectionGuard();
 
 		/*
 		 * These are deliberately initialized after the normal UI and
@@ -259,67 +257,6 @@ public partial class Game
 			};
 
 		_singularityMapExtension.Initialize();
-	}
-
-
-	private void InstallSequentialRoomSelectionGuard()
-	{
-		if (
-			_roomSelectionGuardInstalled
-			|| _ui == null
-		)
-		{
-			return;
-		}
-
-		/*
-		 * Game.cs originally subscribes OnRoomSelectedRequested directly.
-		 * Replace that subscription with a guarded wrapper so the progression
-		 * rule is enforced BEFORE UnlockRoom can spend Tokens.
-		 */
-		_ui.RoomSelectedRequested -=
-			OnRoomSelectedRequested;
-
-		_ui.RoomSelectedRequested +=
-			OnGuardedRoomSelectedRequested;
-
-		_roomSelectionGuardInstalled =
-			true;
-	}
-
-
-	private void OnGuardedRoomSelectedRequested(
-		int targetRoom)
-	{
-		if (
-			targetRoom > 0
-			&& targetRoom < _state.RoomStates.Count
-			&& !_state.RoomStates[
-				targetRoom
-			].Unlocked
-		)
-		{
-			if (
-				!RoomUnlockRules.CanUnlockRoom(
-					_state,
-					targetRoom,
-					out string reason
-				)
-			)
-			{
-				_ui.SetMessage(
-					reason
-				);
-
-				_ui.UpdateAll();
-
-				return;
-			}
-		}
-
-		OnRoomSelectedRequested(
-			targetRoom
-		);
 	}
 
 

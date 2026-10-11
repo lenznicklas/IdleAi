@@ -290,8 +290,8 @@ public sealed partial class SingularityController
 			true;
 
 		/*
-		 * Update Current Sector while the finger is still moving. The header and
-		 * CURRENT badge therefore change as soon as another Sector becomes the
+		 * Update Current Sector while the finger is still moving. The header
+		 * therefore changes as soon as another Sector becomes the
 		 * closest one to the viewport center, not only after inertia stops.
 		 */
 		UpdateFocusedSectorDuringMotion();

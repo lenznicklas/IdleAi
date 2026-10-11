@@ -60,59 +60,23 @@ public sealed class GameUiController
 
 	public GameUiController(
 		Game root,
-		GameState state,
-		EconomyService economy,
-		ProgressionService progression,
-		ProductionService production,
-		BotService bots,
-		PrestigeService prestige,
-		ShopService shopService,
-		PipelineService pipelineService,
-		InfrastructureService infrastructureService,
-		QuantumService quantumService)
+		GameServices services)
 	{
 		_root = root;
-		_state = state;
-		_economy = economy;
-		_progression = progression;
-		_production = production;
-		_bots = bots;
-		_prestigeService = prestige;
-		_shopService = shopService;
-		_pipelineService = pipelineService;
-		_infrastructureService = infrastructureService;
-		_quantumService = quantumService;
-
-		/*
-		 * Cosmetic data is loaded before the room UI is built.
-		 * BotCatalog therefore already exposes the equipped
-		 * textures when MachineSlot / MachineDetails render.
-		 */
-		_skinService =
-			new BotSkinService(
-				_state
-			);
-
-		_machineSkinService =
-			new MachineSkinService(
-				_state
-			);
-
-		_levelRewardService =
-			new LevelRewardService(
-				_state,
-				_progression
-			);
-
-		/*
-		 * Settings are stored independently from gameplay saves so audio and
-		 * haptic preferences survive Prestige and save migrations.
-		 * Construction also starts score.wav when sound is enabled.
-		 */
-		_settingsService =
-			new GameSettingsService(
-				_root
-			);
+		_state = services.State;
+		_economy = services.Economy;
+		_progression = services.Progression;
+		_production = services.Production;
+		_bots = services.Bots;
+		_prestigeService = services.Prestige;
+		_shopService = services.Shop;
+		_pipelineService = services.Pipeline;
+		_infrastructureService = services.Infrastructure;
+		_quantumService = services.Quantum;
+		_skinService = services.BotSkins;
+		_machineSkinService = services.MachineSkins;
+		_levelRewardService = services.LevelRewards;
+		_settingsService = services.Settings;
 	}
 
 	public void Initialize()
@@ -445,7 +409,8 @@ public sealed class GameUiController
 			new ShopController(
 				_root,
 				_state,
-				_shopService
+				_shopService,
+				_root.RewardedAds
 			);
 
 		_shop.MessageRequested += SetMessage;
@@ -459,7 +424,7 @@ public sealed class GameUiController
 		/*
 		 * Build the dynamic Shop UI only on the first shop open.
 		 * Rewarded AdMob initialization is handled separately by
-		 * ShopController when the player requests a video.
+		 * RewardedAdCoordinator when the player requests a video.
 		 */
 	}
 
@@ -471,14 +436,12 @@ public sealed class GameUiController
 		_shop.Initialize();
 
 		/*
-		 * Google Play Billing lives in its own Shop controller.
-		 * This keeps the existing AdMob / skin Shop code isolated.
+		 * Purchase cards use the session purchase coordinator.
 		 */
 		_iapShop =
 			new IapShopController(
 				_root,
-				_state,
-				_shopService
+				_root.Purchases
 			);
 
 		_iapShop.MessageRequested +=
@@ -487,12 +450,7 @@ public sealed class GameUiController
 		_iapShop.StateChanged +=
 			() =>
 			{
-				/*
-				 * Game subscribes to GameUiController.StateChanged
-				 * with SaveGame(), so the newly purchased Shards
-				 * are persisted before the consumable is finalized.
-				 */
-				StateChanged?.Invoke();
+				// The coordinator has already saved and finalized the reward.
 
 				UpdateAll();
 

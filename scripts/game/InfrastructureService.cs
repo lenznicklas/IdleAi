@@ -12,11 +12,17 @@ public readonly record struct InfrastructureUpgradeResult(
 public sealed class InfrastructureService
 {
 	private readonly GameState _state;
+	private readonly EconomyService _economy;
 
+
+	public InfrastructureService(GameState state)
+		: this(state, new EconomyService(state)) { }
 
 	public InfrastructureService(
-		GameState state)
+		GameState state,
+		EconomyService economy)
 	{
+		_economy = economy;
 		_state =
 			state;
 	}
@@ -712,7 +718,7 @@ public sealed class InfrastructureService
 			);
 
 
-		if (_state.Tokens < cost)
+		if (!_economy.TrySpendTokens(cost))
 		{
 			return new InfrastructureUpgradeResult(
 				false,
@@ -721,11 +727,9 @@ public sealed class InfrastructureService
 		}
 
 
-		_state.Tokens -=
-			cost;
 
 
-		_state.Stats.AddMachineSpending(
+		_economy.RecordMachineSpending(
 			"Data Center Infrastructure - "
 			+ GetSystemName(
 				system

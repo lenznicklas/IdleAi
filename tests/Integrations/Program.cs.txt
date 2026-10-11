@@ -1,0 +1,247 @@
+using System;
+using System.IO;
+using System.Linq;
+using System.Collections.Generic;
+using Godot;
+using IdleAi;
+
+class Program
+{
+    static int checks;
+    static void Eq<T>(T actual, T expected, string label)
+    { if (!Equals(actual, expected)) throw new Exception($"{label}: {actual} != {expected}"); checks++; }
+    static (GameState state, ShopService shop) Shop()
+    {
+        var state = new GameState(new List<RoomData>());
+        var economy = new EconomyService(state);
+        var progression = new ProgressionService(state, economy);
+        var production = new ProductionService(state, economy, new PipelineService(state, economy));
+        return (state, new ShopService(state, economy, production));
+    }
+    sealed class Ad : IRewardedAdHandle
+    {
+        public Action Earned, Dismissed;
+        public Action<string> Failed;
+        public int Shows, Destroys;
+        public bool Throw;
+        public void Show(Action earned, Action dismissed, Action<string> failed)
+        { Shows++; Earned = earned; Dismissed = dismissed; Failed = failed; if (Throw) throw new Exception("show"); }
+        public void Destroy() { Destroys++; }
+    }
+    sealed class Ads : IRewardedAdAdapter
+    {
+        public int Initializations, Loads;
+        public Action<IRewardedAdHandle> Loaded;
+        public Action<string> Failed;
+        public bool Throw;
+        public void Initialize() { Initializations++; }
+        public void Load(Action<IRewardedAdHandle> loaded, Action<string> failed)
+        { Loads++; Loaded = loaded; Failed = failed; if (Throw) throw new Exception("load"); }
+    }
+    static void Rewarded()
+    {
+        var (state, shop) = Shop(); var sdk = new Ads();
+        using var ads = new RewardedAdCoordinator(sdk, shop.GrantDataShards);
+        int rewards = 0; string message = "";
+        ads.RewardEarned += () => rewards++;
+        ads.MessageRequested += value => message = value;
+        Eq(sdk.Initializations, 0, "construction lazy");
+        Eq(state.Shop.DataShards, 0d, "no initial reward");
+        ads.ShowRewardedVideo(); ads.ShowRewardedVideo();
+        Eq(sdk.Initializations, 1, "first intent initializes once"); Eq(sdk.Loads, 1, "load spam suppressed");
+        Eq(ads.IsLoading, true, "loading state");
+        Eq(message, "Reward video is loading. Tap again when it is ready.", "loading message");
+        var first = new Ad(); sdk.Loaded(first);
+        Eq(ads.IsReady, true, "ready"); Eq(state.Shop.DataShards, 0d, "loaded no reward");
+        ads.ShowRewardedVideo(); ads.ShowRewardedVideo();
+        Eq(first.Shows, 1, "show spam suppressed"); Eq(ads.IsShowing, true, "showing"); Eq(ads.IsReady, false, "show consumes readiness");
+        Eq(state.Shop.DataShards, 0d, "shown no reward");
+        first.Earned(); first.Earned();
+        Eq(state.Shop.DataShards, 5d, "ShopService exact five once"); Eq(rewards, 1, "one notification"); Eq(message, "+5 Data Shards!", "Shop message");
+        first.Dismissed(); first.Earned(); first.Dismissed();
+        Eq(sdk.Loads, 2, "dismiss reload exactly once"); Eq(first.Destroys, 1, "destroy once"); Eq(state.Shop.DataShards, 5d, "late callback ignored");
+        var second = new Ad(); sdk.Loaded(second); ads.ShowRewardedVideo();
+        first.Earned(); Eq(state.Shop.DataShards, 5d, "old earned during new show ignored");
+        second.Dismissed(); second.Earned(); Eq(state.Shop.DataShards, 5d, "dismiss without reward");
+        var third = new Ad(); sdk.Loaded(third); ads.ShowRewardedVideo(); third.Failed("test"); third.Earned();
+        Eq(state.Shop.DataShards, 5d, "failed show no reward"); Eq(ads.IsShowing, false, "failed show resets"); Eq(ads.IsReady, false, "failed show consumed");
+        Eq(message, "Video could not be shown. Please try again.", "failed show message");
+        ads.ShowRewardedVideo(); var fourth = new Ad(); sdk.Loaded(fourth); ads.ShowRewardedVideo(); fourth.Earned();
+        Eq(state.Shop.DataShards, 10d, "next show resets reward guard"); Eq(sdk.Initializations, 1, "reload never reinitializes");
+        fourth.Dismissed(); sdk.Failed("test load");
+        Eq(ads.IsLoading, false, "load failure resets"); Eq(ads.IsReady, false, "load failure no ready");
+        ads.ShowRewardedVideo(); var throwing = new Ad { Throw = true }; sdk.Loaded(throwing); ads.ShowRewardedVideo();
+        Eq(ads.IsShowing, false, "show exception recovers"); throwing.Earned(); Eq(state.Shop.DataShards, 10d, "show exception no reward");
+        sdk.Throw = true; ads.ShowRewardedVideo(); Eq(ads.IsLoading, false, "load exception recovers");
+        sdk.Throw = false; ads.ShowRewardedVideo(); var loaded = sdk.Loaded; ads.Dispose(); var stale = new Ad(); loaded(stale);
+        Eq(stale.Destroys, 1, "late load disposed"); Eq(ads.IsReady, false, "disposed no readiness");
+    }
+    static void Purchases()
+    {
+        foreach (var product in IapCatalog.GetAll())
+        foreach (int quantity in new[] { -1, 0, 1, 3 })
+        {
+            var (state, shop) = Shop(); var order = new List<string>(); int completions = 0; string message = "";
+            var workflow = new IapGrantWorkflow(amount => { order.Add("grant"); return shop.GrantDataShards(amount); },
+                _ => false, _ => { order.Add("save"); return true; }, _ => { order.Add("complete"); completions++; return true; });
+            workflow.MessageRequested += value => message = value;
+            workflow.Handle(product.ProductId, "token", quantity); workflow.Handle(product.ProductId, "token", quantity);
+            Eq(state.Shop.DataShards, (double)(product.ShardAmount * Math.Max(1, quantity)), "catalog/quantity reward");
+            Eq(string.Join(",", order), "grant,save,complete", "financial order"); Eq(completions, 1, "complete once");
+            Eq(message, $"+{product.ShardAmount * Math.Max(1, quantity)} Data Shards!", "purchase message");
+        }
+        int grants = 0, saves = 0, complete = 0;
+        var unknown = new IapGrantWorkflow(_ => { grants++; return new(true, "ok"); }, _ => false,
+            _ => { saves++; return true; }, _ => { complete++; return true; });
+        unknown.Handle("unknown", "token", 1); unknown.Handle("data_shard_100", "", 1);
+        unknown.Handle("data_shard_5500", "overflow", int.MaxValue);
+        Eq(grants, 0, "invalid product/token/overflow no grant"); Eq(saves, 0, "invalid no save"); Eq(complete, 0, "invalid no complete");
+        var processed = new IapGrantWorkflow(_ => { grants++; return new(true, "ok"); }, _ => true, _ => true, _ => true);
+        processed.Handle("data_shard_100", "processed", 1); Eq(grants, 0, "processed ledger token no grant");
+        int aborted = 0;
+        var failed = new IapGrantWorkflow(_ => new(false, "fail"), _ => false, _ => { saves++; return true; },
+            _ => { complete++; return true; }, abort: () => aborted++);
+        failed.Handle("data_shard_100", "failed", 1); Eq(saves, 0, "failed grant no save"); Eq(complete, 0, "failed grant no complete"); Eq(aborted, 1, "failed grant cancels reservation");
+        bool saveOk = false, completeOk = false;
+        var retry = new IapGrantWorkflow(_ => { grants++; return new(true, "+100 Data Shards!"); }, _ => false,
+            _ => { saves++; return saveOk; }, _ => { complete++; return completeOk; });
+        retry.Handle("data_shard_100", "retry", 1); Eq(grants, 1, "failed save retains one grant"); Eq(complete, 0, "failed save no complete");
+        retry.RetryPending(); Eq(grants, 1, "failed save retry no regrant"); saveOk = true;
+        retry.RetryPending(); Eq(complete, 1, "ledger failure attempted after save"); completeOk = true;
+        retry.RetryPending(); retry.RetryPending(); Eq(grants, 1, "finalization retry no regrant"); Eq(complete, 2, "failed then successful completion");
+        var boundary = new List<string>(); int notifications = 0;
+        IapGrantWorkflow reentrant = null;
+        reentrant = new IapGrantWorkflow(_ =>
+            { boundary.Add("grant"); reentrant.Handle("data_shard_100", "reentrant", 1); return new(true, "+100 Data Shards!"); },
+            _ => false, _ => { boundary.Add("save"); reentrant.RetryPending(); return true; },
+            _ => { boundary.Add("complete"); return true; },
+            (_, _) => { boundary.Add("prepare"); return true; });
+        reentrant.RewardGranted += () => { notifications++; reentrant.Handle("data_shard_100", "reentrant", 1); };
+        reentrant.Handle("data_shard_100", "reentrant", 1);
+        Eq(string.Join(",", boundary), "prepare,grant,save,complete", "durable reservation and reentrant order");
+        Eq(notifications, 1, "reentrant observers cannot repeat completion");
+        int preparations = 0;
+        var blocked = new IapGrantWorkflow(_ => { grants++; return new(true, "ok"); }, _ => false, _ => true, _ => true,
+            (_, _) => { preparations++; return false; });
+        blocked.Handle("data_shard_100", "blocked", 1); Eq(preparations, 1, "durable reservation attempted"); Eq(grants, 1, "reservation failure no grant");
+    }
+    static void Sync()
+    {
+        var calls = new List<string>(); long level = 151, prestige = 3; long firebaseLevel = 0, firebasePrestige = 0;
+        var workflow = new PlayGamesSyncWorkflow(() => calls.Add("achievements"),
+            () => { calls.Add("official level " + level); calls.Add("official prestige " + prestige); },
+            () => { firebaseLevel = level; firebasePrestige = prestige; calls.Add("firebase"); }, _ => throw new Exception("unexpected"));
+        using var service = new PlayGamesSyncService(); service.Initialize(workflow); service.Initialize(workflow);
+        Eq(service.GetChildCount(), 1, "one timer registration"); Eq(service.GetChild<Godot.Timer>(0).WaitTime, 1d, "one-second cadence");
+        service.Tick(); Eq(string.Join(",", calls), "achievements,official level 151,official prestige 3,firebase", "one tick fanout");
+        Eq(firebaseLevel, level, "Firebase same level"); Eq(firebasePrestige, prestige, "Firebase same prestige");
+        calls.Clear(); level = 152; prestige = 4; service.Tick(); Eq(calls.Count, 4, "next tick reads fresh scores"); Eq(firebasePrestige, 4L, "Prestige updates");
+        int errors = 0, forwarded = 0;
+        new PlayGamesSyncWorkflow(() => throw new Exception("unavailable"), () => forwarded++, () => forwarded++, _ => errors++).Tick();
+        Eq(errors, 1, "unavailable fails safely"); Eq(forwarded, 2, "independent sync continues");
+        using var uninitialized = new PlayGamesSyncService(); uninitialized.Tick(); Eq(uninitialized.Initialized, false, "uninitialized safe");
+        service.Free(); uninitialized.Free();
+    }
+    static void Journal()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "idle-ai-integration-" + Guid.NewGuid()); Directory.CreateDirectory(directory);
+        string path = Path.Combine(directory, "grant.json"), savePath = Path.Combine(directory, "save.json");
+        try
+        {
+            var journal = new IapGrantJournal(path, savePath); var snapshot = new SaveGameData { DataShards = 100 };
+            File.WriteAllText(savePath, "before"); Eq(journal.Prepare("t", snapshot), true, "write ahead"); Eq(journal.Prepare("other", snapshot), false, "one reservation");
+            var order = new List<string>();
+            Eq(journal.Recover(data => { Eq(data.DataShards, 100d, "snapshot recovered"); order.Add("save"); File.WriteAllText(savePath, "reward"); return true; },
+                _ => false, _ => { order.Add("ledger"); return true; }), true, "restart before reward save");
+            Eq(string.Join(",", order), "save,ledger", "recovery save before ledger"); Eq(journal.Exists, false, "recovery cleared");
+            Eq(journal.Recover(_ => throw new Exception(), _ => false, _ => throw new Exception()), true, "second restart no replay");
+            Eq(journal.Prepare("t2", snapshot), true, "second prepare");
+            Eq(journal.BeforeGameSave(snapshot), true, "save proof prepared");
+            File.WriteAllText(savePath, System.Text.Json.JsonSerializer.Serialize(snapshot, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+            Eq(journal.ConfirmSaved(), true, "saved proof durable");
+            var newer = new SaveGameData { DataShards = 95, Tokens = 1234 };
+            Eq(journal.BeforeGameSave(newer), true, "later gameplay proof prepared");
+            string newerJson = System.Text.Json.JsonSerializer.Serialize(newer, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(savePath, newerJson);
+            Eq(journal.Recover(_ => throw new Exception("must not overwrite"), _ => false, _ => true), true, "restart after save before ledger");
+            Eq(File.ReadAllText(savePath), newerJson, "later gameplay preserved");
+            journal.Prepare("t3", snapshot); Eq(journal.Recover(_ => false, _ => false, _ => throw new Exception()), false, "failed recovery no ledger"); Eq(journal.Exists, true, "failed recovery retained");
+            Eq(journal.Recover(_ => { File.WriteAllText(savePath, System.Text.Json.JsonSerializer.Serialize(snapshot, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })); return true; }, _ => false, _ => false), false, "failed ledger retains journal");
+            Eq(journal.Recover(_ => throw new Exception(), _ => false, _ => true), true, "ledger retry no second grant");
+            File.WriteAllText(savePath, "baseline"); journal.Prepare("previous", snapshot);
+            journal.BeforeGameSave(snapshot);
+            string rewardJson = System.Text.Json.JsonSerializer.Serialize(snapshot, new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(savePath, rewardJson); journal.ConfirmSaved();
+            Eq(journal.BeforeGameSave(new SaveGameData { DataShards = 90 }), true, "next save intent recorded");
+            Eq(journal.Recover(_ => throw new Exception(), _ => false, _ => true), true, "crash before next save keeps confirmed previous save");
+            Eq(File.ReadAllText(savePath), rewardJson, "previous granted save not replayed");
+            journal.Prepare("t4", snapshot); Eq(journal.Recover(_ => throw new Exception(), _ => true, _ => throw new Exception()), true, "processed token only cleanup");
+            File.WriteAllText(path, "broken"); Eq(journal.Recover(_ => true, _ => false, _ => true), false, "corrupt journal fails closed"); Eq(journal.Exists, true, "corrupt preserved");
+            File.WriteAllText(path, "{\"Token\":\"bad\",\"RewardSave\":{}}");
+            Eq(journal.Recover(_ => true, _ => false, _ => true), false, "incomplete journal fails closed");
+            File.WriteAllText(path, "{\"Token\":\"bad\",\"BeforeHash\":\"missing\",\"RewardSave\":{}}");
+            Eq(journal.Recover(_ => throw new Exception("must not overwrite"), _ => false, _ => throw new Exception()), false, "default DTO snapshot fails closed");
+            journal.Clear(); File.WriteAllText(savePath, "original"); journal.Prepare("ambiguous", snapshot);
+            File.WriteAllText(savePath, "unrelated replacement");
+            Eq(journal.Recover(_ => throw new Exception(), _ => false, _ => throw new Exception()), false, "ambiguous main save fails closed");
+            Eq(journal.BeforeGameSave(snapshot), false, "ambiguous save cannot overwrite evidence");
+            var unwritable = new IapGrantJournal(Path.Combine(directory, "absent", "grant.json"), savePath);
+            Eq(unwritable.Prepare("t", snapshot), false, "write failure reported");
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+    static void BillingLedger()
+    {
+        string ledger = ProjectSettings.GlobalizePath("user://idle_ai_iap_ledger.json");
+        string temporary = ProjectSettings.GlobalizePath("user://idle_ai_iap_ledger.tmp.json");
+        Directory.CreateDirectory(Path.GetDirectoryName(ledger));
+        File.WriteAllText(ledger, "{\"ProcessedPurchaseTokens\":[\"old-token\"]}");
+        var billing = new GooglePlayBillingService();
+        Eq(billing.IsPurchaseProcessed("old-token"), true, "existing ledger compatible");
+        Eq(billing.CompleteConsumableGrant("new-token"), true, "ledger success boundary");
+        var restarted = new GooglePlayBillingService();
+        Eq(restarted.IsPurchaseProcessed("new-token"), true, "token survives restart");
+        Eq(restarted.IsPurchaseProcessed("old-token"), true, "existing token retained");
+        Eq(File.Exists(temporary), false, "temporary ledger replaced");
+        Directory.CreateDirectory(temporary);
+        Eq(restarted.CompleteConsumableGrant("failed-token"), false, "ledger failure refuses completion");
+        Eq(restarted.IsPurchaseProcessed("failed-token"), false, "failed token not marked successful");
+        Eq(new GooglePlayBillingService().IsPurchaseProcessed("failed-token"), false, "failed token not persisted");
+        Directory.Delete(temporary);
+        foreach (string corrupt in new[] { "broken", "null", "{}", "{\"ProcessedPurchaseTokens\":null}", "{\"ProcessedPurchaseTokens\":[null]}" })
+        {
+            File.WriteAllText(ledger, corrupt);
+            var locked = new GooglePlayBillingService();
+            Eq(locked.LedgerLoadFailed, true, "corrupt ledger locks billing");
+            Eq(locked.CompleteConsumableGrant("unsafe-token"), false, "corrupt ledger cannot finalize");
+            Eq(File.ReadAllText(ledger), corrupt, "corrupt ledger preserved");
+        }
+        File.Delete(ledger);
+    }
+    static void MainSaveRecovery()
+    {
+        string main = ProjectSettings.GlobalizePath("user://idle_ai_save.json");
+        string backup = ProjectSettings.GlobalizePath("user://idle_ai_save.bak.json");
+        using var manager = new SaveManager();
+        var data = new SaveGameData { SaveVersion = 21, Tokens = 123 };
+        data.Rooms.Add(new RoomSaveData { Unlocked = true });
+        data.Rooms[0].Slots.Add(new SlotSaveData { Unlocked = true });
+        Eq(manager.SaveData(data), true, "baseline save");
+        Eq(manager.SaveData(data), true, "baseline backup");
+        foreach (string malformed in new[] { "{\"Rooms\":null}", "{\"Rooms\":[null]}", "{\"Rooms\":[{\"Slots\":null}]}", "{\"Rooms\":[{\"Slots\":[null]}]}" })
+        {
+            File.WriteAllText(main, malformed);
+            Eq(manager.LoadData()?.Tokens, 123d, "structural corruption recovers backup");
+            Eq(manager.LastLoadFailed, false, "backup recovery unlocks saves");
+        }
+        File.WriteAllText(main, "{\"Rooms\":null}");
+        File.WriteAllText(backup, "broken");
+        Eq(manager.LoadData(), null, "both corrupt rejected");
+        Eq(manager.LastLoadFailed, true, "both corrupt lock saves");
+        Eq(manager.SaveData(data), false, "corruption cannot overwrite");
+        Eq(File.ReadAllText(main), "{\"Rooms\":null}", "main evidence preserved");
+        Eq(File.ReadAllText(backup), "broken", "backup evidence preserved");
+        File.Delete(main); File.Delete(backup); manager.Free();
+    }
+    public static void Main() { Rewarded(); Purchases(); Sync(); Journal(); BillingLedger(); MainSaveRecovery(); Console.WriteLine($"Integrations: {checks} assertions passed."); }
+}

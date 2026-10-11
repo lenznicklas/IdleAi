@@ -3,30 +3,10 @@ using Godot;
 namespace IdleAi;
 
 
-/*
- * Play Games + Firebase alias integration and lightweight feature bootstraps
- * live in this partial Game class so the large main Game.cs stays focused on
- * the primary gameplay loop.
- */
+/// <summary>Deferred gameplay/UI startup; online ownership lives in its coordinator.</summary>
 public partial class Game
 {
-	private GooglePlayGamesAchievementService?
-		_playGamesAchievements;
-
-	private FirebaseAliasService?
-		_firebaseAliases;
-
-	private Timer?
-		_playGamesAchievementTimer;
-
-	private UsernameSetupOverlayController?
-		_usernameSetupOverlay;
-
-	private LeaderboardOverlayController?
-		_leaderboardOverlay;
-
-	private StatsLeaderboardButtonsController?
-		_statsLeaderboardButtons;
+	private OnlineIntegrationCoordinator? _onlineIntegrations;
 
 	private SingularityService?
 		_singularityService;
@@ -49,7 +29,6 @@ public partial class Game
 	private StartupInfoOverlayController?
 		_startupInfoOverlay;
 
-	private bool _roomSelectionGuardInstalled;
 
 
 	public override void _EnterTree()
@@ -65,7 +44,7 @@ public partial class Game
 	private void InitializeDeferredFeatures()
 	{
 		if (
-			_playGamesAchievements
+			_onlineIntegrations
 				!= null
 		)
 		{
@@ -76,7 +55,6 @@ public partial class Game
 		InitializeBotDurabilityUi();
 		InitializePlayGamesAndFirebase();
 		InitializeSingularity();
-		InstallSequentialRoomSelectionGuard();
 
 		/*
 		 * These are deliberately initialized after the normal UI and
@@ -134,76 +112,11 @@ public partial class Game
 
 	private void InitializePlayGamesAndFirebase()
 	{
-		_firebaseAliases =
-			new FirebaseAliasService
-			{
-				Name =
-					"FirebaseAliasService"
-			};
-
-		AddChild(
-			_firebaseAliases
-		);
-
-		_firebaseAliases.Initialize();
-
-		_playGamesAchievements =
-			new GooglePlayGamesAchievementService();
-
-		_playGamesAchievements.Initialize();
-
-		_playGamesAchievementTimer =
-			new Timer
-			{
-				Name =
-					"PlayGamesAchievementSyncTimer",
-
-				WaitTime =
-					1.0,
-
-				OneShot =
-					false,
-
-				Autostart =
-					true
-			};
-
-		_playGamesAchievementTimer.Timeout +=
-			SyncPlayGamesAchievements;
-
-		AddChild(
-			_playGamesAchievementTimer
-		);
-
-		_usernameSetupOverlay =
-			new UsernameSetupOverlayController(
-				this,
-				_firebaseAliases
-			);
-
-		_usernameSetupOverlay.Initialize();
-
-		_leaderboardOverlay =
-			new LeaderboardOverlayController(
-				this,
-				_playGamesAchievements,
-				_firebaseAliases,
-				_usernameSetupOverlay
-			);
-
-		_leaderboardOverlay.Initialize();
-
-		_statsLeaderboardButtons =
-			new StatsLeaderboardButtonsController(
-				this,
-				_state,
-				_progression,
-				_leaderboardOverlay
-			);
-
-		_statsLeaderboardButtons.Initialize();
+		_onlineIntegrations = new OnlineIntegrationCoordinator { Name = "OnlineIntegrations" };
+		AddChild(_onlineIntegrations);
+		_onlineIntegrations.Initialize(this, _state, _progression);
+		_onlineIntegrations.TickCompleted += () => _singularityMapExtension?.Refresh();
 	}
-
 
 	private void InitializeSingularity()
 	{
@@ -244,7 +157,8 @@ public partial class Game
 				_state,
 				_singularityService,
 				_singularityController,
-				_ui.Map
+				_ui.Map,
+				_economy
 			);
 
 		_singularityMapExtension.MessageRequested +=
@@ -258,67 +172,6 @@ public partial class Game
 			};
 
 		_singularityMapExtension.Initialize();
-	}
-
-
-	private void InstallSequentialRoomSelectionGuard()
-	{
-		if (
-			_roomSelectionGuardInstalled
-			|| _ui == null
-		)
-		{
-			return;
-		}
-
-		/*
-		 * Game.cs originally subscribes OnRoomSelectedRequested directly.
-		 * Replace that subscription with a guarded wrapper so the progression
-		 * rule is enforced BEFORE UnlockRoom can spend Tokens.
-		 */
-		_ui.RoomSelectedRequested -=
-			OnRoomSelectedRequested;
-
-		_ui.RoomSelectedRequested +=
-			OnGuardedRoomSelectedRequested;
-
-		_roomSelectionGuardInstalled =
-			true;
-	}
-
-
-	private void OnGuardedRoomSelectedRequested(
-		int targetRoom)
-	{
-		if (
-			targetRoom > 0
-			&& targetRoom < _state.RoomStates.Count
-			&& !_state.RoomStates[
-				targetRoom
-			].Unlocked
-		)
-		{
-			if (
-				!RoomUnlockRules.CanUnlockRoom(
-					_state,
-					targetRoom,
-					out string reason
-				)
-			)
-			{
-				_ui.SetMessage(
-					reason
-				);
-
-				_ui.UpdateAll();
-
-				return;
-			}
-		}
-
-		OnRoomSelectedRequested(
-			targetRoom
-		);
 	}
 
 
@@ -372,43 +225,4 @@ public partial class Game
 	}
 
 
-	private void SyncPlayGamesAchievements()
-	{
-		if (
-			_playGamesAchievements
-				== null
-			|| _state == null
-			|| _progression == null
-		)
-		{
-			return;
-		}
-
-		_playGamesAchievements.SyncAchievements(
-			_state,
-			_progression
-		);
-
-		/*
-		 * Keep the official Google Play leaderboards exactly as before.
-		 */
-		_playGamesAchievements.SyncLeaderboards(
-			_state,
-			_progression
-		);
-
-		/*
-		 * Additionally persist the same values beside the unique Idle AI
-		 * username. The custom in-game Top 25 is rendered from this source,
-		 * so every row has a real Firebase username and an exact rank.
-		 */
-		_firebaseAliases?.SyncInGameLeaderboardScores(
-			_progression.GetTotalLevel(),
-			_state.Prestige.PrestigeCount
-		);
-
-		_statsLeaderboardButtons?.Refresh();
-
-		_singularityMapExtension?.Refresh();
-	}
 }

@@ -12,11 +12,17 @@ public readonly record struct LabResult(
 public sealed class LabService
 {
 	private readonly GameState _state;
+	private readonly EconomyService _economy;
 
+
+	public LabService(GameState state)
+		: this(state, new EconomyService(state)) { }
 
 	public LabService(
-		GameState state)
+		GameState state,
+		EconomyService economy)
 	{
+		_economy = economy;
 		_state =
 			state;
 	}
@@ -41,7 +47,7 @@ public sealed class LabService
 			GameConfig.LabUnlockCost;
 
 
-		if (_state.Tokens < cost)
+		if (!_economy.TrySpendTokens(cost))
 		{
 			return new LabResult(
 				false,
@@ -50,11 +56,9 @@ public sealed class LabService
 		}
 
 
-		_state.Tokens -=
-			cost;
 
 
-		_state.Stats.AddMachineSpending(
+		_economy.RecordMachineSpending(
 			"Laboratory",
 			cost
 		);
@@ -114,7 +118,7 @@ public sealed class LabService
 			);
 
 
-		if (_state.Tokens < cost)
+		if (!_economy.TrySpendTokens(cost))
 		{
 			return new LabResult(
 				false,
@@ -123,15 +127,13 @@ public sealed class LabService
 		}
 
 
-		_state.Tokens -=
-			cost;
 
 
 		_state.Lab.ResearchPoints +=
 			amount;
 
 
-		_state.Stats.AddMachineSpending(
+		_economy.RecordMachineSpending(
 			"Research Points",
 			cost
 		);
@@ -387,7 +389,9 @@ public sealed class LabService
 	// UPDATE
 	// ==================================================
 
-	public LabResult Update()
+	public LabResult Update() => Update(GetCurrentUnixTime());
+
+	public LabResult Update(long nowUnix)
 	{
 		if (!_state.Lab.HasActiveResearch)
 		{
@@ -399,7 +403,7 @@ public sealed class LabService
 
 
 		if (
-			GetRemainingResearchSeconds()
+			Math.Max(0.0, _state.Lab.ActiveResearchEndUnix - nowUnix)
 			> 0.0
 		)
 		{

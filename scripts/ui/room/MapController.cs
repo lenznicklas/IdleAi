@@ -1246,9 +1246,9 @@ public sealed partial class MapController
 			{
 				double cost =
 					_progression
-						.GetRoomUnlockCost(
+						.GetRoomUnlockQuote(
 							i
-						);
+						).Cost;
 
 
 				node.StateLabel.Text =

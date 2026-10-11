@@ -81,7 +81,7 @@ public sealed class BotService
 				slotIndex
 			);
 
-		if (_state.Tokens < cost)
+		if (!_economy.TrySpendTokens(cost))
 		{
 			return new BotActionResult(
 				false,
@@ -89,8 +89,6 @@ public sealed class BotService
 			);
 		}
 
-		_state.Tokens -=
-			cost;
 
 		BotRarity rarity =
 			RollRarity();
@@ -114,7 +112,7 @@ public sealed class BotService
 				);
 		}
 
-		_state.Stats.AddMachineSpending(
+		_economy.RecordMachineSpending(
 			"Bots",
 			cost
 		);
@@ -201,7 +199,7 @@ public sealed class BotService
 			);
 		}
 
-		if (_state.Tokens < cost)
+		if (!_economy.TrySpendTokens(cost))
 		{
 			return new BotActionResult(
 				false,
@@ -209,8 +207,6 @@ public sealed class BotService
 			);
 		}
 
-		_state.Tokens -=
-			cost;
 
 		slot.RepairBot();
 
@@ -225,7 +221,7 @@ public sealed class BotService
 				);
 		}
 
-		_state.Stats.AddMachineSpending(
+		_economy.RecordMachineSpending(
 			"Bot Repairs",
 			cost
 		);
@@ -271,8 +267,7 @@ public sealed class BotService
 				slot.BotRarity!.Value
 			);
 
-		_state.Tokens +=
-			refund;
+		_economy.RefundTokens(refund);
 
 		slot.ClearBot();
 

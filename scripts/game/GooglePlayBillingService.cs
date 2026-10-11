@@ -112,6 +112,8 @@ public sealed class GooglePlayBillingService
 	>? ConsumablePurchaseReady;
 
 
+	public bool LedgerLoadFailed { get; private set; }
+
 	public bool IsAvailable =>
 		OS.GetName() == "Android"
 		&& _billing != null;
@@ -152,7 +154,8 @@ public sealed class GooglePlayBillingService
 		string productId)
 	{
 		return
-			IsAvailable
+			!LedgerLoadFailed
+			&& IsAvailable
 			&& _connected
 			&& HasProduct(
 				productId
@@ -875,6 +878,7 @@ public sealed class GooglePlayBillingService
 	public void Purchase(
 		string productId)
 	{
+		if (LedgerLoadFailed) return;
 		if (
 			!IapCatalog.TryGet(
 				productId,
@@ -1203,6 +1207,7 @@ public sealed class GooglePlayBillingService
 	private void ProcessPurchase(
 		GodotDictionary purchase)
 	{
+		if (LedgerLoadFailed) return;
 		if (
 			!TryGetSupportedProductId(
 				purchase,
@@ -1369,40 +1374,22 @@ public sealed class GooglePlayBillingService
 	// GRANT + CONSUME
 	// ==================================================
 
-	public void CompleteConsumableGrant(
-		string purchaseToken)
+	public bool IsPurchaseProcessed(string token) => _processedPurchaseTokens.Contains(token);
+
+	public bool CompleteConsumableGrant(string purchaseToken)
 	{
-		if (
-			string.IsNullOrWhiteSpace(
-				purchaseToken
-			)
-		)
+		if (LedgerLoadFailed || string.IsNullOrWhiteSpace(purchaseToken)) return false;
+		bool added = _processedPurchaseTokens.Add(purchaseToken);
+		if (!SaveLedger())
 		{
-			return;
+			if (added) _processedPurchaseTokens.Remove(purchaseToken);
+			return false;
 		}
-
-
-		_processedPurchaseTokens.Add(
-			purchaseToken
-		);
-
-
-		_processingPurchaseTokens.Remove(
-			purchaseToken
-		);
-
-
-		SaveLedger();
-
-
-		ConsumePurchase(
-			purchaseToken
-		);
-
-
+		_processingPurchaseTokens.Remove(purchaseToken);
+		ConsumePurchase(purchaseToken);
 		Changed?.Invoke();
+		return true;
 	}
-
 
 	private void ConsumePurchase(
 		string purchaseToken)
@@ -1524,14 +1511,21 @@ public sealed class GooglePlayBillingService
 				);
 
 
+			using var document = JsonDocument.Parse(json);
+			if (document.RootElement.ValueKind != JsonValueKind.Object ||
+				!document.RootElement.TryGetProperty("ProcessedPurchaseTokens", out var tokens) ||
+				tokens.ValueKind != JsonValueKind.Array)
+				throw new InvalidDataException("Invalid IAP token ledger.");
+
 			IapLedger? ledger =
 				JsonSerializer.Deserialize<IapLedger>(
 					json
 				);
 
 
-			if (ledger == null)
-				return;
+			if (ledger?.ProcessedPurchaseTokens == null ||
+				ledger.ProcessedPurchaseTokens.Any(string.IsNullOrWhiteSpace))
+				throw new InvalidDataException("Invalid IAP token ledger.");
 
 
 			foreach (
@@ -1553,6 +1547,7 @@ public sealed class GooglePlayBillingService
 		}
 		catch (Exception exception)
 		{
+			LedgerLoadFailed = true;
 			GD.PushWarning(
 				"Could not load IAP token ledger: "
 					+ exception.Message
@@ -1561,7 +1556,7 @@ public sealed class GooglePlayBillingService
 	}
 
 
-	private void SaveLedger()
+	private bool SaveLedger()
 	{
 		string path =
 			ProjectSettings.GlobalizePath(
@@ -1645,6 +1640,7 @@ public sealed class GooglePlayBillingService
 				overwrite:
 					true
 			);
+			return true;
 		}
 		catch (Exception exception)
 		{
@@ -1672,6 +1668,7 @@ public sealed class GooglePlayBillingService
 				// Keep the original error as the useful one.
 			}
 		}
+		return false;
 	}
 
 

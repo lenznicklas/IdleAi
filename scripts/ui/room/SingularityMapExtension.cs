@@ -47,6 +47,7 @@ public sealed partial class SingularityMapExtension
     private readonly Game _root;
     private readonly GameState _state;
     private readonly SingularityService _service;
+    private readonly EconomyService _economy;
     private readonly SingularityController _controller;
     private readonly MapController _map;
 
@@ -86,8 +87,10 @@ public sealed partial class SingularityMapExtension
         GameState state,
         SingularityService service,
         SingularityController controller,
-        MapController map)
+        MapController map,
+        EconomyService economy)
     {
+        _economy = economy;
         _root = root;
         _state = state;
         _service = service;
@@ -243,7 +246,15 @@ public sealed partial class SingularityMapExtension
             if (_controller.Visible)
             {
                 _singularityIsCurrentRoom = true;
-                _controller.Hide();
+
+                // Settings is a modal over the current room, so keep its
+                // background visible unless a full page also covers it.
+                if (_mapPage.Visible
+                    || (_shopPage?.Visible ?? false)
+                    || (_labPage?.Visible ?? false))
+                {
+                    _controller.Hide();
+                }
             }
 
             if (_singularityIsCurrentRoom)
@@ -262,7 +273,7 @@ public sealed partial class SingularityMapExtension
             return;
         }
 
-        if (_singularityIsCurrentRoom)
+        if (_singularityIsCurrentRoom && !_controller.Visible)
         {
             QueueSingularityRestore();
         }
@@ -437,18 +448,7 @@ public sealed partial class SingularityMapExtension
 
         if (!_service.Unlocked)
         {
-            bool room4Unlocked =
-                _state.RoomStates.Count > 3
-                && _state.RoomStates[3].Unlocked;
-
-            if (!room4Unlocked)
-            {
-                MessageRequested?.Invoke("Unlock Room 4 first.");
-                Refresh();
-                return;
-            }
-
-            SingularityActionResult result = _service.Unlock(_state);
+            SingularityActionResult result = _service.Unlock(_state, _economy);
             MessageRequested?.Invoke(result.Message);
 
             if (!result.Changed)
@@ -541,7 +541,7 @@ public sealed partial class SingularityMapExtension
         {
             _stateLabel.Text = "TAP TO ENTER";
             _stateLabel.Modulate = Colors.White;
-            _badgeLabel.Text = "CURRENT";
+            _badgeLabel.Text = "● CURRENT";
         }
         else if (unlocked)
         {
@@ -554,11 +554,9 @@ public sealed partial class SingularityMapExtension
             _stateLabel.Text = "LOCKED";
             _stateLabel.Modulate = new Color(0.64f, 0.67f, 0.72f, 1.0f);
 
-            bool room4Unlocked =
-                _state.RoomStates.Count > 3
-                && _state.RoomStates[3].Unlocked;
+            bool eligible = RoomUnlockRules.CanUnlockSingularity(_state, out _);
 
-            _badgeLabel.Text = !room4Unlocked
+            _badgeLabel.Text = !eligible
                 ? "UNLOCK ROOM 4 FIRST"
                 : "UNLOCK • "
                     + NumberFormatter.Format(

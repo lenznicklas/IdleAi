@@ -18,5 +18,16 @@ public sealed class RoomState
 
 	public QuantumData Quantum { get; } = new();
 
+	/// <summary>Resets normal progression; the permanent room reward claim survives.</summary>
+	public void ResetForNewRun(bool isStartingRoom)
+	{
+		Unlocked = isStartingRoom;
+		Pipeline.Reset();
+		Infrastructure.Reset();
+		Quantum.Reset();
+		for (int slotIndex = 0; slotIndex < Slots.Count; slotIndex++)
+			Slots[slotIndex].ResetForNewRun(isStartingRoom && slotIndex == 0);
+	}
+
 	public List<SlotData> Slots { get; } = [];
 }

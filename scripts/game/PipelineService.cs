@@ -597,7 +597,7 @@ public sealed class PipelineService
 			);
 
 
-		if (_state.Tokens < cost)
+		if (!_economy.TrySpendTokens(cost))
 		{
 			return new PipelineUpgradeResult(
 				false,
@@ -606,11 +606,9 @@ public sealed class PipelineService
 		}
 
 
-		_state.Tokens -=
-			cost;
 
 
-		_state.Stats.AddMachineSpending(
+		_economy.RecordMachineSpending(
 			"Server Pipeline - "
 			+ GetStageName(
 				stage

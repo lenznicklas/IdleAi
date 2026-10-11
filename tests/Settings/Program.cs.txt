@@ -1,0 +1,71 @@
+using System;
+using System.IO;
+using System.Collections.Generic;
+using IdleAi;
+
+class Program
+{
+    static int assertions;
+    static void Check(bool condition, string message) { assertions++; if (!condition) throw new Exception(message); }
+    static void Main()
+    {
+        string directory = Path.Combine(Path.GetTempPath(), "idle-settings-" + Guid.NewGuid());
+        Directory.CreateDirectory(directory);
+        try
+        {
+            string path = Path.Combine(directory, "idle_ai_settings.json");
+            string temp = Path.Combine(directory, "idle_ai_settings.tmp.json");
+            var warnings = new List<string>();
+            var persistence = new SettingsPersistenceService(path, temp, warnings.Add);
+            var defaults = persistence.Load();
+            Check(defaults.VibrationEnabled, "default vibration");
+            Check(defaults.SoundEnabled, "default sound");
+            foreach (bool vibration in new[] { true, false })
+            foreach (bool sound in new[] { true, false })
+            {
+                persistence.Save(new() { SaveVersion = 1, VibrationEnabled = vibration, SoundEnabled = sound });
+                var loaded = persistence.Load();
+                Check(loaded.SaveVersion == 1 && loaded.VibrationEnabled == vibration && loaded.SoundEnabled == sound, "round trip");
+                string json = File.ReadAllText(path);
+                Check(json.Contains("\"SaveVersion\": 1") && json.Contains("\"VibrationEnabled\"") && json.Contains("\"SoundEnabled\""), "JSON contract");
+                Check(!File.Exists(temp), "temporary file moved");
+            }
+            foreach (string json in new[] { "{broken", "null", "{}", "{\"VibrationEnabled\":\"invalid\"}" })
+            {
+                File.WriteAllText(path, json);
+                var fallback = persistence.Load();
+                Check(fallback.VibrationEnabled && fallback.SoundEnabled, "safe fallback");
+            }
+            Check(warnings.Count == 2, "corruption warnings");
+            File.WriteAllText(path, "{\"SaveVersion\":1,\"VibrationEnabled\":false,\"SoundEnabled\":false}");
+            Check(!persistence.Load().SoundEnabled && !persistence.Load().VibrationEnabled, "existing installed JSON");
+            var failed = new SettingsPersistenceService(directory, temp, warnings.Add);
+            failed.Save(new());
+            Check(warnings.Count == 3 && !File.Exists(temp), "failed move warns and cleans temporary file");
+            foreach (bool initial in new[] { true, false })
+            {
+                var order = new List<string>();
+                int vibrations = 0, saves = 0, changes = 0;
+                var haptics = new HapticsService((duration, amplitude) => { Check(duration == 16 && amplitude == .12f, "vibration parameters"); vibrations++; });
+                var settings = new GameSettingsService(
+                    () => { order.Add("load"); return new() { SoundEnabled = initial, VibrationEnabled = initial }; },
+                    data => { saves++; Check(data.SaveVersion == 1, "save version"); Check(haptics.VibrationEnabled == data.VibrationEnabled, "gate applied before save"); order.Add("save"); },
+                    enabled => { Check(enabled == (order.Count == 1 ? initial : !initial), "audio requested state"); order.Add("audio"); }, haptics);
+                Check(string.Join(",", order) == "load,audio", "startup ordering");
+                settings.Changed += () => { changes++; order.Add("changed"); };
+                settings.SetSoundEnabled(initial); settings.SetVibrationEnabled(initial);
+                Check(changes == 0 && saves == 0 && order.Count == 2, "same values no work");
+                haptics.VibrateHandheld(16, .12f);
+                Check(vibrations == (initial ? 1 : 0), "initial gate");
+                order.Clear(); settings.SetVibrationEnabled(!initial);
+                Check(changes == 1 && saves == 1 && string.Join(",", order) == "save,changed", "vibration event order");
+                haptics.VibrateHandheld(16, .12f);
+                Check(vibrations == 1, "updated gate");
+                order.Clear(); settings.SetSoundEnabled(!initial);
+                Check(changes == 2 && saves == 2 && string.Join(",", order) == "audio,save,changed", "sound event order");
+            }
+            Console.WriteLine($"Settings: {assertions} assertions passed.");
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+}

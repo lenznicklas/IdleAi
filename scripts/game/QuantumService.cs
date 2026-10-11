@@ -12,11 +12,17 @@ public readonly record struct QuantumUpgradeResult(
 public sealed class QuantumService
 {
 	private readonly GameState _state;
+	private readonly EconomyService _economy;
 
+
+	public QuantumService(GameState state)
+		: this(state, new EconomyService(state)) { }
 
 	public QuantumService(
-		GameState state)
+		GameState state,
+		EconomyService economy)
 	{
+		_economy = economy;
 		_state =
 			state;
 	}
@@ -444,7 +450,7 @@ public sealed class QuantumService
 			);
 
 
-		if (_state.Tokens < cost)
+		if (!_economy.TrySpendTokens(cost))
 		{
 			return new QuantumUpgradeResult(
 				false,
@@ -453,11 +459,9 @@ public sealed class QuantumService
 		}
 
 
-		_state.Tokens -=
-			cost;
 
 
-		_state.Stats.AddMachineSpending(
+		_economy.RecordMachineSpending(
 			"Quantum Lab - "
 			+ GetUpgradeName(
 				upgrade

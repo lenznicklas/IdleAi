@@ -12,10 +12,19 @@ public sealed class PrestigeService
 		1_000_000_000_000_000_000.0;
 
 	private readonly GameState _state;
+	private readonly NormalRunResetService _runReset;
+
+	public PrestigeService(GameState state)
+		: this(state, new NormalRunResetService(state, new EconomyService(state))) { }
 
 	public PrestigeService(
-		GameState state)
+		GameState state,
+		EconomyService economy)
+		: this(state, new NormalRunResetService(state, economy)) { }
+
+	public PrestigeService(GameState state, NormalRunResetService runReset)
 	{
+		_runReset = runReset;
 		_state =
 			state;
 	}
@@ -93,7 +102,7 @@ public sealed class PrestigeService
 			_state.Prestige.PrestigeCount++;
 		}
 
-		ResetNormalProgress();
+		_runReset.Reset();
 
 		int resetRunLevel =
 			ProgressionService
@@ -123,73 +132,4 @@ public sealed class PrestigeService
 		);
 	}
 
-	private void ResetNormalProgress()
-	{
-		_state.Tokens =
-			0.0;
-
-		_state.RunEarnedTokens =
-			0.0;
-
-		_state.CurrentRoomIndex =
-			0;
-
-		for (
-			int roomIndex = 0;
-			roomIndex < _state.RoomStates.Count;
-			roomIndex++
-		)
-		{
-			RoomState room =
-				_state.RoomStates[
-					roomIndex
-				];
-
-			room.Unlocked =
-				roomIndex == 0;
-
-			room.Pipeline.Reset();
-			room.Infrastructure.Reset();
-			room.Quantum.Reset();
-
-			for (
-				int slotIndex = 0;
-				slotIndex < room.Slots.Count;
-				slotIndex++
-			)
-			{
-				SlotData slot =
-					room.Slots[
-						slotIndex
-					];
-
-				slot.Unlocked =
-					roomIndex == 0
-					&& slotIndex == 0;
-
-				slot.MachineTier =
-					0;
-
-				slot.MachineLevel =
-					1;
-
-				slot.ResetDataShardMilestones();
-
-				/*
-				 * ClearBot also resets durability state so a future Bot cannot
-				 * inherit durability from the previous prestige run.
-				 */
-				slot.ClearBot();
-
-				slot.IsRunning =
-					false;
-
-				slot.CycleRemaining =
-					0.0;
-
-				slot.RuntimeCycleDuration =
-					0.0;
-			}
-		}
-	}
 }

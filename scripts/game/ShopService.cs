@@ -46,8 +46,7 @@ public sealed class ShopService
 			);
 		}
 
-		_state.Shop.DataShards +=
-			amount;
+		_economy.GrantDataShards(amount);
 
 		return new ShopResult(
 			true,
@@ -193,8 +192,7 @@ public sealed class ShopService
 
 		if (result.CompletedCycles <= 0)
 		{
-			_state.Shop.DataShards +=
-				cost;
+			_economy.RefundDataShards(cost);
 
 			return new ShopResult(
 				false,
@@ -204,15 +202,7 @@ public sealed class ShopService
 
 		if (result.Earned > 0.0)
 		{
-			_state.Tokens +=
-				result.Earned;
-
-			_state.RunEarnedTokens +=
-				result.Earned;
-
-			_state.Stats.AddEarned(
-				result.Earned
-			);
+			_economy.AddEarnedTokens(result.Earned);
 		}
 
 		string message =
@@ -368,15 +358,12 @@ public sealed class ShopService
 
 		if (
 			wholeAmount <= 0.0
-			|| _state.Shop.DataShards
-			< wholeAmount
+			|| !_economy.TrySpendDataShards(wholeAmount)
 		)
 		{
 			return false;
 		}
 
-		_state.Shop.DataShards -=
-			wholeAmount;
 
 		return true;
 	}

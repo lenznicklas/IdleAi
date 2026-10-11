@@ -8,7 +8,7 @@ namespace IdleAi;
 ///
 /// Usernames are intentionally one-time in this version. This keeps public
 /// leaderboard identity stable and avoids impersonation by rapid renaming.
-/// FirebaseAliasService performs the atomic, case-insensitive reservation.
+/// OnlineProfileService performs the atomic, case-insensitive reservation.
 /// </summary>
 public sealed class UsernameSetupOverlayController
 {
@@ -20,7 +20,7 @@ public sealed class UsernameSetupOverlayController
 
 	private readonly Game _root;
 
-	private readonly FirebaseAliasService _aliases;
+	private readonly OnlineProfileService _aliases;
 
 	private Control _overlay =
 		null!;
@@ -50,7 +50,7 @@ public sealed class UsernameSetupOverlayController
 
 	public UsernameSetupOverlayController(
 		Game root,
-		FirebaseAliasService aliases)
+		OnlineProfileService aliases)
 	{
 		_root =
 			root;
@@ -242,7 +242,7 @@ public sealed class UsernameSetupOverlayController
 		}
 
 		bool valid =
-			FirebaseAliasService.ValidateUsername(
+			OnlineProfileService.ValidateUsername(
 				trimmed,
 				out string error
 			);
@@ -283,7 +283,7 @@ public sealed class UsernameSetupOverlayController
 			_usernameInput.Text.Trim();
 
 		if (
-			!FirebaseAliasService.ValidateUsername(
+			!OnlineProfileService.ValidateUsername(
 				username,
 				out string error
 			)

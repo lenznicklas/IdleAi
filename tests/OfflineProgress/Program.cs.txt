@@ -1,0 +1,115 @@
+using System;
+using System.Reflection;
+using IdleAi;
+
+class Program
+{
+    static int checks;
+    static void Equal(double actual, double expected, string label)
+    {
+        if (actual != expected) throw new Exception($"{label}: {actual:R} != {expected:R}");
+        checks++;
+    }
+    static (GameState, EconomyService, OfflineProgressService) Create()
+    {
+        var state = new GameState([new RoomData("Test", null, null,
+            [new MachineData("Test", 100, 1, 1, 100, null)], 0)]);
+        var room = new RoomState { Unlocked = true };
+        room.Slots.Add(new SlotData { Unlocked = true, MachineLevel = 1 });
+        state.RoomStates.Add(room);
+        var economy = new EconomyService(state);
+        return (state, economy, new OfflineProgressService(state, economy, new LabService(state, economy)));
+    }
+    static SaveGameData Save(double income, long boost = 0, int version = 21) => new()
+    { LastSaveUnix = 1000, IncomePerSecond = income, ShopProductionBoostEndUnix = boost, SaveVersion = version };
+    static double Segment(double income, long start, long end, long boost, double factor)
+    {
+        long seconds = end - start;
+        if (seconds <= 0 || income <= 0) return 0;
+        long boosted = Math.Min(Math.Max(0, Math.Min(end, boost) - start), seconds);
+        return (income * (seconds - boosted) + income * boosted * GameConfig.ShopTemporaryProductionMultiplier) * factor;
+    }
+    static void Main()
+    {
+        // Includes zero/backward time, short/base, very long uncapped time, and all boost overlaps.
+        foreach (long now in new long[] { 999, 1000, 1001, 1100, 1000 + 365L * 86400 })
+        foreach (long boost in new long[] { 0, 999, 1050, now + 1 })
+        foreach (int level in new int[] { 0, 4, 15 })
+        {
+            var (s, e, o) = Create(); s.Shop.OfflineUpgradeLevel = level;
+            double expected = Segment(100, 1000, now, boost, Math.Clamp(.25 + level * .05, 0, 1));
+            var r = o.ApplyFromSave(Save(100, boost), now);
+            Equal(r.OfflineEarned, expected, "interval");
+            Equal(s.Tokens, expected, "Tokens"); Equal(s.RunEarnedTokens, expected, "run");
+            Equal(s.Stats.TotalEarned, expected, "lifetime"); Equal(s.Stats.OfflineEarned, expected, "offline stats");
+        }
+        foreach (string id in new[] { ResearchCatalog.EfficientHardware1Id, ResearchCatalog.OfflineServersId, "invalid" })
+        foreach (long end in new long[] { 999, 1000, 1001, 1050, 1099, 1100, 1101 })
+        foreach (long boost in new long[] { 0, 1025, 1050, 1075, 1200 })
+        {
+            var (s, e, o) = Create();
+            double before = e.GetTotalIncomeWithoutTemporaryShopBoost();
+            s.Lab.ActiveResearchId = id; s.Lab.ActiveResearchEndUnix = end;
+            var r = o.ApplyFromSave(Save(before, boost), 1100);
+            double after = e.GetTotalIncomeWithoutTemporaryShopBoost();
+            double factor = Math.Clamp(.25 + s.Lab.GetOfflineIncomeBonus(), 0, 1);
+            double expected = end > 1100 ? Segment(before, 1000, 1100, boost, .25)
+                : end <= 1000 ? Segment(after, 1000, 1100, boost, factor)
+                : Segment(before, 1000, end, boost, .25) + Segment(after, end, 1100, boost, factor);
+            Equal(r.OfflineEarned, expected, "research split");
+            Equal(r.ResearchResult.Changed ? 1 : 0, end <= 1100 ? 1 : 0, "research completion");
+            Equal(s.Tokens, expected, "research credits");
+        }
+        foreach (int version in new[] { 1, 14, 15, 18, 19, 21 })
+        {
+            var (s, e, o) = Create();
+            double income = version < 19 ? e.GetTotalIncomeWithoutTemporaryShopBoost() : 777;
+            Equal(o.ApplyFromSave(Save(777, 1050, version), 1100).OfflineEarned,
+                Segment(income, 1000, 1100, 1050, .25), "historical selection");
+        }
+        // Retained pre-v15 helper is currently bypassed by pre-v19 selection.
+        var migration = typeof(OfflineProgressService).GetMethod("GetMigratedOfflineIncomePerSecond", BindingFlags.Static | BindingFlags.NonPublic);
+        foreach (int version in new[] { 14, 15 })
+        foreach (long boost in new long[] { 999, 1050 })
+        foreach (double income in new double[] { 0, -1, 100 })
+            Equal((double)migration.Invoke(null, new object[] { Save(income, boost, version) }),
+                version < 15 && boost > 1000 && income > 0 ? income / GameConfig.ShopTemporaryProductionMultiplier : income, "legacy helper");
+        foreach (long now in new long[] { 999, 1000, 1100 })
+        {
+            var (s, e, o) = Create();
+            Equal(o.ApplyResume(now, out _) ? 1 : 0, 0, "no pause");
+            s.Shop.ProductionBoostEndUnix = 1050;
+            var pause = o.CapturePauseSnapshot(1000);
+            Equal(o.CapturePauseSnapshot(1005).Unix, 1000, "duplicate pause");
+            bool settled = o.ApplyResume(now, out var resume);
+            Equal(settled ? 1 : 0, now > 1000 ? 1 : 0, "valid resume");
+            var (_, _, cold) = Create();
+            Equal(resume.OfflineEarned, cold.ApplyFromSave(Save(pause.BaseIncomePerSecond, 1050), now).OfflineEarned, "cold/resume");
+            double tokens = s.Tokens;
+            Equal(o.ApplyResume(1200, out _) ? 1 : 0, 0, "repeat resume");
+            Equal(s.Tokens, tokens, "no double credit");
+        }
+        foreach (double income in new double[] { 0, -100 })
+        {
+            var (s, e, o) = Create();
+            Equal(o.ApplyFromSave(Save(income), 1100).OfflineEarned, 0, "nonpositive income");
+            Equal(s.Tokens, 0, "nonpositive credit");
+        }
+        foreach (long unix in new long[] { 0, -1 })
+        {
+            var (s, e, o) = Create(); o.CapturePauseSnapshot(unix);
+            Equal(o.ApplyResume(1100, out _) ? 1 : 0, 0, "invalid snapshot");
+            Equal(s.Tokens, 0, "invalid snapshot credit");
+        }
+        foreach (long now in new long[] { 999, 1000 })
+        {
+            var (s, e, o) = Create();
+            s.Lab.ActiveResearchId = ResearchCatalog.EfficientHardware1Id;
+            s.Lab.ActiveResearchEndUnix = now;
+            var result = o.ApplyFromSave(Save(100), now);
+            Equal(result.OfflineEarned, 0, "clock movement earnings");
+            Equal(result.ResearchResult.Changed ? 1 : 0, 1, "clock movement research update");
+        }
+        Console.WriteLine($"PASS: {checks} deterministic offline assertions");
+    }
+}

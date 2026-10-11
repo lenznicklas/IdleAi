@@ -1,46 +1,29 @@
 using Godot;
-using System;
-using System.Linq;
 
 namespace IdleAi;
 
 public partial class Game : Control
 {
-	private const int SaveVersion = 21;
 	private const double AutosaveIntervalSeconds = 10.0;
 
-	private readonly record struct GameLoadResult(
-		double OfflineEarned,
-		LabResult ResearchResult
-	);
+	private GameServices _services = null!;
 
-	private GameState _state = null!;
-	private EconomyService _economy = null!;
-	private ProgressionService _progression = null!;
-	private ProductionService _production = null!;
-	private BotService _bots = null!;
-	private PrestigeService _prestige = null!;
-	private LabService _labService = null!;
-	private ShopService _shopService = null!;
-	private PipelineService _pipelineService = null!;
-	private InfrastructureService _infrastructureService = null!;
-	private QuantumService _quantumService = null!;
+	private GameState _state => _services?.State!;
+	private EconomyService _economy => _services?.Economy!;
+	private ProgressionService _progression => _services?.Progression!;
+	private ProductionService _production => _services?.Production!;
+	private BotService _bots => _services?.Bots!;
+	private PrestigeService _prestige => _services?.Prestige!;
+	private OfflineProgressService _offline => _services?.Offline!;
+	private LabService _labService => _services?.Lab!;
+	private ShopService _shopService => _services?.Shop!;
+	private PipelineService _pipelineService => _services?.Pipeline!;
+	private InfrastructureService _infrastructureService => _services?.Infrastructure!;
+	private QuantumService _quantumService => _services?.Quantum!;
 	private LabController _labUi = null!;
 	private GameUiController _ui = null!;
 	private MobileUiAdapter _mobileUi = null!;
 	private SaveManager _saveManager = null!;
-
-	/*
-	 * Android/iOS do not necessarily destroy the process when the display is
-	 * switched off. The old code only calculated offline income in LoadGame(),
-	 * so a suspend -> resume inside the same process paid nothing.
-	 *
-	 * These values snapshot the exact economy state when the app is paused.
-	 */
-	private bool _applicationPaused;
-	private long _pauseUnix;
-	private double _pauseBaseIncomePerSecond;
-	private long _pauseProductionBoostEndUnix;
 
 	public override void _Ready()
 	{
@@ -51,8 +34,9 @@ public partial class Game : Control
 		CreateLabUi();
 		CreateMobileUi();
 		SetupSaveSystem();
+		InitializePurchasesAndRecover();
 
-		GameLoadResult loadResult =
+		OfflineProgressResult loadResult =
 			LoadGame();
 
 		_production.PrepareAfterLoad();
@@ -60,7 +44,7 @@ public partial class Game : Control
 		_ui.UpdateAll();
 		_labUi.Refresh();
 
-		if (_saveManager.LastLoadFailed)
+		if (_saveManager.LastLoadFailed || _purchases.RecoveryBlocked)
 		{
 			_ui.SetMessage(
 				"Save data could not be recovered. Autosave is blocked so the existing files are preserved."
@@ -124,34 +108,22 @@ public partial class Game : Control
 		}
 
 		if (
-			_applicationPaused
-			|| _saveManager == null
+			_saveManager == null
+			|| _offline.IsPaused
 		)
 		{
 			return;
 		}
 
-		_applicationPaused =
-			true;
-
-		_pauseUnix =
-			GetCurrentUnixTime();
-
-		_pauseBaseIncomePerSecond =
-			_economy
-				.GetTotalIncomeWithoutTemporaryShopBoost();
-
-		_pauseProductionBoostEndUnix =
-			_state.Shop
-				.ProductionBoostEndUnix;
+		OfflinePauseSnapshot pause = _offline.CapturePauseSnapshot(GetCurrentUnixTime());
 
 		SaveGame();
 
 		GD.Print(
 			"Idle AI PAUSED | unix=",
-			_pauseUnix,
+			pause.Unix,
 			" | baseIncome=",
-			_pauseBaseIncomePerSecond
+			pause.BaseIncomePerSecond
 		);
 	}
 
@@ -165,50 +137,11 @@ public partial class Game : Control
 			return;
 		}
 
-		if (!_applicationPaused)
+		if (_services == null || !_offline.IsPaused)
 			return;
 
-		_applicationPaused =
-			false;
-
-		long now =
-			GetCurrentUnixTime();
-
-		if (
-			_pauseUnix <= 0
-			|| now <= _pauseUnix
-		)
-		{
-			_pauseUnix =
-				0;
-
+		if (!_offline.ApplyResume(GetCurrentUnixTime(), out OfflineProgressResult resumeResult))
 			return;
-		}
-
-		SaveGameData suspendedSnapshot =
-			new()
-			{
-				LastSaveUnix =
-					_pauseUnix,
-
-				ShopProductionBoostEndUnix =
-					_pauseProductionBoostEndUnix
-			};
-
-		GameLoadResult resumeResult =
-			ApplyOfflineIncomeAndResearch(
-				suspendedSnapshot,
-				_pauseBaseIncomePerSecond
-			);
-
-		_pauseUnix =
-			0;
-
-		_pauseBaseIncomePerSecond =
-			0.0;
-
-		_pauseProductionBoostEndUnix =
-			0;
 
 		_production.PrepareAfterLoad();
 
@@ -259,7 +192,7 @@ public partial class Game : Control
 
 		if (earned > 0.0)
 		{
-			AddEarnedTokens(
+			_economy.AddEarnedTokens(
 				earned
 			);
 		}
@@ -295,87 +228,15 @@ public partial class Game : Control
 
 	public override void _ExitTree()
 	{
+		_rewardedAds?.Dispose();
 		SaveGame();
 	}
 
 	private void CreateGameSystems()
 	{
-		_state =
-			new GameState(
-				RoomCatalog.Create()
-			);
+		_services = GameServiceFactory.Create(this);
 
-		_economy =
-			new EconomyService(
-				_state
-			);
-
-		_pipelineService =
-			new PipelineService(
-				_state,
-				_economy
-			);
-
-		_infrastructureService =
-			new InfrastructureService(
-				_state
-			);
-
-		_quantumService =
-			new QuantumService(
-				_state
-			);
-
-		_progression =
-			new ProgressionService(
-				_state,
-				_economy
-			);
-
-		_production =
-			new ProductionService(
-				_state,
-				_economy,
-				_pipelineService
-			);
-
-		_bots =
-			new BotService(
-				_state,
-				_economy
-			);
-
-		_prestige =
-			new PrestigeService(
-				_state
-			);
-
-		_labService =
-			new LabService(
-				_state
-			);
-
-		_shopService =
-			new ShopService(
-				_state,
-				_economy,
-				_production
-			);
-
-		_ui =
-			new GameUiController(
-				this,
-				_state,
-				_economy,
-				_progression,
-				_production,
-				_bots,
-				_prestige,
-				_shopService,
-				_pipelineService,
-				_infrastructureService,
-				_quantumService
-			);
+		_ui = new GameUiController(this, _services);
 
 		_ui.SlotActionRequested +=
 			OnSlotActionRequested;
@@ -501,6 +362,7 @@ public partial class Game : Control
 		if (
 			targetRoom < 0
 			|| targetRoom >= _state.Rooms.Count
+			|| targetRoom >= _state.RoomStates.Count
 		)
 		{
 			return;
@@ -561,23 +423,6 @@ public partial class Game : Control
 		}
 	}
 
-	private void AddEarnedTokens(
-		double amount)
-	{
-		if (amount <= 0)
-			return;
-
-		_state.Tokens +=
-			amount;
-
-		_state.RunEarnedTokens +=
-			amount;
-
-		_state.Stats.AddEarned(
-			amount
-		);
-	}
-
 	private void SetupSaveSystem()
 	{
 		_saveManager =
@@ -595,68 +440,21 @@ public partial class Game : Control
 		);
 	}
 
-	private void SaveGame()
+	private void SaveGame() => TrySaveGame();
+
+	private bool TrySaveGame()
 	{
 		if (
 			_saveManager == null
 			|| _saveManager.LastLoadFailed
+			|| _purchases?.RecoveryBlocked == true
 		)
 		{
-			return;
+			return false;
 		}
 
-		SaveGameData save =
-			new()
-			{
-				SaveVersion = SaveVersion,
-				Tokens = _state.Tokens,
-				RunEarnedTokens = _state.RunEarnedTokens,
-				LifetimeLevelBase = _state.LifetimeLevelBase,
-				LastSaveUnix = GetCurrentUnixTime(),
-				IncomePerSecond =
-					_economy
-						.GetTotalIncomeWithoutTemporaryShopBoost(),
-				CurrentRoomIndex = _state.CurrentRoomIndex,
-				AiCores = _state.Prestige.AiCores,
-				PrestigeCount = _state.Prestige.PrestigeCount,
-				LabUnlocked = _state.Lab.Unlocked,
-				ResearchPoints = _state.Lab.ResearchPoints,
-				CompletedResearch =
-					_state.Lab.CompletedResearch
-						.ToList(),
-				ActiveResearchId = _state.Lab.ActiveResearchId,
-				ActiveResearchEndUnix = _state.Lab.ActiveResearchEndUnix,
-				DataShards = _state.Shop.DataShards,
-				HighestClaimedLevelReward =
-					_state.Shop.HighestClaimedLevelReward,
-				ShopProductionBoostEndUnix = _state.Shop.ProductionBoostEndUnix,
-				ShopBotLuckBoostEndUnix = _state.Shop.BotLuckBoostEndUnix,
-				ShopProductionUpgradeLevel = _state.Shop.ProductionUpgradeLevel,
-				ShopOfflineUpgradeLevel = _state.Shop.OfflineUpgradeLevel,
-				Rooms =
-					_state.RoomStates
-						.Select(
-							room =>
-								new RoomSaveData
-								{
-									Unlocked = room.Unlocked,
-									DataShardUnlockRewardClaimed =
-										room.DataShardUnlockRewardClaimed,
-									Pipeline = room.Pipeline.ToSaveData(),
-									Infrastructure = room.Infrastructure.ToSaveData(),
-									Quantum = room.Quantum.ToSaveData(),
-									Slots =
-										room.Slots
-											.Select(
-												slot =>
-													slot.ToSaveData()
-											)
-											.ToList()
-								}
-						)
-						.ToList(),
-				Stats = _state.Stats.ToSaveData()
-			};
+		SaveGameData save = _services.Save.CreateSave(GetCurrentUnixTime());
+		if (_purchases != null && !_purchases.BeforeGameSave(save)) return false;
 
 		bool saveOk =
 			_saveManager.SaveData(
@@ -676,9 +474,11 @@ public partial class Game : Control
 				_state.Shop.DataShards
 			);
 		}
+		if (saveOk) _purchases?.GameSaved();
+		return saveOk;
 	}
 
-	private GameLoadResult LoadGame()
+	private OfflineProgressResult LoadGame()
 	{
 		LabResult noResearchResult =
 			new(
@@ -688,7 +488,7 @@ public partial class Game : Control
 
 		if (!_saveManager.HasSave())
 		{
-			return new GameLoadResult(
+			return new OfflineProgressResult(
 				0.0,
 				noResearchResult
 			);
@@ -699,221 +499,27 @@ public partial class Game : Control
 
 		if (save == null)
 		{
-			return new GameLoadResult(
+			return new OfflineProgressResult(
 				0.0,
 				noResearchResult
 			);
 		}
 
-		_state.Tokens = save.Tokens;
-		_state.RunEarnedTokens = save.RunEarnedTokens;
-		_state.LifetimeLevelBase =
-			save.SaveVersion >= 21
-				? Math.Max(
-					0,
-					save.LifetimeLevelBase
-				)
-				: 0;
-		_state.Prestige.AiCores = save.AiCores;
-		_state.Prestige.PrestigeCount = save.PrestigeCount;
-		_state.Lab.Unlocked = save.LabUnlocked;
-		_state.Lab.ResearchPoints = save.ResearchPoints;
-
-		_state.Lab.LoadCompletedResearch(
-			save.CompletedResearch
-		);
-
-		_state.Lab.ActiveResearchId =
-			save.ActiveResearchId;
-
-		_state.Lab.ActiveResearchEndUnix =
-			save.ActiveResearchEndUnix;
-
-		_state.Shop.DataShards =
-			save.SaveVersion < 13
-				? GameConfig.InitialDataShards
-				: save.DataShards;
-
-		_state.Shop.HighestClaimedLevelReward =
-			save.SaveVersion < 20
-				? 0
-				: Math.Max(
-					0,
-					save.HighestClaimedLevelReward
-				);
+		GameLoadStateResult loadState = _services.Save.ApplySave(save);
 
 		GD.Print(
 			"Idle AI LOAD | saveVersion=",
 			save.SaveVersion,
 			" | lifetimeBase=",
-			_state.LifetimeLevelBase,
+			loadState.RestoredLifetimeLevelBase,
 			" | levelRewardClaim=",
 			_state.Shop.HighestClaimedLevelReward,
 			" | dataShards=",
 			_state.Shop.DataShards
 		);
 
-		_state.Shop.ProductionBoostEndUnix =
-			save.ShopProductionBoostEndUnix;
-
-		_state.Shop.BotLuckBoostEndUnix =
-			save.ShopBotLuckBoostEndUnix;
-
-		_state.Shop.ProductionUpgradeLevel =
-			save.ShopProductionUpgradeLevel;
-
-		_state.Shop.OfflineUpgradeLevel =
-			save.ShopOfflineUpgradeLevel;
-
-		for (
-			int roomIndex = 0;
-			roomIndex < Math.Min(
-				save.Rooms.Count,
-				_state.RoomStates.Count
-			);
-			roomIndex++
-		)
+		if (loadState.LifetimeLevelMigrated)
 		{
-			RoomSaveData savedRoom =
-				save.Rooms[
-					roomIndex
-				];
-
-			RoomState room =
-				_state.RoomStates[
-					roomIndex
-				];
-
-			room.Unlocked =
-				savedRoom.Unlocked;
-
-			if (save.SaveVersion < 14)
-			{
-				room.DataShardUnlockRewardClaimed =
-					roomIndex == 0
-					|| savedRoom.Unlocked;
-			}
-			else
-			{
-				room.DataShardUnlockRewardClaimed =
-					savedRoom
-						.DataShardUnlockRewardClaimed;
-			}
-
-			if (
-				save.SaveVersion >= 16
-				&& savedRoom.Pipeline != null
-			)
-			{
-				room.Pipeline.LoadFromSaveData(
-					savedRoom.Pipeline
-				);
-			}
-			else
-			{
-				room.Pipeline.Reset();
-			}
-
-			if (
-				save.SaveVersion >= 18
-				&& savedRoom.Infrastructure != null
-			)
-			{
-				room.Infrastructure.LoadFromSaveData(
-					savedRoom.Infrastructure
-				);
-			}
-			else
-			{
-				room.Infrastructure.Reset();
-			}
-
-			if (
-				save.SaveVersion >= 19
-				&& savedRoom.Quantum != null
-			)
-			{
-				room.Quantum.LoadFromSaveData(
-					savedRoom.Quantum
-				);
-			}
-			else
-			{
-				room.Quantum.Reset();
-			}
-
-			for (
-				int slotIndex = 0;
-				slotIndex < Math.Min(
-					savedRoom.Slots.Count,
-					room.Slots.Count
-				);
-				slotIndex++
-			)
-			{
-				room.Slots[
-					slotIndex
-				].LoadFromSaveData(
-					savedRoom.Slots[
-						slotIndex
-					]
-				);
-			}
-		}
-
-		_state.CurrentRoomIndex =
-			Math.Clamp(
-				save.CurrentRoomIndex,
-				0,
-				_state.Rooms.Count - 1
-			);
-
-		if (
-			!_state.RoomStates[
-				_state.CurrentRoomIndex
-			].Unlocked
-		)
-		{
-			_state.CurrentRoomIndex =
-				0;
-		}
-
-		if (save.Stats != null)
-		{
-			_state.Stats.LoadFromSaveData(
-				save.Stats
-			);
-		}
-
-		/*
-		 * Migration for pre-v21 saves:
-		 *
-		 * Older saves did not remember the exact amount lost at previous
-		 * prestiges. We cannot reconstruct that exact historical value, but
-		 * the Level Reward Road remembers the highest claimed 150-level
-		 * milestone. Use it as a safe lower bound so an old player is never
-		 * migrated below a reward level they had already reached.
-		 */
-		if (
-			save.SaveVersion < 21
-			&& _state.Prestige.PrestigeCount > 0
-			&& _state.Shop.HighestClaimedLevelReward > 0
-		)
-		{
-			int currentRunLevel =
-				ProgressionService
-					.CalculateCurrentRunLevel(
-						_state
-					);
-
-			_state.LifetimeLevelBase =
-				Math.Max(
-					0,
-					_state.Shop
-						.HighestClaimedLevelReward
-						- currentRunLevel
-				);
-
 			GD.Print(
 				"Idle AI MIGRATION v21 | totalLevelFloor=",
 				_state.Shop.HighestClaimedLevelReward,
@@ -922,231 +528,7 @@ public partial class Game : Control
 			);
 		}
 
-		double savedBaseIncome =
-			save.SaveVersion < 19
-				? _economy
-					.GetTotalIncomeWithoutTemporaryShopBoost()
-				: GetMigratedOfflineIncomePerSecond(
-					save
-				);
-
-		return ApplyOfflineIncomeAndResearch(
-			save,
-			savedBaseIncome
-		);
-	}
-
-	private GameLoadResult ApplyOfflineIncomeAndResearch(
-		SaveGameData save,
-		double savedBaseIncome)
-	{
-		long now =
-			GetCurrentUnixTime();
-
-		if (now <= save.LastSaveUnix)
-		{
-			return new GameLoadResult(
-				0.0,
-				_labService.Update()
-			);
-		}
-
-		double offlineEarned =
-			0.0;
-
-		LabResult researchResult =
-			new(
-				false,
-				""
-			);
-
-		bool researchFinished =
-			_state.Lab.HasActiveResearch
-			&& _state.Lab.ActiveResearchEndUnix <= now;
-
-		if (!researchFinished)
-		{
-			offlineEarned +=
-				ApplyOfflineIncomeBetween(
-					save.LastSaveUnix,
-					now,
-					savedBaseIncome,
-					save.ShopProductionBoostEndUnix
-				);
-
-			return new GameLoadResult(
-				offlineEarned,
-				researchResult
-			);
-		}
-
-		long researchEnd =
-			_state.Lab.ActiveResearchEndUnix;
-
-		if (researchEnd > save.LastSaveUnix)
-		{
-			offlineEarned +=
-				ApplyOfflineIncomeBetween(
-					save.LastSaveUnix,
-					researchEnd,
-					savedBaseIncome,
-					save.ShopProductionBoostEndUnix
-				);
-
-			researchResult =
-				_labService.Update();
-
-			double postResearchBaseIncome =
-				_economy
-					.GetTotalIncomeWithoutTemporaryShopBoost();
-
-			offlineEarned +=
-				ApplyOfflineIncomeBetween(
-					researchEnd,
-					now,
-					postResearchBaseIncome,
-					save.ShopProductionBoostEndUnix
-				);
-		}
-		else
-		{
-			researchResult =
-				_labService.Update();
-
-			double currentBaseIncome =
-				_economy
-					.GetTotalIncomeWithoutTemporaryShopBoost();
-
-			offlineEarned +=
-				ApplyOfflineIncomeBetween(
-					save.LastSaveUnix,
-					now,
-					currentBaseIncome,
-					save.ShopProductionBoostEndUnix
-				);
-		}
-
-		return new GameLoadResult(
-			offlineEarned,
-			researchResult
-		);
-	}
-
-	private static double GetMigratedOfflineIncomePerSecond(
-		SaveGameData save)
-	{
-		double income =
-			save.IncomePerSecond;
-
-		if (
-			save.SaveVersion >= 15
-			|| income <= 0.0
-		)
-		{
-			return income;
-		}
-
-		bool boostWasActiveWhenSaved =
-			save.ShopProductionBoostEndUnix
-			> save.LastSaveUnix;
-
-		if (!boostWasActiveWhenSaved)
-		{
-			return income;
-		}
-
-		double boostMultiplier =
-			GameConfig.ShopTemporaryProductionMultiplier;
-
-		if (boostMultiplier <= 0.0)
-		{
-			return income;
-		}
-
-		return income
-			/ boostMultiplier;
-	}
-
-	private double ApplyOfflineIncomeBetween(
-		long periodStartUnix,
-		long periodEndUnix,
-		double baseIncomePerSecond,
-		long productionBoostEndUnix)
-	{
-		long totalOfflineSeconds =
-			periodEndUnix
-			- periodStartUnix;
-
-		if (
-			totalOfflineSeconds <= 0
-			|| baseIncomePerSecond <= 0.0
-		)
-		{
-			return 0.0;
-		}
-
-		double offlineFactor =
-			Math.Clamp(
-				GameConfig.BaseOfflineIncomeFactor
-					+ _state.Lab
-						.GetOfflineIncomeBonus()
-					+ _state.Shop
-						.GetOfflineIncomeBonus(),
-				0,
-				1
-			);
-
-		long boostOverlapEnd =
-			Math.Min(
-				periodEndUnix,
-				productionBoostEndUnix
-			);
-
-		long boostedSeconds =
-			Math.Max(
-				0,
-				boostOverlapEnd
-					- periodStartUnix
-			);
-
-		boostedSeconds =
-			Math.Min(
-				boostedSeconds,
-				totalOfflineSeconds
-			);
-
-		long normalSeconds =
-			totalOfflineSeconds
-				- boostedSeconds;
-
-		double normalIncome =
-			baseIncomePerSecond
-				* normalSeconds;
-
-		double boostedIncome =
-			baseIncomePerSecond
-				* boostedSeconds
-				* GameConfig
-					.ShopTemporaryProductionMultiplier;
-
-		double amount =
-			(
-				normalIncome
-					+ boostedIncome
-			)
-			* offlineFactor;
-
-		_state.Tokens +=
-			amount;
-
-		_state.RunEarnedTokens +=
-			amount;
-
-		_state.Stats.AddOfflineEarned(
-			amount
-		);
-
-		return amount;
+		return _offline.ApplyFromSave(save, GetCurrentUnixTime());
 	}
 
 	private static long GetCurrentUnixTime()

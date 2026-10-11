@@ -243,6 +243,13 @@ public static class Program
         node.InvestedMatter=500; node.BotRarity=BotRarity.Epic; node.BotPurchasePriceMatter=70; node.BotDurabilityInitialized=true; node.BotDurabilitySecondsRemaining=123;
         d.Persistence.Save(); string before=JsonSerializer.Serialize(Read()); var loaded=new Domain(); loaded.Persistence.Load();
         Check(JsonSerializer.Serialize(loaded.Data)==before,"full DTO save/load roundtrip"); Equal(loaded.Data.LastSaveUnix,_now,"timestamp"); Check(loaded.Data.SaveVersion==4,"version unchanged");
+        string temporary = ProjectSettings.GlobalizePath("user://singularity_save.tmp.json");
+        Check(!System.IO.File.Exists(temporary), "successful save replaces temp");
+        System.IO.Directory.CreateDirectory(temporary);
+        loaded.Data.Matter = 999;
+        loaded.Persistence.Save();
+        Check(JsonSerializer.Serialize(Read()) == before, "failed temp write preserves active save");
+        System.IO.Directory.Delete(temporary);
         var legacy=new SingularitySaveData{SaveVersion=2,CoreLevel=7,CurrentSectorIndex=2};
         legacy.Sectors.Add(new SingularitySectorData()); legacy.Sectors.Add(new SingularitySectorData{CoreUnlocked=true,CoreLevel=99});
         legacy.Sectors[0].Nodes.Add(new SingularityNodeData{Type=SingularityNodeType.Compute,BotRarity=BotRarity.Common});
@@ -254,6 +261,22 @@ public static class Program
         loaded.Persistence.Load(); Equal(loaded.Data.Matter,42,"case insensitive JSON");
         using(var file=Godot.FileAccess.Open(Path,Godot.FileAccess.ModeFlags.Write)) file.StoreString("bad JSON");
         loaded.Persistence.Load(); Check(!loaded.Data.Unlocked&&loaded.Data.Sectors.Count==1&&loaded.Data.Sectors[0].CoreUnlocked,"corrupt fallback unchanged");
+        Check(loaded.Persistence.LastLoadFailed, "corrupt save locks persistence");
+        loaded.Persistence.Save();
+        using (var file = Godot.FileAccess.Open(Path, Godot.FileAccess.ModeFlags.Read)) Check(file.GetAsText() == "bad JSON", "corrupt file preserved");
+        var state = Normal(); state.Tokens = SingularityService.TestUnlockTokenCost;
+        var corrupt = Service(state);
+        Check(!corrupt.Unlock(state, new EconomyService(state)).Changed, "corrupt save cannot charge re-unlock");
+        Equal(state.Tokens, SingularityService.TestUnlockTokenCost, "corrupt save preserves Tokens");
+        foreach (string malformed in new[] { "null", "{\"Sectors\":null}", "{\"Sectors\":[null]}", "{\"Sectors\":[{\"Nodes\":null}]}", "{\"Sectors\":[{\"Nodes\":[null]}]}" })
+        {
+            using (var file = Godot.FileAccess.Open(Path, Godot.FileAccess.ModeFlags.Write)) file.StoreString(malformed);
+            loaded.Persistence.Load(); Check(loaded.Persistence.LastLoadFailed, "null structure locks Singularity save");
+            loaded.Persistence.Save();
+            using (var file = Godot.FileAccess.Open(Path, Godot.FileAccess.ModeFlags.Read)) Check(file.GetAsText() == malformed, "null structure preserved");
+        }
+
+
     }
     private static void Offline()
     {

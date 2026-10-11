@@ -56,7 +56,7 @@ public sealed class IapPurchaseCoordinator
     {
         // Establish and respect the existing corruption lock before any recovery write.
         if (_journal.Exists) _persistence.LoadData();
-        RecoveryBlocked = _persistence.LastLoadFailed ||
+        RecoveryBlocked = _billing.LedgerLoadFailed || _persistence.LastLoadFailed ||
             !_journal.Recover(_persistence.SaveData, _billing.IsPurchaseProcessed, _billing.CompleteConsumableGrant);
     }
     private bool Complete(string token)

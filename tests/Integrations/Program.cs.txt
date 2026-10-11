@@ -179,6 +179,8 @@ class Program
             File.WriteAllText(path, "broken"); Eq(journal.Recover(_ => true, _ => false, _ => true), false, "corrupt journal fails closed"); Eq(journal.Exists, true, "corrupt preserved");
             File.WriteAllText(path, "{\"Token\":\"bad\",\"RewardSave\":{}}");
             Eq(journal.Recover(_ => true, _ => false, _ => true), false, "incomplete journal fails closed");
+            File.WriteAllText(path, "{\"Token\":\"bad\",\"BeforeHash\":\"missing\",\"RewardSave\":{}}");
+            Eq(journal.Recover(_ => throw new Exception("must not overwrite"), _ => false, _ => throw new Exception()), false, "default DTO snapshot fails closed");
             journal.Clear(); File.WriteAllText(savePath, "original"); journal.Prepare("ambiguous", snapshot);
             File.WriteAllText(savePath, "unrelated replacement");
             Eq(journal.Recover(_ => throw new Exception(), _ => false, _ => throw new Exception()), false, "ambiguous main save fails closed");
@@ -206,7 +208,40 @@ class Program
         Eq(restarted.IsPurchaseProcessed("failed-token"), false, "failed token not marked successful");
         Eq(new GooglePlayBillingService().IsPurchaseProcessed("failed-token"), false, "failed token not persisted");
         Directory.Delete(temporary);
+        foreach (string corrupt in new[] { "broken", "null", "{}", "{\"ProcessedPurchaseTokens\":null}", "{\"ProcessedPurchaseTokens\":[null]}" })
+        {
+            File.WriteAllText(ledger, corrupt);
+            var locked = new GooglePlayBillingService();
+            Eq(locked.LedgerLoadFailed, true, "corrupt ledger locks billing");
+            Eq(locked.CompleteConsumableGrant("unsafe-token"), false, "corrupt ledger cannot finalize");
+            Eq(File.ReadAllText(ledger), corrupt, "corrupt ledger preserved");
+        }
         File.Delete(ledger);
     }
-    public static void Main() { Rewarded(); Purchases(); Sync(); Journal(); BillingLedger(); Console.WriteLine($"Integrations: {checks} assertions passed."); }
+    static void MainSaveRecovery()
+    {
+        string main = ProjectSettings.GlobalizePath("user://idle_ai_save.json");
+        string backup = ProjectSettings.GlobalizePath("user://idle_ai_save.bak.json");
+        using var manager = new SaveManager();
+        var data = new SaveGameData { SaveVersion = 21, Tokens = 123 };
+        data.Rooms.Add(new RoomSaveData { Unlocked = true });
+        data.Rooms[0].Slots.Add(new SlotSaveData { Unlocked = true });
+        Eq(manager.SaveData(data), true, "baseline save");
+        Eq(manager.SaveData(data), true, "baseline backup");
+        foreach (string malformed in new[] { "{\"Rooms\":null}", "{\"Rooms\":[null]}", "{\"Rooms\":[{\"Slots\":null}]}", "{\"Rooms\":[{\"Slots\":[null]}]}" })
+        {
+            File.WriteAllText(main, malformed);
+            Eq(manager.LoadData()?.Tokens, 123d, "structural corruption recovers backup");
+            Eq(manager.LastLoadFailed, false, "backup recovery unlocks saves");
+        }
+        File.WriteAllText(main, "{\"Rooms\":null}");
+        File.WriteAllText(backup, "broken");
+        Eq(manager.LoadData(), null, "both corrupt rejected");
+        Eq(manager.LastLoadFailed, true, "both corrupt lock saves");
+        Eq(manager.SaveData(data), false, "corruption cannot overwrite");
+        Eq(File.ReadAllText(main), "{\"Rooms\":null}", "main evidence preserved");
+        Eq(File.ReadAllText(backup), "broken", "backup evidence preserved");
+        File.Delete(main); File.Delete(backup); manager.Free();
+    }
+    public static void Main() { Rewarded(); Purchases(); Sync(); Journal(); BillingLedger(); MainSaveRecovery(); Console.WriteLine($"Integrations: {checks} assertions passed."); }
 }

@@ -108,6 +108,9 @@ public sealed class SingularityService
 		GameState gameState,
 		EconomyService economy)
 	{
+		if (_persistence.LastLoadFailed)
+			return new SingularityActionResult(false, "Singularity save could not be recovered. Existing data is preserved.");
+
 		if (Unlocked)
 		{
 			return new SingularityActionResult(

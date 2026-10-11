@@ -2,6 +2,7 @@ using Godot;
 
 using System;
 using System.IO;
+using System.Linq;
 using System.Text;
 using System.Text.Json;
 
@@ -337,7 +338,8 @@ public partial class SaveManager : Node
 					json
 				);
 
-			return data != null;
+			return data?.Rooms != null && data.Rooms.All(room =>
+				room?.Slots != null && room.Slots.All(slot => slot != null));
 		}
 		catch (Exception exception)
 		{

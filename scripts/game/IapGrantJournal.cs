@@ -23,11 +23,26 @@ public sealed class IapGrantJournal
     private static string RewardHash(Entry entry) => Hash(JsonSerializer.SerializeToUtf8Bytes(entry.RewardSave, SaveOptions));
     private Entry Read()
     {
-        var entry = JsonSerializer.Deserialize<Entry>(File.ReadAllText(_path));
-        if (entry == null || string.IsNullOrWhiteSpace(entry.Token) || entry.RewardSave == null ||
+        string json = File.ReadAllText(_path);
+        using var document = JsonDocument.Parse(json);
+        if (document.RootElement.ValueKind != JsonValueKind.Object ||
+            !document.RootElement.TryGetProperty("RewardSave", out var reward) ||
+            reward.ValueKind != JsonValueKind.Object ||
+            !reward.TryGetProperty("SaveVersion", out _) ||
+            !reward.TryGetProperty("Rooms", out _) ||
+            !reward.TryGetProperty("Tokens", out _) ||
+            !reward.TryGetProperty("DataShards", out _))
+            throw new InvalidDataException("Incomplete purchase recovery snapshot.");
+        var entry = JsonSerializer.Deserialize<Entry>(json);
+        if (entry == null || string.IsNullOrWhiteSpace(entry.Token) || entry.RewardSave?.Rooms == null ||
+            !System.Linq.Enumerable.All(entry.RewardSave.Rooms, room => room?.Slots != null &&
+                System.Linq.Enumerable.All(room.Slots, slot => slot != null)) ||
             (entry.BeforeHash != "missing" && (entry.BeforeHash == null || entry.BeforeHash.Length != 64 ||
             !System.Linq.Enumerable.All(entry.BeforeHash, Uri.IsHexDigit))))
             throw new InvalidDataException("Invalid purchase recovery record.");
+        if (entry.SavedHash == null || (entry.SavedHash != "" &&
+            (entry.SavedHash.Length != 64 || !System.Linq.Enumerable.All(entry.SavedHash, Uri.IsHexDigit))))
+            throw new InvalidDataException("Invalid purchase save confirmation.");
         return entry;
     }
     private void Write(Entry entry)

@@ -344,3 +344,18 @@ Final automated verification:
 - [x] `git diff --check` passes; all remaining integration search occurrences classified in REFACTOR_SERVICES.md.
 - [x] Catalog, achievement adapter/IDs/predicates, Firebase adapters/config/schema, main DTO/version and SaveManager unchanged byte-for-byte; original ad IDs retained.
 - [ ] Android/native checklist above remains required; automated success covers first-party orchestration only.
+
+## Final audit verification (2026-10-11)
+
+Earlier phase checkmarks/results are historical. The final audit covers all 11 refactor commits against main; see [FINAL_ARCHITECTURE_AUDIT.md](FINAL_ARCHITECTURE_AUDIT.md) for detailed evidence and the prioritized Android checklist.
+
+- [x] Full dotnet build: 0 errors, 339 CS8632 warnings; no warning suppression.
+- [x] Discover/build/run every tests/**/*.csproj after final safety fixes: GameSave 3,416; Integrations 206; OfflineProgress 663; Prestige 37,568; Settings 47; SettingsAudio 10; Singularity 213 assertions. All pass.
+- [x] Main and independent DTO compatibility, all listed migrations, gameplay/balance constants and external IDs compared with main.
+- [x] IAP ordering/crash windows, duplicate/stale ad callbacks, single-instance service graph and state ownership reviewed.
+- [x] Focused malformed ledger/journal, main backup/corruption lock and Singularity corrupt-store/failed-temp-write regressions covered.
+- [x] UID/artifact inventory and git diff --check; generated integration sidecars are intentional, runtime caches/data are ignored or isolated in /tmp.
+- [ ] P0 Android existing-save/production/progression/Bots/Lab/Prestige/offline/Singularity, rewarded ads, paid IAP crash windows, background/resume, Play Games and Firebase device checks.
+- [ ] Accept UI behavior in 2b3c885; validate native integrations in an exported build.
+
+NuGet restore was retried with network authorization, but NU1900 advisory lookup remains unavailable. Generated Godot test initializer CS0436 and SettingsAudio WAV/playback references reported at headless shutdown are classified; suites exit 0 with all assertions passing. Current merge rating: READY AFTER MANUAL DEVICE TESTS. Include the uncommitted audit fixes and UIDs before merging.

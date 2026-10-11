@@ -112,6 +112,8 @@ public sealed class GooglePlayBillingService
 	>? ConsumablePurchaseReady;
 
 
+	public bool LedgerLoadFailed { get; private set; }
+
 	public bool IsAvailable =>
 		OS.GetName() == "Android"
 		&& _billing != null;
@@ -152,7 +154,8 @@ public sealed class GooglePlayBillingService
 		string productId)
 	{
 		return
-			IsAvailable
+			!LedgerLoadFailed
+			&& IsAvailable
 			&& _connected
 			&& HasProduct(
 				productId
@@ -875,6 +878,7 @@ public sealed class GooglePlayBillingService
 	public void Purchase(
 		string productId)
 	{
+		if (LedgerLoadFailed) return;
 		if (
 			!IapCatalog.TryGet(
 				productId,
@@ -1203,6 +1207,7 @@ public sealed class GooglePlayBillingService
 	private void ProcessPurchase(
 		GodotDictionary purchase)
 	{
+		if (LedgerLoadFailed) return;
 		if (
 			!TryGetSupportedProductId(
 				purchase,
@@ -1373,7 +1378,7 @@ public sealed class GooglePlayBillingService
 
 	public bool CompleteConsumableGrant(string purchaseToken)
 	{
-		if (string.IsNullOrWhiteSpace(purchaseToken)) return false;
+		if (LedgerLoadFailed || string.IsNullOrWhiteSpace(purchaseToken)) return false;
 		bool added = _processedPurchaseTokens.Add(purchaseToken);
 		if (!SaveLedger())
 		{
@@ -1506,14 +1511,21 @@ public sealed class GooglePlayBillingService
 				);
 
 
+			using var document = JsonDocument.Parse(json);
+			if (document.RootElement.ValueKind != JsonValueKind.Object ||
+				!document.RootElement.TryGetProperty("ProcessedPurchaseTokens", out var tokens) ||
+				tokens.ValueKind != JsonValueKind.Array)
+				throw new InvalidDataException("Invalid IAP token ledger.");
+
 			IapLedger? ledger =
 				JsonSerializer.Deserialize<IapLedger>(
 					json
 				);
 
 
-			if (ledger == null)
-				return;
+			if (ledger?.ProcessedPurchaseTokens == null ||
+				ledger.ProcessedPurchaseTokens.Any(string.IsNullOrWhiteSpace))
+				throw new InvalidDataException("Invalid IAP token ledger.");
 
 
 			foreach (
@@ -1535,6 +1547,7 @@ public sealed class GooglePlayBillingService
 		}
 		catch (Exception exception)
 		{
+			LedgerLoadFailed = true;
 			GD.PushWarning(
 				"Could not load IAP token ledger: "
 					+ exception.Message

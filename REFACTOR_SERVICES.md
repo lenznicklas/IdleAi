@@ -4,11 +4,11 @@
 
 Analysis performed on branch `refactor/services`, with a clean initial working tree. This is an incremental refactor of the working Godot 4.x C# game. Inspection covered the first-party C# inventory in `Game.cs`, `scripts/game`, `scripts/data`, `scripts/persistence`, and `scripts/ui`, including partial classes, constructor dependencies, state mutations, persistence entry points, and scene/plugin configuration. Third-party AdMob, billing and Play Games implementations are integration boundaries, not refactor targets. Runtime behavior still requires Godot/device verification.
 
-## Current architecture
+## Historical architecture baseline (before phase 1)
 
 `Game` is the scene root (`game.tscn`), composition root, frame-loop coordinator, save mapper/migrator, and normal-game offline settlement coordinator. There is no first-party service locator. The project autoloads the Play Games plugin.
 
-| Component | Current responsibility and dependencies |
+| Component | Responsibility and dependencies at baseline |
 | --- | --- |
 | GameState | Shared mutable normal-game state: rooms/slots, Tokens, run earnings, lifetime level, stats, prestige, lab, shop. Catalog definitions are separate from runtime room states. |
 | EconomyService | Price quotes and production estimates; reads GameState, catalogs, research/prestige/shop and special-room data. Does not own all currency mutations. |
@@ -34,7 +34,7 @@ Analysis performed on branch `refactor/services`, with a clean initial working t
 
 Startup order is significant: service construction (including cosmetic loads and settings/music), default room-state creation, normal UI construction/reparenting, lab/mobile UI, save timer, main load/migration/offline/research, production preparation, UI refresh, initial save. Deferred features initialize afterward. Shop prewarming waits two process frames; rewarded ads initialize on explicit video request.
 
-## Problems and boundaries
+## Historical baseline problems and boundaries
 
 - Service ownership is split between Game, UI controllers and deferred feature bootstraps. Cosmetic/settings constructors have side effects, making initialization order part of the contract.
 - Game combines orchestration, JSON DTO mapping, version migrations and offline research/boost settlement. Keep these intact until their behavior has regression coverage.
@@ -49,7 +49,7 @@ Startup order is significant: service construction (including cosmetic loads and
 
 Do not refactor scene hierarchy/reparenting, node paths, animation/pan/touch helpers, catalogs/GameConfig, bot RNG, production arithmetic, native plugin code, deferred startup, sync intervals, or purchase/ad callbacks in phase 1. Preserve separate Singularity update and offline paths.
 
-## Target architecture
+## Original target architecture
 
 Game remains the explicit composition/lifecycle root. UI receives existing service instances and emits the same events. Add abstractions only for concrete boundaries, without a DI framework or global service registry.
 
@@ -134,17 +134,17 @@ Direct schema dependencies: Game, SaveManager, SaveJsonContext, SlotData, Pipeli
 
 No save fields, defaults, versions, file paths, serialization settings or migrations change in phase 1. No migration is needed. Future persistence changes must retain unknown/legacy values where relevant rather than silently discard them, and use copies of historical saves for fixtures.
 
-## Existing risks recorded separately (no behavior fixes)
+## Historical baseline risks (before failure-path fixes)
 
 - Main read success means non-null deserialization rather than complete structural validation. Malformed nested values may fail later in mapping. Keep recovery semantics unchanged here.
 - Independent cosmetic/settings stores do not share the main corruption lock; cosmetic loading filters unknown catalog IDs. Singularity catches load failures by replacing runtime data with defaults and uses direct writes. Review data-loss protection separately before any save cleanup.
 - Purchase and ad workflows span UI and persistence. Moving callbacks or changing event order could duplicate or lose grants; postpone them.
 
-## Completed phases / remaining work
+## Historical phase 1 status
 
 Phase 1 implementation: Game constructs BotSkinService, MachineSkinService, LevelRewardService and GameSettingsService immediately before creating GameUiController, in the existing order. An internal injection constructor accepts those instances. The existing public constructor remains a compatibility entry point with its original signature and construction behavior. UI presentation, subscriptions and service algorithms are unchanged. This intentionally retains the legacy constructor's construction responsibilities for compatibility; the production Game path uses explicit injection.
 
-Phases 2–9 remain proposed work. Godot runtime, existing-save and Android checks remain manual until checked. Build and diff results are recorded after verification below.
+At the end of phase 1, phases 2–9 remained proposed work. Godot runtime, existing-save and Android checks remain manual until checked. Build and diff results are recorded after verification below.
 
 ## Phase 1 verification results
 
@@ -288,7 +288,7 @@ Compatibility: saves <19 use hydrated/migrated economy income without temporary 
 
 OfflineProgressService explicitly depends on GameState, the session EconomyService and LabService. GameServices owns it alongside the existing services; GameServiceFactory still composes the session. Public API: `CapturePauseSnapshot(long nowUnix)`, `IsPaused`, `ApplyFromSave(SaveGameData, long nowUnix)`, and `ApplyResume(long nowUnix, out OfflineProgressResult)` (false means no lifecycle follow-up). Immutable OfflinePauseSnapshot contains Unix, BaseIncomePerSecond and ProductionBoostEndUnix; it is consumed on resume and never serialized. OfflineProgressResult contains only OfflineEarned and ResearchResult.
 
-Cold load: Game hydrates/migrates the unchanged DTO, passes it and current time to ApplyFromSave, then prepares production, refreshes/messages and saves in the original order. Mobile: Game guards Android/iOS and initialized save manager, captures once before saving, then delegates resume; successful settlement precedes production preparation, UI refresh/messages and save. Invalid/repeated/no-pause resume returns immediately. LabService.Update(long nowUnix) supplies deterministic completion time; its existing Update() remains the real-time entry point. Research completion effects, cycle refresh, messages and requirements are unchanged. All segment arithmetic and historical selection/helper branches above are retained.
+Cold load: Game delegates hydration/migration of the unchanged DTO to GameSaveService, passes it and current time to ApplyFromSave, then prepares production, refreshes/messages and saves in the original order. Mobile: Game guards Android/iOS and initialized save manager, captures once before saving, then delegates resume; successful settlement precedes production preparation, UI refresh/messages and save. Invalid/repeated/no-pause resume returns immediately. LabService.Update(long nowUnix) supplies deterministic completion time; its existing Update() remains the real-time entry point. Research completion effects, cycle refresh, messages and requirements are unchanged. All segment arithmetic and historical selection/helper branches above are retained.
 
 SaveManager, schema, mapping, backups, corruption lock, SaveVersion 21 and migrations remain owned by their existing code. Settlement does not write timestamps or save files. Singularity lifecycle, Matter, cap, efficiency and independent save remain untouched. No UI enters the domain service.
 
@@ -688,3 +688,11 @@ Added under scripts/game: AdMobRewardedAdAdapter.cs, RewardedAdCoordinator.cs, I
 Final results: Integrations **175** assertions; GameSave **3,416**; OfflineProgress **663**; Prestige **37,568**; Settings **47**; SettingsAudio **10**; Singularity **197**. All exited successfully. Final `dotnet build`: **0 warnings, 0 errors** (incremental); full compilation emitted **339 existing CS8632 nullable-context warnings**. Test builds retain cached NU1900 vulnerability-feed warnings where present; SettingsAudio still emits shutdown ObjectDB/resource diagnostics despite passing assertions and exiting 0. `git diff --check` passed.
 
 Compatibility was additionally verified byte-for-byte against HEAD for IapCatalog, GooglePlayGamesAchievementService, both FirebaseAliasService partials, FirebaseConfig, SaveData, GameSaveService and SaveManager. Android/iOS ad unit strings were compared against the original controller. Post-refactor searches leave SDK/policy references only in the relevant adapters/coordinators/facade and explanatory comments, with no UI grant/save/complete workflow.
+
+## Final architecture audit (2026-10-11)
+
+The sections labeled historical/baseline describe the starting point or intermediate phases, not remaining implementation work. Final ownership is GameServiceFactory/GameServices for normal services, GameSaveService for mapping/migrations, OfflineProgressService for normal offline settlement, the Singularity facade and seven components, separate Settings/Audio/Haptics, NormalRunResetService for Prestige reset, and session integration coordinators. Game coordinates lifecycle and invokes these owners; UI forwards intent and presents results.
+
+See [FINAL_ARCHITECTURE_AUDIT.md](FINAL_ARCHITECTURE_AUDIT.md) for the complete commit, save, balance, IAP crash-window, ownership, UID/config and failure audit. Final audit hardening preserves corrupt main/independent save evidence: null room/slot structures use main backup recovery; Singularity blocks corrupt-store overwrite and re-unlock charges and writes through a flushed temporary file; invalid billing ledgers and incomplete grant journals fail closed. Valid save schemas/versions, balances and external IDs remain unchanged. Singularity now also uses user://singularity_save.tmp.json. The prior note about its direct active-file writes is historical.
+
+All seven automated suites pass after these fixes (42,123 assertions). Full game compilation has 0 errors and 339 existing CS8632 warnings; package vulnerability-feed lookup remains unavailable and the generated Singularity harness initializer warning is classified in the report. Eight generated integration script UIDs are intentional cleanup. No public compatibility constructor was removed. Merge rating: READY AFTER MANUAL DEVICE TESTS, conditional on P0 Android checks and acceptance of the mixed UI commit 2b3c885.

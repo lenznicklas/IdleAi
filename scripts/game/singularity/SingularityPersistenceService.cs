@@ -3,6 +3,9 @@
 using Godot;
 using System;
 using System.Text.Json;
+using System.IO;
+using System.Linq;
+using System.Text;
 
 namespace IdleAi;
 
@@ -16,6 +19,7 @@ internal sealed class SingularityPersistenceService
 		};
 
 	private const string SavePath = "user://singularity_save.json";
+	internal bool LastLoadFailed { get; private set; }
 	private readonly SingularitySaveData _data;
 	private readonly SingularitySectorService _sectors;
 	private readonly SingularityBotService _bots;
@@ -31,6 +35,7 @@ internal sealed class SingularityPersistenceService
 
 	internal void Save()
 	{
+		if (LastLoadFailed) return; // Preserve the original file for recovery.
 		try
 		{
 			_data.LastSaveUnix =
@@ -42,15 +47,15 @@ internal sealed class SingularityPersistenceService
 					_jsonOptions
 				);
 
-			using Godot.FileAccess file =
-				Godot.FileAccess.Open(
-					SavePath,
-					Godot.FileAccess.ModeFlags.Write
-				);
-
-			file.StoreString(
-				json
-			);
+			string path = ProjectSettings.GlobalizePath(SavePath);
+			string temporaryPath = ProjectSettings.GlobalizePath("user://singularity_save.tmp.json");
+			using (var stream = new FileStream(temporaryPath, FileMode.Create, System.IO.FileAccess.Write, FileShare.None))
+			{
+				byte[] bytes = Encoding.UTF8.GetBytes(json);
+				stream.Write(bytes);
+				stream.Flush(true);
+			}
+			File.Move(temporaryPath, path, overwrite: true);
 		}
 		catch (Exception exception)
 		{
@@ -63,6 +68,7 @@ internal sealed class SingularityPersistenceService
 
 	internal void Load()
 	{
+		LastLoadFailed = false;
 		Reset(new SingularitySaveData());
 
 		if (!Godot.FileAccess.FileExists(SavePath))
@@ -91,16 +97,19 @@ internal sealed class SingularityPersistenceService
 					_jsonOptions
 				);
 
-			if (loaded != null)
-				Reset(loaded);
+			if (loaded?.Sectors == null || loaded.Sectors.Any(sector =>
+				sector?.Nodes == null || sector.Nodes.Any(node => node == null)))
+				throw new InvalidDataException("Invalid Singularity save structure.");
+			Reset(loaded);
 		}
 		catch (Exception exception)
 		{
 			GD.PushWarning(
-				"Singularity save load failed: "
+				"Singularity save load failed; saving is blocked: "
 					+ exception.Message
 			);
 
+			LastLoadFailed = true;
 			Reset(new SingularitySaveData());
 		}
 

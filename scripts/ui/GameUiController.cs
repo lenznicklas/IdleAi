@@ -70,6 +70,33 @@ public sealed class GameUiController
 		PipelineService pipelineService,
 		InfrastructureService infrastructureService,
 		QuantumService quantumService)
+		: this(
+			root, state, economy, progression, production, bots,
+			prestige, shopService, pipelineService,
+			infrastructureService, quantumService,
+			new BotSkinService(state),
+			new MachineSkinService(state),
+			new LevelRewardService(state, progression),
+			new GameSettingsService(root))
+	{
+	}
+
+	internal GameUiController(
+		Game root,
+		GameState state,
+		EconomyService economy,
+		ProgressionService progression,
+		ProductionService production,
+		BotService bots,
+		PrestigeService prestige,
+		ShopService shopService,
+		PipelineService pipelineService,
+		InfrastructureService infrastructureService,
+		QuantumService quantumService,
+		BotSkinService skinService,
+		MachineSkinService machineSkinService,
+		LevelRewardService levelRewardService,
+		GameSettingsService settingsService)
 	{
 		_root = root;
 		_state = state;
@@ -83,36 +110,10 @@ public sealed class GameUiController
 		_infrastructureService = infrastructureService;
 		_quantumService = quantumService;
 
-		/*
-		 * Cosmetic data is loaded before the room UI is built.
-		 * BotCatalog therefore already exposes the equipped
-		 * textures when MachineSlot / MachineDetails render.
-		 */
-		_skinService =
-			new BotSkinService(
-				_state
-			);
-
-		_machineSkinService =
-			new MachineSkinService(
-				_state
-			);
-
-		_levelRewardService =
-			new LevelRewardService(
-				_state,
-				_progression
-			);
-
-		/*
-		 * Settings are stored independently from gameplay saves so audio and
-		 * haptic preferences survive Prestige and save migrations.
-		 * Construction also starts score.wav when sound is enabled.
-		 */
-		_settingsService =
-			new GameSettingsService(
-				_root
-			);
+		_skinService = skinService;
+		_machineSkinService = machineSkinService;
+		_levelRewardService = levelRewardService;
+		_settingsService = settingsService;
 	}
 
 	public void Initialize()

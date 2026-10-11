@@ -362,6 +362,20 @@ public partial class Game : Control
 				_production
 			);
 
+		// Construct these before building room views or loading the main save,
+		// preserving cosmetic application and settings/music startup order.
+		BotSkinService skinService =
+			new BotSkinService(_state);
+
+		MachineSkinService machineSkinService =
+			new MachineSkinService(_state);
+
+		LevelRewardService levelRewardService =
+			new LevelRewardService(_state, _progression);
+
+		GameSettingsService settingsService =
+			new GameSettingsService(this);
+
 		_ui =
 			new GameUiController(
 				this,
@@ -374,7 +388,11 @@ public partial class Game : Control
 				_shopService,
 				_pipelineService,
 				_infrastructureService,
-				_quantumService
+				_quantumService,
+				skinService,
+				machineSkinService,
+				levelRewardService,
+				settingsService
 			);
 
 		_ui.SlotActionRequested +=

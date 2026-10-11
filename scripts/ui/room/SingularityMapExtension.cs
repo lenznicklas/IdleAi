@@ -48,6 +48,7 @@ public sealed partial class SingularityMapExtension
     private readonly GameState _state;
     private readonly SingularityService _service;
     private readonly SingularityController _controller;
+    private readonly MapController _map;
 
     private Control _mapPage = null!;
     private Control _canvas = null!;
@@ -84,16 +85,20 @@ public sealed partial class SingularityMapExtension
         Game root,
         GameState state,
         SingularityService service,
-        SingularityController controller)
+        SingularityController controller,
+        MapController map)
     {
         _root = root;
         _state = state;
         _service = service;
         _controller = controller;
+        _map = map;
     }
 
     public void Initialize()
     {
+        _map.ExternalRoomIsCurrent = () =>
+            _singularityIsCurrentRoom || _controller.Visible;
         _mapPage = _root.GetNode<Control>("MapPage");
 
         ScrollContainer? scroll = FindDescendant<ScrollContainer>(_mapPage);
@@ -508,6 +513,7 @@ public sealed partial class SingularityMapExtension
         {
             _singularityIsCurrentRoom = false;
             _controller.FinishExternalNavigationToNormalRoom();
+            Refresh();
             return;
         }
 
@@ -524,6 +530,7 @@ public sealed partial class SingularityMapExtension
             return;
 
         bool unlocked = _service.Unlocked;
+        _map.Refresh();
         bool current =
             _singularityIsCurrentRoom
             && _mapPage.Visible;

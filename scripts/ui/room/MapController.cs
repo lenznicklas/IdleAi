@@ -123,6 +123,8 @@ public sealed partial class MapController
 
 	public event Action<int>? RoomSelectedRequested;
 
+	public Func<bool>? ExternalRoomIsCurrent { get; set; }
+
 
 	public bool Visible =>
 		_page.Visible;
@@ -1154,7 +1156,8 @@ public sealed partial class MapController
 
 
 			bool current =
-				i
+				!(ExternalRoomIsCurrent?.Invoke() ?? false)
+				&& i
 				== _state.CurrentRoomIndex;
 
 

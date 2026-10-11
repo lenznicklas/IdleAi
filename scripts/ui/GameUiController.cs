@@ -33,6 +33,8 @@ public sealed class GameUiController
 	private TopBarController _topBar = null!;
 	private BottomBarController _bottomBar = null!;
 	private MapController _map = null!;
+
+	internal MapController Map => _map;
 	private StatsOverlayController _stats = null!;
 	private PrestigeOverlayController _prestige = null!;
 	private LevelRewardsOverlayController _levelRewards = null!;

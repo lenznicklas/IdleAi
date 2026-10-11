@@ -562,6 +562,9 @@ internal sealed class SingularityBotService
 		);
 	}
 
+	// Content rolls share the existing randomized Godot RNG and injectable deterministic seam.
+	internal double RollContent() => _roll();
+
 	internal BotRarity RollBotRarity()
 	{
 		(

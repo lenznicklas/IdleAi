@@ -59,9 +59,10 @@ public sealed class SingularityService
 	internal SingularityService(GameState? state, Func<long> now, Func<double>? roll)
 	{
 		_economy = new SingularityEconomy(_data);
-		_sectors = new SingularitySectorService(_data, _economy, SaveAndNotify, Save);
+		// The sector callback first runs during Load, after the bot RNG has been initialized.
+		_sectors = new SingularitySectorService(_data, _economy, SaveAndNotify, Save, () => _bots!.RollContent());
 		_bots = new SingularityBotService(_data, _sectors, _economy, SaveAndNotify, state?.Lab, roll);
-		_nodes = new SingularityNodeService(_data, _sectors, _economy, SaveAndNotify);
+		_nodes = new SingularityNodeService(_data, _sectors, _economy, SaveAndNotify, _bots.RollContent);
 		_production = new SingularityProductionService(_data, _sectors, _bots);
 		_persistence = new SingularityPersistenceService(_data, _sectors, _bots, now);
 		_offline = new SingularityOfflineService(_data, _bots, _production, _persistence, _economy, () => Changed?.Invoke(), now);
@@ -334,6 +335,27 @@ public sealed class SingularityService
 	public double GetSectorOutputPerSecond(
 		int sectorIndex) =>
 		_production.GetSectorOutputPerSecond(sectorIndex);
+
+	public SingularityNodeBonuses GetNodeBonuses(int sectorIndex, int nodeIndex) =>
+		_production.GetNodeBonuses(sectorIndex, nodeIndex);
+
+	public System.Collections.Generic.IReadOnlyList<SingularityFormation> GetSectorFormations(int sectorIndex) =>
+		SingularityFormationService.Detect(GetSector(sectorIndex));
+
+	public string GetNodeEffectText(int sectorIndex, int nodeIndex)
+	{
+		double strength = GetNodeEffectStrength(sectorIndex, nodeIndex);
+		return GetNode(sectorIndex, nodeIndex).Type switch
+		{
+			SingularityNodeType.Amplifier => $"Adjacent boost: Compute +{.15 * strength:P0}; Quantum +{.10 * strength:P0}",
+			SingularityNodeType.Cooling => $"Adjacent speed: Compute +{.10 * strength:P0}; Quantum +{.20 * strength:P0}",
+			SingularityNodeType.Quantum => $"Sector Compute boost: +{.12 * strength:P0}",
+			_ => ""
+		};
+	}
+
+	public double GetNodeEffectStrength(int sectorIndex, int nodeIndex) =>
+		_production.GetNodeEffectStrength(sectorIndex, nodeIndex);
 
 	public double GetNodeDisplayedOutput(
 		int sectorIndex,

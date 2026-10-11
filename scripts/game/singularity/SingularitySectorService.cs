@@ -31,14 +31,16 @@ internal sealed class SingularitySectorService
 	private int _spiralStepProgress;
 
 	private int _spiralLegsAtCurrentLength;
+	private readonly Func<double>? _roll;
 	private readonly SingularitySaveData _data;
 	private readonly SingularityEconomy _economy;
 	private readonly Action _saveAndNotify;
 	private readonly Action _save;
 
-	internal SingularitySectorService(SingularitySaveData data, SingularityEconomy economy, Action saveAndNotify, Action save)
+	internal SingularitySectorService(SingularitySaveData data, SingularityEconomy economy, Action saveAndNotify, Action save, Func<double>? roll = null)
 	{
 		_data = data;
+		_roll = roll;
 		_economy = economy;
 		_saveAndNotify = saveAndNotify;
 		_save = save;
@@ -178,7 +180,7 @@ internal sealed class SingularitySectorService
 				sectorIndex
 			);
 
-		return 100.0
+		return (_data.Sectors[sectorIndex].Modifier == SingularitySectorModifier.EfficientCore ? .80 : 1.0) * 100.0
 			* Math.Pow(
 				2.15,
 				Math.Max(
@@ -434,7 +436,8 @@ internal sealed class SingularitySectorService
 					CoreUnlocked =
 						newIndex == 0,
 
-					CoreLevel = 1
+					CoreLevel = 1,
+					Modifier = _roll == null ? SingularitySectorModifier.Neutral : SingularityBuildRules.RollModifier(_roll())
 				};
 
 			for (

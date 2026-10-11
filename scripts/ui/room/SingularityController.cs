@@ -1,5 +1,6 @@
 using Godot;
 using System;
+using System.Linq;
 using System.Collections.Generic;
 
 namespace IdleAi;
@@ -538,6 +539,7 @@ public sealed partial class SingularityController
 		);
 
 
+		CreateGoldenParticles();
 		CreateHeader();
 		CreateMapViewport();
 
@@ -1852,6 +1854,7 @@ public sealed partial class SingularityController
 		RefreshInterSectorConnections(
 			visibleWorld
 		);
+		if (_singularityBotUiTimer != null) RefreshMapBotBadges();
 	}
 
 
@@ -2372,6 +2375,9 @@ public sealed partial class SingularityController
 			"SECTOR "
 			+ (view.SectorIndex + 1);
 
+		view.Title.TooltipText = SingularityBuildRules.ModifierText(sector.Modifier);
+		view.Title.MouseFilter = Control.MouseFilterEnum.Pass;
+
 		view.Output.Text =
 			NumberFormatter.Format(
 				_service.GetSectorOutputPerSecond(
@@ -2451,7 +2457,10 @@ public sealed partial class SingularityController
 					== SingularityNodeType.Empty
 						? "EMPTY"
 						: "LV "
-							+ node.Level;
+							+ node.Level
+							+ (node.Quality == SingularityNodeQuality.Normal ? "" : " ★");
+			nodeView.Level.AddThemeColorOverride("font_color", QualityColor(node.Quality));
+			nodeView.Root.TooltipText = node.Type == SingularityNodeType.Empty ? "Empty node" : $"{node.Quality} {node.Type} • ×{SingularityBuildRules.QualityMultiplier(node.Quality):0.00}";
 		}
 
 		RefreshSectorCoreVisual(
@@ -3239,6 +3248,11 @@ public sealed partial class SingularityController
 			title
 		);
 
+		AddBuildInfo(_detailContent, SingularityBuildRules.ModifierText(_service.GetSector(sectorIndex).Modifier));
+		var formations = _service.GetSectorFormations(sectorIndex);
+		AddBuildInfo(_detailContent, "Active formations: " + (formations.Count == 0 ? "none" : string.Join(", ", formations.Select(f => f.Name).Distinct())));
+		AddFormationGuide(_detailContent);
+
 		TextureRect image =
 			CreateOverlayImage(
 				CoreTexture,
@@ -3533,21 +3547,21 @@ public sealed partial class SingularityController
 			SingularityNodeType.Amplifier,
 			AmplifierNodeTexture,
 			"AMPLIFIER NODE",
-			"+15% output per level to each adjacent Compute Node."
+			"Boosts adjacent Compute (+15%/level) and Quantum (+10%/level)."
 		);
 
 		AddNodePurchaseOption(
 			SingularityNodeType.Cooling,
 			CoolingNodeTexture,
 			"COOLING NODE",
-			"+10% speed/output per level to each adjacent Compute Node."
+			"Speeds adjacent Compute (+10%/level) and Quantum (+20%/level)."
 		);
 
 		AddNodePurchaseOption(
 			SingularityNodeType.Quantum,
 			QuantumNodeTexture,
 			"QUANTUM NODE",
-			"+12% output per level to every Compute Node in this Sector."
+			"Sector multiplier (+12%/level). Amplifier and Cooling support strengthen it."
 		);
 	}
 
@@ -3855,6 +3869,9 @@ public sealed partial class SingularityController
 		stats.AddChild(
 			statBox
 		);
+		AddBuildInfo(statBox, $"Quality: {node.Quality} (×{SingularityBuildRules.QualityMultiplier(node.Quality):0.00})", QualityColor(node.Quality));
+		AddBuildInfo(statBox, SingularityBuildRules.ModifierText(_service.GetCurrentSector().Modifier));
+		AddBuildInfo(statBox, _service.GetNodeBonuses(_service.CurrentSectorIndex, _selectedNode).Summary);
 
 
 		if (
@@ -3878,14 +3895,7 @@ public sealed partial class SingularityController
 		}
 		else
 		{
-			statBox.AddChild(
-				CreateLabel(
-					14,
-					GetNodeLevelEffectText(
-						node
-					)
-				)
-			);
+			AddBuildInfo(statBox, _service.GetNodeEffectText(_service.CurrentSectorIndex, _selectedNode));
 		}
 
 
@@ -4363,48 +4373,13 @@ public sealed partial class SingularityController
 				"Produces Singularity Matter continuously.",
 
 			SingularityNodeType.Amplifier =>
-				"Boosts adjacent Compute Nodes, including the connected edge Node in a neighboring Sector.",
+				"Boosts adjacent Compute and Quantum Nodes, including connected sector edges.",
 
 			SingularityNodeType.Cooling =>
-				"Speeds up adjacent Compute Nodes, including the connected edge Node in a neighboring Sector.",
+				"Improves effective speed of adjacent Compute and Quantum Nodes; twice as effective on Quantum. Includes connected sector edges.",
 
 			SingularityNodeType.Quantum =>
-				"Multiplies every Compute Node in this Sector.",
-
-			_ =>
-				""
-		};
-	}
-
-
-	private static string GetNodeLevelEffectText(
-		SingularityNodeData node)
-	{
-		return node.Type switch
-		{
-			SingularityNodeType.Amplifier =>
-				"Adjacent Compute boost: +"
-				+ (
-					15
-					* node.Level
-				)
-				+ "%",
-
-			SingularityNodeType.Cooling =>
-				"Adjacent Compute speed/output: +"
-				+ (
-					10
-					* node.Level
-				)
-				+ "%",
-
-			SingularityNodeType.Quantum =>
-				"Sector Compute boost: +"
-				+ (
-					12
-					* node.Level
-				)
-				+ "%",
+				"Multiplies every Compute Node in this Sector and slightly boosts adjacent Compute. Amplifier and Cooling support strengthen its sector effect.",
 
 			_ =>
 				""
@@ -4856,7 +4831,10 @@ public sealed partial class SingularityController
 		Button Root,
 		TextureRect Icon,
 		Label Level
-	);
+	)
+	{
+		public MapBotVisual? Bot { get; set; }
+	}
 
 
 

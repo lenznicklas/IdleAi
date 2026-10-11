@@ -17,6 +17,8 @@ public sealed class SingularityNodeData
 {
 	public SingularityNodeType Type { get; set; }
 
+	public SingularityNodeQuality Quality { get; set; }
+
 	public int Level { get; set; } = 1;
 
 	public double InvestedMatter { get; set; }
@@ -55,6 +57,8 @@ public sealed class SingularitySectorData
 {
 	public List<SingularityNodeData> Nodes { get; set; } = [];
 
+	public SingularitySectorModifier Modifier { get; set; }
+
 	public bool CoreUnlocked { get; set; }
 
 	public int CoreLevel { get; set; } = 1;
@@ -63,7 +67,7 @@ public sealed class SingularitySectorData
 
 public sealed class SingularitySaveData
 {
-	public int SaveVersion { get; set; } = 4;
+	public int SaveVersion { get; set; } = 5;
 
 	public bool Unlocked { get; set; }
 

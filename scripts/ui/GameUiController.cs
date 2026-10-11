@@ -10,6 +10,7 @@ public sealed class GameUiController
 			"res://assets/themes/main_theme.tres"
 		);
 
+	private readonly GameServices _services;
 	private readonly Game _root;
 	private readonly GameState _state;
 	private readonly EconomyService _economy;
@@ -62,6 +63,7 @@ public sealed class GameUiController
 		Game root,
 		GameServices services)
 	{
+		_services = services;
 		_root = root;
 		_state = services.State;
 		_economy = services.Economy;
@@ -385,6 +387,9 @@ public sealed class GameUiController
 			OpenPrestigeConfirmation;
 
 		_stats.Initialize();
+		_stats.AddArchive(new AiArchiveProgressService(_state, _progression, _services.Lab,
+			_skinService.IsOwned, _machineSkinService.IsOwned, _skinService.IsEquipped,
+			_machineSkinService.IsEquipped, () => _root.IsSingularityUnlockedForArchive));
 	}
 
 	private void CreatePrestigeController()

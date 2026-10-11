@@ -35,6 +35,12 @@ public sealed partial class SingularityController
 
 		CreateSingularityBotOverlay();
 
+		var hoverRunner = new SingularityBotHoverRunner();
+		hoverRunner.ProcessRequested += AnimateMapBots;
+		_page.AddChild(hoverRunner);
+		_page.VisibilityChanged += () => hoverRunner.SetProcess(_page.Visible);
+		hoverRunner.SetProcess(_page.Visible);
+
 		_singularityBotUiTimer =
 			new Timer
 			{
@@ -987,105 +993,115 @@ public sealed partial class SingularityController
 
 
 	// ==================================================
-	// MAP BOT BADGES
+	// EXTERNAL MAP BOTS
 	// ==================================================
+
+	private const float MapBotSize = 45.0f; // 1.5 × the previous 30px badge.
+	private const float MapBotGap = 13.0f;
+	private const float MapBotLift = 5.0f;
+	private double _mapBotHoverSeconds;
+
+	private sealed record MapBotVisual(Button Root, TextureRect Image, double Phase)
+	{
+		public bool Broken { get; set; }
+	}
 
 	private void RefreshMapBotBadges()
 	{
-		foreach (
-			var pair
-				in _sectorMapViews
-		)
+		foreach (SectorMapView view in _sectorMapViews.Values)
 		{
-			int sectorIndex =
-				pair.Key;
-
-			SectorMapView view =
-				pair.Value;
-
-			for (
-				int nodeIndex = 0;
-				nodeIndex < view.Nodes.Count;
-				nodeIndex++
-			)
+			for (int index = 0; index < view.Nodes.Count; index++)
 			{
-				NodeButtonView nodeView =
-					view.Nodes[
-						nodeIndex
-					];
-
-				SingularityNodeData node =
-					_service.GetNode(
-						sectorIndex,
-						nodeIndex
-					);
-
-				TextureRect? badge =
-					nodeView.Root.GetNodeOrNull<TextureRect>(
-						"BotBadge"
-					);
-
-				if (!node.HasBot)
+				NodeButtonView nodeView = view.Nodes[index];
+				SingularityNodeData node = _service.GetNode(view.SectorIndex, index);
+				if (!node.HasBot || node.Type == SingularityNodeType.Empty)
 				{
-					badge?.Hide();
+					if (nodeView.Bot != null)
+					{
+						nodeView.Bot.Root.Hide(); // Stop input immediately, before deferred deletion.
+						nodeView.Bot.Root.QueueFree();
+						nodeView.Bot = null;
+					}
 					continue;
 				}
 
-				if (badge == null)
-				{
-					badge =
-						new TextureRect
-						{
-							Name =
-								"BotBadge",
-
-							Position =
-								new Vector2(
-									4,
-									4
-								),
-
-							Size =
-								new Vector2(
-									30,
-									30
-								),
-
-							ExpandMode =
-								TextureRect.ExpandModeEnum.IgnoreSize,
-
-							StretchMode =
-								TextureRect.StretchModeEnum.KeepAspectCentered,
-
-							MouseFilter =
-								Control.MouseFilterEnum.Ignore,
-
-							ZIndex =
-								12
-						};
-
-					nodeView.Root.AddChild(
-						badge
-					);
-				}
-
-				badge.Texture =
-					BotCatalog.Get(
-						node.BotRarity!.Value
-					).Texture;
-
-				badge.Modulate =
-					node.BotBroken
-						? new Color(
-							1.0f,
-							0.30f,
-							0.30f,
-							0.72f
-						)
-						: Colors.White;
-
-				badge.Show();
+				nodeView.Bot ??= CreateMapBotVisual(view, index);
+				MapBotVisual bot = nodeView.Bot;
+				BotDefinition definition = BotCatalog.Get(node.BotRarity!.Value);
+				bot.Image.Texture = definition.Texture; // Preserve rarity art and active skins.
+				bot.Broken = node.BotBroken;
+				bot.Image.Modulate = node.BotBroken ? new Color(1.0f, .30f, .30f, .72f) : Colors.White;
+				bot.Root.TooltipText = $"{definition.Name} • Sector {view.SectorIndex + 1}, Node {index + 1}"
+					+ (node.BotBroken ? " • BROKEN" : "");
+				PositionMapBot(nodeView, index);
 			}
 		}
+	}
+
+	private MapBotVisual CreateMapBotVisual(SectorMapView sector, int index)
+	{
+		var button = new Button
+		{
+			Name = $"SingularityMapBot_{index}", Size = new Vector2(MapBotSize, MapBotSize),
+			FocusMode = Control.FocusModeEnum.None, MouseFilter = Control.MouseFilterEnum.Stop,
+			ZIndex = 12 // Above Nodes (4) and links; map/page ancestors keep it below popups.
+		};
+		var transparent = new StyleBoxEmpty();
+		foreach (string state in new[] { "normal", "hover", "pressed", "hover_pressed", "focus", "disabled" })
+			button.AddThemeStyleboxOverride(state, transparent);
+		var image = new TextureRect
+		{
+			Name = "BotBadge", ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+			StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+			MouseFilter = Control.MouseFilterEnum.Ignore
+		};
+		image.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		button.AddChild(image);
+		sector.Root.AddChild(button); // Sibling of the clipped Node; inherits every map transform.
+		button.Pressed += () =>
+		{
+			if (_panInput.ShouldSuppressClick) return;
+			_service.SelectSector(sector.SectorIndex);
+			RefreshRuntime();
+			CloseDetailOverlay();
+			PlayHaptic();
+			OpenSingularityBotOverlay(sector.SectorIndex, index);
+		};
+		// Golden-ratio spacing is stable for a slot across removal, rebuilds and reloads.
+		double phase = (((long)sector.SectorIndex * SingularityService.NodesPerSector + index) * .38196601125 % 1.0) * Math.Tau;
+		return new MapBotVisual(button, image, phase);
+	}
+
+	private void PositionMapBot(NodeButtonView node, int index)
+	{
+		MapBotVisual bot = node.Bot!;
+		Vector2 center = node.Root.Position + node.Root.Size / 2;
+		Vector2 direction = (center - Vector2.One * (SectorMapSize / 2)).Normalized();
+		float largestAxis = Mathf.Max(Mathf.Abs(direction.X), Mathf.Abs(direction.Y));
+		// Account for square card/image bounds, including diagonal Nodes, rather than just radius.
+		Vector2 separation = (node.Root.Size + Vector2.One * MapBotSize) / 2 + Vector2.One * MapBotGap;
+		float distance = Mathf.Max(separation.X, separation.Y) / Mathf.Max(.001f, largestAxis);
+		Vector2 baseCenter = center + direction * distance;
+		if (index % 2 == 0)
+			baseCenter += new Vector2(-direction.Y, direction.X) * 30; // Clear cardinal cross-sector lines.
+		float lift = bot.Broken ? 0 : (float)((1 - Math.Cos(_mapBotHoverSeconds * Math.Tau / 2.0 + bot.Phase)) * MapBotLift / 2);
+		bot.Root.Position = baseCenter - Vector2.One * (MapBotSize / 2) + new Vector2(0, -lift);
+	}
+
+	private void AnimateMapBots(double delta)
+	{
+		if (!_page.IsVisibleInTree()) return;
+		_mapBotHoverSeconds += delta;
+		// Only virtualized sector views; no per-frame objects, RNG, queries into gameplay, or Tweens.
+		foreach (SectorMapView sector in _sectorMapViews.Values)
+			for (int index = 0; index < sector.Nodes.Count; index++)
+				if (sector.Nodes[index].Bot != null)
+					PositionMapBot(sector.Nodes[index], index);
+	}
+
+	private sealed partial class SingularityBotHoverRunner : Node
+	{
+		public event Action<double>? ProcessRequested;
+		public override void _Process(double delta) => ProcessRequested?.Invoke(delta);
 	}
 }

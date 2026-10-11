@@ -598,16 +598,9 @@ public sealed class GooglePlayGamesAchievementService
 		// before the first production cycle necessarily completes.
 		// --------------------------------------------------
 
-		if (
-			state.Stats.TotalEarned > 0.0
-			|| HasRunningMachine(
-				state
-			)
-		)
+		if (IsLocallyEarned(HelloWorldId, state, progression))
 		{
-			TryUnlock(
-				HelloWorldId
-			);
+			TryUnlock(HelloWorldId);
 		}
 
 
@@ -619,18 +612,9 @@ public sealed class GooglePlayGamesAchievementService
 		// owned a bot in the past are still detected.
 		// --------------------------------------------------
 
-		if (
-			state.Stats.GetMachineSpending(
-				"Bots"
-			) > 0.0
-			|| HasAnyBot(
-				state
-			)
-		)
+		if (IsLocallyEarned(AutomatedIntelligenceId, state, progression))
 		{
-			TryUnlock(
-				AutomatedIntelligenceId
-			);
+			TryUnlock(AutomatedIntelligenceId);
 		}
 
 
@@ -642,16 +626,9 @@ public sealed class GooglePlayGamesAchievementService
 		// existing save that already claimed Level 150 to be recognized.
 		// --------------------------------------------------
 
-		if (
-			progression.GetTotalLevel()
-				>= 150
-			|| state.Shop.HighestClaimedLevelReward
-				>= 150
-		)
+		if (IsLocallyEarned(MovingUpId, state, progression))
 		{
-			TryUnlock(
-				MovingUpId
-			);
+			TryUnlock(MovingUpId);
 		}
 
 
@@ -660,14 +637,9 @@ public sealed class GooglePlayGamesAchievementService
 		// Complete first research.
 		// --------------------------------------------------
 
-		if (
-			state.Lab.CompletedResearch.Count
-				> 0
-		)
+		if (IsLocallyEarned(ResearcherId, state, progression))
 		{
-			TryUnlock(
-				ResearcherId
-			);
+			TryUnlock(ResearcherId);
 		}
 
 
@@ -676,14 +648,9 @@ public sealed class GooglePlayGamesAchievementService
 		// Perform first Prestige.
 		// --------------------------------------------------
 
-		if (
-			state.Prestige.PrestigeCount
-				>= 1
-		)
+		if (IsLocallyEarned(PrestigiousId, state, progression))
 		{
-			TryUnlock(
-				PrestigiousId
-			);
+			TryUnlock(PrestigiousId);
 		}
 
 
@@ -695,16 +662,9 @@ public sealed class GooglePlayGamesAchievementService
 		// compatibility and remains true after Prestige.
 		// --------------------------------------------------
 
-		if (
-			HasEverUnlockedRoom(
-				state,
-				"Server Room"
-			)
-		)
+		if (IsLocallyEarned(ServerOnlineId, state, progression))
 		{
-			TryUnlock(
-				ServerOnlineId
-			);
+			TryUnlock(ServerOnlineId);
 		}
 
 
@@ -713,19 +673,25 @@ public sealed class GooglePlayGamesAchievementService
 		// Unlock Quantum Lab.
 		// --------------------------------------------------
 
-		if (
-			HasEverUnlockedRoom(
-				state,
-				"Quantum Lab"
-			)
-		)
+		if (IsLocallyEarned(QuantumLeapId, state, progression))
 		{
-			TryUnlock(
-				QuantumLeapId
-			);
+			TryUnlock(QuantumLeapId);
 		}
 	}
 
+
+    /// <summary>Read-only local eligibility; does not authenticate or contact Play Games.</summary>
+    public static bool IsLocallyEarned(string id, GameState state, ProgressionService progression) => id switch
+    {
+        HelloWorldId => state.Stats.TotalEarned > 0.0 || HasRunningMachine(state),
+        AutomatedIntelligenceId => state.Stats.GetMachineSpending("Bots") > 0.0 || HasAnyBot(state),
+        MovingUpId => progression.GetTotalLevel() >= 150 || state.Shop.HighestClaimedLevelReward >= 150,
+        ResearcherId => state.Lab.CompletedResearch.Count > 0,
+        PrestigiousId => state.Prestige.PrestigeCount >= 1,
+        ServerOnlineId => HasEverUnlockedRoom(state, "Server Room"),
+        QuantumLeapId => HasEverUnlockedRoom(state, "Quantum Lab"),
+        _ => false
+    };
 
 	private void TryUnlock(
 		string achievementId)

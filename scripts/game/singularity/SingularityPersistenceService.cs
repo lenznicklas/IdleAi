@@ -76,7 +76,7 @@ internal sealed class SingularityPersistenceService
 			_sectors.EnsureSector(0);
 			_data.Sectors[0].CoreUnlocked = true;
 			_data.Sectors[0].CoreLevel = 1;
-			_data.SaveVersion = 4;
+			_data.SaveVersion = 5;
 			return;
 		}
 
@@ -165,6 +165,9 @@ internal sealed class SingularityPersistenceService
 				in _data.Sectors
 		)
 		{
+			// v5 migration: missing fields default to Neutral/Normal; never retroactively roll old builds.
+			// Invalid enum values use the same safe defaults. Earlier core and bot migrations stay intact.
+			if (!Enum.IsDefined(sector.Modifier)) sector.Modifier = SingularitySectorModifier.Neutral;
 			sector.CoreLevel =
 				Math.Max(
 					1,
@@ -176,6 +179,7 @@ internal sealed class SingularityPersistenceService
 					in sector.Nodes
 			)
 			{
+				if (!Enum.IsDefined(node.Quality)) node.Quality = SingularityNodeQuality.Normal;
 				if (!node.BotRarity.HasValue)
 				{
 					SingularityBotService.ClearNodeBot(
@@ -210,7 +214,7 @@ internal sealed class SingularityPersistenceService
 		}
 
 		_data.SaveVersion =
-			4;
+			5;
 	}
 
 	private void Reset(SingularitySaveData loaded)

@@ -105,6 +105,32 @@ public sealed class StatsOverlayController
 		Hide();
 	}
 
+	private AiArchiveProgressService? _archiveProgress;
+	private Label? _archiveSummary;
+	public void AddArchive(AiArchiveProgressService progress)
+	{
+		_archiveProgress = progress;
+		var archive = new AiArchiveOverlayController(_root, progress);
+		var list = _root.GetNode<VBoxContainer>("StatsOverlay/StatsPanel/Margin/Scroll/VBox");
+		var card = new PanelContainer { Name = "AiArchiveEntry" };
+		card.AddThemeStyleboxOverride("panel", AiArchiveOverlayController.Style(new Color("102039"), new Color("72dafa")));
+		var body = new VBoxContainer(); body.AddThemeConstantOverride("separation", 8); card.AddChild(body);
+		AiArchiveOverlayController.Text(body, "AI ARCHIVE", 25, new Color("72dafa"));
+		AiArchiveOverlayController.Text(body, "Track everything you've discovered.", 17);
+		_archiveSummary = AiArchiveOverlayController.Text(body, "", 17);
+		body.AddChild(AiArchiveOverlayController.Button("OPEN AI ARCHIVE", archive.Open));
+		list.AddChild(card); list.MoveChild(card, list.GetNode<Label>("Title").GetIndex());
+		list.GetNode<Label>("Title").Text = "STATISTICS";
+	}
+	private void RefreshArchive()
+	{
+		if (_archiveProgress == null || _archiveSummary == null) return;
+		var snapshot = _archiveProgress.Capture();
+		_archiveSummary.Text = $"{snapshot.Percent}% COMPLETE";
+		foreach (var category in snapshot.Categories)
+			_archiveSummary.Text += $"\n{category.Name}   {category.Completed} / {category.Total}";
+	}
+
 	private void ApplyVisualStyle(string path)
 	{
 		_panel.AddThemeStyleboxOverride(
@@ -338,6 +364,7 @@ public sealed class StatsOverlayController
 
 	public void Open()
 	{
+		RefreshArchive();
 		Refresh();
 		_overlay.Show();
 		_overlay.MoveToFront();

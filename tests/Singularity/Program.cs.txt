@@ -75,9 +75,138 @@ public static class Program
     {
         // Runner must have its own XDG_DATA_HOME: this harness only touches its isolated user:// store.
         Check(ProjectSettings.GlobalizePath(Path).Contains("Singularity regression tests"), "isolated project profile");
-        DefaultsAndUnlock(); CoresAndSectors(); Nodes(); Production(); Bots(); Persistence(); Offline(); Events();
+        DefaultsAndUnlock(); CoresAndSectors(); Nodes(); Production(); Bots(); Persistence(); Offline(); Events(); BuildSystems();
         Clear();
         Console.WriteLine($"Singularity: {_assertions} assertions passed.");
+    }
+    private static void BuildSystems()
+    {
+        var d = new Domain();
+        var compute = d.Node(0, 0, SingularityNodeType.Compute);
+        d.Node(0, 1, SingularityNodeType.Amplifier);
+        Equal(d.Production.GetNodeBonuses(0, 0).AmplifierBonus, .15, "one Amplifier synergy");
+        d.Node(0, 7, SingularityNodeType.Amplifier);
+        Equal(d.Production.GetNodeBonuses(0, 0).AmplifierBonus, 1.15 * 1.15 - 1, "two Amplifiers stack");
+        Equal(d.Production.GetNodeDisplayedOutput(0, 0), .25 * 1.15 * 1.15 * 1.35, "Neural Bridge output once");
+        var q = new Domain(); q.Node(0, 0, SingularityNodeType.Quantum); q.Node(0, 4, SingularityNodeType.Compute);
+        double unsupported = q.Production.GetNodeEffectStrength(0, 0);
+        q.Node(0, 1, SingularityNodeType.Cooling);
+        Equal(q.Production.GetNodeBonuses(0, 0).CoolingBonus, .20, "Cooling twice as effective on Quantum");
+        Check(q.Production.GetNodeEffectStrength(0, 0) > unsupported, "supported Quantum stronger");
+        q.Node(0, 7, SingularityNodeType.Amplifier);
+        Equal(q.Production.GetNodeEffectStrength(0, 0), 1.1 * 1.2 * 1.4, "Quantum Matrix effect once");
+        Equal(q.Production.GetNodeDisplayedOutput(0, 4), .25 * (1 + .12 * 1.1 * 1.2 * 1.4), "supported Quantum contributes to sector output");
+        q.Node(0, 2, SingularityNodeType.Compute);
+        Equal(q.Production.GetNodeBonuses(0, 2).CoolingBonus, .1, "Cooling Compute speed");
+        q.Node(0, 3, SingularityNodeType.Quantum);
+        Equal(q.Production.GetNodeBonuses(0, 2).QuantumBonus, .05, "adjacent Quantum Compute bonus");
+
+        var chain = new Domain(); chain.Node(0, 0, SingularityNodeType.Compute); chain.Node(0, 1, SingularityNodeType.Amplifier); chain.Node(0, 2, SingularityNodeType.Quantum);
+        Equal(chain.Production.GetNodeDisplayedOutput(0, 0), .25 * 1.15 * (1 + .15 * 1.15) * (1 + .12 * 1.15 * 1.115), "chain applies once to Compute, Amplifier, supported Quantum");
+        var cradle = new Domain(); cradle.Node(0, 0, SingularityNodeType.Quantum); cradle.Node(0, 1, SingularityNodeType.Cooling); cradle.Node(0, 7, SingularityNodeType.Cooling);
+        Equal(cradle.Production.GetNodeEffectStrength(0, 0), 1.2 * 1.2 * 1.3, "Cooling Cradle output effect once");
+        var boundary = new Domain(); boundary.Node(0, 2, SingularityNodeType.Compute); boundary.Node(1, 6, SingularityNodeType.Cooling).Quality = SingularityNodeQuality.Prototype;
+        boundary.Data.Sectors[1].Modifier = SingularitySectorModifier.CoolingFocus;
+        Equal(boundary.Production.GetNodeBonuses(0, 2).CoolingBonus, .10 * 1.25 * 1.35, "cross-sector support uses source quality/modifier");
+        var offline = new Domain(); offline.Node(0, 0, SingularityNodeType.Quantum); offline.Node(0, 4, SingularityNodeType.Compute).Quality = SingularityNodeQuality.Enhanced;
+        var cooler = offline.Node(0, 1, SingularityNodeType.Cooling); cooler.BotRarity = BotRarity.Common; cooler.BotDurabilityInitialized = true; cooler.BotDurabilitySecondsRemaining = 5;
+        double boosted = offline.Production.GetTotalOutputPerSecond(); cooler.BotDurabilitySecondsRemaining = 0;
+        double broken = offline.Production.GetTotalOutputPerSecond(); cooler.BotDurabilitySecondsRemaining = 5;
+        Equal(offline.Offline.ApplyOfflineIncomeFromTimestamp(_now, _now + 10), (boosted * 5 + broken * 5) * .5, "quality/supported Quantum offline simulation splits at Cooling bot break");
+        var attempts = new Domain(); int qualityRolls = 0;
+        var qualityNodes = new SingularityNodeService(attempts.Data, attempts.Sectors, attempts.Economy, () => {}, () => { qualityRolls++; return .999; });
+        Check(!qualityNodes.BuildNode(0, 0, SingularityNodeType.Compute).Changed && qualityRolls == 0, "failed build never rolls quality");
+        attempts.Data.Matter = 1000; Check(qualityNodes.BuildNode(0, 0, SingularityNodeType.Compute).Changed && qualityRolls == 1, "successful build rolls quality once");
+        Check(!qualityNodes.BuildNode(0, 0, SingularityNodeType.Compute).Changed && qualityRolls == 1, "occupied build never rerolls quality");
+        qualityNodes.UpgradeNode(0, 0); Check(qualityRolls == 1 && attempts.Data.Sectors[0].Nodes[0].Quality == SingularityNodeQuality.Quantum, "upgrade preserves quality without RNG");
+
+        var patterns = new[]
+        {
+            ("Compute Arc", new[] {SingularityNodeType.Compute, SingularityNodeType.Compute, SingularityNodeType.Compute, SingularityNodeType.Compute}, .20),
+            ("Neural Bridge", new[] {SingularityNodeType.Amplifier, SingularityNodeType.Compute, SingularityNodeType.Amplifier}, .35),
+            ("Quantum Matrix", new[] {SingularityNodeType.Amplifier, SingularityNodeType.Quantum, SingularityNodeType.Cooling}, .40),
+            ("Stabilized Chain", new[] {SingularityNodeType.Compute, SingularityNodeType.Amplifier, SingularityNodeType.Quantum}, .15),
+            ("Cooling Cradle", new[] {SingularityNodeType.Cooling, SingularityNodeType.Quantum, SingularityNodeType.Cooling}, .30)
+        };
+        foreach (var (name, types, bonus) in patterns)
+        foreach (int start in Enumerable.Range(0, 8))
+        foreach (int direction in new[] {-1, 1})
+        {
+            var layout = new Domain();
+            for (int i = 0; i < types.Length; i++) layout.Node(0, (start + direction * i + 16) % 8, types[i]);
+            var sector = layout.Data.Sectors[0];
+            var matches = SingularityFormationService.Detect(sector).Where(f => f.Name == name).ToArray();
+            Check(matches.Length == 1, name + " detected once rotated/reversed/wrapped");
+            foreach (int node in matches[0].Nodes)
+                Equal(SingularityFormationService.Bonus(matches, sector, node), bonus, name + " exact contribution");
+            sector.Nodes[(start + direction + 16) % 8].Type = SingularityNodeType.Empty;
+            Check(!SingularityFormationService.Detect(sector).Any(f => f.Name == name), name + " removed dynamically");
+        }
+        var full = new Domain(); for (int i = 0; i < 8; i++) full.Node(0, i, SingularityNodeType.Compute);
+        Equal(full.Production.GetNodeBonuses(0, 0).FormationBonus, .20, "overlapping Compute Arcs do not stack");
+        Equal(full.Production.GetTotalOutputPerSecond(), .05 + 8 * .25 * 1.2, "formation output aggregate exactly once");
+        var split = new Domain(); split.Node(0, 0, SingularityNodeType.Compute); split.Node(0, 1, SingularityNodeType.Compute);
+        split.Node(1, 0, SingularityNodeType.Compute); split.Node(1, 1, SingularityNodeType.Compute);
+        Check(SingularityFormationService.Detect(split.Data.Sectors[0]).Count == 0, "formations never cross sectors");
+        d.Node(0, 1, SingularityNodeType.Amplifier, 100); d.Node(0, 7, SingularityNodeType.Amplifier, 100);
+        Equal(d.Production.GetNodeBonuses(0, 0).AmplifierBonus, 2, "adjacency cap");
+        var artificial = new[] { new SingularityFormation("A", [0], .6), new SingularityFormation("B", [0], .6) };
+        Equal(SingularityFormationService.Bonus(artificial, d.Data.Sectors[0], 0), .75, "formation cap");
+
+        foreach (var (roll, quality) in new[] { (0.0, SingularityNodeQuality.Normal), (.80, SingularityNodeQuality.Enhanced), (.95, SingularityNodeQuality.Prototype), (.995, SingularityNodeQuality.Quantum) })
+        {
+            Clear(); Write(new SingularitySaveData { Unlocked = true, Matter = 1000, Sectors = [new SingularitySectorData { CoreUnlocked = true }] });
+            var service = Service(roll: roll); Check(service.BuildNode(0, 0, SingularityNodeType.Compute).Changed, "quality build");
+            Check(service.GetNode(0, 0).Quality == quality, "quality rarity interval");
+            double multiplier = SingularityBuildRules.QualityMultiplier(quality);
+            Equal(service.GetNodeDisplayedOutput(0, 0), .25 * multiplier, "quality changes output");
+            var loaded = Service(roll: 0); Check(loaded.GetNode(0, 0).Quality == quality, "quality persists, never rerolled");
+            Check(loaded.SellNode(0, 0).Changed && loaded.GetNode(0, 0).Quality == SingularityNodeQuality.Normal, "sale resets quality");
+        }
+        int rolls = 0;
+        var created = new SingularitySaveData { Matter = 10000 };
+        var economy = new SingularityEconomy(created);
+        var sectors = new SingularitySectorService(created, economy, () => {}, () => {}, () => { rolls++; return .999; });
+        sectors.EnsureSector(0);
+        for (int i = 0; i < 8; i++) sectors.GetNode(0, i).Type = SingularityNodeType.Compute;
+        Check(sectors.UnlockNextSector().Changed, "modifier assigned through sector unlock");
+        Check(created.Sectors[1].Modifier == SingularitySectorModifier.ResonantFormations && rolls == 2, "one persistent modifier roll per new sector");
+        sectors.GetSector(1); Check(rolls == 2, "queries do not reroll modifiers");
+        foreach (var modifier in Enum.GetValues<SingularitySectorModifier>())
+        {
+            var mod = new Domain(); var sector = mod.Data.Sectors[0]; sector.Modifier = modifier;
+            mod.Node(0, 0, SingularityNodeType.Compute);
+            Equal(mod.Production.GetNodeDisplayedOutput(0, 0), .25 * SingularityBuildRules.TypeMultiplier(modifier, SingularityNodeType.Compute), "Compute modifier " + modifier);
+            Equal(mod.Nodes.GetBuildCost(0, SingularityNodeType.Compute), 10 * 1.22 * SingularityBuildRules.BuildCostMultiplier(modifier), "build modifier " + modifier);
+            Equal(mod.Nodes.GetNodeUpgradeCost(0, 0), 18 * SingularityBuildRules.UpgradeCostMultiplier(modifier), "upgrade modifier " + modifier);
+            Equal(mod.Sectors.GetSectorCoreUpgradeCost(0), modifier == SingularitySectorModifier.EfficientCore ? 80 : 100, "core modifier " + modifier);
+            mod.Node(0, 1, SingularityNodeType.Amplifier);
+            Equal(mod.Production.GetNodeBonuses(0, 0).AmplifierBonus, .15 * SingularityBuildRules.TypeMultiplier(modifier, SingularityNodeType.Amplifier), "Amplifier modifier " + modifier);
+            mod.Node(0, 7, SingularityNodeType.Cooling);
+            Equal(mod.Production.GetNodeBonuses(0, 0).CoolingBonus, .10 * SingularityBuildRules.TypeMultiplier(modifier, SingularityNodeType.Cooling), "Cooling modifier " + modifier);
+            mod.Node(0, 4, SingularityNodeType.Quantum);
+            Equal(mod.Production.GetNodeEffectStrength(0, 4), SingularityBuildRules.TypeMultiplier(modifier, SingularityNodeType.Quantum), "Quantum modifier " + modifier);
+            mod.Persistence.Save(); var reload = new Domain(); reload.Persistence.Load();
+            Check(reload.Data.Sectors[0].Modifier == modifier, "modifier persisted " + modifier);
+        }
+        full.Data.Sectors[0].Modifier = SingularitySectorModifier.ResonantFormations;
+        Equal(full.Production.GetNodeBonuses(0, 0).FormationBonus, .20 * 1.35, "formation modifier");
+        foreach (var type in new[] {SingularityNodeType.Amplifier, SingularityNodeType.Cooling, SingularityNodeType.Quantum})
+        {
+            var qualitySupport = new Domain(); qualitySupport.Node(0, 0, SingularityNodeType.Compute);
+            var support = qualitySupport.Node(0, 1, type); double before = qualitySupport.Production.GetNodeDisplayedOutput(0, 0);
+            support.Quality = SingularityNodeQuality.Quantum;
+            Check(qualitySupport.Production.GetNodeDisplayedOutput(0, 0) > before, "quality improves support " + type);
+        }
+        using (var file = Godot.FileAccess.Open(Path, Godot.FileAccess.ModeFlags.Write))
+            file.StoreString("{\"SaveVersion\":4,\"Unlocked\":true,\"Matter\":123,\"Sectors\":[{\"CoreUnlocked\":true,\"Nodes\":[{\"Type\":1,\"Level\":3}]}]}");
+        var old = Service(roll: .999); Check(old.GetSector(0).Modifier == SingularitySectorModifier.Neutral, "old sector stays neutral");
+        Check(old.GetNode(0, 0).Quality == SingularityNodeQuality.Normal, "old node stays Normal");
+        Equal(old.GetNodeDisplayedOutput(0, 0), .25 * Math.Pow(1.58, 2), "legacy progression preserved");
+        old.Save(); Check(Read().SaveVersion == 5 && Read().Matter == 123, "v4 migration saved as v5 without Matter loss");
+        old.GetSector(0).Modifier = (SingularitySectorModifier)999; old.GetNode(0, 0).Quality = (SingularityNodeQuality)999; old.Save();
+        var invalid = Service(); Check(invalid.GetSector(0).Modifier == SingularitySectorModifier.Neutral && invalid.GetNode(0, 0).Quality == SingularityNodeQuality.Normal, "unknown enums normalize safely");
+        for (int i = 0; i < 10; i++) Check(SingularityBuildRules.RollModifier((i + .5) / 10) == (SingularitySectorModifier)(i + 1), "all ten sector roll intervals");
     }
     private static void DefaultsAndUnlock()
     {
@@ -242,7 +371,7 @@ public static class Program
         var node=d.Node(1,2,SingularityNodeType.Compute,3); d.Sectors.GetSector(1).CoreUnlocked=true;
         node.InvestedMatter=500; node.BotRarity=BotRarity.Epic; node.BotPurchasePriceMatter=70; node.BotDurabilityInitialized=true; node.BotDurabilitySecondsRemaining=123;
         d.Persistence.Save(); string before=JsonSerializer.Serialize(Read()); var loaded=new Domain(); loaded.Persistence.Load();
-        Check(JsonSerializer.Serialize(loaded.Data)==before,"full DTO save/load roundtrip"); Equal(loaded.Data.LastSaveUnix,_now,"timestamp"); Check(loaded.Data.SaveVersion==4,"version unchanged");
+        Check(JsonSerializer.Serialize(loaded.Data)==before,"full DTO save/load roundtrip"); Equal(loaded.Data.LastSaveUnix,_now,"timestamp"); Check(loaded.Data.SaveVersion==5,"Singularity schema v5");
         string temporary = ProjectSettings.GlobalizePath("user://singularity_save.tmp.json");
         Check(!System.IO.File.Exists(temporary), "successful save replaces temp");
         System.IO.Directory.CreateDirectory(temporary);

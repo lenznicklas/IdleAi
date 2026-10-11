@@ -1,0 +1,71 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using IdleAi;
+
+static class Program
+{
+    static int checks;
+    static void Eq<T>(T actual, T expected, string label)
+    { checks++; if (!Equals(actual, expected)) throw new Exception($"{label}: {actual} != {expected}"); }
+    static AiArchiveCategory Category(AiArchiveSnapshot snapshot, string name) => snapshot.Categories.Single(c => c.Name == name);
+    public static void Main()
+    {
+        var state = new GameState(RoomCatalog.Create());
+        foreach (var room in state.Rooms)
+        {
+            var rs = new RoomState(); rs.Slots.Add(new SlotData()); state.RoomStates.Add(rs);
+        }
+        var economy = new EconomyService(state);
+        var progression = new ProgressionService(state, economy);
+        var botOwned = new HashSet<string>(); var machineOwned = new HashSet<string>();
+        bool singularity = false;
+        var service = new AiArchiveProgressService(state, progression, new LabService(state, economy), botOwned.Contains,
+            machineOwned.Contains, singularityUnlocked: () => singularity);
+        var zero = service.Capture();
+        Eq(MachineSkinCatalog.GetAll().Count(s => s.IsComplete), MachineSkinCatalog.GetAll().Count, "repository machine packs available");
+        Eq(zero.Categories.Count, 6, "six categories"); Eq(zero.Completed, 0, "zero progress"); Eq(zero.Percent, 0, "zero percentage");
+        Eq(Category(zero, "ROOMS").Total, state.Rooms.Count + 1, "catalog rooms plus singularity");
+        Eq(Category(zero, "MACHINES").Total, state.Rooms.Sum(r => r.Machines.Count), "catalog machine total");
+        Eq(Category(zero, "RESEARCH").Total, ResearchCatalog.All.Count, "catalog research total");
+        Eq(Category(zero, "SKINS").Entries.Any(e => e.Id.Contains("korpo")), false, "secret absent");
+        Eq(Category(zero, "BOTS").Entries.All(e => e.Concealed), true, "undiscovered bots concealed");
+        state.RoomStates[0].Unlocked = true; state.RoomStates[0].Slots[0].Unlocked = true;
+        state.RoomStates[0].Slots[0].MachineTier = 2;
+        state.RoomStates[0].Slots[0].BotRarity = BotRarity.Rare;
+        state.Lab.CompleteResearch(ResearchCatalog.All[0].Id);
+        botOwned.Add(BotSkinCatalog.GetAll()[0].Id);
+        var mid = service.Capture();
+        Eq(Category(mid, "ROOMS").Completed, 1, "unlocked room");
+        Eq(Category(mid, "MACHINES").Completed, 3, "higher tier includes previous tiers");
+        Eq(Category(mid, "BOTS").Completed, 1, "assigned rarity");
+        Eq(Category(mid, "RESEARCH").Completed, 1, "completed research");
+        Eq(Category(mid, "SKINS").Completed, 1, "owned skin only");
+        Eq(Category(mid, "ACHIEVEMENTS").Entries.Single(e => e.Id == GooglePlayGamesAchievementService.ResearcherId).Complete, true, "local researcher");
+        Eq(Category(mid, "ACHIEVEMENTS").Entries.Single(e => e.Id == GooglePlayGamesAchievementService.AutomatedIntelligenceId).Complete, true, "local bot achievement");
+        Eq(mid.Completed, mid.Categories.Sum(c => c.Completed), "aggregate completed");
+        Eq(mid.Total, mid.Categories.Sum(c => c.Total), "aggregate total");
+        Eq(mid.Percent, (int)Math.Floor(100.0 * mid.Completed / mid.Total), "percentage");
+        botOwned.Add(BotSkinCatalog.KorpoSkinId); var secret = service.Capture();
+        Eq(secret.Total, mid.Total + 1, "revealed secret enters denominator");
+        Eq(secret.Completed, mid.Completed + 1, "owned secret enters numerator");
+        Eq(Category(secret, "SKINS").Entries.Single(e => e.Id == "bot:korpo_skin").Name, "Korpo", "revealed secret named");
+        state.RoomStates[1].DataShardUnlockRewardClaimed = true;
+        Eq(Category(service.Capture(), "ROOMS").Completed, 2, "room history survives prestige");
+        state.Stats.AddEarned(1); state.Prestige.PrestigeCount = 1; state.Shop.HighestClaimedLevelReward = 150;
+        foreach (var research in ResearchCatalog.All) state.Lab.CompleteResearch(research.Id);
+        foreach (var skin in BotSkinCatalog.GetAll()) botOwned.Add(skin.Id);
+        foreach (var skin in MachineSkinCatalog.GetAll()) machineOwned.Add(skin.Id);
+        foreach (var room in state.RoomStates)
+        {
+            room.Unlocked = true; room.Slots[0].Unlocked = true; room.Slots[0].MachineTier = 3;
+            foreach (var rarity in Enum.GetValues<BotRarity>()) room.Slots.Add(new SlotData { BotRarity = rarity });
+        }
+        singularity = true; var late = service.Capture();
+        foreach (var category in late.Categories) Eq(category.Completed, category.Total, "late " + category.Name);
+        Eq(late.Percent, 100, "late completion");
+        Eq(GooglePlayGamesAchievementService.IsLocallyEarned("unknown", state, progression), false, "unknown achievement");
+        Eq(Category(late, "SKINS").Total, BotSkinCatalog.GetAll().Count + 1 + MachineSkinCatalog.GetAll().Count(s => s.IsComplete), "catalog skins total");
+        Console.WriteLine($"AI Archive: {checks} assertions passed.");
+    }
+}

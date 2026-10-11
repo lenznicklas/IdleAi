@@ -7,14 +7,16 @@ namespace IdleAi;
 internal sealed class SingularityNodeService
 {
 	private const double NodeSellRefundFraction = 1.0 / 3.0;
+	private readonly Func<double> _roll;
 	private readonly SingularitySaveData _data;
 	private readonly SingularitySectorService _sectors;
 	private readonly SingularityEconomy _economy;
 	private readonly Action _saveAndNotify;
 
-	internal SingularityNodeService(SingularitySaveData data, SingularitySectorService sectors, SingularityEconomy economy, Action saveAndNotify)
+	internal SingularityNodeService(SingularitySaveData data, SingularitySectorService sectors, SingularityEconomy economy, Action saveAndNotify, Func<double>? roll = null)
 	{
 		_data = data;
+		_roll = roll ?? (() => 0.0);
 		_sectors = sectors;
 		_economy = economy;
 		_saveAndNotify = saveAndNotify;
@@ -63,7 +65,7 @@ internal sealed class SingularityNodeService
 				_ => 0.0
 			};
 
-		return baseCost
+		return SingularityBuildRules.BuildCostMultiplier(_sectors.GetSector(sectorIndex).Modifier) * baseCost
 			* Math.Pow(
 				3.0,
 				Math.Max(0, sectorIndex)
@@ -123,6 +125,7 @@ internal sealed class SingularityNodeService
 
 		node.Type =
 			type;
+		node.Quality = SingularityBuildRules.RollQuality(_roll());
 
 		node.Level =
 			1;
@@ -138,7 +141,7 @@ internal sealed class SingularityNodeService
 
 		return new SingularityActionResult(
 			true,
-			type + " Node constructed."
+			node.Quality + " " + type + " Node constructed."
 		);
 	}
 
@@ -165,7 +168,7 @@ internal sealed class SingularityNodeService
 				_ => 18.0
 			};
 
-		return typeBase
+		return SingularityBuildRules.UpgradeCostMultiplier(_sectors.GetSector(sectorIndex).Modifier) * typeBase
 			* Math.Pow(
 				1.85,
 				Math.Max(
@@ -301,6 +304,7 @@ internal sealed class SingularityNodeService
 
 		node.Type =
 			SingularityNodeType.Empty;
+		node.Quality = SingularityNodeQuality.Normal;
 
 		node.Level =
 			1;

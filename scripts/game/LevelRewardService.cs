@@ -52,6 +52,11 @@ public sealed class LevelRewardService
 		CurrentLevel
 			>= NextRewardLevel;
 
+	// Presentation uses the same authoritative next unclaimed milestone as Claim.
+	public int LevelsUntilNextReward => Math.Max(0, NextRewardLevel - CurrentLevel);
+	public int MilestoneProgress => Math.Clamp(
+		CurrentLevel - Math.Max(0, NextRewardLevel - RewardInterval), 0, RewardInterval);
+
 	public int GetClaimableCount()
 	{
 		if (!HasClaimableReward)

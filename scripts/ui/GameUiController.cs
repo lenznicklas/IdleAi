@@ -276,6 +276,8 @@ public sealed class GameUiController
 				_levelRewardService
 			);
 
+		_topBar.MilestoneReached += () => _levelRewards.CelebrateMilestone();
+
 		_levelRewards.MessageRequested +=
 			SetMessage;
 

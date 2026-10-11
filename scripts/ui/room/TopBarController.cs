@@ -36,7 +36,11 @@ public sealed class TopBarController
 	private Tween? _levelGlowTween;
 
 	private int _tokenPopupGeneration;
+	private int _observedMilestone = -1;
+	private TextureRect _rewardIndicator = null!;
+	private Tween? _milestoneTween;
 
+	public event Action? MilestoneReached;
 	public event Action? StatsRequested;
 	public event Action? LevelRewardsRequested;
 
@@ -72,8 +76,20 @@ public sealed class TopBarController
 		_levelCard.Pressed +=
 			OnLevelPressed;
 
+		_rewardIndicator = new TextureRect {
+			Texture = ShopUi.DataShard, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+			StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+			MouseFilter = Control.MouseFilterEnum.Ignore,
+			TooltipText = "Total Level reward ready to claim"
+		};
+		_levelCard.AddChild(_rewardIndicator);
+		_rewardIndicator.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopRight);
+		_rewardIndicator.OffsetLeft = -26;
+		_rewardIndicator.OffsetRight = -4;
+		_rewardIndicator.OffsetTop = 4;
+		_rewardIndicator.OffsetBottom = 26;
+		_observedMilestone = _levelRewards.CurrentLevel / LevelRewardService.RewardInterval;
 		HidePopups();
-
 		UpdateLevelRewardGlow();
 	}
 
@@ -179,10 +195,18 @@ public sealed class TopBarController
 				_state.Tokens
 			);
 
-		_levelLabel.Text =
-			_progression
-				.GetTotalLevel()
-				.ToString();
+		_levelLabel.Text = "LV " + _progression.GetTotalLevel();
+		int milestone = _levelRewards.CurrentLevel / LevelRewardService.RewardInterval;
+		if (milestone > _observedMilestone && _observedMilestone >= 0) {
+			MilestoneReached?.Invoke();
+			_milestoneTween?.Kill();
+			_levelLabel.Scale = Vector2.One;
+			_levelLabel.PivotOffset = _levelLabel.Size / 2;
+			_milestoneTween = _levelLabel.CreateTween();
+			_milestoneTween.TweenProperty(_levelLabel, "scale", Vector2.One * 1.12f, .2);
+			_milestoneTween.TweenProperty(_levelLabel, "scale", Vector2.One, .8).SetTrans(Tween.TransitionType.Back);
+		}
+		_observedMilestone = Math.Max(_observedMilestone, milestone);
 
 		UpdateLevelRewardGlow();
 	}
@@ -193,6 +217,8 @@ public sealed class TopBarController
 			_levelRewards
 				.HasClaimableReward;
 
+		_rewardIndicator.Visible = shouldGlow;
+		_levelLabel.OffsetRight = shouldGlow ? -28 : -5;
 		if (shouldGlow)
 		{
 			if (_levelGlowTween != null)
@@ -215,7 +241,7 @@ public sealed class TopBarController
 					0.55f,
 					1.0f
 				),
-				0.55
+				0.9
 			)
 			.SetTrans(
 				Tween.TransitionType.Sine
@@ -228,7 +254,7 @@ public sealed class TopBarController
 				_levelCard,
 				"modulate",
 				Colors.White,
-				0.55
+				0.9
 			)
 			.SetTrans(
 				Tween.TransitionType.Sine

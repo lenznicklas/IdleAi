@@ -13,6 +13,18 @@ public sealed class LevelRewardsOverlayController
 	private Label _levelLabel = null!;
 	private Label _nextLabel = null!;
 	private ProgressBar _progress = null!;
+	private PanelContainer _milestone = null!;
+	private Label _milestoneTitle = null!;
+	private Label _progressLabel = null!;
+	private TextureRect _shard = null!;
+	private Button _claimButton = null!;
+	private Tween? _progressTween;
+	private Tween? _pulseTween;
+	private Tween? _feedbackTween;
+	private Tween? _milestoneTween;
+	private int _lastLevel = -1;
+	private int _lastClaimed = -1;
+	private bool _wasReady;
 	private VBoxContainer _road = null!;
 	private ScrollContainer _scroll = null!;
 	private MobileScrollController _mobileScroll = null!;
@@ -94,12 +106,6 @@ public sealed class LevelRewardsOverlayController
 		_panel =
 			new PanelContainer
 			{
-				CustomMinimumSize =
-					new Vector2(
-						620,
-						920
-					),
-
 				MouseFilter =
 					Control.MouseFilterEnum.Stop
 			};
@@ -112,17 +118,9 @@ public sealed class LevelRewardsOverlayController
 			Control.LayoutPreset.Center
 		);
 
-		_panel.OffsetLeft =
-			-310;
-
-		_panel.OffsetTop =
-			-460;
-
-		_panel.OffsetRight =
-			310;
-
-		_panel.OffsetBottom =
-			460;
+		// The road scrolls; the milestone card keeps its content-driven height.
+		_overlay.Resized += FitPanelToViewport;
+		FitPanelToViewport();
 
 		_panel.AddThemeStyleboxOverride(
 			"panel",
@@ -138,7 +136,7 @@ public sealed class LevelRewardsOverlayController
 
 		margin.AddThemeConstantOverride(
 			"margin_left",
-			28
+			20
 		);
 
 		margin.AddThemeConstantOverride(
@@ -148,7 +146,7 @@ public sealed class LevelRewardsOverlayController
 
 		margin.AddThemeConstantOverride(
 			"margin_right",
-			28
+			20
 		);
 
 		margin.AddThemeConstantOverride(
@@ -201,7 +199,7 @@ public sealed class LevelRewardsOverlayController
 
 		Label subtitle =
 			CreateLabel(
-				"Every 150 total levels unlocks 10 Data Shards.",
+				 $"Every {LevelRewardService.RewardInterval} Total Levels earns {LevelRewardService.RewardDataShards} Data Shards.",
 				14
 			);
 
@@ -219,58 +217,65 @@ public sealed class LevelRewardsOverlayController
 			subtitle
 		);
 
-		_levelLabel =
-			CreateLabel(
-				"",
-				22
-			);
+		layout.AddChild(CreateLabel("TOTAL LEVEL", 18));
+		_levelLabel = CreateLabel("", 48);
+		layout.AddChild(_levelLabel);
 
-		layout.AddChild(
-			_levelLabel
-		);
-
-		_progress =
-			new ProgressBar
-			{
-				MinValue =
-					0,
-
-				MaxValue =
-					LevelRewardService.RewardInterval,
-
-				ShowPercentage =
-					false,
-
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						24
-					)
-			};
-
-		layout.AddChild(
-			_progress
-		);
-
-		_nextLabel =
-			CreateLabel(
-				"",
-				13
-			);
-
-		_nextLabel.AddThemeColorOverride(
-			"font_color",
-			new Color(
-				0.64f,
-				0.76f,
-				0.88f,
-				1.0f
-			)
-		);
-
-		layout.AddChild(
-			_nextLabel
-		);
+		_milestone = new PanelContainer {
+			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+			SizeFlagsVertical = Control.SizeFlags.Fill
+		};
+		layout.AddChild(_milestone);
+		VBoxContainer milestoneLayout = new() {
+			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+			SizeFlagsVertical = Control.SizeFlags.Fill
+		};
+		milestoneLayout.AddThemeConstantOverride("separation", 10);
+		_milestone.AddChild(milestoneLayout);
+		_milestoneTitle = CreateLabel("", 22);
+		milestoneLayout.AddChild(_milestoneTitle);
+		_progress = new ProgressBar {
+			MaxValue = LevelRewardService.RewardInterval, ShowPercentage = false,
+			CustomMinimumSize = new Vector2(0, 18), MouseFilter = Control.MouseFilterEnum.Ignore
+		};
+		milestoneLayout.AddChild(_progress);
+		_progressLabel = CreateLabel("", 16);
+		milestoneLayout.AddChild(_progressLabel);
+		_nextLabel = CreateLabel("", 17);
+		milestoneLayout.AddChild(_nextLabel);
+		milestoneLayout.AddChild(new HSeparator());
+		Label rewardHeading = CreateLabel("NEXT REWARD", 14);
+		rewardHeading.AddThemeColorOverride("font_color", new Color(.65f, .74f, .84f));
+		milestoneLayout.AddChild(rewardHeading);
+		HBoxContainer preview = new() {
+			Alignment = BoxContainer.AlignmentMode.Center,
+			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+			SizeFlagsVertical = Control.SizeFlags.Fill
+		};
+		preview.AddThemeConstantOverride("separation", 10);
+		_shard = new TextureRect {
+			SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter,
+			SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
+			Texture = ShopUi.DataShard, CustomMinimumSize = new Vector2(32, 32),
+			ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+			StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+			MouseFilter = Control.MouseFilterEnum.Ignore
+		};
+		preview.AddChild(_shard);
+		Label rewardPreview = CreateLabel($"+{LevelRewardService.RewardDataShards} DATA SHARDS", 18);
+		// Autowrapped labels have no useful horizontal minimum in a centered HBox.
+		// Let the text's measured single-line width size the centered icon/text group.
+		rewardPreview.AutowrapMode = TextServer.AutowrapMode.Off;
+		rewardPreview.SizeFlagsHorizontal = Control.SizeFlags.Fill;
+		rewardPreview.SizeFlagsVertical = Control.SizeFlags.ShrinkCenter;
+		rewardPreview.HorizontalAlignment = HorizontalAlignment.Left;
+		rewardPreview.AddThemeColorOverride("font_color", new Color(1f, .82f, .3f));
+		preview.AddChild(rewardPreview);
+		milestoneLayout.AddChild(preview);
+		_claimButton = new Button { Text = "CLAIM REWARD", CustomMinimumSize = new Vector2(0, 58) };
+		_claimButton.AddThemeFontSizeOverride("font_size", 22);
+		_claimButton.Pressed += () => Claim(_service.NextRewardLevel);
+		milestoneLayout.AddChild(_claimButton);
 
 		HSeparator separator =
 			new();
@@ -361,8 +366,20 @@ public sealed class LevelRewardsOverlayController
 		closeButton.MoveToFront();
 	}
 
+	private void FitPanelToViewport()
+	{
+		Vector2 available = _overlay.Size;
+		float width = Math.Min(620, Math.Max(0, available.X - 32));
+		float height = Math.Min(920, Math.Max(0, available.Y - 48));
+		_panel.OffsetLeft = -width / 2;
+		_panel.OffsetRight = width / 2;
+		_panel.OffsetTop = -height / 2;
+		_panel.OffsetBottom = height / 2;
+	}
+
 	public void Open()
 	{
+		FitPanelToViewport();
 		Refresh();
 
 		_mobileScroll.ResetMotion();
@@ -370,6 +387,7 @@ public sealed class LevelRewardsOverlayController
 		_overlay.Show();
 
 		_overlay.MoveToFront();
+		UpdatePulse(_service.HasClaimableReward);
 
 		_scroll.ScrollVertical =
 			0;
@@ -379,6 +397,8 @@ public sealed class LevelRewardsOverlayController
 	{
 		_mobileScroll?.ResetMotion();
 
+		_pulseTween?.Kill();
+		_claimButton.Scale = Vector2.One;
 		_overlay?.Hide();
 	}
 
@@ -387,79 +407,94 @@ public sealed class LevelRewardsOverlayController
 		if (_overlay == null)
 			return;
 
-		int current =
-			_service.CurrentLevel;
-
-		int next =
-			_service.NextRewardLevel;
-
-		_levelLabel.Text =
-			"TOTAL LEVEL  "
-				+ current;
-
-		int progressFrom =
-			Math.Max(
-				0,
-				next
-					- LevelRewardService.RewardInterval
-			);
-
-		_progress.Value =
-			Math.Clamp(
-				current
-					- progressFrom,
-				0,
-				LevelRewardService.RewardInterval
-			);
-
-		if (_service.HasClaimableReward)
-		{
-			int count =
-				_service.GetClaimableCount();
-
-			_nextLabel.Text =
-				count
-				+ (
-					count == 1
-						? " REWARD READY TO CLAIM"
-						: " REWARDS READY TO CLAIM"
-				);
-
-			_nextLabel.AddThemeColorOverride(
-				"font_color",
-				new Color(
-					1.0f,
-					0.82f,
-					0.30f,
-					1.0f
-				)
-			);
+		int current = _service.CurrentLevel;
+		int claimed = _service.HighestClaimedLevel;
+		if (current == _lastLevel && claimed == _lastClaimed) return;
+		bool ready = _service.HasClaimableReward;
+		bool near = !ready && _service.LevelsUntilNextReward <= 15;
+		Color accent = ready ? new Color(1f, .78f, .22f) : near ? new Color(.38f, .86f, 1f) : new Color(.24f, .72f, 1f);
+		_levelLabel.Text = current.ToString();
+		_milestoneTitle.Text = (ready ? "MILESTONE REACHED" : "NEXT MILESTONE")
+			+ $" • LEVEL {_service.NextRewardLevel}";
+		_milestoneTitle.AddThemeColorOverride("font_color", accent);
+		_progressLabel.Text = $"{current} / {_service.NextRewardLevel}";
+		_nextLabel.Text = ready
+			? $"{_service.GetClaimableCount()} " + (_service.GetClaimableCount() == 1 ? "REWARD READY TO CLAIM" : "REWARDS READY TO CLAIM")
+			: $"{_service.LevelsUntilNextReward} LEVELS UNTIL REWARD";
+		StyleBoxFlat cardStyle = CreateMilestoneStyle(accent, ready ? .16f : .06f);
+		cardStyle.ContentMarginLeft = cardStyle.ContentMarginRight = 14;
+		cardStyle.ContentMarginTop = cardStyle.ContentMarginBottom = 12;
+		cardStyle.ShadowColor = new Color(accent, ready ? .24f : near ? .16f : .07f);
+		cardStyle.ShadowSize = ready ? 10 : 5;
+		_milestone.AddThemeStyleboxOverride("panel", cardStyle);
+		_progress.AddThemeStyleboxOverride("background", CreateMilestoneStyle(new Color(.06f, .12f, .2f), 1));
+		StyleBoxFlat fill = CreateMilestoneStyle(accent, 1);
+		fill.ShadowColor = new Color(accent, near || ready ? .35f : .15f);
+		fill.ShadowSize = 4;
+		_progress.AddThemeStyleboxOverride("fill", fill);
+		_progressTween?.Kill();
+		if (_lastLevel < 0 || !Visible) _progress.Value = _service.MilestoneProgress;
+		else {
+			_progressTween = _progress.CreateTween();
+			_progressTween.TweenProperty(_progress, "value", _service.MilestoneProgress, .4)
+				.SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.InOut);
 		}
-		else
-		{
-			_nextLabel.Text =
-				"NEXT REWARD AT LEVEL "
-					+ next
-					+ "  •  "
-					+ Math.Max(
-						0,
-						next
-							- current
-					)
-					+ " LEVELS TO GO";
-
-			_nextLabel.AddThemeColorOverride(
-				"font_color",
-				new Color(
-					0.64f,
-					0.76f,
-					0.88f,
-					1.0f
-				)
-			);
-		}
-
+		_claimButton.Visible = ready;
+		_claimButton.Disabled = !ready;
+		_claimButton.AddThemeStyleboxOverride("normal", CreateMilestoneStyle(accent, .25f));
+		_claimButton.AddThemeStyleboxOverride("hover", CreateMilestoneStyle(accent, .4f));
+		_claimButton.AddThemeStyleboxOverride("pressed", CreateMilestoneStyle(accent, .15f));
+		if (ready != _wasReady || _lastLevel < 0) UpdatePulse(ready);
+		_lastLevel = current;
+		_lastClaimed = claimed;
+		_wasReady = ready;
 		RebuildRoad();
+	}
+
+	private void UpdatePulse(bool ready)
+	{
+		_pulseTween?.Kill();
+		_claimButton.Scale = Vector2.One;
+		_milestone.Modulate = Colors.White;
+		if (!ready || !Visible) return;
+		_claimButton.PivotOffset = _claimButton.Size / 2;
+		_pulseTween = _claimButton.CreateTween().SetLoops();
+		_pulseTween.TweenProperty(_claimButton, "scale", Vector2.One * 1.025f, .9).SetTrans(Tween.TransitionType.Sine);
+		_pulseTween.Parallel().TweenProperty(_milestone, "modulate", new Color(1.08f, 1.04f, 1f), .9);
+		_pulseTween.TweenProperty(_claimButton, "scale", Vector2.One, .9).SetTrans(Tween.TransitionType.Sine);
+		_pulseTween.Parallel().TweenProperty(_milestone, "modulate", Colors.White, .9);
+	}
+
+	public void CelebrateMilestone()
+	{
+		if (!Visible) return;
+		Refresh();
+		_milestoneTween?.Kill();
+		_levelLabel.Scale = Vector2.One;
+		_levelLabel.PivotOffset = _levelLabel.Size / 2;
+		_milestoneTween = _levelLabel.CreateTween();
+		_milestoneTween.TweenProperty(_levelLabel, "scale", Vector2.One * 1.12f, .2);
+		_milestoneTween.Parallel().TweenProperty(_levelLabel, "modulate", new Color(1f, .82f, .3f), .2);
+		_milestoneTween.TweenProperty(_levelLabel, "scale", Vector2.One, .8).SetTrans(Tween.TransitionType.Back);
+		_milestoneTween.Parallel().TweenProperty(_levelLabel, "modulate", Colors.White, .8);
+	}
+
+	private void PlayClaimFeedback()
+	{
+		_feedbackTween?.Kill();
+		_shard.Scale = Vector2.One;
+		_shard.PivotOffset = _shard.Size / 2;
+		_feedbackTween = _shard.CreateTween();
+		_feedbackTween.TweenProperty(_shard, "scale", Vector2.One * 1.25f, .16);
+		_feedbackTween.TweenProperty(_shard, "scale", Vector2.One, .35).SetTrans(Tween.TransitionType.Back);
+		Label floating = CreateLabel($"+{LevelRewardService.RewardDataShards} DATA SHARDS", 24);
+		floating.AddThemeColorOverride("font_color", new Color(1f, .82f, .3f));
+		_overlay.AddChild(floating);
+		floating.GlobalPosition = _shard.GlobalPosition + new Vector2(-70, -30);
+		Tween rise = floating.CreateTween();
+		rise.TweenProperty(floating, "position:y", floating.Position.Y - 45, .9);
+		rise.Parallel().TweenProperty(floating, "modulate:a", 0f, .9);
+		rise.TweenCallback(Callable.From(floating.QueueFree));
 	}
 
 	private void RebuildRoad()
@@ -635,12 +670,9 @@ public sealed class LevelRewardsOverlayController
 			margin
 		);
 
-		HBoxContainer row =
-			new()
-			{
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
-			};
+		BoxContainer row = _panel.Size.X < 500
+			? new VBoxContainer() : new HBoxContainer();
+		row.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
 		row.AddThemeConstantOverride(
 			"separation",
@@ -720,7 +752,7 @@ public sealed class LevelRewardsOverlayController
 		else if (canClaim)
 		{
 			button.Text =
-				"CLAIM +10";
+				"CLAIM +" + LevelRewardService.RewardDataShards;
 
 			button.Disabled =
 				false;
@@ -777,6 +809,7 @@ public sealed class LevelRewardsOverlayController
 			);
 
 			StateChanged?.Invoke();
+			PlayClaimFeedback();
 		}
 
 		Refresh();

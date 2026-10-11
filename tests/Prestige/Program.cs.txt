@@ -164,6 +164,41 @@ class Program
             ae.AddEarnedTokens(threshold); Eq(p.Prestige().Success, true, "second after earning again");
             Eq(ProgressionService.CalculateTotalLevel(a), total, "repeated total unchanged");
         }
+        foreach (var sample in new[] {
+            (0, 0, 150, 150, false), (1, 0, 150, 149, false),
+            (149, 0, 150, 1, false), (150, 0, 150, 0, true),
+            (150, 150, 300, 150, false), (151, 150, 300, 149, false),
+            (299, 150, 300, 1, false), (300, 150, 300, 0, true),
+            (300, 300, 450, 150, false), (450, 0, 150, 0, true) })
+        {
+            var (v, economy, mapper) = Create();
+            v.RoomStates[0].Slots[0].MachineLevel = 0;
+            v.LifetimeLevelBase = sample.Item1;
+            v.Shop.HighestClaimedLevelReward = sample.Item2;
+            var service = new LevelRewardService(v, new ProgressionService(v, economy), economy);
+            Eq(service.NextRewardLevel, sample.Item3, "milestone next");
+            Eq(service.LevelsUntilNextReward, sample.Item4, "milestone remaining");
+            Eq(service.HasClaimableReward, sample.Item5, "milestone eligibility");
+            Eq(service.MilestoneProgress, Math.Clamp(sample.Item1 - (sample.Item3 - 150), 0, 150), "block progress");
+            if (sample.Item1 == 0) continue; // Synthetic zero boundary; actual new runs start at level 1.
+            economy.AddEarnedTokens(threshold);
+            new PrestigeService(v, economy).Prestige();
+            Eq(service.CurrentLevel, sample.Item1, "milestone prestige total");
+            Eq(service.NextRewardLevel, sample.Item3, "milestone prestige next");
+            Eq(service.HasClaimableReward, sample.Item5, "milestone prestige eligibility");
+            if (sample.Item5) {
+                double shards = v.Shop.DataShards;
+                Eq(service.Claim(service.NextRewardLevel).Changed, true, "claim before save");
+                Eq(v.Shop.DataShards, shards + LevelRewardService.RewardDataShards, "exact reward amount");
+                int claimed = v.Shop.HighestClaimedLevelReward;
+                var (loaded, le, lm) = Create();
+                lm.ApplySave(mapper.CreateSave(1000));
+                var lr = new LevelRewardService(loaded, new ProgressionService(loaded, le), le);
+                Eq(lr.HighestClaimedLevel, claimed, "persisted claim");
+                Eq(lr.Claim(claimed).Changed, false, "loaded reward cannot repeat");
+                Eq(lr.NextRewardLevel, claimed + 150, "loaded next milestone");
+            }
+        }
         var (rewardState, re, _) = Create(); var progression = new ProgressionService(rewardState, re);
         var rewards = new LevelRewardService(rewardState, progression, re);
         rewardState.RoomStates[0].Slots[0].MachineLevel = 300;

@@ -341,7 +341,7 @@ public sealed class IapShopController
 
 
 		title.Text =
-			FormatShardAmount(
+			NumberFormatter.FormatDataShards(
 				product.ShardAmount
 			)
 			+ " DATA SHARDS";
@@ -394,7 +394,7 @@ public sealed class IapShopController
 
 
 		description.Text =
-			product.Description;
+			NumberFormatter.FormatDataShards(product.ShardAmount) + " Data Shards.";
 
 
 		description.HorizontalAlignment =
@@ -821,18 +821,4 @@ public sealed class IapShopController
 	}
 
 
-	private static string FormatShardAmount(
-		int amount)
-	{
-		return amount switch
-		{
-			>= 1000 =>
-				amount.ToString(
-					"#,0"
-				),
-
-			_ =>
-				amount.ToString()
-		};
-	}
 }

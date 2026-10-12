@@ -13,6 +13,9 @@ public sealed class SecretKorpoSkinController
 	private const string DebugTokenCode =
 		"debug1";
 
+	private const string ShardCode = "shards1";
+	private const int ShardReward = 500;
+
 	private const double DebugTokenReward =
 		50_000_000_000_000_000_000.0; // 50ab
 
@@ -24,6 +27,7 @@ public sealed class SecretKorpoSkinController
 
 	private readonly BotSkinService _service;
 	private readonly MachineSkinService _machineService;
+	private readonly ShopService _shopService;
 
 
 	private VBoxContainer _shopContent =
@@ -60,8 +64,10 @@ public sealed class SecretKorpoSkinController
 	public SecretKorpoSkinController(
 		Game root,
 		BotSkinService service,
-		MachineSkinService machineService)
+		MachineSkinService machineService,
+		ShopService shopService)
 	{
+		_shopService = shopService;
 		_machineService = machineService;
 		_root =
 			root;
@@ -346,6 +352,19 @@ public sealed class SecretKorpoSkinController
 	private void Redeem()
 	{
 		string code = _codeInput.Text.Trim();
+
+		if (code.Equals(ShardCode, StringComparison.OrdinalIgnoreCase))
+		{
+			ShopResult result = _shopService.GrantDataShards(ShardReward);
+			ShowCodeMessage(result.Message, result.Changed);
+			if (result.Changed)
+			{
+				_codeInput.Clear();
+				Input.VibrateHandheld(24, 0.18f);
+				StateChanged?.Invoke();
+			}
+			return;
+		}
 
 		if (code.Equals(DebugTokenCode, StringComparison.OrdinalIgnoreCase))
 		{

@@ -83,11 +83,7 @@ public sealed class ProgressionService
 			);
 		}
 
-		return UpgradeSlot(
-			roomIndex,
-			slot,
-			slotIndex
-		);
+		return UpgradeMachine(roomIndex, slotIndex, 1);
 	}
 
 
@@ -164,11 +160,18 @@ public sealed class ProgressionService
 	}
 
 
-	private ProgressionResult UpgradeSlot(
-		int roomIndex,
-		SlotData slot,
-		int slotIndex)
+	/// <summary>Quantity applies to levels only; a capped machine advances one tier per action.</summary>
+	public ProgressionResult UpgradeMachine(int roomIndex, int slotIndex, int requestedLevels)
 	{
+		if (roomIndex < 0 || roomIndex >= _state.RoomStates.Count
+			|| roomIndex >= _state.Rooms.Count || slotIndex < 0
+			|| slotIndex >= _state.RoomStates[roomIndex].Slots.Count)
+			return new ProgressionResult(false, "Invalid machine.");
+
+		SlotData slot = _state.RoomStates[roomIndex].Slots[slotIndex];
+		if (!slot.Unlocked)
+			return new ProgressionResult(false, "Machine is locked.");
+
 		RoomData room =
 			_state.Rooms[
 				roomIndex
@@ -180,14 +183,14 @@ public sealed class ProgressionService
 			];
 
 		if (
-			slot.MachineLevel
-			< machine.MaxLevel
+			machine.IsInfiniteLevel
+			|| slot.MachineLevel < machine.MaxLevel
 		)
 		{
 			return UpgradeMachineLevels(
 				roomIndex,
 				slotIndex,
-				1
+				requestedLevels
 			);
 		}
 

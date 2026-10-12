@@ -15,7 +15,6 @@ namespace IdleAi;
  * - prevents skipping rooms on the map
  * - requires every Slot in the previous room before the next room can unlock
  * - applies the same prerequisite to The Singularity
- * - renders Data Shards as whole numbers in the Shop header
  *
  * A short refresh timer is intentional. Shop is built lazily and clears its
  * old children during initialization, while Lab is created after
@@ -67,7 +66,6 @@ public sealed partial class NavigationPolishController
 			[];
 
 	private Button? _singularityRoomButton;
-	private Label? _shopShardValueLabel;
 	private double _remaining;
 
 	public NavigationPolishController(
@@ -104,7 +102,6 @@ public sealed partial class NavigationPolishController
 	{
 		EnsurePageCloseButtons();
 		RefreshRoomUnlockGuards();
-		RefreshShopShardDisplay();
 	}
 
 	// ==================================================
@@ -689,169 +686,6 @@ public sealed partial class NavigationPolishController
 		}
 
 		return false;
-	}
-
-	// ==================================================
-	// SHOP DATA SHARDS AS WHOLE NUMBERS
-	// ==================================================
-
-	private void RefreshShopShardDisplay()
-	{
-		Control? shopPage =
-			_root.GetNodeOrNull<Control>(
-				"ShopPage"
-			);
-
-		if (
-			shopPage == null
-			|| !shopPage.Visible
-		)
-		{
-			return;
-		}
-
-		if (
-			_shopShardValueLabel == null
-			|| !GodotObject.IsInstanceValid(
-				_shopShardValueLabel
-			)
-		)
-		{
-			_shopShardValueLabel =
-				FindShopShardValueLabel(
-					shopPage
-				);
-		}
-
-		if (_shopShardValueLabel == null)
-			return;
-
-		double shards =
-			Math.Max(
-				0.0,
-				Math.Truncate(
-					_state.Shop.DataShards
-				)
-			);
-
-		string wholeShardText =
-			shards.ToString(
-				"0"
-			);
-
-		_shopShardValueLabel.Text =
-			wholeShardText;
-
-		/*
-		 * Bot/Machine skin collection headers also render the same currency.
-		 * They are built dynamically and currently use NumberFormatter, which
-		 * would turn e.g. 5 into 5.00. Keep every visible Shop shard counter
-		 * consistent without changing Token formatting globally.
-		 */
-		foreach (
-			Label label
-				in FindDescendants<Label>(
-					shopPage
-				)
-		)
-		{
-			if (
-				label.Text.StartsWith(
-					"DATA SHARDS:",
-					StringComparison.Ordinal
-				)
-			)
-			{
-				label.Text =
-					"DATA SHARDS: "
-					+ wholeShardText;
-			}
-		}
-	}
-
-	private static Label? FindShopShardValueLabel(
-		Control shopPage)
-	{
-		Node? fixedHeader =
-			FindDescendantByName(
-				shopPage,
-				"FixedHeader"
-			);
-
-		if (fixedHeader == null)
-			return null;
-
-		foreach (
-			Label label
-				in FindDescendants<Label>(
-					fixedHeader
-				)
-		)
-		{
-			if (
-				!label.Text.Equals(
-					"DATA SHARDS",
-					StringComparison.Ordinal
-				)
-			)
-			{
-				continue;
-			}
-
-			Node? parent =
-				label.GetParent();
-
-			if (parent == null)
-				return null;
-
-			foreach (
-				Node sibling
-					in parent.GetChildren()
-			)
-			{
-				if (
-					sibling is Label valueLabel
-					&& valueLabel != label
-				)
-				{
-					return valueLabel;
-				}
-			}
-		}
-
-		return null;
-	}
-
-	private static Node? FindDescendantByName(
-		Node root,
-		string name)
-	{
-		foreach (
-			Node child
-				in root.GetChildren()
-		)
-		{
-			if (
-				child.Name.ToString().Equals(
-					name,
-					StringComparison.Ordinal
-				)
-			)
-			{
-				return child;
-			}
-
-			Node? nested =
-				FindDescendantByName(
-					child,
-					name
-				);
-
-			if (nested != null)
-				return nested;
-		}
-
-		return null;
 	}
 
 	private static IEnumerable<T>

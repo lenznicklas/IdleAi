@@ -1,0 +1,213 @@
+using Godot;
+using IdleAi;
+using System;
+using System.Reflection;
+using System.Threading.Tasks;
+
+public static class Program
+{
+    static T Field<T>(object value, string name) => (T)value.GetType().GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(value);
+    static int checks;
+    static void Eq(object actual, object expected, string message)
+    {
+        if (!Equals(actual, expected)) throw new Exception($"{message}: {actual} != {expected}");
+        checks++;
+    }
+    static void Near(double actual, double expected, string message)
+    {
+        if (Math.Abs(actual - expected) > 1e-10 * Math.Max(1, Math.Abs(expected)))
+            throw new Exception($"{message}: {actual:R} != {expected:R}");
+        checks++;
+    }
+    public static async Task Run(Game root)
+    {
+        root.Size = new Vector2(720, 1280);
+        var textures = new System.Collections.Generic.List<Texture2D>();
+        foreach (string path in new[] {
+            "res://assets/ui/x.png",
+            "res://assets/background/bg.png",
+            "res://assets/machines/room_1/empty.png",
+            "res://assets/machines/room_1/machine1.png",
+            "res://assets/machines/room_1/machine2.png",
+            "res://assets/machines/room_1/machine3.png",
+            "res://assets/machines/room_1/machine4.png",
+            "res://assets/background/server_room.png",
+            "res://assets/machines/room_2/empty.png",
+            "res://assets/machines/room_2/machine1.png",
+            "res://assets/machines/room_2/machine2.png",
+            "res://assets/machines/room_2/machine3.png",
+            "res://assets/machines/room_2/machine4.png",
+            "res://assets/background/bg_room3.png",
+            "res://assets/machines/room_3/empty.png",
+            "res://assets/machines/room_3/machine1.png",
+            "res://assets/machines/room_3/machine2.png",
+            "res://assets/machines/room_3/machine3.png",
+            "res://assets/machines/room_3/machine4.png",
+            "res://assets/background/bg_room4.png",
+            "res://assets/machines/room_4/empty.png",
+            "res://assets/machines/room_4/machine1.png",
+            "res://assets/machines/room_4/machine2.png",
+            "res://assets/machines/room_4/machine3.png",
+            "res://assets/machines/room_4/machine4.png",
+            "res://assets/bots/common.png",
+            "res://assets/bots/rare.png",
+            "res://assets/bots/epic.png",
+            "res://assets/bots/legendary.png"
+        })
+        {
+            var texture = new GradientTexture2D { Width = 16, Height = 16 };
+            texture.TakeOverPath(path); textures.Add(texture);
+        }
+        var font = new FontFile { Data = System.IO.File.ReadAllBytes(System.IO.Path.Combine(AppContext.BaseDirectory, "../../../../../../../assets/fonts/Orbitron-Regular.ttf")) };
+        font.TakeOverPath("res://assets/fonts/Orbitron-Regular.ttf");
+        root.Theme = new Theme { DefaultFont = font, DefaultFontSize = 18 };
+        var state = new GameState(RoomCatalog.Create());
+        foreach (var room in state.Rooms)
+        {
+            var rs = new RoomState { Unlocked = true };
+            rs.Slots.Add(new SlotData { Unlocked = true }); state.RoomStates.Add(rs);
+        }
+        var economy = new EconomyService(state);
+        var overlay = new MachineDetailsOverlay(root, state, economy, new ProgressionService(state, economy), new BotService(state, economy));
+        overlay.Initialize();
+        var readability = new UiReadabilityController(); root.AddChild(readability); readability.Initialize(root);
+        var panel = Field<PanelContainer>(overlay, "_panel");
+        var progression = new ProgressionService(state, economy);
+        Rect2[] baseline = null;
+        Rect2? closeBaseline = null;
+        var fields = new[] { "_panel", "_machineImage", "_title", "_level", "_production", "_cycle", "_upgradeInfo", "_upgradeAmountRow", "_upgradeButton", "_botImage", "_botName", "_botMultiplier" };
+        Control[] geometry = Array.ConvertAll(fields, name => Field<Control>(overlay, name));
+        var close = panel.GetNode<Control>("CloseButtonLayer/CloseButton");
+        async Task Settle()
+        {
+            for (int i = 0; i < 3; i++) await root.ToSignal(root.GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        void CheckGeometry(string label)
+        {
+            var rects = Array.ConvertAll(geometry, control => control.GetGlobalRect());
+            if (baseline == null) { baseline = rects; closeBaseline = close.GetGlobalRect();
+                Console.WriteLine($"Stable panel: {panel.GetGlobalRect()}; quantity: {rects[7]}; Upgrade: {rects[8]}; close: {closeBaseline}"); }
+            for (int i = 0; i < rects.Length; i++) Eq(rects[i], baseline[i], label + ": " + fields[i]);
+            Eq(close.GetGlobalRect(), closeBaseline.Value, label + ": close button");
+            Eq(panel.Size, new Vector2(580, 956), label + ": panel size");
+            Eq(Field<Control>(overlay, "_upgradeAmountRow").IsVisibleInTree(), true, label + ": quantity row");
+            foreach (string button in new[] { "_upgrade1Button", "_upgrade5Button", "_upgrade10Button", "_upgradeMaxButton" })
+                {
+                    Eq(Field<Button>(overlay, button).IsVisibleInTree(), true, label + ": visible " + button);
+                    Eq(Field<Button>(overlay, button).Disabled, false, label + ": interactive " + button);
+                }
+        }
+        void Invoke(string method, params object[] args) => typeof(MachineDetailsOverlay)
+            .GetMethod(method, BindingFlags.Instance | BindingFlags.NonPublic).Invoke(overlay, args);
+        async Task Open(int room, int slot = 0)
+        {
+            overlay.Open(room, slot);
+            Field<Tween>(overlay, "_openTween").Kill(); panel.Scale = Vector2.One; panel.Modulate = Colors.White;
+            await Settle();
+        }
+        foreach (int room in new[] { 0, 1, 2, 3 })
+        for (int tier = 0; tier < state.Rooms[room].Machines.Count; tier++)
+        foreach (var amount in new[] { ("One", 1, "_upgrade1Button"), ("Five", 5, "_upgrade5Button"), ("Ten", 10, "_upgrade10Button"), ("Max", 0, "_upgradeMaxButton") })
+        {
+            // Deliberately select a different current room: the detail action must
+            // still transact against its displayed room and slot.
+            state.CurrentRoomIndex = (room + 1) % 4;
+            var slot = state.RoomStates[room].Slots[0];
+            slot.ClearBot(); slot.MachineTier = tier; slot.MachineLevel = 12;
+            var machine = state.Rooms[room].Machines[tier];
+            state.Tokens = machine.BaseUpgradeCost * 1e8;
+            await Open(room);
+            Field<Button>(overlay, amount.Item3).EmitSignal(Button.SignalName.Pressed); await Settle();
+            CheckGeometry($"room {room} tier {tier} {amount.Item1} levels");
+            var quote = progression.GetMachineUpgradeQuote(room, 0, amount.Item2);
+            double balance = state.Tokens;
+            Invoke("OnUpgradePressed"); await Settle();
+            Eq(slot.MachineTier, tier, "normal levels never chain tiers");
+            Eq(slot.MachineLevel, quote.TargetLevel, "normal quantity target");
+            Near(state.Tokens, balance - quote.Cost, "normal quote cost");
+            CheckGeometry("after level upgrade");
+            if (!machine.IsInfiniteLevel)
+            {
+                slot.MachineLevel = machine.MaxLevel;
+                overlay.Refresh(); await Settle(); CheckGeometry("tier cap");
+                double cost = economy.GetTierUpgradeCost(room, slot, 0);
+                state.Tokens = cost * 100;
+                overlay.Refresh();
+                bool canAdvance = tier < state.Rooms[room].Machines.Count - 1;
+                balance = state.Tokens;
+                Invoke("OnUpgradePressed"); await Settle();
+                Eq(slot.MachineTier, tier + (canAdvance ? 1 : 0), "exactly one tier");
+                Eq(slot.MachineLevel, canAdvance ? 1 : machine.MaxLevel, "no levels after tier");
+                Near(state.Tokens, balance - (canAdvance ? cost : 0), "single tier price");
+                CheckGeometry("after tier upgrade");
+                Eq(Field<Button>(overlay, amount.Item3).Text.StartsWith("✓ "), true, "selected quantity survives tier");
+                Eq(Field<object>(overlay, "_upgradeAmount").ToString(), amount.Item1, "quantity model survives tier");
+                if (canAdvance)
+                {
+                    state.Tokens = state.Rooms[room].Machines[slot.MachineTier].BaseUpgradeCost * 1e8;
+                    quote = progression.GetMachineUpgradeQuote(room, 0, amount.Item2);
+                    int newTier = slot.MachineTier;
+                    Invoke("OnUpgradePressed"); await Settle();
+                    Eq(slot.MachineTier, newTier, "next click upgrades levels only");
+                    Eq(slot.MachineLevel, quote.TargetLevel, "preserved quantity applies to new tier");
+                    CheckGeometry("next level click");
+                }
+            }
+            foreach (int bot in new[] { 1, 2 })
+            {
+                slot.BotRarity = BotRarity.Rare; slot.InitializeBotDurability();
+                if (bot == 2) slot.ConsumeBotWork(slot.BotMaximumDurabilitySeconds);
+                overlay.Refresh(); await Settle(); CheckGeometry("Bot content changes");
+            }
+            overlay.Close(); await Open(room); CheckGeometry("close/reopen");
+            var saveService = new GameSaveService(state, economy);
+            var json = System.Text.Json.JsonSerializer.Serialize(saveService.CreateSave(1000));
+            saveService.ApplySave(System.Text.Json.JsonSerializer.Deserialize<SaveGameData>(json));
+            overlay.Refresh(); await Settle(); CheckGeometry("save/load");
+        }
+        // Texture dimensions and unusually long single-line content cannot
+        // increase panel minimum dimensions or displace the fixed regions.
+        state.CurrentRoomIndex = 0;
+        var firstSlot = state.RoomStates[0].Slots[0]; firstSlot.MachineTier = 0; firstSlot.MachineLevel = 1;
+        await Open(0);
+        foreach (Vector2I size in new[] { new Vector2I(16, 400), new Vector2I(512, 32) })
+        {
+            state.Rooms[0].Machines[0].SetTexture(new GradientTexture2D { Width = size.X, Height = size.Y });
+            overlay.Refresh(); await Settle(); CheckGeometry("different texture dimensions");
+        }
+        foreach (string name in new[] { "_title", "_level", "_production", "_upgradeInfo", "_botMultiplier" })
+            Field<Label>(overlay, name).Text = new string('W', 400);
+        Field<Button>(overlay, "_upgradeButton").Text = new string('9', 100);
+        await Settle(); CheckGeometry("long names and prices");
+        // Switch slots as well as rooms without reconstructing controls.
+        state.RoomStates[0].Slots.Add(new SlotData { Unlocked = true, MachineTier = 1, MachineLevel = 1 });
+        await Open(0, 1); CheckGeometry("switch slot");
+        Eq(Field<Control>(overlay, "_upgradeButton"), geometry[8], "same Upgrade control instance");
+        // Affordability and validation still reject transactions without
+        // partially applying levels or tiers, in every quantity mode.
+        foreach (int quantity in new[] { 1, 5, 10, 0 })
+        {
+            firstSlot.MachineTier = 0; firstSlot.MachineLevel = 12; state.Tokens = 0;
+            Eq(progression.UpgradeMachine(0, 0, quantity).Changed, false, "unaffordable levels");
+            Eq(firstSlot.MachineLevel, 12, "failed levels unchanged");
+            firstSlot.MachineLevel = state.Rooms[0].Machines[0].MaxLevel;
+            state.Tokens = economy.GetTierUpgradeCost(0, firstSlot, 0) - 1;
+            Eq(progression.UpgradeMachine(0, 0, quantity).Changed, false, "unaffordable tier");
+            Eq(firstSlot.MachineTier, 0, "failed tier unchanged");
+            Eq(firstSlot.MachineLevel, state.Rooms[0].Machines[0].MaxLevel, "failed tier retains level");
+        }
+        Eq(progression.UpgradeMachine(-1, 0, 10).Changed, false, "invalid room");
+        Eq(progression.UpgradeMachine(0, 99, 10).Changed, false, "invalid slot");
+        firstSlot.Unlocked = false;
+        Eq(progression.UpgradeMachine(0, 0, 10).Changed, false, "locked slot");
+        firstSlot.Unlocked = true; firstSlot.MachineLevel = 12; state.Tokens = 1e8;
+        Eq(progression.HandleSlotAction(0).Changed, true, "room slot action still upgrades");
+        Eq(firstSlot.MachineLevel, 13, "room slot action remains 1x");
+        firstSlot.MachineLevel = state.Rooms[0].Machines[0].MaxLevel;
+        Eq(progression.HandleSlotAction(0).Changed, true, "room slot tier action");
+        Eq(firstSlot.MachineTier, 1, "room slot single tier");
+        Eq(firstSlot.MachineLevel, 1, "room slot no extra levels");
+        Console.WriteLine($"MachineDetails: {checks} assertions passed across all four rooms and quantities.");
+        GC.KeepAlive(textures);
+    }
+}

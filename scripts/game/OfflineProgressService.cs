@@ -15,6 +15,7 @@ public sealed class OfflineProgressService
 	private readonly LabService _labService;
 	private OfflinePauseSnapshot? _pause;
 	public bool IsPaused => _pause.HasValue;
+	public long? PauseUnix => _pause?.Unix;
 
 	public OfflineProgressService(GameState state, EconomyService economy, LabService lab)
 	{
@@ -188,72 +189,63 @@ public sealed class OfflineProgressService
 		double baseIncomePerSecond,
 		long productionBoostEndUnix)
 	{
-		long totalOfflineSeconds =
-			periodEndUnix
-			- periodStartUnix;
-
-		if (
-			totalOfflineSeconds <= 0
-			|| baseIncomePerSecond <= 0.0
-		)
+		// Normal offline production intentionally uses averaged cycle income and has
+		// no time cap. Split that same interval at each break, including fractional
+		// remaining durability; never grant a broken Bot's automation afterward.
+		double elapsed = 0.0;
+		double totalSeconds = periodEndUnix - periodStartUnix;
+		double earned = 0.0;
+		while (elapsed < totalSeconds)
 		{
-			return 0.0;
+			double chunk = totalSeconds - elapsed;
+			foreach (RoomState room in _state.RoomStates)
+			{
+				if (!room.Unlocked) continue;
+				foreach (SlotData slot in room.Slots)
+				{
+					if (!slot.Unlocked || !slot.HasWorkingBot) continue;
+					if (!slot.BotDurabilityInitialized) slot.InitializeBotDurability();
+					chunk = Math.Min(chunk, slot.BotDurabilitySecondsRemaining);
+				}
+			}
+
+			double offlineFactor = Math.Clamp(GameConfig.BaseOfflineIncomeFactor
+				+ _state.Lab.GetOfflineIncomeBonus() + _state.Shop.GetOfflineIncomeBonus(), 0, 1);
+			double boosted = Math.Clamp(productionBoostEndUnix - periodStartUnix - elapsed, 0.0, chunk);
+			earned += Math.Max(0.0, baseIncomePerSecond)
+				* (chunk - boosted + boosted * GameConfig.ShopTemporaryProductionMultiplier)
+				* offlineFactor;
+
+			bool botBroke = false;
+			foreach (RoomState room in _state.RoomStates)
+			{
+				if (!room.Unlocked) continue;
+				foreach (SlotData slot in room.Slots)
+				{
+					if (!slot.Unlocked || !slot.HasWorkingBot) continue;
+					// Automation starts idle assigned machines online too. Keep cycle
+					// phase, without changing the existing averaged offline reward model.
+					double duration = _economy.GetCycleDuration(slot);
+					if (!slot.IsRunning || !double.IsFinite(slot.CycleRemaining)
+						|| slot.CycleRemaining <= 0.0 || slot.CycleRemaining > duration)
+						slot.CycleRemaining = duration;
+					if (duration > 0.0)
+					{
+						double remaining = slot.CycleRemaining - chunk;
+						slot.CycleRemaining = remaining > 0.0 ? remaining
+							: duration - ((-remaining) % duration);
+					}
+					slot.ConsumeBotWork(chunk);
+					slot.IsRunning = slot.HasWorkingBot;
+					botBroke |= slot.BotBroken;
+				}
+			}
+			elapsed += chunk;
+			if (botBroke)
+				baseIncomePerSecond = _economy.GetTotalIncomeWithoutTemporaryShopBoost();
 		}
-
-		double offlineFactor =
-			Math.Clamp(
-				GameConfig.BaseOfflineIncomeFactor
-					+ _state.Lab
-						.GetOfflineIncomeBonus()
-					+ _state.Shop
-						.GetOfflineIncomeBonus(),
-				0,
-				1
-			);
-
-		long boostOverlapEnd =
-			Math.Min(
-				periodEndUnix,
-				productionBoostEndUnix
-			);
-
-		long boostedSeconds =
-			Math.Max(
-				0,
-				boostOverlapEnd
-					- periodStartUnix
-			);
-
-		boostedSeconds =
-			Math.Min(
-				boostedSeconds,
-				totalOfflineSeconds
-			);
-
-		long normalSeconds =
-			totalOfflineSeconds
-				- boostedSeconds;
-
-		double normalIncome =
-			baseIncomePerSecond
-				* normalSeconds;
-
-		double boostedIncome =
-			baseIncomePerSecond
-				* boostedSeconds
-				* GameConfig
-					.ShopTemporaryProductionMultiplier;
-
-		double amount =
-			(
-				normalIncome
-					+ boostedIncome
-			)
-			* offlineFactor;
-
-		_economy.AddOfflineTokens(amount);
-
-		return amount;
+		_economy.AddOfflineTokens(earned);
+		return earned;
 	}
 
 }

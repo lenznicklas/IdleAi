@@ -1,7 +1,6 @@
 using Godot;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 
 namespace IdleAi;
 
@@ -356,6 +355,7 @@ public sealed class BotSkinShopController
 		_collectionShardLabel = ShopUi.CreateLabel(16);
 		_collectionShardLabel.HorizontalAlignment = HorizontalAlignment.Right;
 		_collectionShardLabel.AddThemeColorOverride("font_color", ShopUi.Gold);
+		DataShardDisplay.Configure(_collectionShardLabel, 0);
 		box.AddChild(_collectionShardLabel);
 	}
 
@@ -640,14 +640,10 @@ public sealed class BotSkinShopController
 		_collectionEntryButton.Text = "OPEN COLLECTION";
 		_collectionEntryButton.Disabled = false;
 
-		// IMPORTANT: write the same whole-number representation every time.
-		// NavigationPolishController/HalloweenOfferShopController no longer
-		// alternate this label between e.g. 5.00 and 5, so it cannot flicker.
+		// Only this controller writes the header, using the shared compact format.
 		if (_collectionShardLabel != null)
 		{
-			_collectionShardLabel.Text =
-                "DATA SHARDS: "
-				+ FormatShardAmount(_state.Shop.DataShards);
+			DataShardDisplay.Update(_collectionShardLabel, _state.Shop.DataShards, "DATA SHARDS: ");
 		}
 
 		EnsureSecretCard();
@@ -806,7 +802,7 @@ public sealed class BotSkinShopController
 
 		card.Button.Text =
             "BUY • "
-			+ FormatShardAmount(skin.Cost)
+			+ NumberFormatter.FormatDataShards(skin.Cost)
 			+ " SHARDS";
 
 		card.Button.Disabled = _state.Shop.DataShards < skin.Cost;
@@ -990,19 +986,6 @@ public sealed class BotSkinShopController
 		return available;
 	}
 
-	private static string FormatShardAmount(
-		double value)
-	{
-		double whole = Math.Max(
-			0.0,
-			Math.Truncate(value)
-		);
-
-		return whole.ToString(
-			"0",
-			CultureInfo.InvariantCulture
-		);
-	}
 
 	private void RemoveComingSoonCosmeticPlaceholder()
 	{

@@ -194,7 +194,13 @@ class Program
             double efficiency = Math.Clamp(GameConfig.BaseOfflineIncomeFactor + v.Shop.GetOfflineIncomeBonus() + v.Lab.GetOfflineIncomeBonus(), 0, 1);
             var offline = new OfflineProgressService(v, economy, new LabService(v, economy));
             var r = offline.ApplyFromSave(d, 1100);
-            Eq(r.OfflineEarned, income * 100 * GameConfig.ShopTemporaryProductionMultiplier * efficiency, "offline after hydration");
+            // Fixture Bots have only 12.5 seconds left; automation ends there.
+            Eq(r.OfflineEarned, income * 12.5 * GameConfig.ShopTemporaryProductionMultiplier * efficiency, "offline after hydration ends at break");
+            foreach (var room in v.RoomStates)
+                if (room.Unlocked)
+                    foreach (var slot in room.Slots)
+                        if (slot.Unlocked && slot.HasBot)
+                            Eq(slot.BotDurabilitySecondsRemaining, 0.0, "hydrated Bot breaks offline");
             Eq(v.Tokens, d.Tokens + r.OfflineEarned, "separate offline credit");
         }
         Console.WriteLine($"GameSave passed {checks} deterministic assertions.");

@@ -1,4 +1,5 @@
 using System;
+using System.Globalization;
 
 namespace IdleAi;
 
@@ -12,6 +13,34 @@ public static class NumberFormatter
 		"B",
 		"T"
 	];
+
+
+	/// <summary>Display-only whole-currency rounding and compact precision for Data Shards.</summary>
+	public static string FormatDataShards(double value)
+	{
+		if (!double.IsFinite(value))
+			return double.IsNaN(value) ? "NaN" : value > 0 ? "∞" : "0";
+
+		// Round whole currency first so noise around an integer cannot move a
+		// compact rounding boundary. Never write the rounded value back to state.
+		double scaled = Math.Round(Math.Max(0.0, value), 0, MidpointRounding.AwayFromZero);
+		int group = 0;
+		while (scaled >= 1000.0)
+		{
+			scaled /= 1000.0;
+			group++;
+		}
+		scaled = Math.Round(scaled, group > 0 && scaled < 10.0 ? 1 : 0,
+			MidpointRounding.AwayFromZero);
+		if (scaled >= 1000.0)
+		{
+			scaled /= 1000.0;
+			group++;
+		}
+		string suffix = group < StandardSuffixes.Length
+			? StandardSuffixes[group] : CreateLetterSuffix(group - StandardSuffixes.Length);
+		return scaled.ToString("0.#", CultureInfo.InvariantCulture) + suffix;
+	}
 
 
 	// ==================================================

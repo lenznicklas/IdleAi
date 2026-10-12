@@ -1,7 +1,6 @@
 using Godot;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 
 namespace IdleAi;
 
@@ -326,6 +325,7 @@ public sealed class MachineSkinShopController
 		_collectionShardLabel = ShopUi.CreateLabel(16);
 		_collectionShardLabel.HorizontalAlignment = HorizontalAlignment.Right;
 		_collectionShardLabel.AddThemeColorOverride("font_color", ShopUi.Gold);
+		DataShardDisplay.Configure(_collectionShardLabel, 0);
 		box.AddChild(_collectionShardLabel);
 	}
 
@@ -634,14 +634,10 @@ public sealed class MachineSkinShopController
 		_entryButton.Text = "OPEN COLLECTION";
 		_entryButton.Disabled = false;
 
-		// Keep the collection header stable. The old NumberFormatter value
-		// could be 5.00 while the global Shop normalizer changed it to 5 on
-		// the next frame, which caused the visible "zucken".
+		// The owning controller uses the shared formatter; no later text rewrite.
 		if (_collectionShardLabel != null)
 		{
-			_collectionShardLabel.Text =
-                "DATA SHARDS: "
-				+ FormatShardAmount(_state.Shop.DataShards);
+			DataShardDisplay.Update(_collectionShardLabel, _state.Shop.DataShards, "DATA SHARDS: ");
 		}
 
 		RefreshCollectionGrouping();
@@ -711,7 +707,7 @@ public sealed class MachineSkinShopController
 
 			card.Button.Text =
                 "BUY • "
-				+ FormatShardAmount(skin.Cost)
+				+ NumberFormatter.FormatDataShards(skin.Cost)
 				+ " SHARDS";
 
 			card.Button.Disabled = _state.Shop.DataShards < skin.Cost;
@@ -931,19 +927,6 @@ public sealed class MachineSkinShopController
 		return available;
 	}
 
-	private static string FormatShardAmount(
-		double value)
-	{
-		double whole = Math.Max(
-			0.0,
-			Math.Truncate(value)
-		);
-
-		return whole.ToString(
-			"0",
-			CultureInfo.InvariantCulture
-		);
-	}
 
 	private Node? DetachBottomSpacer()
 	{

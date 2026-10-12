@@ -566,12 +566,14 @@ public sealed class ShopController
 			);
 
 		_shardLabel.HorizontalAlignment =
-			HorizontalAlignment.Left;
+			HorizontalAlignment.Right;
 
 		_shardLabel.AddThemeColorOverride(
 			"font_color",
 			ShopUi.Accent
 		);
+
+		DataShardDisplay.Configure(_shardLabel);
 
 		text.AddChild(
 			_shardLabel
@@ -812,8 +814,8 @@ public sealed class ShopController
 		_rewardedAdButton =
 			CreateShopCard(
 				FiveShardsIcon,
-				"5 DATA SHARDS",
-				"Watch one video and receive 5 Data Shards.",
+				NumberFormatter.FormatDataShards(RewardedAdCoordinator.RewardedAdShardReward) + " DATA SHARDS",
+				"Watch one video and receive " + NumberFormatter.FormatDataShards(RewardedAdCoordinator.RewardedAdShardReward) + " Data Shards.",
 				_rewardedAdStatus,
 				ShopUi.Gold,
 				_ads.ShowRewardedVideo
@@ -862,7 +864,7 @@ public sealed class ShopController
 			);
 
 			_rewardedAdButton.Text =
-				"WATCH VIDEO  •  +5 SHARDS";
+				"WATCH VIDEO  •  +" + NumberFormatter.FormatDataShards(RewardedAdCoordinator.RewardedAdShardReward) + " SHARDS";
 
 			_rewardedAdButton.Disabled =
 				false;
@@ -1581,10 +1583,7 @@ public sealed class ShopController
 			return;
 		}
 
-		_shardLabel.Text =
-			NumberFormatter.Format(
-				_state.Shop.DataShards
-			);
+		DataShardDisplay.Update(_shardLabel, _state.Shop.DataShards);
 
 		RefreshRewardedAdOffer();
 		RefreshProductionBoost();
@@ -1626,7 +1625,7 @@ public sealed class ShopController
 
 		_productionBoostButton.Text =
 			"BUY  •  "
-			+ NumberFormatter.Format(
+			+ NumberFormatter.FormatDataShards(
 				GameConfig.ShopProductionBoostCost
 			)
 			+ " SHARDS";
@@ -1668,7 +1667,7 @@ public sealed class ShopController
 
 		_luckButton.Text =
 			"BUY  •  "
-			+ NumberFormatter.Format(
+			+ NumberFormatter.FormatDataShards(
 				GameConfig.ShopBotLuckCost
 			)
 			+ " SHARDS";
@@ -1682,7 +1681,7 @@ public sealed class ShopController
 	{
 		_instantButton.Text =
 			"USE  •  "
-			+ NumberFormatter.Format(
+			+ NumberFormatter.FormatDataShards(
 				GameConfig.ShopInstantProductionCost
 			)
 			+ " SHARDS";
@@ -1732,7 +1731,7 @@ public sealed class ShopController
 
 		_productionUpgradeButton.Text =
 			"UPGRADE  •  "
-			+ NumberFormatter.Format(
+			+ NumberFormatter.FormatDataShards(
 				cost
 			)
 			+ " SHARDS";
@@ -1782,7 +1781,7 @@ public sealed class ShopController
 
 		_offlineUpgradeButton.Text =
 			"UPGRADE  •  "
-			+ NumberFormatter.Format(
+			+ NumberFormatter.FormatDataShards(
 				cost
 			)
 			+ " SHARDS";

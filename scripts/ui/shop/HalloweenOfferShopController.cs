@@ -1,8 +1,6 @@
 using Godot;
 using System;
 using System.Collections.Generic;
-using System.Globalization;
-using System.Text.RegularExpressions;
 
 namespace IdleAi;
 
@@ -14,8 +12,7 @@ namespace IdleAi;
  *
  * 1. add OFFERS after all existing Shop sections exist,
  * 2. reorder complete section groups without rebuilding the Shop,
- * 3. keep ACCESS CODE at the very bottom,
- * 4. normalize Data Shard text after the existing controllers refresh.
+ * 3. keep ACCESS CODE at the very bottom.
  */
 public sealed partial class HalloweenOfferShopController
 	: Node
@@ -28,13 +25,6 @@ public sealed partial class HalloweenOfferShopController
 
 	private const string OfferImagePath =
 		"res://assets/bots/halloween_skin/offer.png";
-
-	private static readonly Regex PriceBeforeShardText =
-		new(
-			@"(?<number>-?\d+(?:[\.,]\d+)?)(?=\s+(?:DATA\s+)?SHARDS?\b)",
-			RegexOptions.IgnoreCase
-				| RegexOptions.CultureInvariant
-		);
 
 	private readonly Game _root;
 	private readonly BotSkinService _skinService;
@@ -52,7 +42,6 @@ public sealed partial class HalloweenOfferShopController
 	private Label _offerStatus =
 		null!;
 
-	private Control? _shopPage;
 
 	public event Action<string>? MessageRequested;
 	public event Action? StateChanged;
@@ -77,11 +66,6 @@ public sealed partial class HalloweenOfferShopController
 				"ShopPage/ShopMargin/LayoutRoot/Scroll/ScrollMargin/Content"
 			);
 
-		_shopPage =
-			_root.GetNodeOrNull<Control>(
-				"ShopPage"
-			);
-
 		Node? bottomSpace =
 			DetachBottomSpacer();
 
@@ -97,28 +81,6 @@ public sealed partial class HalloweenOfferShopController
 		SetProcess(
 			true
 		);
-	}
-
-	public override void _Process(
-		double delta)
-	{
-		if (
-			_shopPage == null
-			|| !_shopPage.Visible
-		)
-		{
-			return;
-		}
-
-		/*
-		 * Existing Shop controllers may refresh their NumberFormatter text in
-		 * the same frame. Doing this every frame removes the old 0.10 s race
-		 * that made the Data Shard amount visibly alternate between 5.00 / 5.
-		 *
-		 * Godot draws after _Process, so the player only sees the normalized
-		 * whole-number text.
-		 */
-		NormalizeShopShardText();
 	}
 
 	public void Refresh()
@@ -714,213 +676,6 @@ public sealed partial class HalloweenOfferShopController
 			BotSkinCatalog.HalloweenSkinId,
 			BotRarity.Common
 		);
-	}
-
-	private void NormalizeShopShardText()
-	{
-		if (_shopPage == null)
-			return;
-
-		NormalizeNodeText(
-			_shopPage
-		);
-
-		Control? fixedHeader =
-			_root.GetNodeOrNull<Control>(
-				"ShopPage/ShopMargin/LayoutRoot/FixedHeader"
-			);
-
-		if (fixedHeader != null)
-		{
-			NormalizeHeaderBalance(
-				fixedHeader
-			);
-		}
-	}
-
-	private void NormalizeNodeText(
-		Node node)
-	{
-		if (node is Label label)
-		{
-			label.Text =
-				NormalizeShardText(
-					label.Text
-				);
-		}
-		else if (node is Button button)
-		{
-			button.Text =
-				NormalizeShardText(
-					button.Text
-				);
-		}
-
-		foreach (
-			Node child
-				in node.GetChildren()
-		)
-		{
-			NormalizeNodeText(
-				child
-			);
-		}
-	}
-
-	private static string NormalizeShardText(
-		string text)
-	{
-		if (
-			string.IsNullOrWhiteSpace(
-				text
-			)
-		)
-		{
-			return text;
-		}
-
-		if (
-			text.StartsWith(
-				"DATA SHARDS:",
-				StringComparison.OrdinalIgnoreCase
-			)
-		)
-		{
-			int separator =
-				text.IndexOf(
-					':'
-				);
-
-			if (
-				separator >= 0
-				&& TryParseNumber(
-					text[
-						(separator + 1)..
-					].Trim(),
-					out double balance
-				)
-			)
-			{
-				return text[
-					..(separator + 1)
-				]
-					+ " "
-					+ FormatWholeShardAmount(
-						balance
-					);
-			}
-		}
-
-		if (
-			text.IndexOf(
-				"SHARD",
-				StringComparison.OrdinalIgnoreCase
-			)
-			< 0
-		)
-		{
-			return text;
-		}
-
-		return PriceBeforeShardText.Replace(
-			text,
-			match =>
-			{
-				if (
-					!TryParseNumber(
-						match.Groups[
-							"number"
-						].Value,
-						out double amount
-					)
-				)
-				{
-					return match.Value;
-				}
-
-				return FormatWholeShardAmount(
-					amount
-				);
-			}
-		);
-	}
-
-	private void NormalizeHeaderBalance(
-		Node node)
-	{
-		if (
-			node is Label label
-			&& IsPureNumber(
-				label.Text
-			)
-		)
-		{
-			label.Text =
-				FormatWholeShardAmount(
-					_skinService.DataShards
-				);
-
-			return;
-		}
-
-		foreach (
-			Node child
-				in node.GetChildren()
-		)
-		{
-			NormalizeHeaderBalance(
-				child
-			);
-		}
-	}
-
-	private static bool IsPureNumber(
-		string text)
-	{
-		if (
-			string.IsNullOrWhiteSpace(
-				text
-			)
-		)
-		{
-			return false;
-		}
-
-		return TryParseNumber(
-			text.Trim(),
-			out double _
-		);
-	}
-
-	private static bool TryParseNumber(
-		string value,
-		out double number)
-	{
-		string normalized =
-			value.Replace(
-				',',
-				'.'
-			);
-
-		return double.TryParse(
-			normalized,
-			NumberStyles.Float,
-			CultureInfo.InvariantCulture,
-			out number
-		);
-	}
-
-	private static string FormatWholeShardAmount(
-		double amount)
-	{
-		return Math.Round(
-				amount,
-				MidpointRounding.AwayFromZero
-			)
-			.ToString(
-				"0",
-				CultureInfo.InvariantCulture
-			);
 	}
 
 	private void CreateSectionHeader(

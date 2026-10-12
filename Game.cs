@@ -176,6 +176,9 @@ public partial class Game : Control
 	public override void _Process(
 		double delta)
 	{
+		// Paused wall time is settled once by OfflineProgressService on resume.
+		if (_offline.IsPaused) return;
+
 		double directMachineTokens =
 			_production.Update(
 				delta
@@ -453,7 +456,7 @@ public partial class Game : Control
 			return false;
 		}
 
-		SaveGameData save = _services.Save.CreateSave(GetCurrentUnixTime());
+		SaveGameData save = _services.Save.CreateSave(_offline.PauseUnix ?? GetCurrentUnixTime());
 		if (_purchases != null && !_purchases.BeforeGameSave(save)) return false;
 
 		bool saveOk =

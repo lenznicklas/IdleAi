@@ -29,8 +29,137 @@ class Program
         long boosted = Math.Min(Math.Max(0, Math.Min(end, boost) - start), seconds);
         return (income * (seconds - boosted) + income * boosted * GameConfig.ShopTemporaryProductionMultiplier) * factor;
     }
-    static void Main()
+    static void Near(double actual, double expected, string label)
     {
+        if (Math.Abs(actual - expected) > 1e-8 * Math.Max(1, Math.Abs(expected)))
+            throw new Exception($"{label}: {actual:R} != {expected:R}");
+        checks++;
+    }
+    static SlotData Bot(double lifetime, BotRarity rarity = BotRarity.Rare) => new()
+    { Unlocked = true, BotRarity = rarity, BotDurabilityInitialized = true,
+      BotDurabilitySecondsRemaining = lifetime };
+    static void DurabilityTests()
+    {
+        foreach (double lifetime in new[] { 0.0, .000001, .5, 30, 100, 150, 40000 })
+        foreach (long seconds in new long[] { 1, 30, 100, 150, 30L * 86400 })
+        {
+            var (s, e, o) = Create();
+            var slot = Bot(lifetime); s.RoomStates[0].Slots[0] = slot;
+            double rate = e.GetTotalIncomeWithoutTemporaryShopBoost();
+            var save = new GameSaveService(s, e).CreateSave(1000);
+            var result = o.ApplyFromSave(save, 1000 + seconds);
+            Near(slot.BotDurabilitySecondsRemaining, Math.Max(0, lifetime - seconds), "remaining seconds");
+            Equal(slot.BotBroken ? 1 : 0, seconds >= lifetime ? 1 : 0, "broken state");
+            Near(result.OfflineEarned, rate * Math.Min(seconds, lifetime) * .25, "income ends at break");
+            Equal(slot.IsRunning ? 1 : 0, seconds < lifetime ? 1 : 0, "automation state");
+            // Round-trip actual main-save JSON and hydration, including broken state.
+            var persisted = new GameSaveService(s, e).CreateSave(1000 + seconds);
+            var json = System.Text.Json.JsonSerializer.Serialize(persisted);
+            var (loaded, le, lo) = Create();
+            new GameSaveService(loaded, le).ApplySave(System.Text.Json.JsonSerializer.Deserialize<SaveGameData>(json));
+            Equal(loaded.RoomStates[0].Slots[0].BotDurabilitySecondsRemaining,
+                slot.BotDurabilitySecondsRemaining, "JSON persistence");
+            Equal(loaded.RoomStates[0].Slots[0].BotBroken ? 1 : 0, slot.BotBroken ? 1 : 0, "persist broken");
+            Equal(lo.ApplyFromSave(persisted, persisted.LastSaveUnix).OfflineEarned, 0, "same timestamp");
+        }
+        // Independent Bots across rooms, locked rooms and slots, and upgraded machines.
+        {
+            var (s, e, o) = Create();
+            s.RoomStates[0].Slots[0] = Bot(10);
+            s.RoomStates[0].Slots.Add(Bot(50, BotRarity.Epic));
+            var data = new RoomData("Second", null, null,
+                [new MachineData("Base", 100, 1, 1, 100, null),
+                 new MachineData("Upgrade", 500, 1, 1, 100, null)], 0);
+            s.Rooms.Add(data);
+            var room = new RoomState { Unlocked = true };
+            var upgraded = Bot(100); upgraded.MachineTier = 1; upgraded.MachineLevel = 20;
+            room.Slots.Add(upgraded); s.RoomStates.Add(room);
+            double r0 = e.GetRoomIncome(0), r1 = e.GetRoomIncome(1);
+            double firstRate = e.GetSlotIncome(0, s.RoomStates[0].Slots[0]);
+            double expected = (firstRate * 10 + (r0 - firstRate) * 50 + r1 * 60) * .25;
+            Near(o.ApplyFromSave(new GameSaveService(s, e).CreateSave(1000), 1060).OfflineEarned, expected, "multiple rooms/Bots");
+            Equal(upgraded.BotDurabilitySecondsRemaining, 40, "upgraded Bot");
+            room.Unlocked = false;
+            var lockedSlot = Bot(100); lockedSlot.Unlocked = false;
+            s.RoomStates[0].Slots.Add(lockedSlot);
+            o.ApplyFromSave(new GameSaveService(s, e).CreateSave(1060), 1160);
+            Equal(upgraded.BotDurabilitySecondsRemaining, 40, "locked room");
+            Equal(lockedSlot.BotDurabilitySecondsRemaining, 100, "locked slot");
+        }
+        // Pipeline throughput is recalculated rather than subtracting a slot's
+        // nominal output: bottlenecks can hide the first Bot's lost input.
+        {
+            var (s, e, o) = Create();
+            s.Rooms.Add(s.Rooms[0]);
+            var room = new RoomState { Unlocked = true };
+            var first = Bot(10); var second = Bot(20);
+            room.Slots.Add(first); room.Slots.Add(second); s.RoomStates.Add(room);
+            double before = e.GetTotalIncomeWithoutTemporaryShopBoost();
+            first.BotDurabilitySecondsRemaining = 0;
+            double afterFirst = e.GetTotalIncomeWithoutTemporaryShopBoost();
+            first.BotDurabilitySecondsRemaining = 10;
+            var result = o.ApplyFromSave(new GameSaveService(s, e).CreateSave(1000), 1100);
+            Near(result.OfflineEarned, (before * 10 + afterFirst * 10) * .25, "pipeline break recalculation");
+            Equal(first.BotDurabilitySecondsRemaining + second.BotDurabilitySecondsRemaining, 0, "pipeline wear");
+        }
+        {
+            var (s, e, o) = Create();
+            var slot = new SlotData { Unlocked = true, BotRarity = BotRarity.Common };
+            s.RoomStates[0].Slots[0] = slot;
+            o.ApplyFromSave(Save(0), 1001);
+            Equal(slot.BotDurabilitySecondsRemaining, slot.BotMaximumDurabilitySeconds - 1, "legacy initialization and zero-income wear");
+        }
+        // Online/offline equivalence at cycle boundaries, including exact break.
+        foreach (int cycles in new[] { 1, 5, 10, 25, 30 })
+        {
+            var (a, ae, _) = Create(); var (b, be, offline) = Create();
+            a.RoomStates[0].Slots[0] = Bot(100); b.RoomStates[0].Slots[0] = Bot(100);
+            var production = new ProductionService(a, ae, new PipelineService(a, ae));
+            double duration = ae.GetCycleDuration(a.RoomStates[0].Slots[0]);
+            long seconds = (long)(cycles * duration);
+            var save = new GameSaveService(b, be).CreateSave(1000);
+            double earned = 0;
+            for (int i = 0; i < seconds; i++) earned += production.Update(1);
+            var result = offline.ApplyFromSave(save, 1000 + seconds);
+            Near(result.OfflineEarned, earned * .25, "online/offline cycle-aligned income");
+            Equal(b.RoomStates[0].Slots[0].BotDurabilitySecondsRemaining,
+                a.RoomStates[0].Slots[0].BotDurabilitySecondsRemaining, "online/offline durability");
+            Equal(b.RoomStates[0].Slots[0].BotBroken ? 1 : 0,
+                a.RoomStates[0].Slots[0].BotBroken ? 1 : 0, "online/offline break");
+            Near(b.RoomStates[0].Slots[0].CycleRemaining,
+                a.RoomStates[0].Slots[0].CycleRemaining, "online/offline phase");
+        }
+        {
+            var (s, e, o) = Create(); var slot = Bot(100); s.RoomStates[0].Slots[0] = slot;
+            var production = new ProductionService(s, e, new PipelineService(s, e));
+            production.Update(10);
+            o.CapturePauseSnapshot(1000); o.CapturePauseSnapshot(1010);
+            Equal(o.PauseUnix.Value, 1000, "pause save timestamp");
+            o.ApplyResume(1030, out _);
+            Equal(slot.BotDurabilitySecondsRemaining, 60, "runtime plus background once");
+            Equal(o.ApplyResume(1060, out _) ? 1 : 0, 0, "repeat background resume");
+            Equal(slot.BotDurabilitySecondsRemaining, 60, "no duplicate wear");
+        }
+        // Break boundaries combined with boost expiry and research completion.
+        foreach (string id in new[] { ResearchCatalog.EfficientHardware1Id, ResearchCatalog.OfflineServersId })
+        {
+            var (s, e, o) = Create(); var slot = Bot(30); s.RoomStates[0].Slots[0] = slot;
+            s.Lab.ActiveResearchId = id; s.Lab.ActiveResearchEndUnix = 1020;
+            s.Shop.ProductionBoostEndUnix = 1010;
+            var save = new GameSaveService(s, e).CreateSave(1000);
+            double before = save.IncomePerSecond;
+            new LabService(s, e).Update(1020);
+            double after = e.GetTotalIncomeWithoutTemporaryShopBoost();
+            double factor = .25 + s.Lab.GetOfflineIncomeBonus();
+            s.Lab.LoadCompletedResearch([]); s.Lab.ActiveResearchId = id; s.Lab.ActiveResearchEndUnix = 1020;
+            var result = o.ApplyFromSave(save, 1100);
+            Near(result.OfflineEarned, Segment(before, 1000, 1020, 1010, .25) + after * 10 * factor, "research/boost/break");
+            Equal(slot.BotDurabilitySecondsRemaining, 0, "research split wear");
+        }
+    }
+    public static void Main()
+    {
+        DurabilityTests();
         // Includes zero/backward time, short/base, very long uncapped time, and all boost overlaps.
         foreach (long now in new long[] { 999, 1000, 1001, 1100, 1000 + 365L * 86400 })
         foreach (long boost in new long[] { 0, 999, 1050, now + 1 })

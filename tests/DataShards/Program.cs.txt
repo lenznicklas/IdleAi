@@ -1,0 +1,183 @@
+using Godot;
+using IdleAi;
+using System;
+using System.Globalization;
+using System.Reflection;
+using System.Threading.Tasks;
+
+public static class Program
+{
+    static int checks;
+    static void Eq(object actual, object expected, string label)
+    {
+        if (!Equals(actual, expected)) throw new Exception($"{label}: {actual} != {expected}");
+        checks++;
+    }
+    static T Field<T>(object obj, string name) => (T)obj.GetType()
+        .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).GetValue(obj);
+    public static async Task Run(Game root)
+    {
+        var examples = new (double, string)[] {
+            (0,"0"), (1,"1"), (10,"10"), (999,"999"), (1000,"1K"),
+            (1001,"1K"), (1050,"1.1K"), (1099,"1.1K"), (1100,"1.1K"),
+            (1199,"1.2K"), (1234,"1.2K"), (1500,"1.5K"), (1999,"2K"),
+            (9999,"10K"), (10000,"10K"), (10500,"11K"), (99999,"100K"),
+            (999999,"1M"), (1000000,"1M"), (1250000,"1.3M"),
+            (1234.567,"1.2K"), (1e9,"1B"), (1e12,"1T"), (1e15,"1aa"), (1e18,"1ab")
+        };
+        CultureInfo original = CultureInfo.CurrentCulture;
+        try
+        {
+            foreach (string culture in new[] { "en-US", "de-AT", "fr-FR", "tr-TR" })
+            {
+                CultureInfo.CurrentCulture = CultureInfo.GetCultureInfo(culture);
+                foreach (var (value, expected) in examples)
+                    Eq(NumberFormatter.FormatDataShards(value), expected, culture + " example");
+            }
+            CultureInfo.CurrentCulture = CultureInfo.InvariantCulture;
+            Eq(NumberFormatter.Format(1000), "1.00K", "Token precision unchanged");
+            Eq(NumberFormatter.Format(1e15), "1.00aa", "Token suffix unchanged");
+            foreach (double value in new[] { 1000.00001, 1000.00002, 1000.00003 })
+                Eq(NumberFormatter.FormatDataShards(value), "1K", "tiny noise");
+            foreach (double value in new[] { 1000.0, 1050, 1100, 1500, 10000, 1000000 })
+            foreach (double noise in new[] { -1e-5, 0, 1e-5 })
+                Eq(NumberFormatter.FormatDataShards(value + noise), NumberFormatter.FormatDataShards(value), "noise at whole-currency boundary");
+            foreach (var (start, end) in new[] { (999,1000), (1000,1010), (1090,1100), (1990,2000), (9990,10000), (999999,1000000) })
+            {
+                string previous = NumberFormatter.FormatDataShards(start);
+                int changes = 0;
+                for (int value = start; value <= end; value++)
+                {
+                    string next = NumberFormatter.FormatDataShards(value);
+                    if (next != previous) changes++;
+                    previous = next;
+                    Eq(System.Text.RegularExpressions.Regex.IsMatch(next, @"^\d+(?:\.\d)?(?:K|M|B|T|[a-z]+)?$"), true, "compact precision");
+                }
+                Eq(changes <= 1, true, "clean live transition");
+            }
+        }
+        finally { CultureInfo.CurrentCulture = original; }
+
+        root.Size = new Vector2(720, 1280);
+        var textures = new System.Collections.Generic.List<Texture2D>();
+        foreach (string path in new[] {
+            "res://assets/background/lab_background.png",
+            "res://assets/shop/data_shard.png",
+            "res://assets/shop/shop_boost.png",
+            "res://assets/shop/shop_luck.png",
+            "res://assets/shop/shop_instant.png",
+            "res://assets/shop/shop_production.png",
+            "res://assets/shop/shop_offline.png",
+            "res://assets/shop/shop_cosmetics.png",
+            "res://assets/shop/shop_locked.png",
+            "res://assets/shop/shop_owned.png",
+            "res://assets/shop/five_shards.png",
+            "res://assets/ui/x.png"
+        })
+        {
+            var texture = new GradientTexture2D { Width = 16, Height = 16 };
+            texture.TakeOverPath(path); textures.Add(texture);
+        }
+        var font = new FontFile { Data = System.IO.File.ReadAllBytes(System.IO.Path.Combine(AppContext.BaseDirectory,
+            "../../../../../../../assets/fonts/Orbitron-Regular.ttf")) };
+        font.TakeOverPath("res://assets/fonts/Orbitron-Regular.ttf");
+        root.Theme = new Theme { DefaultFont = font, DefaultFontSize = 18 };
+        var state = new GameState([new RoomData("Test", null, null,
+            [new MachineData("Test", 1, 1, 1, 25, null)], 0)]);
+        var rs = new RoomState { Unlocked = true }; rs.Slots.Add(new SlotData { Unlocked = true }); state.RoomStates.Add(rs);
+        var economy = new EconomyService(state);
+        var shop = new ShopService(state, economy, new ProductionService(state, economy, new PipelineService(state, economy)));
+        var codes = new SecretKorpoSkinController(root, null, null, shop);
+        var codeInput = new LineEdit(); root.AddChild(codeInput);
+        var toast = new PanelContainer(); root.AddChild(toast);
+        var toastLabel = new Label(); toast.AddChild(toastLabel);
+        foreach (var (name, control) in new (string, object)[] {
+            ("_codeInput", codeInput), ("_codeToast", toast), ("_codeToastLabel", toastLabel) })
+            typeof(SecretKorpoSkinController).GetField(name, BindingFlags.Instance | BindingFlags.NonPublic).SetValue(codes, control);
+        int rewardEvents = 0;
+        codes.StateChanged += () => rewardEvents++;
+        var redeem = typeof(SecretKorpoSkinController).GetMethod("Redeem", BindingFlags.Instance | BindingFlags.NonPublic);
+        state.Shop.DataShards = 7;
+        foreach (string code in new[] { "shards1", "  SHARDS1  " })
+        {
+            double before = state.Shop.DataShards;
+            codeInput.Text = code; redeem.Invoke(codes, null);
+            Eq(state.Shop.DataShards, before + 500, "secret code grants exactly 500 shards");
+            Eq(codeInput.Text, "", "successful redemption clears input");
+            Eq(toastLabel.Text, "+500 Data Shards!", "shard redemption feedback");
+        }
+        Eq(rewardEvents, 2, "each reward triggers existing save/UI notification");
+        codeInput.Text = "shards2"; redeem.Invoke(codes, null);
+        Eq(state.Shop.DataShards, 1007.0, "invalid code grants nothing");
+        Eq(rewardEvents, 2, "invalid code does not trigger save");
+        Eq(toastLabel.Text, "Invalid access code.", "invalid redemption feedback");
+        codeInput.Hide(); toast.Hide();
+        using var ads = new RewardedAdCoordinator(new NoAds(), shop.GrantDataShards);
+        var page = new Control { Name = "ShopPage" }; root.AddChild(page);
+        page.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+        var controller = new ShopController(root, state, shop, ads); controller.Initialize(); page.Show();
+        var readability = new UiReadabilityController(); root.AddChild(readability); readability.Initialize(root);
+        var label = Field<Label>(controller, "_shardLabel");
+        var panel = label.GetParent().GetParent().GetParent().GetParent() as Control;
+        var row = label.GetParent().GetParent() as Control;
+        var icon = row.GetChild<Control>(0);
+        var digitWidths = new System.Collections.Generic.HashSet<float>();
+        for (char digit = '0'; digit <= '9'; digit++)
+            digitWidths.Add(label.GetThemeFont("font").GetStringSize(digit.ToString(), HorizontalAlignment.Left, -1, label.GetThemeFontSize("font_size")).X);
+        Console.WriteLine($"Orbitron digit advance variants: {digitWidths.Count}; fixed balance area retains this font.");
+        Rect2? labelRect = null, panelRect = null, iconRect = null;
+        async Task Settle()
+        {
+            for (int i = 0; i < 3; i++) await root.ToSignal(root.GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        foreach (var (value, expected) in examples)
+        {
+            state.Shop.DataShards = value;
+            controller.Refresh(); await Settle();
+            if (labelRect == null) { labelRect = label.GetGlobalRect(); panelRect = panel.GetGlobalRect(); iconRect = icon.GetGlobalRect(); }
+            Eq(label.Text, expected, "real Shop balance");
+            Eq(label.GetGlobalRect(), labelRect.Value, "fixed balance rectangle");
+            Eq(panel.GetGlobalRect(), panelRect.Value, "fixed surrounding panel");
+            Eq(icon.GetGlobalRect(), iconRect.Value, "neighbor does not move");
+            Eq(label.AutowrapMode, TextServer.AutowrapMode.Off, "no wrap");
+            Eq(label.HorizontalAlignment, HorizontalAlignment.Right, "stable alignment");
+            Eq(state.Shop.DataShards, value, "formatting does not mutate balance");
+            Eq(label.GetThemeFont("font").GetStringSize(label.Text, HorizontalAlignment.Left, -1, label.GetThemeFontSize("font_size")).X <= label.Size.X,
+                true, "compact balance fits reserved area");
+            for (int repeat = 0; repeat < 4; repeat++)
+            {
+                controller.Refresh(); await root.ToSignal(root.GetTree(), SceneTree.SignalName.ProcessFrame);
+                Eq(label.Text, expected, "no competing frame writer");
+            }
+        }
+        foreach (var (start, end) in new[] { (999,1000), (1000,1010), (1090,1100), (1990,2000), (9990,10000), (999999,1000000) })
+        for (int value = start; value <= end; value++)
+        {
+            state.Shop.DataShards = value; controller.Refresh();
+            await root.ToSignal(root.GetTree(), SceneTree.SignalName.ProcessFrame);
+            Eq(label.Text, NumberFormatter.FormatDataShards(value), "live header text");
+            Eq(label.GetGlobalRect(), labelRect.Value, "live header geometry");
+            Eq(icon.GetGlobalRect(), iconRect.Value, "live neighbor geometry");
+        }
+        // Exercise the actual guarded helper and prefixed collection balance.
+        var helper = typeof(ShopController).Assembly.GetType("IdleAi.DataShardDisplay");
+        var update = helper.GetMethod("Update", BindingFlags.Static | BindingFlags.NonPublic);
+        Eq((bool)update.Invoke(null, new object[] { label, 1000.0, "" }), true, "changed formatted text assigned");
+        Eq((bool)update.Invoke(null, new object[] { label, 1000.00001, "" }), false, "unchanged formatted text skipped");
+        Eq((bool)update.Invoke(null, new object[] { label, 1001.0, "" }), false, "whole increment within bucket skipped");
+        Eq((bool)update.Invoke(null, new object[] { label, 1234.0, "DATA SHARDS: " }), true, "collection header format");
+        Eq(label.Text, "DATA SHARDS: 1.2K", "shared collection format");
+        // No recurring currency-normalization process remains in the seasonal layer.
+        Eq(typeof(HalloweenOfferShopController).GetMethod("_Process", BindingFlags.Instance | BindingFlags.Public | BindingFlags.DeclaredOnly) == null,
+            true, "no seasonal per-frame overwrite");
+        Eq(typeof(NavigationPolishController).GetMethod("RefreshShopShardDisplay", BindingFlags.Instance | BindingFlags.NonPublic) == null,
+            true, "no navigation overwrite");
+        Console.WriteLine($"DataShards: {checks} formatting/layout assertions passed. Balance rectangle: {labelRect}.");
+        GC.KeepAlive(textures);
+    }
+    sealed class NoAds : IRewardedAdAdapter
+    {
+        public void Initialize() => throw new Exception("Tests must not initialize ads");
+        public void Load(Action<IRewardedAdHandle> loaded, Action<string> failed) => throw new Exception("Tests must not load ads");
+    }
+}

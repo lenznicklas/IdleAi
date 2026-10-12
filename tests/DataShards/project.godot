@@ -1,0 +1,16 @@
+config_version=5
+
+[application]
+config/name="DataShards regression tests"
+run/main_scene="res://Runner.tscn"
+config/features=PackedStringArray("4.7", "C#")
+
+[dotnet]
+project/assembly_name="DataShards"
+
+[rendering]
+renderer/rendering_method="gl_compatibility"
+
+[display]
+window/size/viewport_width=720
+window/size/viewport_height=1280

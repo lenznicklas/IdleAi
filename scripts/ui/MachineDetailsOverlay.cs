@@ -224,11 +224,6 @@ public sealed class MachineDetailsOverlay
 		_slotIndex =
 			slotIndex;
 
-
-		_upgradeAmount =
-			UpgradeAmount.One;
-
-
 		Refresh();
 
 
@@ -601,7 +596,6 @@ public sealed class MachineDetailsOverlay
 				< machine.MaxLevel
 		)
 		{
-			_upgradeAmountRow.Show();
 
 
 			int requested =
@@ -749,9 +743,6 @@ public sealed class MachineDetailsOverlay
 		}
 
 
-		_upgradeAmountRow.Hide();
-
-
 		if (
 			slot.MachineTier
 			< room.Machines.Count - 1
@@ -806,51 +797,8 @@ public sealed class MachineDetailsOverlay
 
 	private void OnUpgradePressed()
 	{
-		SlotData slot =
-			_state.RoomStates[
-				_roomIndex
-			].Slots[
-				_slotIndex
-			];
-
-
-		RoomData room =
-			_state.Rooms[
-				_roomIndex
-			];
-
-
-		MachineData machine =
-			room.Machines[
-				slot.MachineTier
-			];
-
-
-		ProgressionResult result;
-
-
-		if (
-			machine.IsInfiniteLevel
-			|| slot.MachineLevel
-				< machine.MaxLevel
-		)
-		{
-			result =
-				_progression
-					.UpgradeMachineLevels(
-						_roomIndex,
-						_slotIndex,
-						GetRequestedUpgradeLevels()
-					);
-		}
-		else
-		{
-			result =
-				_progression
-					.HandleSlotAction(
-						_slotIndex
-					);
-		}
+		ProgressionResult result = _progression.UpgradeMachine(
+			_roomIndex, _slotIndex, GetRequestedUpgradeLevels());
 
 
 		StateChanged?.Invoke(
@@ -1235,7 +1183,7 @@ public sealed class MachineDetailsOverlay
 			CreatePanel(
 				new Vector2(
 					580,
-					900
+					956
 				)
 			);
 
@@ -1288,9 +1236,7 @@ public sealed class MachineDetailsOverlay
 			);
 
 
-		vbox.AddChild(
-			_title
-		);
+		vbox.AddChild(FixedTextRegion(_title, 38));
 
 
 		_machineImage =
@@ -1325,9 +1271,7 @@ public sealed class MachineDetailsOverlay
 			);
 
 
-		vbox.AddChild(
-			_level
-		);
+		vbox.AddChild(FixedTextRegion(_level, 25));
 
 
 		_production =
@@ -1336,9 +1280,7 @@ public sealed class MachineDetailsOverlay
 			);
 
 
-		vbox.AddChild(
-			_production
-		);
+		vbox.AddChild(FixedTextRegion(_production, 45));
 
 
 		_cycle =
@@ -1347,9 +1289,7 @@ public sealed class MachineDetailsOverlay
 			);
 
 
-		vbox.AddChild(
-			_cycle
-		);
+		vbox.AddChild(FixedTextRegion(_cycle, 21));
 
 
 		vbox.AddChild(
@@ -1363,9 +1303,7 @@ public sealed class MachineDetailsOverlay
 			);
 
 
-		vbox.AddChild(
-			_upgradeInfo
-		);
+		vbox.AddChild(FixedTextRegion(_upgradeInfo, 47));
 
 
 		_upgradeAmountRow =
@@ -1503,9 +1441,7 @@ public sealed class MachineDetailsOverlay
 			"BOT";
 
 
-		vbox.AddChild(
-			botTitle
-		);
+		vbox.AddChild(FixedTextRegion(botTitle, 27));
 
 
 		_botImage =
@@ -1536,9 +1472,7 @@ public sealed class MachineDetailsOverlay
 			);
 
 
-		vbox.AddChild(
-			_botName
-		);
+		vbox.AddChild(FixedTextRegion(_botName, 24));
 
 
 		_botMultiplier =
@@ -1547,9 +1481,7 @@ public sealed class MachineDetailsOverlay
 			);
 
 
-		vbox.AddChild(
-			_botMultiplier
-		);
+		vbox.AddChild(FixedTextRegion(_botMultiplier, 158));
 
 
 		_buyBotButton =
@@ -1570,9 +1502,13 @@ public sealed class MachineDetailsOverlay
 			BuyBot;
 
 
-		vbox.AddChild(
-			_buyBotButton
-		);
+		// Buying and servicing occupy the same reserved row, regardless of
+		// which action is currently visible.
+		Control botActions = new() { CustomMinimumSize = new Vector2(0, 52),
+			MouseFilter = Control.MouseFilterEnum.Ignore };
+		vbox.AddChild(botActions);
+		botActions.AddChild(_buyBotButton);
+		_buyBotButton.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 
 
 		_botActionRow =
@@ -1589,9 +1525,8 @@ public sealed class MachineDetailsOverlay
 		);
 
 
-		vbox.AddChild(
-			_botActionRow
-		);
+		botActions.AddChild(_botActionRow);
+		_botActionRow.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 
 
 		_repairBotButton =
@@ -1646,6 +1581,10 @@ public sealed class MachineDetailsOverlay
 		);
 
 
+		// Text must not increase a button's minimum width as prices grow.
+		foreach (Button button in new[] { _upgradeButton, _buyBotButton, _repairBotButton, _sellBotButton })
+			button.ClipText = true;
+
 		UpdateUpgradeAmountButtons();
 
 
@@ -1653,6 +1592,27 @@ public sealed class MachineDetailsOverlay
 			_panel,
 			Close
 		);
+	}
+
+
+	// Plain Control regions do not propagate child text minimum sizes into the
+	// VBox. Heights match the largest existing rows with the game font and +2px
+	// readability pass (956px panel); explicit newlines remain, wrapping cannot
+	// shift the quantity row or Upgrade button.
+	private static Control FixedTextRegion(Label label, float height)
+	{
+		Control region = new()
+		{
+			CustomMinimumSize = new Vector2(0, height),
+			MouseFilter = Control.MouseFilterEnum.Ignore
+		};
+		label.AutowrapMode = TextServer.AutowrapMode.Off;
+		label.ClipText = true;
+		label.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
+		label.VerticalAlignment = VerticalAlignment.Center;
+		region.AddChild(label);
+		label.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		return region;
 	}
 
 

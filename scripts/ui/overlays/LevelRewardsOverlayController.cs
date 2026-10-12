@@ -199,7 +199,7 @@ public sealed class LevelRewardsOverlayController
 
 		Label subtitle =
 			CreateLabel(
-				 $"Every {LevelRewardService.RewardInterval} Total Levels earns {LevelRewardService.RewardDataShards} Data Shards.",
+				 $"Every {LevelRewardService.RewardInterval} Total Levels earns {NumberFormatter.FormatDataShards(LevelRewardService.RewardDataShards)} Data Shards.",
 				14
 			);
 
@@ -262,7 +262,7 @@ public sealed class LevelRewardsOverlayController
 			MouseFilter = Control.MouseFilterEnum.Ignore
 		};
 		preview.AddChild(_shard);
-		Label rewardPreview = CreateLabel($"+{LevelRewardService.RewardDataShards} DATA SHARDS", 18);
+		Label rewardPreview = CreateLabel($"+{NumberFormatter.FormatDataShards(LevelRewardService.RewardDataShards)} DATA SHARDS", 18);
 		// Autowrapped labels have no useful horizontal minimum in a centered HBox.
 		// Let the text's measured single-line width size the centered icon/text group.
 		rewardPreview.AutowrapMode = TextServer.AutowrapMode.Off;
@@ -487,7 +487,7 @@ public sealed class LevelRewardsOverlayController
 		_feedbackTween = _shard.CreateTween();
 		_feedbackTween.TweenProperty(_shard, "scale", Vector2.One * 1.25f, .16);
 		_feedbackTween.TweenProperty(_shard, "scale", Vector2.One, .35).SetTrans(Tween.TransitionType.Back);
-		Label floating = CreateLabel($"+{LevelRewardService.RewardDataShards} DATA SHARDS", 24);
+		Label floating = CreateLabel($"+{NumberFormatter.FormatDataShards(LevelRewardService.RewardDataShards)} DATA SHARDS", 24);
 		floating.AddThemeColorOverride("font_color", new Color(1f, .82f, .3f));
 		_overlay.AddChild(floating);
 		floating.GlobalPosition = _shard.GlobalPosition + new Vector2(-70, -30);
@@ -716,7 +716,7 @@ public sealed class LevelRewardsOverlayController
 		Label reward =
 			CreateLabel(
 				"+"
-					+ LevelRewardService.RewardDataShards
+					+ NumberFormatter.FormatDataShards(LevelRewardService.RewardDataShards)
 					+ " DATA SHARDS",
 				15
 			);
@@ -752,7 +752,7 @@ public sealed class LevelRewardsOverlayController
 		else if (canClaim)
 		{
 			button.Text =
-				"CLAIM +" + LevelRewardService.RewardDataShards;
+				"CLAIM +" + NumberFormatter.FormatDataShards(LevelRewardService.RewardDataShards);
 
 			button.Disabled =
 				false;

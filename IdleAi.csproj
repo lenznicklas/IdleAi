@@ -9,6 +9,8 @@
 
   <ItemGroup>
     <Compile Remove="tests/**/*.cs" />
+    <!-- The recording sandbox has its own project and assembly. -->
+    <Compile Remove="promo/**/*.cs" />
   </ItemGroup>
 
 </Project>

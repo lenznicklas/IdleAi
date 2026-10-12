@@ -1,0 +1,12 @@
+<Project Sdk="Godot.NET.Sdk/4.7.2">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <EnableDynamicLoading>true</EnableDynamicLoading>
+    <RootNamespace>IdleAi.Promo</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Godot's Gradle staging directory can contain exported script copies. -->
+    <Compile Remove="android/**/*.cs" />
+  </ItemGroup>
+</Project>

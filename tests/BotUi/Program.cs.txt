@@ -1,0 +1,203 @@
+using Godot;
+using IdleAi;
+using System;
+using System.IO;
+using System.Linq;
+using System.Reflection;
+using System.Collections.Generic;
+using System.Threading.Tasks;
+
+public static class Program
+{
+    private static int checks;
+    private static T Field<T>(object target, string name) => (T)target.GetType()
+        .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(target)!;
+    private static void Set(object target, string name, object value) => target.GetType()
+        .GetField(name, BindingFlags.Instance | BindingFlags.NonPublic)!.SetValue(target, value);
+    private static void Call(object target, string name, params object[] args) => target.GetType()
+        .GetMethod(name, BindingFlags.Instance | BindingFlags.NonPublic)!.Invoke(target, args);
+    private static void Check(bool condition, string message)
+    {
+        checks++;
+        if (!condition) throw new Exception(message);
+    }
+    private static void Near(double actual, double expected, string message) =>
+        Check(Math.Abs(actual - expected) <= Math.Max(1e-6, Math.Abs(expected) * 1e-12), message);
+
+    public static async Task Run(Game root)
+    {
+        Check(ProjectSettings.GlobalizePath("user://").Contains("Bot UI regression tests"), "isolated save profile");
+        string repo = System.Environment.GetEnvironmentVariable("BOT_UI_REPO_ROOT")!;
+        // Real catalogs and state; in-memory art avoids importing the full asset tree in a test project.
+        var textures = new List<Texture2D>();
+        foreach (string path in Directory.EnumerateFiles(Path.Combine(repo, "assets"), "*.png", SearchOption.AllDirectories))
+        {
+            var texture = new GradientTexture2D { Width = 16, Height = 16 };
+            texture.TakeOverPath("res://" + Path.GetRelativePath(repo, path)); textures.Add(texture);
+        }
+        var font = new FontFile { Data = File.ReadAllBytes(Path.Combine(repo, "assets/fonts/Orbitron-Regular.ttf")) };
+        font.TakeOverPath("res://assets/fonts/Orbitron-Regular.ttf");
+        root.Theme = new Theme { DefaultFont = font, DefaultFontSize = 18 };
+        root.Theme.SetColor("font_color", "Button", Colors.White);
+        root.Theme.SetColor("font_hover_color", "Button", Colors.White);
+        root.GetWindow().Size = new Vector2I(720, 1280);
+        root.Size = new Vector2(720, 1280);
+        var state = new GameState(RoomCatalog.Create());
+        for (int room = 0; room < 4; room++)
+        {
+            var data = new RoomState { Unlocked = true };
+            data.Slots.Add(new SlotData { Unlocked = true }); state.RoomStates.Add(data);
+        }
+        var economy = new EconomyService(state);
+        var production = new ProductionService(state, economy, new PipelineService(state, economy));
+        var bots = new BotService(state, economy);
+        var view = new MachineSlot(); root.AddChild(view); view.Setup(0);
+        var durability = new BotDurabilityUiController(root, state); root.AddChild(durability);
+        durability.SetProcess(false); // Explicitly exercise both writer orders, without timing-dependent tests.
+        var status = Field<Label>(view, "_statusLabel");
+        var start = Field<TextureButton>(view, "_startButton");
+        var image = Field<Control>(view, "_botVisual");
+        async Task Frames(int count = 3)
+        {
+            for (int i = 0; i < count; i++) await root.ToSignal(root.GetTree(), SceneTree.SignalName.ProcessFrame);
+        }
+        void AssertStatus(bool broken)
+        {
+            Check(status.Text.StartsWith(broken ? "BOT BROKEN" : "AUTO"), "wrong status: " + status.Text);
+            Check(start.Visible == broken && start.Disabled != broken, "manual control disagrees with durability");
+            Check(image.Visible != broken, "bot art disagrees with durability");
+        }
+        for (int room = 0; room < 4; room++)
+        {
+            state.CurrentRoomIndex = room; view.ApplyRoomTheme(room);
+            var slot = state.CurrentRoomState.Slots[0]; var machine = state.CurrentRoom.Machines[0];
+            slot.BotRarity = BotRarity.Common; slot.BotPurchasePrice = 100; slot.InitializeBotDurability();
+            slot.IsRunning = false; view.ShowMachine(machine, slot, BotCatalog.Get(BotRarity.Common)); AssertStatus(false);
+            slot.IsRunning = true; slot.RuntimeCycleDuration = economy.GetCycleDuration(slot);
+            slot.CycleRemaining = slot.RuntimeCycleDuration; slot.BotDurabilitySecondsRemaining = .05;
+            view.UpdateRuntime(slot); AssertStatus(false);
+            production.Update(.1); Check(slot.BotBroken, "production did not break bot");
+            view.UpdateRuntime(slot); AssertStatus(true);
+            // Assert immediately after each former writer, not just after a whole frame.
+            for (int tick = 0; tick < 30; tick++)
+            {
+                view.UpdateRuntime(slot); AssertStatus(true);
+                durability._Process(.21); AssertStatus(true);
+                view.ShowMachine(machine, slot, BotCatalog.Get(BotRarity.Common)); AssertStatus(true);
+                durability._Process(.21); view.UpdateRuntime(slot); AssertStatus(true);
+            }
+            Check(production.TryStartManual(room, 0).Started, "broken bot blocked manual production");
+            view.UpdateRuntime(slot); Check(status.Text.StartsWith("BOT BROKEN • MANUAL"), "manual status lost broken priority");
+            state.Tokens = 0; Check(!bots.RepairBot(room, 0).Changed, "unfunded repair succeeded");
+            view.UpdateRuntime(slot); durability._Process(.21); AssertStatus(true);
+            state.Tokens = 1e12; Check(bots.RepairBot(room, 0).Changed, "repair failed");
+            view.UpdateRuntime(slot); AssertStatus(false);
+            Check(!status.HasThemeColorOverride("font_color"), "red status retained after repair");
+            durability._Process(.21); AssertStatus(false);
+            slot.IsRunning = false; slot.ClearBot(); view.ShowMachine(machine, slot, null);
+            Check(status.Text == "READY" && start.Visible && !start.Disabled, "manual status after bot removal");
+            view.ShowLocked("1", state.CurrentRoom.EmptyTexture); durability._Process(.21);
+            Check(!status.Visible, "locked view revealed status");
+        }
+        view.Hide();
+		var readability = new UiReadabilityController { Name = "UiReadabilityController" };
+		root.AddChild(readability); readability.Initialize(root); readability.SetProcess(false);
+
+        root.AddChild(new Control { Name = "BottomBar" });
+        var service = new SingularityService(state);
+        var save = Field<SingularitySaveData>(service, "_data"); save.Unlocked = true; save.Matter = 1e12;
+        service.GetSector(0).CoreUnlocked = true;
+        var node = service.GetNode(0, 0); node.Type = SingularityNodeType.Compute; node.Level = 1; node.InvestedMatter = 10;
+        node.BotRarity = null; node.BotPurchasePriceMatter = 0; node.BotDurabilityInitialized = false; node.BotDurabilitySecondsRemaining = 0;
+        var controller = new SingularityController(root, state, service); controller.Initialize(); controller.EnableBotUi(); controller.Open();
+        foreach (var timer in root.FindChildren("*", "Timer", true, false).Cast<Timer>()) timer.Stop();
+        void OpenBot() => Call(controller, "OpenSingularityBotOverlay", 0, 0);
+        async Task CheckOpening()
+        {
+            var panel = Field<PanelContainer>(controller, "_singularityBotPanel");
+            await Frames(1); // First drawable frame, after native deferred layout.
+            var before = panel.GetGlobalRect();
+            for (int frame = 0; frame < 8; frame++)
+            {
+                readability._Process(.36);
+                await Frames(1);
+                Check(panel.GetGlobalRect() == before, "bot panel settled after opening: " + before + " -> " + panel.GetGlobalRect());
+            }
+        }
+        Button Find(string prefix, string field = "_singularityBotContent") => Field<Control>(controller, field)
+            .FindChildren("*", "Button", true, false).Cast<Button>().First(b => b.Text.StartsWith(prefix));
+        void Stable(Button button)
+        {
+            Check(button.GetThemeStylebox("hover") == button.GetThemeStylebox("normal"), "pointer entry changes bot background");
+            Check(button.GetThemeStylebox("pressed") == button.GetThemeStylebox("normal"), "pressed background differs: " + button.Text);
+            Check(button.GetThemeStylebox("hover_pressed") == button.GetThemeStylebox("hover"), "hover pressed differs");
+            Check(button.GetThemeColor("font_pressed_color") == button.GetThemeColor("font_color"), "pressed font differs");
+            Check(button.GetThemeColor("font_hover_color") == button.GetThemeColor("font_color"), "hover font differs");
+            Check(button.GetThemeColor("icon_pressed_color") == button.GetThemeColor("icon_normal_color"), "pressed icon differs");
+            Check(button.GetThemeConstant("h_pressed_offset") == 0 && button.GetThemeConstant("v_pressed_offset") == 0, "press offsets");
+            Check(button.Scale == Vector2.One, "scaled bot button");
+        }
+        async Task Tap(Button button)
+        {
+            Stable(button); await Frames();
+            Rect2 before = button.GetGlobalRect(); Color color = button.Modulate;
+            Vector2 point = before.GetCenter();
+            root.GetViewport().PushInput(new InputEventMouseMotion { Position = point, GlobalPosition = point }, true);
+            await Frames();
+            root.GetViewport().PushInput(new InputEventMouseButton { Position = point, GlobalPosition = point, ButtonIndex = MouseButton.Left, Pressed = true }, true);
+            await Frames(); Check(button.IsPressed(), "button did not receive held input: " + button.Text + " rect=" + before + " viewport=" + root.GetViewport().GetVisibleRect() + " hovered=" + root.GetViewport().GuiGetHoveredControl()?.GetPath());
+            Stable(button); Check(button.GetGlobalRect() == before && button.Modulate == color, "button moved/dimmed while held");
+            root.GetViewport().PushInput(new InputEventMouseButton { Position = point, GlobalPosition = point, ButtonIndex = MouseButton.Left, Pressed = false }, true);
+            await Frames();
+        }
+        root.GetViewport().NotifyMouseEntered();
+        OpenBot(); await CheckOpening(); double matter = service.Matter; double price = service.GetNodeBotPurchaseCost(0, 0);
+        await Tap(Find("BUY RANDOM BOT")); Check(node.HasWorkingBot, "bot purchase not executed"); Near(service.Matter, matter - price, "bot purchase charged wrong price");
+        var full = Find("FULL"); Stable(full); Check(full.Disabled, "full durability service enabled");
+        node.BotDurabilitySecondsRemaining *= .5; OpenBot(); await CheckOpening();
+        matter = service.Matter; price = service.GetNodeBotRepairCost(0, 0);
+        await Tap(Find("SERVICE")); Near(service.Matter, matter - price, "service cost changed"); Check(service.GetNodeBotDurabilityRatio(0, 0) == 1, "service didn't restore durability");
+        for (int tap = 0; tap < 4; tap++)
+        {
+            node.BotDurabilitySecondsRemaining = 0; OpenBot(); await CheckOpening();
+            matter = service.Matter; price = service.GetNodeBotRepairCost(0, 0);
+            await Tap(Find("REPAIR")); Near(service.Matter, matter - price, "rapid repair duplicate spend"); Check(!node.BotBroken, "repair didn't restore bot");
+            matter = service.Matter; price = service.GetNodeBotSellRefund(0, 0);
+            await Tap(Find("SELL BOT")); Check(!node.HasBot, "sell bot failed"); Near(service.Matter, matter + price, "sell refund changed");
+            matter = service.Matter; price = service.GetNodeBotPurchaseCost(0, 0);
+            await Tap(Find("BUY RANDOM BOT")); Near(service.Matter, matter - price, "rapid purchase duplicate spend"); Check(node.HasBot, "repeat purchase failed");
+        }
+        for (int index = 1; index <= 3; index++)
+        {
+            var other = service.GetNode(0, index);
+            other.Type = (SingularityNodeType)(index + 1); other.Level = 1;
+            other.BotRarity = BotRarity.Common;
+            other.BotDurabilityInitialized = true;
+            other.BotDurabilitySecondsRemaining = index == 2 ? 0 : 100;
+            Call(controller, "CloseSingularityBotOverlay");
+            Call(controller, "OpenSingularityBotOverlay", 0, index);
+            await CheckOpening();
+            // Same-cycle switches must not allow a stale deferred open to win.
+            Call(controller, "OpenSingularityBotOverlay", 0, 0);
+            Call(controller, "OpenSingularityBotOverlay", 0, index);
+            await CheckOpening();
+        }
+        Call(controller, "CloseSingularityBotOverlay");
+        Call(controller, "OpenNodeOverlay", 0); await Frames();
+        await Tap(Find("BOT •", "_detailContent"));
+        Check(Field<Control>(controller, "_singularityBotOverlay").Visible, "bot entry did not open detail view");
+        Call(controller, "CloseSingularityBotOverlay");
+        for (int tap = 0; tap < 4; tap++)
+        {
+            int level = node.Level; matter = service.Matter; price = service.GetNodeUpgradeCost(0, 0);
+            await Tap(Find("UPGRADE TO LEVEL", "_detailContent")); Check(node.Level == level + 1, "upgrade did not execute once"); Near(service.Matter, matter - price, "upgrade cost changed");
+        }
+        var upgrade = Find("UPGRADE TO LEVEL", "_detailContent");
+        service.SellNodeBot(0, 0); Call(controller, "UpdateDetailValues");
+        Check(upgrade.GetThemeStylebox("pressed") != upgrade.GetThemeStylebox("normal"), "non-bot upgrade feedback changed globally");
+        service.BuyNodeBot(0, 0); Call(controller, "UpdateDetailValues"); Stable(upgrade);
+        controller.Hide();
+        Console.WriteLine($"Bot UI: {checks} assertions passed (4 rooms, break/repair, held input and repeated Singularity actions).");
+        GC.KeepAlive(textures);
+    }
+}

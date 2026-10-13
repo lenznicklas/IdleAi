@@ -6,6 +6,7 @@
     <RootNamespace>IdleAi.Promo</RootNamespace>
   </PropertyGroup>
   <ItemGroup>
+    <Compile Include="../scripts/utility/NumberFormatter.cs" Link="Shared/NumberFormatter.cs" />
     <!-- Godot's Gradle staging directory can contain exported script copies. -->
     <Compile Remove="android/**/*.cs" />
   </ItemGroup>

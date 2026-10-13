@@ -11,7 +11,7 @@ config_version=5
 [application]
 
 config/name="Idle AI Promo"
-run/main_scene="res://ChooseMachineAd.tscn"
+run/main_scene="res://BotUpgradeReel.tscn"
 config/use_custom_user_dir=true
 config/custom_user_dir_name="IdleAiPromo"
 config/features=PackedStringArray("4.7", "C#", "GL Compatibility")

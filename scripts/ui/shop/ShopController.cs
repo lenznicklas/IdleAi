@@ -515,25 +515,24 @@ public sealed class ShopController
 
 		row.AddThemeConstantOverride(
 			"separation",
-			14
+			10
 		);
 
 		margin.AddChild(
 			row
 		);
 
-		TextureRect icon =
-			CreateIcon(
-				ShopUi.DataShard,
-				58
-			);
+		TextureRect icon = DataShardDisplay.CreateIcon();
 
 		row.AddChild(
 			icon
 		);
 
-		VBoxContainer text =
-			new();
+		VBoxContainer text = new()
+		{
+			SizeFlagsHorizontal = Control.SizeFlags.Fill,
+			SizeFlagsVertical = Control.SizeFlags.ShrinkCenter
+		};
 
 		row.AddChild(
 			text
@@ -546,6 +545,7 @@ public sealed class ShopController
 
 		title.Text =
 			"DATA SHARDS";
+		title.AutowrapMode = TextServer.AutowrapMode.Off;
 
 		title.HorizontalAlignment =
 			HorizontalAlignment.Left;
@@ -559,21 +559,16 @@ public sealed class ShopController
 				26
 			);
 
-		_shardLabel.CustomMinimumSize =
-			new Vector2(
-				220,
-				42
-			);
-
-		_shardLabel.HorizontalAlignment =
-			HorizontalAlignment.Right;
-
 		_shardLabel.AddThemeColorOverride(
 			"font_color",
 			ShopUi.Accent
 		);
 
-		DataShardDisplay.Configure(_shardLabel);
+		DataShardDisplay.Configure(_shardLabel, 0);
+		// Use the compact value's measured width so the HBox centers the whole group.
+		_shardLabel.ClipText = false;
+		_shardLabel.HorizontalAlignment = HorizontalAlignment.Left;
+		_shardLabel.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 
 		text.AddChild(
 			_shardLabel

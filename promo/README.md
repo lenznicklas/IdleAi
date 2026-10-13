@@ -1,5 +1,50 @@
 # Idle AI recording sandbox
 
+## Common → Legendary bot reel
+
+Open `BotUpgradeReel.tscn` in **this promo project** and press F6, or run:
+
+```sh
+dotnet build promo/PromoRecording.csproj
+godot-mono --path promo res://BotUpgradeReel.tscn
+```
+
+One fixed Server machine produces automatically. Wait briefly at Common, then tap
+**UPGRADE BOT** three times to reach Rare, Epic, and Legendary. Each upgrade changes
+only the bot. Promo income is $10 → $1K → $100K → $10M per second (×100 at each step).
+The counter integrates income each frame and uses Idle AI's shared `NumberFormatter`.
+Rarity changes give the bot a brief pop/glow; holding the button does not animate it.
+Legendary disables the button and keeps a stronger glow. After a 2.5-second hold,
+a gold **COMING SOON** ending card appears above the darkening screen: shade fades
+over 0.45 seconds, text fades over 0.55 seconds with a 0.2-second delay. The message
+stays visible until the scene is stopped; production and money effects continue.
+Stop/run the scene to reset.
+
+The scene shares the other reels' background texture/dark blue tint and existing
+tap ripple. Floating money rises/fades over 0.65 seconds, spawning every 0.9 / 0.55 /
+0.32 / 0.2 seconds as rarity increases, with at most six live popups. Bot and button
+sit above an expandable bottom recording-safe area. Physical mouse/touch presses
+show one ripple on the button; synthesized duplicate input is ignored.
+
+Machine and bot artwork gently hover (4–5 logical pixels, reduced on short screens)
+inside fixed container frames. Successful rarity changes add a 5% bot pop settling
+over 0.28 seconds and a brief glow. Neither animation changes card/button bounds.
+The ending Label keeps its natural minimum width, so centering cannot clip it away.
+
+The scene uses the existing server/font assets and copies of the game's four bot
+textures. It never initializes game state, reads saves, or writes saves. The shared
+formatter is compiled directly from its original source; there is no game assembly
+dependency. Neither project's default scene nor any normal game balance changes.
+
+Headless regression check (after importing the promo project):
+
+```sh
+godot-mono --headless --path promo res://ReelCheck.tscn
+```
+
+For an Android recording, run this scene with F6 using the promo project's existing
+remote deployment workflow. Its normal export/default scene remains unchanged.
+
 This folder is a **separate Godot 4.7.2 Mono project**, deliberately not a scene launched from the production game. Its `res://` root is this folder. Open `promo/project.godot`, not the repository's `project.godot`, to record or export it.
 
 This is the alternative to changing the production main scene or disabling its Play Games autoload. The promo project has no autoloads, addons, external game references, service initialization, save reads/writes, or production assembly dependency. Even F6 from the production project would initialize its autoload, so the promo folder is hidden there with `.gdignore`.

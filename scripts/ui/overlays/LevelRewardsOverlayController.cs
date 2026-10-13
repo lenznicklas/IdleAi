@@ -253,14 +253,7 @@ public sealed class LevelRewardsOverlayController
 			SizeFlagsVertical = Control.SizeFlags.Fill
 		};
 		preview.AddThemeConstantOverride("separation", 10);
-		_shard = new TextureRect {
-			SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter,
-			SizeFlagsVertical = Control.SizeFlags.ShrinkCenter,
-			Texture = ShopUi.DataShard, CustomMinimumSize = new Vector2(32, 32),
-			ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-			StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-			MouseFilter = Control.MouseFilterEnum.Ignore
-		};
+		_shard = DataShardDisplay.CreateIcon();
 		preview.AddChild(_shard);
 		Label rewardPreview = CreateLabel($"+{NumberFormatter.FormatDataShards(LevelRewardService.RewardDataShards)} DATA SHARDS", 18);
 		// Autowrapped labels have no useful horizontal minimum in a centered HBox.
@@ -441,9 +434,7 @@ public sealed class LevelRewardsOverlayController
 		}
 		_claimButton.Visible = ready;
 		_claimButton.Disabled = !ready;
-		_claimButton.AddThemeStyleboxOverride("normal", CreateMilestoneStyle(accent, .25f));
-		_claimButton.AddThemeStyleboxOverride("hover", CreateMilestoneStyle(accent, .4f));
-		_claimButton.AddThemeStyleboxOverride("pressed", CreateMilestoneStyle(accent, .15f));
+		ApplyStableButtonStyle(_claimButton, accent);
 		if (ready != _wasReady || _lastLevel < 0) UpdatePulse(ready);
 		_lastLevel = current;
 		_lastClaimed = claimed;
@@ -457,12 +448,9 @@ public sealed class LevelRewardsOverlayController
 		_claimButton.Scale = Vector2.One;
 		_milestone.Modulate = Colors.White;
 		if (!ready || !Visible) return;
-		_claimButton.PivotOffset = _claimButton.Size / 2;
-		_pulseTween = _claimButton.CreateTween().SetLoops();
-		_pulseTween.TweenProperty(_claimButton, "scale", Vector2.One * 1.025f, .9).SetTrans(Tween.TransitionType.Sine);
-		_pulseTween.Parallel().TweenProperty(_milestone, "modulate", new Color(1.08f, 1.04f, 1f), .9);
-		_pulseTween.TweenProperty(_claimButton, "scale", Vector2.One, .9).SetTrans(Tween.TransitionType.Sine);
-		_pulseTween.Parallel().TweenProperty(_milestone, "modulate", Colors.White, .9);
+		_pulseTween = _milestone.CreateTween().SetLoops();
+		_pulseTween.TweenProperty(_milestone, "modulate", new Color(1.08f, 1.04f, 1f), .9);
+		_pulseTween.TweenProperty(_milestone, "modulate", Colors.White, .9);
 	}
 
 	public void CelebrateMilestone()
@@ -489,8 +477,17 @@ public sealed class LevelRewardsOverlayController
 		_feedbackTween.TweenProperty(_shard, "scale", Vector2.One, .35).SetTrans(Tween.TransitionType.Back);
 		Label floating = CreateLabel($"+{NumberFormatter.FormatDataShards(LevelRewardService.RewardDataShards)} DATA SHARDS", 24);
 		floating.AddThemeColorOverride("font_color", new Color(1f, .82f, .3f));
+		floating.Size = new Vector2(Math.Max(0, _panel.Size.X - 40), 0);
+		floating.VerticalAlignment = VerticalAlignment.Top;
 		_overlay.AddChild(floating);
-		floating.GlobalPosition = _shard.GlobalPosition + new Vector2(-70, -30);
+		// This label has no Container parent: supply its wrapping width explicitly.
+		// Follow the panel's responsive width, leaving room for the font outline.
+		floating.AnchorLeft = _panel.AnchorLeft;
+		floating.AnchorRight = _panel.AnchorRight;
+		floating.OffsetLeft = _panel.OffsetLeft + 20;
+		floating.OffsetRight = _panel.OffsetRight - 20;
+		floating.Position = new Vector2(floating.Position.X,
+			Math.Max(48, _shard.GlobalPosition.Y - _overlay.GlobalPosition.Y - 30));
 		Tween rise = floating.CreateTween();
 		rise.TweenProperty(floating, "position:y", floating.Position.Y - 45, .9);
 		rise.Parallel().TweenProperty(floating, "modulate:a", 0f, .9);
@@ -784,9 +781,28 @@ public sealed class LevelRewardsOverlayController
 				true;
 		}
 
+		ApplyStableButtonStyle(button, accent);
+
 		row.AddChild(
 			button
 		);
+	}
+
+	private static void ApplyStableButtonStyle(Button button, Color accent)
+	{
+		var normal = CreateMilestoneStyle(accent, .25f);
+		var hover = CreateMilestoneStyle(accent, .4f);
+		button.AddThemeStyleboxOverride("normal", normal);
+		button.AddThemeStyleboxOverride("pressed", normal);
+		button.AddThemeStyleboxOverride("hover", hover);
+		button.AddThemeStyleboxOverride("hover_pressed", hover);
+		button.AddThemeStyleboxOverride("disabled", CreateMilestoneStyle(accent, .08f));
+		button.AddThemeColorOverride("font_color", Colors.White);
+		button.AddThemeColorOverride("font_hover_color", Colors.White);
+		button.AddThemeColorOverride("font_pressed_color", Colors.White);
+		button.AddThemeColorOverride("font_hover_pressed_color", Colors.White);
+		button.AddThemeConstantOverride("h_pressed_offset", 0);
+		button.AddThemeConstantOverride("v_pressed_offset", 0);
 	}
 
 	private void Claim(

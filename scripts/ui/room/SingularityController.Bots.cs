@@ -18,6 +18,7 @@ public sealed partial class SingularityController
 	private PanelContainer? _singularityBotPanel;
 
 	private VBoxContainer? _singularityBotContent;
+	private int _singularityBotOpenGeneration;
 
 	private Timer? _singularityBotUiTimer;
 
@@ -170,6 +171,7 @@ public sealed partial class SingularityController
 		_detailContent.AddChild(
 			button
 		);
+		DisableBotButtonPressVisual(button);
 	}
 
 
@@ -422,14 +424,43 @@ public sealed partial class SingularityController
 			nodeIndex;
 
 		BuildSingularityBotOverlayContent();
-
-		_singularityBotOverlay?.Show();
+		PrepareSingularityBotLayout();
+		if (_singularityBotOverlay == null) return;
+		// Allow native text shaping/container queues to finish without drawing an
+		// intermediate panel. Restore drawing in the same deferred layout cycle.
+		int generation = ++_singularityBotOpenGeneration;
+		_singularityBotOverlay.Show();
+		RenderingServer.CanvasItemSetVisible(_singularityBotOverlay.GetCanvasItem(), false);
+		Callable.From(() => Callable.From(() =>
+		{
+			if (generation != _singularityBotOpenGeneration) return;
+			PrepareSingularityBotLayout();
+			RenderingServer.CanvasItemSetVisible(_singularityBotOverlay.GetCanvasItem(), _singularityBotOverlay.IsVisibleInTree());
+		}).CallDeferred()).CallDeferred();
 		_singularityBotOverlay?.MoveToFront();
+	}
+
+	private void PrepareSingularityBotLayout()
+	{
+		if (_singularityBotOverlay == null) return;
+		// The global periodic readability scan must not change font metrics after opening.
+		_root.GetNodeOrNull<UiReadabilityController>("UiReadabilityController")
+			?.ApplyToSubtree(_singularityBotOverlay);
+		// Minimum sizes propagate upward; allocated widths (including wrapped labels)
+		// propagate downward. Native deferred text shaping runs before the final sort.
+		void Sort(Node node)
+		{
+			foreach (Node child in node.GetChildren()) Sort(child);
+			if (node is Container container)
+				container.Notification((int)Container.NotificationSortChildren);
+		}
+		for (int pass = 0; pass < 4; pass++) Sort(_singularityBotOverlay);
 	}
 
 
 	private void CloseSingularityBotOverlay()
 	{
+		_singularityBotOpenGeneration++;
 		_singularityBotOverlay?.Hide();
 
 		_singularityBotSectorIndex =
@@ -661,6 +692,7 @@ public sealed partial class SingularityController
 		_singularityBotContent.AddChild(
 			buy
 		);
+		DisableBotButtonPressVisual(buy);
 	}
 
 
@@ -888,6 +920,7 @@ public sealed partial class SingularityController
 		actions.AddChild(
 			repair
 		);
+		DisableBotButtonPressVisual(repair);
 
 
 		double refund =
@@ -939,6 +972,7 @@ public sealed partial class SingularityController
 		actions.AddChild(
 			sell
 		);
+		DisableBotButtonPressVisual(sell);
 	}
 
 
@@ -954,6 +988,22 @@ public sealed partial class SingularityController
 
 		RefreshAll();
 		BuildSingularityBotOverlayContent();
+		PrepareSingularityBotLayout();
+	}
+
+	private static void DisableBotButtonPressVisual(Button button)
+	{
+		// Touch/mouse entry must not introduce a hover change that looks like a press.
+		// Keep the disabled palette and functional input handling intact.
+		foreach (string state in new[] { "hover", "pressed", "hover_pressed" })
+			button.AddThemeStyleboxOverride(state, button.GetThemeStylebox("normal"));
+		foreach (string state in new[] { "hover", "pressed", "hover_pressed" })
+		{
+			button.AddThemeColorOverride($"font_{state}_color", button.GetThemeColor("font_color"));
+			button.AddThemeColorOverride($"icon_{state}_color", button.GetThemeColor("icon_normal_color"));
+		}
+		button.AddThemeConstantOverride("h_pressed_offset", 0);
+		button.AddThemeConstantOverride("v_pressed_offset", 0);
 	}
 
 
@@ -1058,6 +1108,7 @@ public sealed partial class SingularityController
 		image.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
 		button.AddChild(image);
 		sector.Root.AddChild(button); // Sibling of the clipped Node; inherits every map transform.
+		DisableBotButtonPressVisual(button);
 		button.Pressed += () =>
 		{
 			if (_panInput.ShouldSuppressClick) return;

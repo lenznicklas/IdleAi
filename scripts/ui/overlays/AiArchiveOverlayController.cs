@@ -33,7 +33,9 @@ public sealed class AiArchiveOverlayController
         _root.AddChild(_overlay); _overlay.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         var panel = new PanelContainer(); _overlay.AddChild(panel);
         panel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
-        panel.AddThemeStyleboxOverride("panel", Style(new Color("091323"), Cyan));
+        var panelStyle = Style(new Color("091323"), Cyan);
+        panelStyle.SetBorderWidthAll(0);
+        panel.AddThemeStyleboxOverride("panel", panelStyle);
         var margin = new MarginContainer(); panel.AddChild(margin);
         foreach (string edge in new[] { "left", "right", "top", "bottom" }) margin.AddThemeConstantOverride("margin_" + edge, 28);
         var body = new VBoxContainer(); margin.AddChild(body); body.AddThemeConstantOverride("separation", 14);

@@ -4,8 +4,8 @@ namespace IdleAi;
 
 
 /*
- * Keeps the room slot visuals synchronized with Bot durability without
- * coupling the core RoomUiController to the new durability system.
+ * Periodic durability refresh uses MachineSlot's same authoritative presentation
+ * decision as the room/cycle refresh, including broken-state priority.
  */
 public sealed partial class BotDurabilityUiController
 	: Node

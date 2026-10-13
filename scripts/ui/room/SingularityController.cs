@@ -3957,6 +3957,16 @@ public sealed partial class SingularityController
 			upgrade,
 			accent
 		);
+		bool? upgradeHasBot = null;
+		void UpdateUpgradePressStyle()
+		{
+			bool hasBot = _service.GetNode(_service.CurrentSectorIndex, _selectedNode).HasBot;
+			if (upgradeHasBot == hasBot) return;
+			ApplyNodeTypeButtonStyle(upgrade, accent);
+			if (hasBot) DisableBotButtonPressVisual(upgrade);
+			upgradeHasBot = hasBot;
+		}
+		_detailValueUpdates.Add(UpdateUpgradePressStyle);
 
 		upgrade.Pressed +=
 			() =>
@@ -3974,6 +3984,7 @@ public sealed partial class SingularityController
 		_detailContent.AddChild(
 			upgrade
 		);
+		UpdateUpgradePressStyle();
 
 
 		double sellRefund =

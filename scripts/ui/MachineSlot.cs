@@ -909,31 +909,8 @@ public partial class MachineSlot : Control
 		_progressBar.Show();
 		_statusLabel.Show();
 
-		if (bot == null)
-		{
-			StopBotAnimation();
-
-			_botVisual.Hide();
-			_startButton.Show();
-		}
-		else
-		{
-			_startButtonTween?.Kill();
-
-			_startButton.Scale =
-				Vector2.One;
-
-			_startButton.Modulate =
-				Colors.White;
-
-			_startButton.Hide();
-			_botVisual.Show();
-
-			_botButton.TextureNormal =
-				bot.Texture;
-
-			StartBotAnimation();
-		}
+		if (bot != null)
+			_botButton.TextureNormal = bot.Texture;
 
 		UpdateRuntime(
 			slot
@@ -959,6 +936,7 @@ public partial class MachineSlot : Control
 					);
 
 		_visualEffects.Refresh(slot, cycleDuration, _machineButton.TextureNormal);
+		ApplyBotDurabilityVisual(slot);
 
 		if (slot.IsRunning)
 		{
@@ -976,57 +954,12 @@ public partial class MachineSlot : Control
 			_progressBar.UpdateProgress(
 				Math.Clamp(progress, 0.0, 100.0), running: true);
 
-			string time =
-				Math.Max(
-					0.0,
-					slot.CycleRemaining
-				)
-				.ToString(
-					"F1"
-				);
-
-			if (slot.HasBot)
-			{
-				_statusLabel.Text =
-					$"AUTO • {time}s";
-			}
-			else
-			{
-				_statusLabel.Text =
-					$"{time}s";
-			}
-
-			/*
-			 * Important: a manual machine stays clickable while
-			 * the cycle is running. Further presses smoothly
-			 * advance the cycle by 0.5 seconds.
-			 */
-			_startButton.Disabled =
-				slot.HasBot;
-
 			return;
 		}
 
 		StopMachineAnimation();
 
 		_progressBar.UpdateProgress(100.0, running: false);
-
-		if (slot.HasBot)
-		{
-			_statusLabel.Text =
-				"AUTO";
-
-			_startButton.Disabled =
-				true;
-		}
-		else
-		{
-			_statusLabel.Text =
-				"READY";
-
-			_startButton.Disabled =
-				false;
-		}
 	}
 
 	// ==================================================

@@ -1,0 +1,19 @@
+[remap]
+
+importer="csv_translation"
+type="Translation"
+uid="uid://dtfhsahkjpjfv"
+
+[deps]
+
+files=["res://reports/asset-optimization-after.category.translation", "res://reports/asset-optimization-after.width.translation", "res://reports/asset-optimization-after.height.translation", "res://reports/asset-optimization-after.bytes.translation", "res://reports/asset-optimization-after.after.translation", "res://reports/asset-optimization-after.after.translation", "res://reports/asset-optimization-after.after.translation", "res://reports/asset-optimization-after.channels.translation", "res://reports/asset-optimization-after.after.translation", "res://reports/asset-optimization-after.after.translation"]
+
+source_file="res://reports/asset-optimization-after.csv"
+dest_files=["res://reports/asset-optimization-after.category.translation", "res://reports/asset-optimization-after.width.translation", "res://reports/asset-optimization-after.height.translation", "res://reports/asset-optimization-after.bytes.translation", "res://reports/asset-optimization-after.after.translation", "res://reports/asset-optimization-after.after.translation", "res://reports/asset-optimization-after.after.translation", "res://reports/asset-optimization-after.channels.translation", "res://reports/asset-optimization-after.after.translation", "res://reports/asset-optimization-after.after.translation"]
+
+[params]
+
+compress=1
+delimiter=0
+unescape_keys=false
+unescape_translations=true

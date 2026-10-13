@@ -1,0 +1,214 @@
+path,width,height,bytes,category,target_width,target_height,maximum,resize,note
+addons/admob/assets/android.png,76,76,6674,other assets,76,76,,False,Launcher/plugin/generated artwork excluded
+addons/admob/assets/donate/Ko-fi_Logo_RGB_ColorBg.png,1655,601,20680,other assets,1655,601,,False,Launcher/plugin/generated artwork excluded
+addons/admob/assets/icon-1024.png,1024,1024,264159,other assets,1024,1024,,False,Launcher/plugin/generated artwork excluded
+addons/admob/assets/icon-120.png,120,120,13368,other assets,120,120,,False,Launcher/plugin/generated artwork excluded
+addons/admob/assets/icon-15.png,15,15,2507,other assets,15,15,,False,Launcher/plugin/generated artwork excluded
+addons/admob/assets/icon-500.png,500,500,56624,other assets,500,500,,False,Launcher/plugin/generated artwork excluded
+addons/admob/assets/icon-76.png,76,76,7491,other assets,76,76,,False,Launcher/plugin/generated artwork excluded
+addons/admob/assets/ios.png,200,200,23445,other assets,200,200,,False,Launcher/plugin/generated artwork excluded
+android/build/assetPackInstallTime/src/main/assets/assets/ui/app_icon.png,1254,1254,2262095,other assets,1254,1254,,False,Launcher/plugin/generated artwork excluded
+android/build/assetPackInstallTime/src/main/assets/assets/ui/loading_screen.png,821,1916,3011573,other assets,821,1916,,False,Launcher/plugin/generated artwork excluded
+assets/background/bg.png,941,1672,1397147,other assets,941,1672,,False,Background/loading/banner artwork excluded
+assets/background/bg_room3.png,941,1672,1460189,other assets,941,1672,,False,Background/loading/banner artwork excluded
+assets/background/bg_room4.png,941,1672,1543298,other assets,941,1672,,False,Background/loading/banner artwork excluded
+assets/background/border.png,1254,1254,891095,other assets,1254,1254,,False,Background/loading/banner artwork excluded
+assets/background/lab_background.png,941,1672,1604481,other assets,941,1672,,False,Background/loading/banner artwork excluded
+assets/background/server_room.png,941,1672,1396818,other assets,941,1672,,False,Background/loading/banner artwork excluded
+assets/bots/apocalypse_skin/common.png,1254,1254,1901442,bot skins,512,512,512,True,
+assets/bots/apocalypse_skin/epic.png,1294,1216,1811670,bot skins,512,481,512,True,
+assets/bots/apocalypse_skin/legendary.png,1402,1122,2209639,bot skins,512,410,512,True,
+assets/bots/apocalypse_skin/rare.png,1448,1086,1473700,bot skins,512,384,512,True,
+assets/bots/common.png,1448,1086,954094,bot sprites,512,384,512,True,
+assets/bots/epic.png,1287,1222,1290439,bot sprites,512,486,512,True,
+assets/bots/halloween_skin/common.png,1448,1086,1302187,bot skins,512,384,512,True,
+assets/bots/halloween_skin/epic.png,1448,1086,1493618,bot skins,512,384,512,True,
+assets/bots/halloween_skin/legendary.png,1448,1086,1618674,bot skins,512,384,512,True,
+assets/bots/halloween_skin/offer.png,1672,941,2632068,other assets,1672,941,,False,Offer banner
+assets/bots/halloween_skin/rare.png,1448,1086,1415933,bot skins,512,384,512,True,
+assets/bots/korpo_skin/common.png,1448,1086,1135011,bot skins,512,384,512,True,
+assets/bots/korpo_skin/epic.png,1448,1086,1288504,bot skins,512,384,512,True,
+assets/bots/korpo_skin/legendary.png,1254,1254,1733540,bot skins,512,512,512,True,
+assets/bots/korpo_skin/rare.png,1448,1086,1192626,bot skins,512,384,512,True,
+assets/bots/legendary.png,1448,1086,1436273,bot sprites,512,384,512,True,
+assets/bots/military_skin/common.png,1312,1199,1483089,bot skins,512,468,512,True,
+assets/bots/military_skin/epic.png,1287,1222,1518956,bot skins,512,486,512,True,
+assets/bots/military_skin/legendary.png,1447,1087,1921832,bot skins,512,385,512,True,
+assets/bots/military_skin/rare.png,1447,1087,1284331,bot skins,512,385,512,True,
+assets/bots/nature_overgrown_skin/common.png,1447,1087,1614385,bot skins,512,385,512,True,
+assets/bots/nature_overgrown_skin/epic.png,1287,1222,1923098,bot skins,512,486,512,True,
+assets/bots/nature_overgrown_skin/legendary.png,1447,1087,2228682,bot skins,512,385,512,True,
+assets/bots/nature_overgrown_skin/rare.png,1319,1193,1784523,bot skins,512,463,512,True,
+assets/bots/rare.png,1448,1086,1011182,bot sprites,512,384,512,True,
+assets/bots/steampunk_skin/common.png,1448,1086,1352958,bot skins,512,384,512,True,
+assets/bots/steampunk_skin/epic.png,1122,1402,1735161,bot skins,410,512,512,True,
+assets/bots/steampunk_skin/legendary.png,1448,1086,1804674,bot skins,512,384,512,True,
+assets/bots/steampunk_skin/rare.png,1448,1086,1384074,bot skins,512,384,512,True,
+assets/infrastructure/cooling.png,1254,1254,1691469,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/infrastructure/power.png,1254,1254,1440837,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/infrastructure/storage.png,1279,1230,1290957,UI icons,1279,1230,,False,Outside requested token/level categories
+assets/infrastructure/temperature.png,1254,1254,1596991,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/lab/lab.png,1254,1254,1449557,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/lab/lab_locked.png,1254,1254,966215,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/lab/research_active.png,1296,1213,1499573,UI icons,1296,1213,,False,Outside requested token/level categories
+assets/lab/research_completed.png,1296,1213,1564550,UI icons,1296,1213,,False,Outside requested token/level categories
+assets/lab/research_hardware.png,1254,1254,1800060,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/lab/research_infrastructure.png,1254,1254,1683583,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/lab/research_locked.png,1297,1213,1487457,UI icons,1297,1213,,False,Outside requested token/level categories
+assets/lab/research_points_icon.png,1254,1254,1605573,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/lab/research_robotics.png,1254,1254,1762995,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/machines/room_1/empty.png,1448,1086,915994,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_1/machine1.png,1448,1086,1205255,machine sprites,512,384,512,True,
+assets/machines/room_1/machine2.png,1448,1086,1464833,machine sprites,512,384,512,True,
+assets/machines/room_1/machine3.png,1448,1086,1575731,machine sprites,512,384,512,True,
+assets/machines/room_1/machine4.png,1448,1086,1263357,machine sprites,512,384,512,True,
+assets/machines/room_1/skin_halloween/empty.png,1448,1086,1593154,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_1/skin_halloween/machine_1.png,1448,1086,2019196,machine skins,512,384,512,True,
+assets/machines/room_1/skin_halloween/machine_2.png,1448,1086,2274978,machine skins,512,384,512,True,
+assets/machines/room_1/skin_halloween/machine_3.png,1448,1086,2369387,machine skins,512,384,512,True,
+assets/machines/room_1/skin_halloween/machine_4.png,1448,1086,1596686,machine skins,512,384,512,True,
+assets/machines/room_1/skin_lab/empty.png,1448,1086,1371394,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_1/skin_lab/machine_1.png,1448,1086,1709151,machine skins,512,384,512,True,
+assets/machines/room_1/skin_lab/machine_2.png,1448,1086,2099490,machine skins,512,384,512,True,
+assets/machines/room_1/skin_lab/machine_3.png,1448,1086,2013101,machine skins,512,384,512,True,
+assets/machines/room_1/skin_lab/machine_4.png,1448,1086,1643240,machine skins,512,384,512,True,
+assets/machines/room_1/skin_retro/empty.png,1448,1086,1072492,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_1/skin_retro/machine1.png,1448,1086,1742201,machine skins,512,384,512,True,
+assets/machines/room_1/skin_retro/machine2.png,1448,1086,1946552,machine skins,512,384,512,True,
+assets/machines/room_1/skin_retro/machine3.png,1536,1024,1830107,machine skins,512,341,512,True,
+assets/machines/room_1/skin_retro/machine4.png,1214,1295,2069218,machine skins,480,512,512,True,
+assets/machines/room_2/empty.png,1448,1086,973835,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_2/machine1.png,1448,1086,1250527,machine sprites,512,384,512,True,
+assets/machines/room_2/machine2.png,1448,1086,1427649,machine sprites,512,384,512,True,
+assets/machines/room_2/machine3.png,1448,1086,1692671,machine sprites,512,384,512,True,
+assets/machines/room_2/machine4.png,1448,1086,1916885,machine sprites,512,384,512,True,
+assets/machines/room_2/skin_halloween/empty.png,1448,1086,1418294,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_2/skin_halloween/machine_1.png,1448,1086,1676738,machine skins,512,384,512,True,
+assets/machines/room_2/skin_halloween/machine_2.png,1448,1086,1873324,machine skins,512,384,512,True,
+assets/machines/room_2/skin_halloween/machine_3.png,1448,1086,2211399,machine skins,512,384,512,True,
+assets/machines/room_2/skin_halloween/machine_4.png,1448,1086,2544510,machine skins,512,384,512,True,
+assets/machines/room_2/skin_lab/empty.png,1448,1086,1320507,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_2/skin_lab/machine_1.png,1448,1086,1564651,machine skins,512,384,512,True,
+assets/machines/room_2/skin_lab/machine_2.png,1448,1086,1793420,machine skins,512,384,512,True,
+assets/machines/room_2/skin_lab/machine_3.png,1448,1086,2113765,machine skins,512,384,512,True,
+assets/machines/room_2/skin_lab/machine_4.png,1448,1086,2425376,machine skins,512,384,512,True,
+assets/machines/room_2/skin_retro/empty.png,1448,1086,1131456,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_2/skin_retro/machine1.png,1122,1402,2154167,machine skins,410,512,512,True,
+assets/machines/room_2/skin_retro/machine2.png,1448,1086,1695620,machine skins,512,384,512,True,
+assets/machines/room_2/skin_retro/machine3.png,1448,1086,2147799,machine skins,512,384,512,True,
+assets/machines/room_2/skin_retro/machine4.png,1448,1086,1997012,machine skins,512,384,512,True,
+assets/machines/room_3/empty.png,1448,1086,1004550,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_3/machine1.png,1448,1086,1435913,machine sprites,512,384,512,True,
+assets/machines/room_3/machine2.png,1448,1086,1792116,machine sprites,512,384,512,True,
+assets/machines/room_3/machine3.png,1448,1086,2078636,machine sprites,512,384,512,True,
+assets/machines/room_3/machine4.png,1448,1086,2329695,machine sprites,512,384,512,True,
+assets/machines/room_3/skin_halloween/empty.png,1448,1086,1543942,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_3/skin_halloween/machine_1.png,1448,1086,1986470,machine skins,512,384,512,True,
+assets/machines/room_3/skin_halloween/machine_2.png,1448,1086,2405421,machine skins,512,384,512,True,
+assets/machines/room_3/skin_halloween/machine_3.png,1448,1086,2562426,machine skins,512,384,512,True,
+assets/machines/room_3/skin_halloween/machine_4.png,1448,1086,2812934,machine skins,512,384,512,True,
+assets/machines/room_3/skin_lab/empty.png,1448,1086,1395267,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_3/skin_lab/machine_1.png,1448,1086,1912014,machine skins,512,384,512,True,
+assets/machines/room_3/skin_lab/machine_2.png,1448,1086,2359622,machine skins,512,384,512,True,
+assets/machines/room_3/skin_lab/machine_3.png,1448,1086,2620039,machine skins,512,384,512,True,
+assets/machines/room_3/skin_lab/machine_4.png,1448,1086,2908427,machine skins,512,384,512,True,
+assets/machines/room_3/skin_retro/empty.png,1447,1087,1431253,UI icons,1447,1087,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_3/skin_retro/machine1.png,1448,1086,1851872,machine skins,512,384,512,True,
+assets/machines/room_3/skin_retro/machine2.png,1448,1086,2257099,machine skins,512,384,512,True,
+assets/machines/room_3/skin_retro/machine3.png,1448,1086,2429729,machine skins,512,384,512,True,
+assets/machines/room_3/skin_retro/machine4.png,1448,1086,2580433,machine skins,512,384,512,True,
+assets/machines/room_4/empty.png,1448,1086,966364,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_4/machine1.png,1448,1086,1636066,machine sprites,512,384,512,True,
+assets/machines/room_4/machine2.png,1448,1086,1843518,machine sprites,512,384,512,True,
+assets/machines/room_4/machine3.png,1448,1086,2139242,machine sprites,512,384,512,True,
+assets/machines/room_4/machine4.png,1448,1086,2391417,machine sprites,512,384,512,True,
+assets/machines/room_4/skin_halloween/empty.png,1448,1086,1456903,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_4/skin_halloween/machine_1.png,1448,1086,2103843,machine skins,512,384,512,True,
+assets/machines/room_4/skin_halloween/machine_2.png,1448,1086,2173179,machine skins,512,384,512,True,
+assets/machines/room_4/skin_halloween/machine_3.png,1448,1086,2698117,machine skins,512,384,512,True,
+assets/machines/room_4/skin_halloween/machine_4.png,1448,1086,2789242,machine skins,512,384,512,True,
+assets/machines/room_4/skin_lab/empty.png,1448,1086,1438359,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_4/skin_lab/machine_1.png,1448,1086,1983717,machine skins,512,384,512,True,
+assets/machines/room_4/skin_lab/machine_2.png,1448,1086,2225906,machine skins,512,384,512,True,
+assets/machines/room_4/skin_lab/machine_3.png,1448,1086,2499283,machine skins,512,384,512,True,
+assets/machines/room_4/skin_lab/machine_4.png,1448,1086,2700334,machine skins,512,384,512,True,
+assets/machines/room_4/skin_retro/empty.png,1448,1086,1467086,UI icons,1448,1086,,False,Empty-slot artwork; not an actual machine sprite
+assets/machines/room_4/skin_retro/machine1.png,1447,1087,1748776,machine skins,512,385,512,True,
+assets/machines/room_4/skin_retro/machine2.png,1447,1087,2054861,machine skins,512,385,512,True,
+assets/machines/room_4/skin_retro/machine3.png,1447,1087,2438553,machine skins,512,385,512,True,
+assets/machines/room_4/skin_retro/machine4.png,1447,1087,2500588,machine skins,512,385,512,True,
+assets/map/locked_data_center.png,1402,1122,1839329,UI icons,1402,1122,,False,Outside requested token/level categories
+assets/map/locked_quantum_lab.png,1402,1122,1845209,UI icons,1402,1122,,False,Outside requested token/level categories
+assets/map/locked_server_room.png,1448,1086,1643383,UI icons,1448,1086,,False,Outside requested token/level categories
+assets/map/locked_singularity.png,1448,1086,2204449,UI icons,1448,1086,,False,Outside requested token/level categories
+assets/map/room_coming_soon.png,1402,1122,1821464,UI icons,1402,1122,,False,Outside requested token/level categories
+assets/map/room_current.png,1337,1176,1135015,UI icons,1337,1176,,False,Outside requested token/level categories
+assets/map/room_data_center.png,1254,1254,1742516,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/map/room_garage.png,1254,1254,1567790,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/map/room_quantum_lab.png,1402,1122,1919064,UI icons,1402,1122,,False,Outside requested token/level categories
+assets/map/room_server_room.png,1402,1122,1797921,UI icons,1402,1122,,False,Outside requested token/level categories
+assets/map/room_singularity.png,1448,1086,2365607,UI icons,1448,1086,,False,Outside requested token/level categories
+assets/map/route_node.png,1374,1145,856309,UI icons,1374,1145,,False,Outside requested token/level categories
+assets/pipeline/pipeline_bottleneck.png,1254,1254,1285431,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/pipeline/pipeline_compute.png,1254,1254,1535896,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/pipeline/pipeline_data.png,1254,1254,1666339,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/pipeline/pipeline_model.png,1310,1200,2014971,UI icons,1310,1200,,False,Outside requested token/level categories
+assets/pipeline/pipeline_output.png,1254,1254,1731075,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/pipeline/pipeline_upgrade.png,1254,1254,1158083,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/quantum/quantum_amplifier.png,1254,1254,1615361,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/quantum/quantum_core.png,1254,1254,1545968,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/quantum/quantum_energy.png,1254,1254,1493188,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/quantum/quantum_overclock.png,1254,1254,1382032,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/quantum/quantum_stability.png,1254,1254,1637577,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/quantum/quantum_stabilizer.png,1254,1254,1594128,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/shop/data_shard.png,1254,1254,1181333,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/shop/events/halloween_machine_skin.png,1672,941,3082773,other assets,1672,941,,False,Shop/offer artwork excluded
+assets/shop/five_shards.png,1536,1024,2303272,other assets,1536,1024,,False,Shop/offer artwork excluded
+assets/shop/hundred_shards.png,1254,1254,1757944,other assets,1254,1254,,False,Shop/offer artwork excluded
+assets/shop/shards_2000.png,1312,1199,2312621,other assets,1312,1199,,False,Shop/offer artwork excluded
+assets/shop/shards_400.png,1254,1254,1763309,other assets,1254,1254,,False,Shop/offer artwork excluded
+assets/shop/shards_5500.png,1312,1199,2503471,other assets,1312,1199,,False,Shop/offer artwork excluded
+assets/shop/shards_900.png,1312,1199,2018858,other assets,1312,1199,,False,Shop/offer artwork excluded
+assets/shop/shop_boost.png,1254,1254,1825970,other assets,1254,1254,,False,Shop/offer artwork excluded
+assets/shop/shop_cosmetics.png,1254,1254,1818406,other assets,1254,1254,,False,Shop/offer artwork excluded
+assets/shop/shop_instant.png,1254,1254,1714285,other assets,1254,1254,,False,Shop/offer artwork excluded
+assets/shop/shop_locked.png,1254,1254,1762213,other assets,1254,1254,,False,Shop/offer artwork excluded
+assets/shop/shop_luck.png,1254,1254,1755271,other assets,1254,1254,,False,Shop/offer artwork excluded
+assets/shop/shop_offline.png,1254,1254,1769727,other assets,1254,1254,,False,Shop/offer artwork excluded
+assets/shop/shop_owned.png,1254,1254,1807413,other assets,1254,1254,,False,Shop/offer artwork excluded
+assets/shop/shop_production.png,1254,1254,1755629,other assets,1254,1254,,False,Shop/offer artwork excluded
+assets/singularity/core.png,1402,1122,2382929,UI icons,1402,1122,,False,Outside requested token/level categories
+assets/singularity/node_amplifier.png,1254,1254,2124292,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/singularity/node_compute.png,1254,1254,1959655,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/singularity/node_cooling.png,1254,1254,2020619,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/singularity/node_empty.png,1402,1122,1576874,UI icons,1402,1122,,False,Outside requested token/level categories
+assets/singularity/node_quantum.png,1254,1254,2369877,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/ui/app_icon.png,1254,1254,2262095,other assets,1254,1254,,False,Launcher/plugin/generated artwork excluded
+assets/ui/arrow_down.png,1254,1254,907986,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/ui/button.png,1254,1254,1482313,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/ui/core_level.png,1254,1254,2292124,level icons,256,256,256,True,
+assets/ui/level.png,1254,1254,1604157,level icons,256,256,256,True,
+assets/ui/loading_screen.png,821,1916,3011573,other assets,821,1916,,False,Background/loading/banner artwork excluded
+assets/ui/map.png,1312,1199,1585413,UI icons,1312,1199,,False,Outside requested token/level categories
+assets/ui/quer_bild.png,1794,876,2310487,other assets,1794,876,,False,Background/loading/banner artwork excluded
+assets/ui/sector.png,1254,1254,2093727,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/ui/settings.png,1295,1215,1128434,UI icons,1295,1215,,False,Outside requested token/level categories
+assets/ui/shop.png,1254,1254,1401507,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/ui/singularity_matter.png,1254,1254,2177573,UI icons,1254,1254,,False,Outside requested token/level categories
+assets/ui/token.png,1254,1254,1547802,token icons,256,256,256,True,
+assets/ui/x.png,1254,1254,1636458,UI icons,1254,1254,,False,Outside requested token/level categories
+promo/android/build/build/intermediates/assets/monoDebug/mergeMonoDebugAssets/promo_assets/icon.png,1254,1254,2262095,other assets,1254,1254,,False,Promotional project/assets excluded
+promo/android/build/src/main/assets/promo_assets/icon.png,1254,1254,2262095,other assets,1254,1254,,False,Promotional project/assets excluded
+promo/promo_assets/background.png,941,1672,1543298,other assets,941,1672,,False,Promotional project/assets excluded
+promo/promo_assets/basic.png,1448,1086,1205255,other assets,1448,1086,,False,Promotional project/assets excluded
+promo/promo_assets/bots/common.png,1448,1086,954094,other assets,1448,1086,,False,Promotional project/assets excluded
+promo/promo_assets/bots/epic.png,1287,1222,1290439,other assets,1287,1222,,False,Promotional project/assets excluded
+promo/promo_assets/bots/legendary.png,1448,1086,1436273,other assets,1448,1086,,False,Promotional project/assets excluded
+promo/promo_assets/bots/rare.png,1448,1086,1011182,other assets,1448,1086,,False,Promotional project/assets excluded
+promo/promo_assets/desktop.png,1448,1086,1464833,other assets,1448,1086,,False,Promotional project/assets excluded
+promo/promo_assets/icon.png,1254,1254,2262095,other assets,1254,1254,,False,Promotional project/assets excluded
+promo/promo_assets/mystery_pc.png,1448,1086,2172885,other assets,1448,1086,,False,Promotional project/assets excluded
+promo/promo_assets/quantum.png,1448,1086,2391417,other assets,1448,1086,,False,Promotional project/assets excluded
+promo/promo_assets/server.png,1448,1086,1916885,other assets,1448,1086,,False,Promotional project/assets excluded
+promo/promo_assets/singularity.png,1402,1122,2382929,other assets,1402,1122,,False,Promotional project/assets excluded
+promo/promo_assets/supercomputer.png,1448,1086,2329695,other assets,1448,1086,,False,Promotional project/assets excluded

@@ -15,6 +15,7 @@ public sealed class AiArchiveOverlayController
     private Button _back = null!;
     private MobileScrollController _motion = null!;
     private AiArchiveSnapshot _snapshot = null!;
+    private int _pageGeneration;
 
     public AiArchiveOverlayController(Game root, AiArchiveProgressService progress)
     { _root = root; _progress = progress; }
@@ -23,8 +24,9 @@ public sealed class AiArchiveOverlayController
     {
         if (_overlay == null) Create();
         _snapshot = _progress.Capture();
+        _overlay!.Show();
         Overview();
-        _overlay!.Show(); _root.MoveChild(_overlay, _root.GetChildCount() - 1);
+        _root.MoveChild(_overlay, _root.GetChildCount() - 1);
     }
 
     private void Create()
@@ -47,7 +49,7 @@ public sealed class AiArchiveOverlayController
         _content = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         _content.AddThemeConstantOverride("separation", 12); _scroll.AddChild(_content);
         _motion = new MobileScrollController(); _overlay.AddChild(_motion); _motion.Setup(_scroll);
-        var close = OverlayCloseButton.Add(panel, () => { _motion.ResetMotion(); _overlay.Hide(); });
+        var close = OverlayCloseButton.Add(panel, Close);
         // Browsing gets only a small brightness response, with no tween or haptic.
         close.ButtonDown += () => close.SelfModulate = new Color(0.92f, 0.92f, 0.92f);
         close.ButtonUp += () => close.SelfModulate = Colors.White;
@@ -57,6 +59,9 @@ public sealed class AiArchiveOverlayController
 
     private void Clear()
     {
+        _pageGeneration++;
+        // Keep native containers visible for layout, but never draw a partial page.
+        RenderingServer.CanvasItemSetVisible(_overlay!.GetCanvasItem(), false);
         _motion.ResetMotion(); _scroll.ScrollVertical = 0;
         foreach (Node child in _content.GetChildren()) { _content.RemoveChild(child); child.QueueFree(); }
     }
@@ -72,6 +77,7 @@ public sealed class AiArchiveOverlayController
             if (category.Total > 0 && category.Completed == category.Total) button.AddThemeColorOverride("font_color", Gold);
             _content.AddChild(button);
         }
+        FinishPage();
     }
     private void Category(AiArchiveCategory category)
     {
@@ -96,6 +102,29 @@ public sealed class AiArchiveOverlayController
             Text(labels, entry.Concealed ? "Undiscovered" : entry.Detail, 16);
             if (category.Name == "ACHIEVEMENTS") Text(labels, entry.Complete ? "Unlocked locally" : "Locked", 15, entry.Complete ? Gold : null);
         }
+        FinishPage();
+    }
+
+    private void Close()
+    {
+        _pageGeneration++;
+        _motion.ResetMotion(); _overlay!.Hide();
+    }
+
+    private void FinishPage()
+    {
+        // Newly built labels otherwise receive larger/bolder fonts on the next
+        // global readability scan, changing card bounds after they are on screen.
+        _root.GetNodeOrNull<UiReadabilityController>("UiReadabilityController")?.ApplyToSubtree(_overlay!);
+        int generation = _pageGeneration;
+        // Text shaping and wrapped minimum sizes use native deferred queues.
+        // Enable drawing only after those queues settle, without any tween,
+        // temporary scale, opacity change, or alteration to the final layout.
+        Callable.From(() => Callable.From(() =>
+        {
+            if (generation != _pageGeneration || !_overlay!.IsVisibleInTree()) return;
+            RenderingServer.CanvasItemSetVisible(_overlay.GetCanvasItem(), true);
+        }).CallDeferred()).CallDeferred();
     }
 
     internal static Label Text(VBoxContainer parent, string text, int size, Color? color = null)

@@ -1044,11 +1044,19 @@ public sealed class QuantumUiController
 			);
 
 
-		PanelContainer panel =
-			CreateFixedCard(
-				UpgradeCardHeight,
-				accent
-			);
+		// A plain Panel isolates the outer size from the content's minimum size.
+		// Shrink flags prevent the parent VBox from stretching either dimension.
+		Panel panel = new()
+		{
+			Name = $"QuantumUpgradeCard_{upgrade}",
+			CustomMinimumSize = new Vector2(ContentWidth, UpgradeCardHeight),
+			Size = new Vector2(ContentWidth, UpgradeCardHeight),
+			SizeFlagsHorizontal = Control.SizeFlags.ShrinkCenter,
+			SizeFlagsVertical = Control.SizeFlags.ShrinkBegin,
+			ClipContents = true,
+			MouseFilter = Control.MouseFilterEnum.Pass
+		};
+		panel.AddThemeStyleboxOverride("panel", CreatePanelStyle(accent));
 
 
 		parent.AddChild(
@@ -1066,6 +1074,12 @@ public sealed class QuantumUiController
 		panel.AddChild(
 			margin
 		);
+		margin.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
+		// Match the two-pixel content inset supplied by the old PanelContainer.
+		margin.OffsetLeft = 2;
+		margin.OffsetTop = 2;
+		margin.OffsetRight = -2;
+		margin.OffsetBottom = -2;
 
 
 		HBoxContainer row =
@@ -1154,6 +1168,7 @@ public sealed class QuantumUiController
 
 		title.AutowrapMode =
 			TextServer.AutowrapMode.Off;
+		title.ClipText = true;
 
 
 		info.AddChild(
@@ -1165,6 +1180,7 @@ public sealed class QuantumUiController
 			upgrade
 		] =
 			CreateInfoLabel();
+		_levelLabels[upgrade].ClipText = true;
 
 
 		info.AddChild(
@@ -1178,6 +1194,7 @@ public sealed class QuantumUiController
 			upgrade
 		] =
 			CreateInfoLabel();
+		_effectLabels[upgrade].ClipText = true;
 
 
 		_effectLabels[
@@ -1822,8 +1839,7 @@ public sealed class QuantumUiController
 			);
 
 
-		button.AddThemeStyleboxOverride(
-			"normal",
+		StyleBoxFlat style =
 			CreateButtonStyle(
 				new Color(
 					0.24f,
@@ -1832,8 +1848,15 @@ public sealed class QuantumUiController
 					0.98f
 				),
 				accent
-			)
-		);
+			);
+
+		// Hover/press and limit-triggered disabling must not fall back to the
+		// default theme. Keep the existing purple fill and rounded border.
+		foreach (string state in new[] { "normal", "hover", "pressed", "hover_pressed", "disabled" })
+			button.AddThemeStyleboxOverride(state, style);
+
+		// Focus is drawn over the current state; leave its rounded style visible.
+		button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
 
 
 		return button;

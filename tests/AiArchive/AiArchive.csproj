@@ -7,6 +7,7 @@
   <ItemGroup>
     <Compile Include="Program.cs.txt" />
     <Compile Include="Runner.cs" />
+    <Compile Include="ArchiveUi.cs" />
     <Reference Include="IdleAi"><HintPath>../../.godot/mono/temp/bin/Debug/IdleAi.dll</HintPath></Reference>
   </ItemGroup>
 </Project>

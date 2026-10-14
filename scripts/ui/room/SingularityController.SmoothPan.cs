@@ -296,7 +296,7 @@ public sealed partial class SingularityController
 		 */
 		UpdateFocusedSectorDuringMotion();
 
-		RefreshMapWorld();
+		RefreshMapWorld(false);
 	}
 
 
@@ -325,7 +325,7 @@ public sealed partial class SingularityController
 
 		/* Current Sector is already correct before the coast/bounce finishes. */
 		UpdateFocusedSectorDuringMotion();
-		RefreshMapWorld();
+		RefreshMapWorld(false);
 	}
 
 
@@ -468,7 +468,7 @@ public sealed partial class SingularityController
 				true;
 
 			UpdateFocusedSectorDuringMotion();
-			RefreshMapWorld();
+			RefreshMapWorld(false);
 		}
 
 		Vector2 finalTarget =
@@ -503,11 +503,13 @@ public sealed partial class SingularityController
 
 				UpdateFocusedSectorDuringMotion();
 				RefreshRuntime();
-				RefreshMapWorld();
+				RefreshMapWorld(false);
 			}
 		}
 	}
 
+
+	private ulong _lastSectorDetectionUsec;
 
 	private void UpdateFocusedSectorDuringMotion()
 	{
@@ -525,6 +527,9 @@ public sealed partial class SingularityController
 		int previousSector =
 			_service.CurrentSectorIndex;
 
+		ulong now = Time.GetTicksUsec();
+		if (now - _lastSectorDetectionUsec < 100_000 && (_smoothPanDragging || _smoothPanVelocity.LengthSquared() > 0.001f)) return;
+		_lastSectorDetectionUsec = now;
 		UpdateFocusedSectorFromCamera();
 
 		if (

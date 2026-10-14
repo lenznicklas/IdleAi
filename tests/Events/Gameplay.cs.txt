@@ -1,0 +1,190 @@
+using Godot;
+using IdleAi;
+using System;
+using System.Linq;
+using System.Text.Json;
+
+internal static partial class Program
+{
+    private static EventDefinition Multiple() => Definition(end: 10000) with
+    {
+        Generators =
+        [
+            new() { Id = "a", Name = "A", BaseProduction = 10, ProductionPerLevel = 10, BaseUpgradeCost = 10, UpgradeCostGrowth = 2, CycleSeconds = 5 },
+            new() { Id = "b", Name = "B", BaseProduction = 100, BaseUpgradeCost = 100, CycleSeconds = 10,
+                Unlock = new() { RequiredCurrencyEarned = 20, CurrencyScope = EventUnlockCurrencyScope.CurrentRun } },
+            new() { Id = "c", Name = "C", BaseProduction = 1000, CycleSeconds = 5, Unlock = new() { RequiredPrestigeCount = 1 } }
+        ],
+        Prestige = new() { Enabled = true, Requirement = 1000 }
+    };
+    private static void Gameplay()
+    {
+        long now = 100; var d = Multiple(); var save = new EventSaveData();
+        var manager = new EventManager(save, [d], () => true, () => now); manager.Tick();
+        Check(manager.GetGenerators(d.Id).Count == 3, "multiple generator definitions");
+        Check(manager.GetGenerator(d.Id, "a").Unlocked && !manager.GetGenerator(d.Id, "b").Unlocked, "immediate versus currency unlock");
+        Check(!manager.Upgrade(d.Id, "b").Changed, "locked generator upgrade rejected");
+        now = 125; manager.Tick(); Equal(manager.GetProgress(d.Id).Currency, 150, "offline unlock occurs at producing boundary");
+        Equal(manager.GetTotalProduction(d.Id), 12, "central total production");
+        var modifiers = d with { ProductionMultiplier = 2, Generators = [d.Generators[0] with { Multiplier = 3 }] };
+        var modifierSave = new EventSaveData();
+        var modifierManager = new EventManager(modifierSave, [modifiers], () => true, () => now); modifierManager.Tick();
+        Equal(modifierManager.GetTotalProduction(d.Id), 12, "definition and generator multipliers share centralized calculation");
+        modifierSave.ProgressByEventId[d.Id].Generators["a"].Multiplier = 2;
+        Equal(modifierManager.GetTotalProduction(d.Id), 24, "saved per-generator modifier applies centrally");
+        var online = new EventSaveData(); long onlineNow = 100;
+        var onlineManager = new EventManager(online, [d], () => true, () => onlineNow); onlineManager.Tick();
+        for (onlineNow = 101; onlineNow <= 125; onlineNow++) onlineManager.Tick();
+        Equal(onlineManager.GetProgress(d.Id).Currency, manager.GetProgress(d.Id).Currency, "online and offline unlock earnings agree");
+        Equal(online.ProgressByEventId[d.Id].Generators["b"].CycleElapsedSeconds, save.ProgressByEventId[d.Id].Generators["b"].CycleElapsedSeconds, "online/offline cycle phases agree");
+        Check(manager.Upgrade(d.Id, "a").Changed, "individual generator upgrade");
+        Equal(manager.GetGenerator(d.Id, "a").UpgradeCost, 20, "per-generator exponential upgrade cost");
+        Equal(manager.GetGenerator(d.Id, "a").ProductionPerCycle, 20, "level scales own generator output");
+        Check(!manager.GetGenerator(d.Id, "c").Unlocked, "prestige gate locked");
+        var dependency = d with { Generators = [d.Generators[0], d.Generators[1] with { Unlock = new() { RequiredGeneratorId = "a", RequiredGeneratorLevel = 3 } }] };
+        var dependencySave = new EventSaveData(); now = 100;
+        var dm = new EventManager(dependencySave, [dependency], () => true, () => now); dm.Tick();
+        dependencySave.ProgressByEventId[d.Id].Currency = dependencySave.ProgressByEventId[d.Id].TotalCurrencyEarned = 100;
+        Check(dm.Upgrade(d.Id, "a").Changed && !dm.GetGenerator(d.Id, "b").Unlocked, "generator level requirement not met early");
+        Check(dm.Upgrade(d.Id, "a").Changed && dm.GetGenerator(d.Id, "b").Unlocked, "generator level requirement met");
+
+        now = 100; save = new(); bool saveOk = true; EventSaveData? persisted = null;
+        EventManager? pm = null; bool nestedRejected = false;
+        pm = new EventManager(save, [d], () =>
+        {
+            if (pm != null) nestedRejected |= !pm.Prestige(d.Id, 0).Changed;
+            if (saveOk) persisted = RoundTrip(save);
+            return saveOk;
+        }, () => now);
+        pm.Tick();
+        Check(!pm.GetPrestigeQuote(d.Id).Available, "prestige unavailable below requirement");
+        var progress = save.ProgressByEventId[d.Id];
+        progress.Currency = progress.TotalCurrencyEarned = 10000;
+        progress.Generators["a"].Level = 3;
+        pm.Tick(); Check(pm.ClaimReward(d.Id, "m1").Changed, "claim before prestige");
+        var quote = pm.GetPrestigeQuote(d.Id);
+        Equal(quote.ResourceGained, 3, "configurable square-root prestige reward");
+        Equal(quote.NewMultiplier, 1.75, "prestige bonus preview");
+        saveOk = false;
+        Check(!pm.Prestige(d.Id, quote.PrestigeCount, quote.ResourceGained).Changed, "failed save prevents partial prestige");
+        Equal(pm.GetProgress(d.Id).Currency, 10000, "failed prestige keeps currency");
+        Equal(pm.GetGenerator(d.Id, "a").Level, 3, "failed prestige keeps levels");
+        Equal(pm.GetProgress(d.Id).PrestigeResource, 0, "failed prestige grants no cores");
+        saveOk = true;
+        Check(pm.Prestige(d.Id, quote.PrestigeCount, quote.ResourceGained).Changed, "prestige succeeds");
+        Check(nestedRejected, "save callback cannot reenter prestige");
+        Equal(pm.GetProgress(d.Id).Currency, 0, "prestige resets wallet");
+        Equal(pm.GetProgress(d.Id).TotalEarned, 10000, "prestige preserves lifetime earned");
+        Equal(pm.GetProgress(d.Id).RunEarned, 0, "prestige checkpoints spent run earnings");
+        Equal(pm.GetProgress(d.Id).PrestigeCount, 1, "prestige count increments");
+        Equal(pm.GetGenerator(d.Id, "a").Level, 1, "prestige resets generator levels");
+        Check(!pm.GetGenerator(d.Id, "b").Unlocked && pm.GetGenerator(d.Id, "c").Unlocked, "run gates reset and prestige gates unlock");
+        Check(pm.IsRewardClaimed(d.Id, "m1"), "claimed rewards survive prestige");
+        Equal(pm.GetTotalProduction(d.Id), 353.5, "all generators receive prestige multiplier");
+        Check(!pm.Prestige(d.Id, 0, 3).Changed, "immediate duplicate prestige rejected");
+        var reload = new EventManager(persisted!, [d], () => true, () => now); reload.Tick();
+        Equal(reload.GetProgress(d.Id).PrestigeResource, 3, "cores load after prestige");
+        Check(reload.IsRewardClaimed(d.Id, "m1"), "claimed rewards load after prestige");
+        now = 105; reload.Tick(); pm.Tick();
+        Equal(reload.GetProgress(d.Id).Currency, 1767.5, "offline production after prestige uses all generators and multiplier");
+        Equal(pm.GetProgress(d.Id).Currency, reload.GetProgress(d.Id).Currency, "post-prestige offline and online agree");
+        Check(pm.GetPrestigeQuote(d.Id).Available && !pm.Prestige(d.Id, 0).Changed, "stale confirmation rejected even when new prestige is affordable");
+        var disabled = d with { Prestige = new() { Enabled = false } };
+        var noPrestige = new EventManager(RoundTrip(save), [disabled], () => true, () => now); noPrestige.Tick();
+        Check(!noPrestige.GetPrestigeQuote(d.Id).Available, "prestige disabled per definition");
+        now = 20000; pm.Tick(); Check(!pm.Prestige(d.Id, 1).Changed, "expired event blocks prestige");
+
+        var test = EventCatalog.Create().Single(x => x.Id == EventCatalog.TestEventId) with { StartUnix = 100, EndUnix = 1000 };
+        var old = JsonSerializer.Deserialize<EventSaveData>("{\"Version\":1,\"LastEvaluationUnix\":100,\"ProgressByEventId\":{\"event_test_001\":{\"Currency\":2,\"TotalCurrencyEarned\":100,\"ProgressionLevel\":4,\"HighestProgressionReached\":4,\"CycleElapsedSeconds\":3,\"UnlockedMilestones\":[\"data_100\"],\"ClaimedRewards\":[\"data_100\"]}}}")!;
+        now = 100;
+        var migrated = new EventManager(old, [test], () => true, () => now); migrated.Tick();
+        Equal(migrated.GetGenerator(test.Id, "data_terminal").Level, 4, "old single-generator level migrates");
+        Check(migrated.GetGenerators(test.Id).Count == 5 && migrated.IsRewardClaimed(test.Id, "data_100"), "old save gains generator defaults without resetting claims");
+        Equal(old.Version, 2, "event save version migration");
+        now = 102; migrated.Tick(); Equal(migrated.GetProgress(test.Id).Currency, 6, "old cycle phase preserved");
+        Check(RoundTrip(old).IsValid(), "migrated save round trip valid");
+    }
+
+    private static void Halloween()
+    {
+        long now = HalloweenEventDefinition.StartUnix;
+        var definitions = EventCatalog.Create();
+        var halloween = definitions.Single(d => d.Id == HalloweenEventDefinition.EventId);
+        Check(halloween.Type == EventType.Major && halloween.EndUnix - halloween.StartUnix == 14 * 86400, "Halloween Major definition duration");
+        Check(halloween.Generators.Count == 6 && halloween.Bots.Count == 4 && halloween.Milestones.Count == 16, "Halloween content counts");
+        var save = new EventSaveData(); bool saveOk = true; double shards = 0;
+        var manager = new EventManager(save, definitions, () => saveOk, () => now, grantExternalReward: reward =>
+        { shards += reward.Amount; return () => shards -= reward.Amount; },
+            validateCosmetic: reward => reward.Type == EventRewardType.MachineSkin ? MachineSkinCatalog.TryGet(reward.Id, out _) : BotSkinCatalog.TryGet(reward.Id, out _));
+        manager.Tick();
+        Check(manager.ActiveEvent?.Id == halloween.Id, "Major event takes precedence over Test Protocol");
+        now += 5; manager.Tick(); Equal(manager.GetProgress(halloween.Id).Currency, 1, "Souls production");
+        Equal(manager.GetProgress(EventCatalog.TestEventId).Currency, 0, "no cross-event currency");
+        var p = save.ProgressByEventId[halloween.Id]; p.Currency = p.TotalCurrencyEarned = 100;
+        manager.Tick();
+        Check(manager.GetGenerator(halloween.Id, "haunted_workstation").Unlocked, "Halloween currency unlock");
+        Check(manager.ClaimReward(halloween.Id, "souls_100").Changed, "Ghost Bot explicitly claimed");
+        Check(manager.IsBotOwned(halloween.Id, "ghost_bot") && !manager.IsBotActive(halloween.Id, "ghost_bot"), "owned bot is not silently equipped");
+        double production = manager.GetTotalProduction(halloween.Id);
+        Check(manager.EquipBot(halloween.Id, "ghost_bot").Changed, "equip event bot");
+        Equal(manager.GetTotalProduction(halloween.Id), production * 1.1, "bot modifier affects event production only");
+        Check(!manager.EquipBot(halloween.Id, "reaper_bot").Changed, "unowned bot rejected");
+        p.Currency = p.TotalCurrencyEarned = 4_000_000; manager.Tick();
+        var quote = manager.GetPrestigeQuote(halloween.Id);
+        Equal(quote.ResourceGained, 2, "Halloween prestige reward formula");
+        Check(manager.Prestige(halloween.Id, 0, 2).Changed, "Halloween prestige");
+        Equal(manager.GetPrestigeQuote(halloween.Id).CurrentMultiplier, 1.4, "Cursed Core permanent production multiplier");
+        Check(manager.IsBotActive(halloween.Id, "ghost_bot"), "event bot preserved through prestige");
+        Check(!manager.GetGenerator(halloween.Id, "haunted_workstation").Unlocked, "Halloween run unlock reset");
+        Check(manager.GetGenerator(halloween.Id, "cursed_datacenter").Unlocked, "Halloween prestige generator unlocked");
+        Check(manager.Buy(halloween.Id, "soul_cache").Changed, "shop accepts event prestige currency");
+        Equal(manager.GetPrestigeQuote(halloween.Id).CurrentMultiplier, 1.4, "spending core wallet never removes permanent earned-core bonus");
+        Check(manager.PurchasedCount(halloween.Id, "soul_cache") == 1, "shop purchase count saved");
+        Check(!manager.Buy(halloween.Id, "soul_cache").Changed || manager.PurchasedCount(halloween.Id, "soul_cache") == 2, "shop uses actual available wallet");
+        p = save.ProgressByEventId[halloween.Id]; p.Currency = p.TotalCurrencyEarned = 2_000_000_000;
+        p.PrestigeEarnedCheckpoint = 4_000_000; manager.Tick();
+        saveOk = false; double beforeCurrency = p.Currency;
+        Check(!manager.Buy(halloween.Id, "shard_exchange").Changed, "shop save failure rollback");
+        Equal(manager.GetProgress(halloween.Id).Currency, beforeCurrency, "shop failure returns Souls");
+        Equal(shards, 0, "shop failure returns external currency");
+        Check(manager.PurchasedCount(halloween.Id, "shard_exchange") == 0, "shop failure does not consume limit");
+        saveOk = true;
+        for (int i = 0; i < 5; i++) Check(manager.Buy(halloween.Id, "shard_exchange").Changed, "limited shard shop purchase " + i);
+        Check(!manager.Buy(halloween.Id, "shard_exchange").Changed, "shop limit enforced"); Equal(shards, 25, "shard exchange reward");
+        Check(manager.ClaimReward(halloween.Id, "souls_5000000").Changed, "existing bot skin entitlement awarded");
+        saveOk = false;
+        Check(!manager.ClaimReward(halloween.Id, "souls_1000000000").Changed, "cosmetic bundle save failure rejected");
+        Check(!save.CosmeticEntitlements.Any(id => id.StartsWith("machine:")) && !manager.IsRewardClaimed(halloween.Id, "souls_1000000000"), "cosmetic bundle and claim marker rolled back together");
+        saveOk = true;
+        Check(manager.ClaimReward(halloween.Id, "souls_1000000000").Changed, "final machine skin pack explicitly claimed");
+        Check(save.CosmeticEntitlements.Contains("bot:" + BotSkinCatalog.HalloweenSkinId), "global bot skin ID reused");
+        foreach (var id in MachineSkinCatalog.HalloweenSkinIds) Check(save.CosmeticEntitlements.Contains("machine:" + id), "global machine skin ID reused: " + id);
+        Check(!manager.ClaimReward(halloween.Id, "souls_1000000000").Changed, "final pack cannot be claimed twice");
+        Check(!manager.IsRewardClaimed(halloween.Id, "souls_100000000"), "other high rewards not automatically granted");
+        var persisted = RoundTrip(save);
+        var reload = new EventManager(persisted, definitions, () => true, () => now); reload.Tick();
+        Check(reload.PurchasedCount(halloween.Id, "shard_exchange") == 5 && !reload.Buy(halloween.Id, "shard_exchange").Changed, "shop limits survive restart");
+        Check(reload.IsBotActive(halloween.Id, "ghost_bot"), "bot active state persists");
+        var state = State(); state.Events = persisted;
+        var machines = new MachineSkinService(state); var bots = new BotSkinService(state);
+        Check(machines.IsHalloweenPackOwned && bots.IsOwned(BotSkinCatalog.HalloweenSkinId), "event entitlement visible in existing global skin services");
+        machines.SyncEventOwnership(); bots.SyncEventOwnership();
+        state.Events = new();
+        Check(new MachineSkinService(state).IsHalloweenPackOwned && new BotSkinService(state).IsOwned(BotSkinCatalog.HalloweenSkinId), "cosmetics persist independently of event progression after sync");
+        // Save a single terminal to check exact offline end cap independently of unlocks.
+        var boundary = halloween with { StartUnix = 100, EndUnix = 113, Generators = [halloween.Generators[0]], Bots = [],
+            Milestones = [], Shop = [], Story = [] };
+        now = 100; var boundarySave = new EventSaveData();
+        var capped = new EventManager(boundarySave, [boundary], () => true, () => now); capped.Tick();
+        now = 200; capped.Tick(); Equal(capped.GetProgress(boundary.Id).Currency, 2, "Halloween offline ends at exact timestamp");
+        Check(!capped.Upgrade(boundary.Id).Changed && !capped.Prestige(boundary.Id, 0).Changed, "expired Halloween actions blocked");
+        Equal(capped.GetTotalProduction(boundary.Id), 0, "expired production rate is zero");
+        var archive = capped.GetArchives().Single();
+        Check(archive.Name == halloween.Name && archive.TotalEarned == 2 && archive.Year == 1970, "completed Major archive snapshot");
+        Equal(archive.HighestProduction, .2, "archive retains highest production");
+        Check(RoundTrip(boundarySave).ProgressByEventId[boundary.Id].Archive != null, "archive survives save/load");
+        now = halloween.EndUnix + 5; manager.Tick();
+        Check(!manager.Buy(halloween.Id, "signal_badge").Changed && !manager.Prestige(halloween.Id, 1).Changed, "expired purchases and prestige blocked");
+        Check(manager.GetArchives().Single().CosmeticsOwned == 5, "archive cosmetic completion");
+    }
+}

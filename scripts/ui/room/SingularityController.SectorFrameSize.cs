@@ -21,39 +21,13 @@ public sealed partial class SingularityController
 	private const float LargerSectorFramePadding =
 		32.0f;
 
-	private Timer?
-		_largerSectorFrameTimer;
-
+	private bool _largerSectorFramesEnabled;
 
 	public void EnableLargerSectorFrames()
 	{
-		if (_largerSectorFrameTimer != null)
-			return;
-
+		if (_largerSectorFramesEnabled) return;
+		_largerSectorFramesEnabled = true;
 		ApplyLargerSectorFrames();
-
-		_largerSectorFrameTimer =
-			new Timer
-			{
-				Name =
-					"SingularityLargerSectorFrameTimer",
-
-				WaitTime =
-					0.20,
-
-				OneShot =
-					false,
-
-				Autostart =
-					true
-			};
-
-		_largerSectorFrameTimer.Timeout +=
-			ApplyLargerSectorFrames;
-
-		_root.AddChild(
-			_largerSectorFrameTimer
-		);
 	}
 
 
@@ -67,6 +41,7 @@ public sealed partial class SingularityController
 				in _sectorMapViews.Values
 		)
 		{
+			if (!view.Root.Visible) continue;
 			if (
 				view.Frame == null
 				|| !GodotObject.IsInstanceValid(
@@ -123,9 +98,8 @@ public sealed partial class SingularityController
 			 * - SECTOR N
 			 * - the output/status line below SECTOR N
 			 *
-			 * RefreshSectorMapView() still updates these labels internally, but
-			 * this recurring visual pass keeps them hidden even after refreshes or
-			 * sector virtualization creates a new frame.
+			 * This pass runs when views are created, reactivated or refreshed.
+			 * Hidden output labels do not require production calculations.
 			 */
 			if (
 				view.CurrentBadge != null

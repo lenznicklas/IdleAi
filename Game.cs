@@ -456,6 +456,7 @@ public partial class Game : Control
 			return false;
 		}
 
+		_eventManager?.Tick();
 		SaveGameData save = _services.Save.CreateSave(_offline.PauseUnix ?? GetCurrentUnixTime());
 		if (_purchases != null && !_purchases.BeforeGameSave(save)) return false;
 

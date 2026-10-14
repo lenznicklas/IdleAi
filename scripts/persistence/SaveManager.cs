@@ -338,7 +338,8 @@ public partial class SaveManager : Node
 					json
 				);
 
-			return data?.Rooms != null && data.Rooms.All(room =>
+			return data?.Events != null && data.Events.IsValid()
+				&& data.Rooms != null && data.Rooms.All(room =>
 				room?.Slots != null && room.Slots.All(slot => slot != null));
 		}
 		catch (Exception exception)

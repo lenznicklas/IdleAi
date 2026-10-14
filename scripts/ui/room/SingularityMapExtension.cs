@@ -53,6 +53,8 @@ public sealed partial class SingularityMapExtension
 
     private Control _mapPage = null!;
     private Control _canvas = null!;
+    private Control? _eventPage;
+    private bool _eventVisibilityHooked;
     private Button _roomButton = null!;
     private TextureRect _icon = null!;
     private Label _stateLabel = null!;
@@ -184,6 +186,15 @@ public sealed partial class SingularityMapExtension
 
     private void EnsureExternalPageHooks()
     {
+        if (!_eventVisibilityHooked)
+        {
+            _eventPage = _root.GetNodeOrNull<Control>("EventPage");
+            if (_eventPage != null)
+            {
+                _eventPage.VisibilityChanged += OnExternalPageVisibilityChanged;
+                _eventVisibilityHooked = true;
+            }
+        }
         if (!_shopVisibilityHooked)
         {
             _shopPage ??= _root.GetNodeOrNull<Control>("ShopPage");
@@ -217,7 +228,7 @@ public sealed partial class SingularityMapExtension
 
     private bool AnyExternalPageVisible()
     {
-        return _mapPage.Visible
+        return (_eventPage?.Visible ?? false) || _mapPage.Visible
             || (_shopPage?.Visible ?? false)
             || (_labPage?.Visible ?? false)
             || (_settingsOverlay?.Visible ?? false);
@@ -249,7 +260,7 @@ public sealed partial class SingularityMapExtension
 
                 // Settings is a modal over the current room, so keep its
                 // background visible unless a full page also covers it.
-                if (_mapPage.Visible
+                if ((_eventPage?.Visible ?? false) || _mapPage.Visible
                     || (_shopPage?.Visible ?? false)
                     || (_labPage?.Visible ?? false))
                 {

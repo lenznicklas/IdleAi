@@ -320,6 +320,12 @@ public sealed partial class SingularityController
 		CreateStatInfoPopup();
 		ConnectExternalNavigation();
 		CreateLifecycleBridge();
+		_lifecycleBridge.ApplicationPauseChanged = paused =>
+		{
+			_runtimeSuspended = paused;
+			_runtimeLastUsec = Time.GetTicksUsec();
+		};
+
 
 		_service.Changed +=
 			OnServiceChanged;
@@ -425,12 +431,14 @@ public sealed partial class SingularityController
 					true
 			};
 
+		_runtimeLastUsec = Time.GetTicksUsec();
 		_runtimeTimer.Timeout +=
 			() =>
 			{
-				_service.Update(
-					_runtimeTimer.WaitTime
-				);
+				ulong now = Time.GetTicksUsec();
+				double elapsed = (now - _runtimeLastUsec) / 1_000_000.0;
+				_runtimeLastUsec = now;
+				if (!_runtimeSuspended) _service.Update(elapsed);
 
 				if (Visible)
 				{
@@ -1366,7 +1374,7 @@ public sealed partial class SingularityController
 			delta;
 
 		ClampMapPosition();
-		RefreshMapWorld();
+		RefreshMapWorld(false);
 	}
 
 
@@ -1426,7 +1434,7 @@ public sealed partial class SingularityController
 			true;
 
 		ClampMapPosition();
-		RefreshMapWorld();
+		RefreshMapWorld(false);
 	}
 
 
@@ -1687,7 +1695,44 @@ public sealed partial class SingularityController
 	}
 
 
-	private void RefreshMapWorld()
+	// Retain nearby views for backtracking without retaining the entire map.
+	private const int MaxCachedSectorViews = 24;
+	private readonly HashSet<int> _wantedSectorViews = [];
+	private readonly List<int> _sectorViewEvictions = [];
+	private readonly List<MapConnectionSegment> _connectionScratch = [];
+	private ulong _runtimeLastUsec;
+	private bool _runtimeSuspended;
+	private int _lastMapFocus = -1;
+
+	private bool _mapRefreshInProgress;
+	private bool _mapRefreshPending;
+	private bool _mapContentRefreshPending;
+
+	private void RefreshMapWorld(bool refreshContent = true)
+	{
+		// Control resize/visibility signals can re-enter while views are added or
+		// evicted. Defer that work so reusable scratch collections stay exclusive.
+		if (_mapRefreshInProgress)
+		{
+			_mapRefreshPending = true;
+			_mapContentRefreshPending |= refreshContent;
+			return;
+		}
+		_mapRefreshInProgress = true;
+		try
+		{
+			do
+			{
+				_mapRefreshPending = false;
+				_mapContentRefreshPending = false;
+				RefreshMapWorldViews(refreshContent);
+				refreshContent = _mapContentRefreshPending;
+			} while (_mapRefreshPending);
+		}
+		finally { _mapRefreshInProgress = false; }
+	}
+
+	private void RefreshMapWorldViews(bool refreshContent)
 	{
 		if (
 			_mapViewport == null
@@ -1709,6 +1754,10 @@ public sealed partial class SingularityController
 			return;
 		}
 
+		bool refreshConnections = refreshContent;
+		refreshContent |= _lastMapFocus != _service.CurrentSectorIndex;
+		_lastMapFocus = _service.CurrentSectorIndex;
+
 		Rect2 visibleWorld =
 			new Rect2(
 				-_mapWorld.Position,
@@ -1720,8 +1769,9 @@ public sealed partial class SingularityController
 
 		EnsureSectorCoordinateCache();
 
-		HashSet<int> wanted =
-			[];
+		HashSet<int> wanted = _wantedSectorViews;
+		wanted.Clear();
+		bool membershipChanged = false;
 
 		/*
 		 * Virtualization is coordinate-based: only grid cells intersecting the
@@ -1796,65 +1846,45 @@ public sealed partial class SingularityController
 					sectorIndex
 				);
 
+				membershipChanged |= !_sectorMapViews.ContainsKey(sectorIndex);
 				EnsureSectorMapView(
 					sectorIndex
 				);
 			}
 		}
 
-		List<int> toRemove =
-			[];
-
-		foreach (
-			KeyValuePair<int, SectorMapView> pair
-				in _sectorMapViews
-		)
+		_sectorViewEvictions.Clear();
+		foreach (var pair in _sectorMapViews)
 		{
-			if (!wanted.Contains(
-				pair.Key
-			))
+			bool active = wanted.Contains(pair.Key);
+			bool changed = pair.Value.Root.Visible != active;
+			membershipChanged |= changed;
+			if (changed)
 			{
-				toRemove.Add(
-					pair.Key
-				);
+				pair.Value.Root.Visible = active;
+				pair.Value.Root.ProcessMode = active ? Node.ProcessModeEnum.Inherit : Node.ProcessModeEnum.Disabled;
 			}
+			if (active && (refreshContent || changed)) RefreshSectorMapView(pair.Value);
+			if (!active && _sectorMapViews.Count - _sectorViewEvictions.Count > Math.Max(MaxCachedSectorViews, wanted.Count))
+				_sectorViewEvictions.Add(pair.Key);
 		}
-
-		foreach (
-			int index
-				in toRemove
-		)
+		foreach (int index in _sectorViewEvictions)
 		{
-			SectorMapView view =
-				_sectorMapViews[
-					index
-				];
-
-			_sectorMapViews.Remove(
-				index
-			);
-
+			var view = _sectorMapViews[index];
+			foreach (var node in view.Nodes) _polishedNodeButtonTypes.Remove(node.Root.GetInstanceId());
+			_sectorMapViews.Remove(index);
 			view.Root.QueueFree();
 		}
 
-		foreach (
-			SectorMapView view
-				in _sectorMapViews.Values
-		)
+		RefreshExpansionSector(visibleWorld, refreshContent);
+
+		if (refreshContent || membershipChanged)
 		{
-			RefreshSectorMapView(
-				view
-			);
+			if (refreshConnections || membershipChanged) RefreshInterSectorConnections();
+			if (_largerSectorFramesEnabled) ApplyLargerSectorFrames();
+			RefreshPolishedNodeTouchStyles();
+			if (_singularityBotUiTimer != null) RefreshMapBotBadges();
 		}
-
-		RefreshExpansionSector(
-			visibleWorld
-		);
-
-		RefreshInterSectorConnections(
-			visibleWorld
-		);
-		if (_singularityBotUiTimer != null) RefreshMapBotBadges();
 	}
 
 
@@ -2378,18 +2408,13 @@ public sealed partial class SingularityController
 		view.Title.TooltipText = SingularityBuildRules.ModifierText(sector.Modifier);
 		view.Title.MouseFilter = Control.MouseFilterEnum.Pass;
 
-		view.Output.Text =
-			NumberFormatter.Format(
-				_service.GetSectorOutputPerSecond(
-					view.SectorIndex
-				)
-			)
-			+ " Matter/s";
+		if (!_largerSectorFramesEnabled)
+		{
+			SetLabelText(view.Output, NumberFormatter.Format(
+				_service.GetSectorOutputPerSecond(view.SectorIndex)) + " Matter/s");
+		}
 
-		bool[] active =
-			new bool[
-				SingularityService.NodesPerSector
-			];
+		bool[] active = view.ActiveNodes;
 
 		for (
 			int i = 0;
@@ -2475,7 +2500,7 @@ public sealed partial class SingularityController
 
 
 	private void RefreshExpansionSector(
-		Rect2 visibleWorld)
+		Rect2 visibleWorld, bool refreshContent)
 	{
 		int nextSectorIndex =
 			_service.SectorCount;
@@ -2497,9 +2522,7 @@ public sealed partial class SingularityController
 		{
 			if (_expansionSectorView != null)
 			{
-				_expansionSectorView.QueueFree();
-				_expansionSectorView =
-					null;
+				_expansionSectorView.Hide();
 			}
 
 			return;
@@ -2512,10 +2535,10 @@ public sealed partial class SingularityController
 			)
 		)
 		{
-			_expansionSectorView.Position =
-				rect.Position;
-
-			UpdateExpansionSectorText();
+			bool wasHidden = !_expansionSectorView.Visible;
+			_expansionSectorView.Show();
+			_expansionSectorView.Position = rect.Position;
+			if (refreshContent || wasHidden) UpdateExpansionSectorText();
 			return;
 		}
 
@@ -2687,17 +2710,16 @@ public sealed partial class SingularityController
 	}
 
 
-	private void RefreshInterSectorConnections(
-		Rect2 visibleWorld)
+	private void RefreshInterSectorConnections()
 	{
 		EnsureSectorCoordinateCache();
 
-		List<MapConnectionSegment> segments =
-			[];
+		List<MapConnectionSegment> segments = _connectionScratch;
+		segments.Clear();
 
 		foreach (
 			int sectorIndex
-				in _sectorMapViews.Keys
+				in _wantedSectorViews
 		)
 		{
 			Vector2I position =
@@ -2714,7 +2736,6 @@ public sealed partial class SingularityController
 				2,
 				6,
 				_sectorIndexByGrid,
-				visibleWorld,
 				segments
 			);
 
@@ -2727,7 +2748,6 @@ public sealed partial class SingularityController
 				4,
 				0,
 				_sectorIndexByGrid,
-				visibleWorld,
 				segments
 			);
 		}
@@ -2744,7 +2764,6 @@ public sealed partial class SingularityController
 		int fromNode,
 		int toNode,
 		IReadOnlyDictionary<Vector2I, int> byPosition,
-		Rect2 visibleWorld,
 		List<MapConnectionSegment> segments)
 	{
 		if (!byPosition.TryGetValue(
@@ -2771,38 +2790,6 @@ public sealed partial class SingularityController
 				toNode
 			);
 
-		Rect2 segmentBounds =
-			new Rect2(
-				new Vector2(
-					MathF.Min(
-						from.X,
-						to.X
-					),
-					MathF.Min(
-						from.Y,
-						to.Y
-					)
-				),
-				new Vector2(
-					MathF.Abs(
-						to.X - from.X
-					)
-						+ 2.0f,
-					MathF.Abs(
-						to.Y - from.Y
-					)
-						+ 2.0f
-				)
-			);
-
-		if (!visibleWorld.Grow(
-			180.0f
-		).Intersects(
-			segmentBounds
-		))
-		{
-			return;
-		}
 
 		bool active =
 			_service.GetNode(
@@ -4288,25 +4275,17 @@ public sealed partial class SingularityController
 	}
 
 
+	private static void SetLabelText(Label label, string text)
+	{
+		if (label.Text != text) label.Text = text;
+	}
+
 	private void RefreshRuntime()
 	{
-		_matterValue.Text =
-			NumberFormatter.Format(
-				_service.Matter
-			);
-
-		_coreValue.Text =
-			_service.CoreCount.ToString();
-
-		_sectorValue.Text =
-			(_service.CurrentSectorIndex + 1)
-				.ToString();
-
-		_outputValue.Text =
-			NumberFormatter.Format(
-				_service.GetTotalOutputPerSecond()
-			)
-			+ "/s";
+		SetLabelText(_matterValue, NumberFormatter.Format(_service.Matter));
+		SetLabelText(_coreValue, _service.CoreCount.ToString());
+		SetLabelText(_sectorValue, (_service.CurrentSectorIndex + 1).ToString());
+		SetLabelText(_outputValue, NumberFormatter.Format(_service.GetTotalOutputPerSecond()) + "/s");
 	}
 
 
@@ -4563,7 +4542,7 @@ public sealed partial class SingularityController
 			-bottomBarHeight;
 
 		ClampMapPosition();
-		RefreshMapWorld();
+		RefreshMapWorld(false);
 	}
 
 
@@ -4884,7 +4863,10 @@ public sealed partial class SingularityController
 		Label Output,
 		Label CurrentBadge,
 		List<NodeButtonView> Nodes
-	);
+	)
+	{
+		public bool[] ActiveNodes { get; } = new bool[SingularityService.NodesPerSector];
+	}
 
 
 	private readonly record struct MapConnectionSegment(
@@ -4906,9 +4888,8 @@ public sealed partial class SingularityController
 		public void SetActiveNodes(
 			bool[] active)
 		{
-			_active =
-				active;
-
+			if (_active.AsSpan().SequenceEqual(active)) return;
+			active.CopyTo(_active, 0);
 			QueueRedraw();
 		}
 
@@ -5038,11 +5019,11 @@ public sealed partial class SingularityController
 		public void SetSegments(
 			IReadOnlyList<MapConnectionSegment> segments)
 		{
-			_segments =
-				new List<MapConnectionSegment>(
-					segments
-				);
-
+			bool changed = _segments.Count != segments.Count;
+			for (int i = 0; !changed && i < segments.Count; i++) changed = _segments[i] != segments[i];
+			if (!changed) return;
+			_segments.Clear();
+			for (int i = 0; i < segments.Count; i++) _segments.Add(segments[i]);
 			QueueRedraw();
 		}
 
@@ -5480,6 +5461,7 @@ public sealed partial class SingularityController
 		private readonly SingularityService _service;
 
 		private readonly Action<double> _offlineAwarded;
+		public Action<bool>? ApplicationPauseChanged { get; set; }
 
 
 		public SingularityLifecycleBridge(
@@ -5508,6 +5490,7 @@ public sealed partial class SingularityController
 				== (int)MainLoop.NotificationApplicationPaused
 			)
 			{
+				ApplicationPauseChanged?.Invoke(true);
 				_service.HandleApplicationPaused();
 				return;
 			}
@@ -5517,6 +5500,7 @@ public sealed partial class SingularityController
 				== (int)MainLoop.NotificationApplicationResumed
 			)
 			{
+				ApplicationPauseChanged?.Invoke(false);
 				double earned =
 					_service.HandleApplicationResumed();
 

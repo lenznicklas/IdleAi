@@ -210,7 +210,7 @@ public sealed class SecretKorpoSkinController
 					"ENTER CODE",
 
 				MaxLength =
-					32,
+					96,
 
 				ClearButtonEnabled =
 					true,
@@ -352,6 +352,13 @@ public sealed class SecretKorpoSkinController
 	private void Redeem()
 	{
 		string code = _codeInput.Text.Trim();
+        var eventResult = _root.TryEventDeveloperCode(code);
+        if (eventResult.HasValue)
+        {
+            ShowCodeMessage(eventResult.Value.Message, eventResult.Value.Changed);
+            if (eventResult.Value.Changed) _codeInput.Clear();
+            return;
+        }
 
 		if (code.Equals(ShardCode, StringComparison.OrdinalIgnoreCase))
 		{

@@ -12,7 +12,7 @@ public readonly record struct MachineSkinResult(
 );
 
 
-public sealed class MachineSkinService
+public sealed partial class MachineSkinService
 {
 	private const int SaveVersion =
 		1;
@@ -65,9 +65,7 @@ public sealed class MachineSkinService
 			return true;
 		}
 
-		return _ownedSkinIds.Contains(
-			skinId
-		);
+		return _ownedSkinIds.Contains(skinId) || _state.Events.CosmeticEntitlements.Contains("machine:" + skinId);
 	}
 
 

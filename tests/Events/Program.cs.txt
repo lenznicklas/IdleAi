@@ -1,0 +1,204 @@
+using Godot;
+using IdleAi;
+using System;
+using System.Collections.Generic;
+using System.Text.Json;
+
+internal static partial class Program
+{
+    private static int _checks;
+    private static void Check(bool value, string message)
+    {
+        _checks++;
+        if (!value) throw new Exception(message);
+    }
+    private static void Equal(double actual, double expected, string message) =>
+        Check(Math.Abs(actual - expected) < 1e-9, $"{message}: {actual} != {expected}");
+    private static EventDefinition Definition(string id = "test", long start = 100, long end = 200,
+        EventType type = EventType.Weekend, double output = 1) => new()
+        {
+            Id = id, Name = id, StartUnix = start, EndUnix = end, Type = type,
+            Progression = new() { BaseProduction = output },
+            Milestones = [new("m1", 2, new(EventRewardType.DeveloperCredits, 3)),
+                new("m2", 5, new(EventRewardType.DataShards, 7))]
+        };
+    private static EventSaveData RoundTrip(EventSaveData save) =>
+        JsonSerializer.Deserialize<EventSaveData>(JsonSerializer.Serialize(save))!;
+
+    public static void Main()
+    {
+        Check(ProjectSettings.GlobalizePath("user://").Contains("Events regression tests"), "isolated test profile");
+        ProductionAndUpgrades(); BoundariesAndSwitching(); ClaimsAndFailures(); Persistence(); Validation(); Gameplay(); Halloween();
+        Console.WriteLine($"Events: {_checks} assertions passed.");
+    }
+
+    private static void ProductionAndUpgrades()
+    {
+        long now = 100; bool saveOk = true; int notifications = 0;
+        var data = new EventSaveData();
+        var d = Definition(end: 1000);
+        var manager = new EventManager(data, [d], () => saveOk, () => now);
+        manager.Changed += () => notifications++;
+        manager.Tick(); Equal(manager.GetProgress(d.Id).Currency, 0, "new installation has no historical income");
+        Check(manager.ActiveEvent?.Id == d.Id, "active selected");
+        Check(!manager.Upgrade(d.Id).Changed, "unaffordable upgrade rejected");
+        now = 104; manager.Tick(); Equal(manager.GetProgress(d.Id).Currency, 0, "partial cycle retained");
+        now = 105; manager.Tick(); Equal(manager.GetProgress(d.Id).Currency, 1, "completed cycle produces");
+        manager.Tick(); Equal(manager.GetProgress(d.Id).Currency, 1, "same timestamp cannot double grant");
+        now = 150; manager.Tick(); Equal(manager.GetProgress(d.Id).Currency, 10, "elapsed production");
+        Check(manager.Upgrade(d.Id).Changed, "upgrade succeeds");
+        Equal(manager.GetProgress(d.Id).Currency, 0, "upgrade spends event currency");
+        Equal(manager.GetProgress(d.Id).Level, 2, "upgrade level");
+        Equal(d.Progression.Production(2), 2, "linear production configuration");
+        Equal(d.Progression.UpgradeCost(2), 16, "exponential cost");
+        now = 155; manager.Tick(); Equal(manager.GetProgress(d.Id).Currency, 2, "upgraded production");
+        Check(manager.IsMilestoneUnlocked(d.Id, "m2"), "spending does not relock lifetime milestone");
+        Equal(manager.GetProgress(d.Id).TotalEarned, 12, "lifetime currency tracked separately");
+        Equal(manager.GetProgress(d.Id).HighestLevel, 2, "highest progression");
+        now = 195; manager.Tick(); saveOk = false;
+        var before = manager.GetProgress(d.Id);
+        Check(!manager.Upgrade(d.Id).Changed, "failed save rejects upgrade");
+        Check(manager.GetProgress(d.Id) == before, "failed save restores upgrade state");
+        Check(notifications > 0, "state notifications");
+        // Save/load preserves fractional cycle time and does not reset upgrade state.
+        saveOk = true; now = 198; manager.Tick();
+        var loaded = RoundTrip(data);
+        var reload = new EventManager(loaded, [d], () => true, () => now);
+        reload.Tick(); Check(reload.GetProgress(d.Id) == manager.GetProgress(d.Id), "reload no duplicate earnings");
+        now = 200; reload.Tick(); Equal(reload.GetProgress(d.Id).Currency, before.Currency + 2, "cycle remainder survives restart");
+    }
+
+    private static void BoundariesAndSwitching()
+    {
+        long now = 50;
+        var d = Definition();
+        var data = new EventSaveData();
+        var m = new EventManager(data, [d], () => true, () => now);
+        m.Tick(); Check(m.ActiveEvent == null, "before start inactive");
+        now = 100; m.Tick(); Equal(m.GetProgress(d.Id).Currency, 0, "no production before start");
+        now = 250; m.Tick(); Equal(m.GetProgress(d.Id).Currency, 20, "offline capped exactly at end");
+        Check(m.ActiveEvent == null && m.DisplayEvent?.Id == d.Id, "ended display retained");
+        Check(m.GetProgress(d.Id).Ended, "expiration latched");
+        Equal(data.ProgressByEventId[d.Id].LastUpdateUnix, 200, "event update timestamp capped");
+        Check(!m.Upgrade(d.Id).Changed, "expired upgrade blocked");
+        Check(m.ClaimReward(d.Id, "m1").Changed, "unlocked reward claimable after expiration");
+        now = 150; m.Tick(); Equal(m.GetProgress(d.Id).Currency, 20, "clock rollback cannot restart expired event");
+        var reload = new EventManager(RoundTrip(data), [d], () => true, () => now);
+        reload.Tick(); Check(reload.ActiveEvent == null, "ended state survives restart and clock rollback");
+        Equal(reload.GetProgress(d.Id).Currency, 20, "expired restart income unchanged");
+
+        now = 50; data = new();
+        var second = Definition("second", 200, 220, output: 2);
+        m = new EventManager(data, [d, second], () => true, () => now);
+        m.Tick(); now = 300; m.Tick();
+        Equal(m.GetProgress(d.Id).Currency, 20, "offline predecessor income");
+        Equal(m.GetProgress(second.Id).Currency, 8, "offline successor income");
+        Check(m.DisplayEvent?.Id == second.Id, "latest expired successor visible");
+        Check(m.GetProgress(second.Id).Ended, "offline successor expires");
+
+        now = 100; data = new();
+        var low = Definition("low", end: 300);
+        var high = Definition("high", 150, 170, EventType.Major, 10);
+        var disabled = Definition("disabled", 100, 300, EventType.Major, 100) with { Enabled = false };
+        m = new EventManager(data, [low, high, disabled], () => true, () => now);
+        m.Tick(); now = 200; m.Tick();
+        Equal(m.GetProgress(low.Id).Currency, 16, "lower priority pauses during overlapping event");
+        Equal(m.GetProgress(high.Id).Currency, 40, "higher priority interval selected");
+        Equal(m.GetProgress(disabled.Id).Currency, 0, "disabled event never produces");
+        Check(m.ActiveEvent?.Id == low.Id, "lower priority resumes");
+        var earlierId = Definition("aaa", end: 300);
+        var laterId = Definition("zzz", end: 300);
+        m = new EventManager(new(), [laterId, earlierId], () => true, () => now);
+        m.Tick(); Check(m.ActiveEvent?.Id == "aaa", "deterministic overlap tie breaking");
+    }
+
+    private static void ClaimsAndFailures()
+    {
+        long now = 100; bool saveOk = true, canWrite = true; double shards = 0;
+        var data = new EventSaveData(); var d = Definition();
+        var m = new EventManager(data, [d], () => saveOk, () => now, () => canWrite, reward =>
+        {
+            shards += reward.Amount;
+            return () => shards -= reward.Amount;
+        });
+        m.Tick(); Check(!m.ClaimReward(d.Id, "m1").Changed, "locked claim rejected");
+        now = 150; m.Tick(); saveOk = false;
+        Check(!m.ClaimReward(d.Id, "m1").Changed, "claim save failure");
+        Equal(m.GetProgress(d.Id).DeveloperCredits, 0, "developer reward rolled back");
+        Check(!m.IsRewardClaimed(d.Id, "m1"), "claim marker rolled back");
+        Check(!m.ClaimReward(d.Id, "m2").Changed, "external reward save failure");
+        Equal(shards, 0, "external reward rolled back");
+        saveOk = true;
+        Check(m.ClaimReward(d.Id, "m1").Changed, "developer reward claim");
+        Equal(m.GetProgress(d.Id).DeveloperCredits, 3, "developer reward credited");
+        Check(!m.ClaimReward(d.Id, "m1").Changed, "second claim rejected");
+        Check(m.ClaimReward(d.Id, "m2").Changed, "external reward claim"); Equal(shards, 7, "shard credit isolated from production");
+        var reload = new EventManager(RoundTrip(data), [d], () => true, () => now);
+        reload.Tick(); Check(!reload.ClaimReward(d.Id, "m1").Changed, "restart cannot reclaim");
+        Check(reload.IsRewardClaimed(d.Id, "m2"), "external claim persisted");
+        Check(!m.ClaimReward(d.Id, "unknown").Changed, "unknown reward rejected");
+        canWrite = false; now = 190;
+        var before = m.GetProgress(d.Id); m.Tick();
+        Check(m.GetProgress(d.Id) == before, "blocked save locks progression");
+        Check(!m.Upgrade(d.Id).Changed && !m.ClaimReward(d.Id, "m2").Changed, "blocked actions");
+    }
+
+    private static GameState State()
+    {
+        var state = new GameState([new RoomData("Test", null!, null!, [], 0)]);
+        state.RoomStates.Add(new RoomState { Unlocked = true });
+        return state;
+    }
+
+    private static void Persistence()
+    {
+        var state = State();
+        var mapper = new GameSaveService(state, new EconomyService(state));
+        long now = 100;
+        var saver = new SaveManager();
+        var d = Definition();
+        var m = new EventManager(state.Events, [d], () => saver.SaveData(mapper.CreateSave(now)), () => now);
+        m.Tick(); now = 160; m.Tick();
+        Check(m.ClaimReward(d.Id, "m1").Changed, "real atomic save claim");
+        var saved = saver.LoadData()!;
+        Check(saved.Events.ProgressByEventId[d.Id].ClaimedRewards.Contains("m1"), "disk claimed marker");
+        var restored = State();
+        var restoredMapper = new GameSaveService(restored, new EconomyService(restored));
+        restoredMapper.ApplySave(saved);
+        var restart = new EventManager(restored.Events, [d], () => true, () => now);
+        restart.Tick(); Equal(restart.GetProgress(d.Id).Currency, 12, "disk production round trip");
+        Check(!restart.ClaimReward(d.Id, "m1").Changed, "disk restart cannot reclaim");
+        var copy = mapper.CreateSave(now);
+        state.Events.ProgressByEventId[d.Id].Currency = 999;
+        Equal(copy.Events.ProgressByEventId[d.Id].Currency, 12, "save snapshot does not alias live progression");
+        restored.Events.ProgressByEventId["retired_event"] = new() { Ended = true, Currency = 5, TotalCurrencyEarned = 5 };
+        copy = restoredMapper.CreateSave(now);
+        Check(copy.Events.ProgressByEventId.ContainsKey("retired_event"), "retired event ID preserved");
+        var oldSave = JsonSerializer.Deserialize<SaveGameData>("{\"SaveVersion\":21,\"Rooms\":[]}")!;
+        restoredMapper.ApplySave(oldSave);
+        Check(restored.Events.ProgressByEventId.Count == 0, "legacy save migrates empty event collection");
+        // A damaged Events object participates in the existing backup recovery.
+        using (var file = Godot.FileAccess.Open("user://idle_ai_save.json", Godot.FileAccess.ModeFlags.Write))
+            file.StoreString("{\"Rooms\":[],\"Events\":null}");
+        Check(saver.LoadData() != null && !saver.LastLoadFailed, "corrupt event payload recovers backup");
+        saver.Free();
+    }
+
+    private static void Validation()
+    {
+        Check(!new EventSaveData { ProgressByEventId = new() { ["bad"] = new() { Currency = double.NaN } } }.IsValid(), "NaN save rejected");
+        Check(!new EventSaveData { ProgressByEventId = new() { ["bad"] = new() { ClaimedRewards = ["m1"] } } }.IsValid(), "claim without unlocked state rejected");
+        foreach (var definition in new[] { Definition() with { EndUnix = 50 }, Definition() with { Id = "" },
+            Definition() with { Progression = new() { CycleSeconds = 0 } } })
+        {
+            bool rejected = false;
+            try { _ = new EventManager(new(), [definition], () => true); }
+            catch (ArgumentException) { rejected = true; }
+            Check(rejected, "invalid configuration rejected");
+        }
+        bool duplicate = false;
+        try { _ = new EventManager(new(), [Definition(), Definition()], () => true); }
+        catch (ArgumentException) { duplicate = true; }
+        Check(duplicate, "duplicate ID rejected");
+    }
+}

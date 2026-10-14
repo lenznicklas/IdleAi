@@ -1060,6 +1060,7 @@ public sealed partial class SingularityController
 	{
 		foreach (SectorMapView view in _sectorMapViews.Values)
 		{
+			if (!view.Root.Visible) continue;
 			for (int index = 0; index < view.Nodes.Count; index++)
 			{
 				NodeButtonView nodeView = view.Nodes[index];
@@ -1145,6 +1146,7 @@ public sealed partial class SingularityController
 		_mapBotHoverSeconds += delta;
 		// Only virtualized sector views; no per-frame objects, RNG, queries into gameplay, or Tweens.
 		foreach (SectorMapView sector in _sectorMapViews.Values)
+			if (sector.Root.Visible)
 			for (int index = 0; index < sector.Nodes.Count; index++)
 				if (sector.Nodes[index].Bot != null)
 					PositionMapBot(sector.Nodes[index], index);

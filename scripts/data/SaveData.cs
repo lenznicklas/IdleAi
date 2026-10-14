@@ -7,6 +7,8 @@ public sealed class SaveGameData
 {
 	public int SaveVersion { get; set; }
 
+	public EventSaveData Events { get; set; } = new();
+
 	public double Tokens { get; set; }
 
 	public double RunEarnedTokens { get; set; }

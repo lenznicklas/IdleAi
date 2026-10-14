@@ -1338,7 +1338,7 @@ public sealed partial class MapController
 	}
 
 
-	private float GetSafeTopInset()
+	internal float GetSafeTopInset()
 	{
 		string os =
 			OS.GetName();
@@ -1508,7 +1508,7 @@ public sealed partial class MapController
 	}
 
 
-	private static StyleBoxFlat CreateNodeStyle(
+	internal static StyleBoxFlat CreateNodeStyle(
 		Color background,
 		Color border,
 		int borderWidth,
@@ -1724,7 +1724,7 @@ public sealed partial class MapController
 	}
 
 
-	private static StyleBoxFlat CreateHeaderStyle()
+	internal static StyleBoxFlat CreateHeaderStyle()
 	{
 		return new StyleBoxFlat
 		{
@@ -1782,7 +1782,7 @@ public sealed partial class MapController
 	}
 
 
-	private static Label CreateLabel(
+	internal static Label CreateLabel(
 		int fontSize,
 		string text)
 	{
@@ -1816,7 +1816,7 @@ public sealed partial class MapController
 	}
 
 
-	private static void PlayNavigationHaptic()
+	internal static void PlayNavigationHaptic()
 	{
 		Input.VibrateHandheld(
 			NavigationHapticDurationMs,

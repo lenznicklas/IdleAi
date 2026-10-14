@@ -9,7 +9,7 @@ public readonly record struct GameLoadStateResult(int RestoredLifetimeLevelBase,
 /// <summary>Maps normal-game state and applies legacy compatibility. No files, UI or offline settlement.</summary>
 public sealed class GameSaveService
 {
-	public const int SaveVersion = 21;
+	public const int SaveVersion = 22;
 	private readonly GameState _state;
 	private readonly EconomyService _economy;
 
@@ -24,6 +24,7 @@ public sealed class GameSaveService
 		return new SaveGameData
 			{
 				SaveVersion = SaveVersion,
+				Events = _state.Events.Copy(),
 				Tokens = _state.Tokens,
 				RunEarnedTokens = _state.RunEarnedTokens,
 				LifetimeLevelBase = _state.LifetimeLevelBase,
@@ -79,6 +80,7 @@ public sealed class GameSaveService
 	// Balances are hydrated directly: loading is not a gameplay transaction.
 	public GameLoadStateResult ApplySave(SaveGameData save)
 	{
+		_state.Events = save.Events.Copy();
 		_state.Tokens = save.Tokens;
 		_state.RunEarnedTokens = save.RunEarnedTokens;
 		_state.LifetimeLevelBase =

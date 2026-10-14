@@ -39,6 +39,7 @@ public sealed partial class SingularityController
 		_nodeTouchStyleRunner.ProcessRequested +=
 			RefreshPolishedNodeTouchStyles;
 
+		_nodeTouchStyleRunner.SetProcess(false);
 		_root.AddChild(
 			_nodeTouchStyleRunner
 		);
@@ -75,6 +76,7 @@ public sealed partial class SingularityController
 				in _sectorMapViews.Values
 		)
 		{
+			if (!sectorView.Root.Visible) continue;
 			SingularitySectorData sector =
 				_service.GetSector(
 					sectorView.SectorIndex

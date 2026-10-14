@@ -57,6 +57,7 @@ public partial class Game
 		InitializeBotDurabilityUi();
 		InitializePlayGamesAndFirebase();
 		InitializeSingularity();
+		InitializeEvents();
 
 		/*
 		 * These are deliberately initialized after the normal UI and

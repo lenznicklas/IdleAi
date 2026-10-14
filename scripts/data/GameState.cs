@@ -4,6 +4,8 @@ namespace IdleAi;
 
 public sealed class GameState
 {
+	public EventSaveData Events { get; set; } = new();
+
 	public double Tokens { get; set; }
 
 

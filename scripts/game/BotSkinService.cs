@@ -12,7 +12,7 @@ public readonly record struct BotSkinResult(
 );
 
 
-public sealed class BotSkinService
+public sealed partial class BotSkinService
 {
 	private const int SkinSaveVersion =
 		1;
@@ -68,9 +68,7 @@ public sealed class BotSkinService
 			return true;
 		}
 
-		return _ownedSkinIds.Contains(
-			skinId
-		);
+		return _ownedSkinIds.Contains(skinId) || _state.Events.CosmeticEntitlements.Contains("bot:" + skinId);
 	}
 
 

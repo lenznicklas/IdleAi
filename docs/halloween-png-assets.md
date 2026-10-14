@@ -91,11 +91,29 @@ Other existing workspace edits were preserved. Godot's editor may also generate 
 
 ## Active-definition binding fix
 
-The Event page previously pinned the ID selected by `OpenCurrent()`. A later manager selection (including a debug schedule override) updated the active Event/Map but left the open page rendering cached Test Protocol cards. `EventView` now observes changes to `DisplayEvent` and follows the selected definition. Its existing rebuild path then updates the background, currencies, theme, generator/bot/reward/challenge/shop cards and dismisses obsolete overlays. Opening Event always resets to the manager's selection. Explicit Archive viewing stays pinned intentionally; results also remain visible when the Event just being played expires.
+The Event page previously pinned the ID selected by `OpenCurrent()`. A later manager selection (including a debug schedule override) updated the active Event/Map but left the open page rendering cached Test Protocol cards. `EventView` now observes changes to `DisplayEvent` and follows the selected definition. Its existing rebuild path then updates the background, currencies, theme, generator/bot/reward/challenge/shop cards and dismisses obsolete overlays. Opening Event always resets to the manager's selection. Only explicit Archive viewing stays pinned intentionally.
 
-This follow-up changes only `EventView.cs`, `halloween_assets_scene_smoke.gd` and this document. No asset, balance, schedule or save changes were required. Halloween remains scheduled for October 20–November 3, 2026 UTC; before that interval Test Protocol is expected unless the development override is used.
+The initial binding fix did not address the live catalog: Test Protocol was enabled from January 2026 through January 2030, while Halloween started October 20. On October 14 the manager correctly selected Test Protocol. The catalog now disables Test Protocol for normal play (explicit Debug force still enables it for that session), and Halloween's fixed UTC start is October 14, 2026, with November 3 end unchanged. Disabled last-event IDs cannot become display fallbacks. No save migration, reset or asset changes were needed.
 
 The regression fixture now opens Test Protocol before forcing Halloween, switches both ways repeatedly with every tab already built, checks actual generator/bot names, rejects stale visible text/images, checks the Map after each switch and verifies that EventPage is reused. Debug and ExportRelease builds pass with zero errors. Headless scene checks cover all seven tabs and three portrait sizes; this does not replace a physical Android visual review.
+
+## Live-selection follow-up
+
+The real local save was inspected read-only: `LastEventId` was `event_test_001` and it contained no Halloween progress. The original selection was caused by the enabled sandbox's January 2026–January 2030 window and Halloween's future October 20 start, rather than catalog order or an asset-load failure. The previous binding fix alone therefore could not make Halloween active on October 14.
+
+Normal selection now considers enabled, in-window, non-ended definitions, ordered by type, latest start and stable ID. Halloween is enabled October 14–November 3 UTC. Test Protocol is disabled in the catalog in both build configurations. A saved ID is historical state, not an override, and a disabled saved definition cannot be the fallback display. Without an active Event, enabled last-event results may still display. Debug force explicitly enables its selected definition, holds that sandbox session even after expiration, and does not persist schedule overrides; restarting restores the live catalog. Only explicit Archive browsing pins historical UI content. Opening Event logs active and rendered IDs in DEBUG.
+
+Files changed for this follow-up:
+
+- Runtime/configuration: `scripts/game/events/EventCatalog.cs`, `scripts/game/events/HalloweenEventDefinition.cs`, `scripts/game/events/EventManager.cs`, `scripts/ui/events/EventView.cs`.
+- Domain tests: `tests/Events/Gameplay.cs.txt`, `tests/Events/HalloweenAssets.cs.txt`.
+- Scene regressions: `tests/Events/halloween_assets_scene_smoke.gd`, `tests/Events/navigation_scene_smoke.gd`, `tests/Events/scene_smoke.gd`, `tests/Events/shop_scene_smoke.gd`, `tests/Events/bots_scene_smoke.gd`, `tests/Events/challenges_scene_smoke.gd`, `tests/Events/rewards_scene_smoke.gd`. Sandbox-specific fixtures now explicitly force Test Protocol instead of relying on it being the live Event.
+- Test helper: `tests/Events/image_layout_checks.gd` now targets a generator image for synthetic 240×160 source-size checks, instead of accidentally selecting the newer, smaller header currency slot. The older combined scene fixture also now checks the existing real Shop instead of its removed placeholder.
+- Documentation: `scripts/game/events/README.md`, `docs/halloween-png-assets.md`.
+
+Validation: Debug and ExportRelease build with zero errors (existing warnings remain); Event domain suite passes 410 assertions. Halloween asset scene passes 6,858 checks, including unforced live startup plus repeated forces both ways. All 17 exact-case PNG paths load; generator and bot names/images, Souls/Cursed Core images, background, rewards, Shop and portrait bounds are checked. Halloween has no configured Challenges or dedicated challenge PNGs; the generic empty state is used, with no Test Protocol task substitution. No asset files or save data were modified.
+
+Other final scene regressions pass: normal navigation 155 checks, tabs 2,203, Rewards 840, Challenges 998, Bots 67 and Shop 910. Combined sandbox and Halloween gameplay scenes also finish with zero failures. These run headless on Linux using isolated save profiles; no physical Android visual test was performed. Existing Godot scene UID fallback and isolated domain fixture asset warnings remain unrelated to selection; the exact-case Halloween PNG scene has no missing Halloween resource errors.
 - All 17 `.png.import` source/destination paths and existing imported texture files verified with exact casing.
 - `git diff --check`: passed.
 

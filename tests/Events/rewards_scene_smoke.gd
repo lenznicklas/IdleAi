@@ -18,6 +18,11 @@ func tab(name):
     page.find_child("Event"+name+"Tab",true,false).pressed.emit()
     await frames()
 func enter():
+    game.get_node("BottomBar/Margin/HBox/ShopButton").pressed.emit(); await frames()
+    for input in game.get_node("ShopPage").find_children("*", "LineEdit", true, false):
+        if input.placeholder_text == "ENTER CODE":
+            input.text = "event-force:event_test_001"
+            input.text_submitted.emit(input.text)
     game.get_node("BottomBar/Margin/HBox/MapButton").pressed.emit()
     await frames()
     game.get_node("MapPage").find_child("EventMapEntry",true,false).pressed.emit()
@@ -26,7 +31,7 @@ func enter():
     game.get_node("EventRuntime/EventTickTimer").stop()
     await tab("Rewards")
 func run_checks():
-    if not OS.get_environment("XDG_DATA_HOME").contains("event-rewards-test"):
+    if not OS.get_environment("XDG_DATA_HOME").contains("event-rewards-test") or not "--event-tools" in OS.get_cmdline_user_args():
         push_error("Isolated event-rewards-test profile required"); quit(1); return
     var now := int(Time.get_unix_time_from_system())
     var file = FileAccess.open("user://idle_ai_save.json",FileAccess.WRITE)

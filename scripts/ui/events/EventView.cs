@@ -51,11 +51,8 @@ internal sealed partial class EventView : Control
             var display = _manager.DisplayEvent;
             if (!_viewingArchive && _observedDisplayEventId != display?.Id)
             {
-                // Keep results visible when the event being played ends. Otherwise follow
-                // the manager's selection, including live schedule/debug overrides.
-                bool justEnded = _focusedEventId == _observedDisplayEventId
-                    && _focusedEventId != null && _manager.HasEnded(_focusedEventId);
-                if (!justEnded) _focusedEventId = display?.Id;
+                // Only explicit Archive navigation may pin a historical definition.
+                _focusedEventId = display?.Id;
                 _observedDisplayEventId = display?.Id;
             }
             return _focusedEventId == null ? display : _manager.GetDefinition(_focusedEventId);
@@ -65,6 +62,10 @@ internal sealed partial class EventView : Control
     {
         _viewingArchive = false;
         _focusedEventId = _observedDisplayEventId = _manager.DisplayEvent?.Id;
+#if DEBUG
+        GD.Print("[Event] Active Event ID: " + (_manager.ActiveEvent?.Id ?? "none")
+            + " | Rendered Event ID: " + (_focusedEventId ?? "none"));
+#endif
         Refresh(true);
         RestoreTabScroll();
     }

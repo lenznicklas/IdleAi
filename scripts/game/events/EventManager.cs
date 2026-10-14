@@ -38,7 +38,7 @@ public sealed partial class EventManager
     public IReadOnlyList<EventDefinition> Definitions => _definitions;
     public EventDefinition? ActiveEvent => _active;
     public EventDefinition? DisplayEvent => _active ??
-        (_save.LastEventId != null && _byId.TryGetValue(_save.LastEventId, out var last) ? last : null);
+        (_save.LastEventId != null && _byId.TryGetValue(_save.LastEventId, out var last) && last.Enabled ? last : null);
     public long NowUnix => Math.Max(_save.LastEvaluationUnix, _clock());
     public bool ReadOnly => !_canWrite();
 
@@ -224,8 +224,11 @@ public sealed partial class EventManager
     private EventDefinition? SelectAt(long timestamp)
     {
 #if DEBUG
-        if (_debugForcedEventId != null && _byId.TryGetValue(_debugForcedEventId, out var forced)
-            && timestamp >= forced.StartUnix && timestamp < forced.EndUnix && !HasEnded(forced.Id)) return forced;
+        // A force command selects a whole sandbox session, including its ended state.
+        // Do not silently fall back to a different live event when that sandbox expires.
+        if (_debugForcedEventId != null)
+            return _byId.TryGetValue(_debugForcedEventId, out var forced)
+                && timestamp >= forced.StartUnix && timestamp < forced.EndUnix && !HasEnded(forced.Id) ? forced : null;
 #endif
         EventDefinition? selected = null;
         foreach (var d in _definitions)

@@ -35,6 +35,12 @@ func run_checks():
     game.get_node("BottomBar/Margin/HBox/ShopButton").pressed.emit(); await frames()
     for input in game.get_node("ShopPage").find_children("*", "LineEdit", true, false):
         if input.placeholder_text == "ENTER CODE": code = input
+    # The production catalog, without any force command, must select Halloween now.
+    game.get_node("BottomBar/Margin/HBox/MapButton").pressed.emit(); await frames()
+    var initial_entry = game.get_node("MapPage").find_child("EventMapEntry", true, false)
+    check(initial_entry.find_child("EventEntryName", true, false).text == "Halloween Protocol", "Live catalog selects Halloween without debug forcing")
+    initial_entry.pressed.emit(); await frames(); page = game.get_node("EventPage")
+    check(find("EventTitle").text == "HALLOWEEN PROTOCOL", "Fresh Event renders the actual live Halloween definition")
     # Open Test Protocol first: switching the active definition must invalidate
     # cached cards and textures without recreating or reopening EventPage.
     command("event-force:event_test_001")
@@ -93,7 +99,8 @@ func run_checks():
                 check(image.expand_mode == TextureRect.EXPAND_IGNORE_SIZE and image.stretch_mode == TextureRect.STRETCH_KEEP_ASPECT_CENTERED, "All visible sprites fitted")
                 check(image.get_global_rect().end.x <= page.get_global_rect().end.x+1, "No image horizontal overflow")
             check(find("EventScroll").scroll_horizontal == 0 and not game.get_node("BottomBar").visible, "Stable full-screen portrait navigation")
-    command("event-end"); await tab("Progress")
+    command("event-end"); await tab("Archive")
+    find("ViewArchive_halloween_2026").pressed.emit(); await frames(); await tab("Progress")
     for icon in ["event_icon","souls","cursed_core"]:
         check(images(find("EventEndIcons"),icon).size() == 1, "Final results identity/currency: " + icon)
     await tab("Archive")
@@ -106,6 +113,9 @@ func run_checks():
         if path in seen: check(seen[path] == image.texture.get_instance_id(), "Shared cached texture: " + path)
         seen[path] = image.texture.get_instance_id()
     check(seen.size() == 17, "All 17 source assets represented without placeholder duplication")
+    # Explicit archive browsing is intentionally historical; reopening follows active data.
+    game.get_node("BottomBar/Margin/HBox/MapButton").pressed.emit(); await frames()
+    entry.pressed.emit(); await frames()
     # Switch away from ended results, then back again with every tab instantiated.
     command("halloween-force"); await frames()
     for event_id in ["event_test_001", "halloween_2026", "event_test_001", "halloween_2026"]:

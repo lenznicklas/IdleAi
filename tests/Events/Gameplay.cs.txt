@@ -94,7 +94,7 @@ internal static partial class Program
         Check(!noPrestige.GetPrestigeQuote(d.Id).Available, "prestige disabled per definition");
         now = 20000; pm.Tick(); Check(!pm.Prestige(d.Id, 1).Changed, "expired event blocks prestige");
 
-        var test = EventCatalog.Create().Single(x => x.Id == EventCatalog.TestEventId) with { StartUnix = 100, EndUnix = 1000 };
+        var test = EventCatalog.Create().Single(x => x.Id == EventCatalog.TestEventId) with { Enabled = true, StartUnix = 100, EndUnix = 1000 };
         var old = JsonSerializer.Deserialize<EventSaveData>("{\"Version\":1,\"LastEvaluationUnix\":100,\"ProgressByEventId\":{\"event_test_001\":{\"Currency\":2,\"TotalCurrencyEarned\":100,\"ProgressionLevel\":4,\"HighestProgressionReached\":4,\"CycleElapsedSeconds\":3,\"UnlockedMilestones\":[\"data_100\"],\"ClaimedRewards\":[\"data_100\"]}}}")!;
         now = 100;
         var migrated = new EventManager(old, [test], () => true, () => now); migrated.Tick();
@@ -112,7 +112,8 @@ internal static partial class Program
         long now = HalloweenEventDefinition.StartUnix;
         var definitions = EventCatalog.Create();
         var halloween = definitions.Single(d => d.Id == HalloweenEventDefinition.EventId);
-        Check(halloween.Type == EventType.Major && halloween.EndUnix - halloween.StartUnix == 14 * 86400, "Halloween Major definition duration");
+        Check(halloween.Type == EventType.Major && halloween.StartUnix == new DateTimeOffset(2026, 10, 14, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds()
+            && halloween.EndUnix - halloween.StartUnix == 20 * 86400, "Halloween fixed live schedule");
         Check(halloween.Generators.Count == 6 && halloween.Bots.Count == 4 && halloween.Milestones.Count == 16, "Halloween content counts");
         var save = new EventSaveData(); bool saveOk = true; double shards = 0;
         var manager = new EventManager(save, definitions, () => saveOk, () => now, grantExternalReward: reward =>

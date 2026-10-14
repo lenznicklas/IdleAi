@@ -7,6 +7,25 @@ internal static partial class Program
 {
     private static void HalloweenAssets()
     {
+        var catalog = EventCatalog.Create();
+        Check(!catalog.Single(e => e.Id == EventCatalog.TestEventId).Enabled, "sandbox is never auto-selected in live catalog");
+        long now = HalloweenEventDefinition.StartUnix - 1;
+        var oldSave = new EventSaveData { LastEvaluationUnix = now, LastEventId = EventCatalog.TestEventId };
+        oldSave.ProgressByEventId[EventCatalog.TestEventId] = new() { Currency = 42, TotalCurrencyEarned = 42, LastUpdateUnix = now };
+        var live = new EventManager(oldSave, catalog, () => true, () => now);
+        live.Tick();
+        Check(live.ActiveEvent == null && live.DisplayEvent == null, "disabled saved sandbox cannot become fallback before Halloween starts");
+        now++; live.Tick();
+        Check(live.ActiveEvent?.Id == HalloweenEventDefinition.EventId && live.DisplayEvent?.Id == HalloweenEventDefinition.EventId, "Halloween selected at live start despite old saved test ID");
+        Equal(live.GetProgress(EventCatalog.TestEventId).Currency, 42, "sandbox save currency preserved without live production");
+        var restarted = new EventManager(RoundTrip(oldSave), EventCatalog.Create(), () => true, () => now);
+        restarted.Tick();
+        Check(restarted.ActiveEvent?.Id == HalloweenEventDefinition.EventId, "live Halloween selection survives restart without debug override");
+        var reversed = new EventManager(new EventSaveData(), catalog.Reverse().ToArray(), () => true, () => now);
+        reversed.Tick();
+        Check(reversed.ActiveEvent?.Id == HalloweenEventDefinition.EventId, "catalog ordering does not select the sandbox");
+        now = HalloweenEventDefinition.EndUnix; live.Tick();
+        Check(live.ActiveEvent == null && live.DisplayEvent?.Id == HalloweenEventDefinition.EventId, "Halloween ends without reverting to sandbox");
         var d = HalloweenEventDefinition.Create();
         Check(d.IconPath == HalloweenEventAssets.Icon && d.BackgroundPath == HalloweenEventAssets.Background, "real Halloween identity/background");
         Check(d.CurrencyIconPath == HalloweenEventAssets.Souls && d.Prestige.IconPath == HalloweenEventAssets.CursedCore, "both Halloween currencies configured centrally");

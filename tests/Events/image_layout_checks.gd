@@ -28,7 +28,9 @@ static func verify(page, check):
             check.call(rect.size.x <= 240.5 and rect.size.y <= 160.5, label + ": maximum image area")
 
 static func verify_source_sizes(page, tree, check):
-    var area = page.find_child("EventImageArea", true, false)
+    # Exercise a generator's 240x160 slot, not a header currency icon that may precede it.
+    var generator = page.find_children("EventGenerator_*", "Control", true, false)[0]
+    var area = generator.find_child("EventImageArea", true, false)
     var image = area.find_child("EventImage", true, false)
     var original = image.texture
     # Tiny, large, square, panoramic and portrait sources share the same layout.

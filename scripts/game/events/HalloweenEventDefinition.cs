@@ -8,7 +8,7 @@ public static class HalloweenEventDefinition
 {
     public const string EventId = "halloween_2026";
     public const string SoulIcon = HalloweenEventAssets.Souls;
-    public static readonly long StartUnix = new DateTimeOffset(2026, 10, 20, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
+    public static readonly long StartUnix = new DateTimeOffset(2026, 10, 14, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
     public static readonly long EndUnix = new DateTimeOffset(2026, 11, 3, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds();
     private const string ShardIcon = "res://assets/shop/data_shard.png";
     private const string CoreIcon = HalloweenEventAssets.CursedCore;

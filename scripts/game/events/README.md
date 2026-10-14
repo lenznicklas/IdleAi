@@ -9,12 +9,13 @@ new per-frame updates, particle systems, real-money purchases or secondary save 
 ## Configuration
 
 `EventDefinition` now supplies `Generators`, `Prestige`, `Bots`, `Milestones`, `Shop`,
-`Story` and `Theme`. `EventCatalog.Create()` retains Test Protocol and adds
+`Story` and `Theme`. `EventCatalog.Create()` retains Test Protocol disabled for normal play and adds
 `HalloweenEventDefinition.Create()`. Both catalog and Halloween factory accept optional
 UTC Unix start/end overrides. New event occurrences require unique event/milestone IDs.
 Only one event runs: Major > Seasonal > Weekend, then latest start, then ordinal ID.
-The map follows the active event. An already open view retains its selected ended event;
-completed Major Events can also be reopened from the Archive tab.
+The map and open Event view follow the active definition. With no active event, enabled
+last-event results remain visible. Only explicit Archive navigation pins a historical view.
+Saved disabled IDs cannot override selection. Completed Major Events can be reopened from Archive.
 
 Each generator has its own stable ID, name/description/image, enabled state, starting/
 maximum level, linear or exponential production curve, multiplier, exponential upgrade
@@ -62,9 +63,11 @@ rejected. Reopening a scene cannot repeat a reset or grant.
 
 ## Halloween Protocol
 
-ID `halloween_2026`, Major, **20 October–3 November 2026 UTC (14 days)**. Fixed dates do
-not extend on restart. On earlier dates, Test Protocol stays active; use the debug force
-command for immediate testing. Currency is Souls; prestige resource is Cursed Cores.
+ID `halloween_2026`, Major, **14 October–3 November 2026 UTC (20 days)**. Fixed dates do
+not extend on restart. Outside this interval no sandbox is automatically activated.
+Use `event-force:event_test_001` for Test Protocol in Debug with `--event-tools`.
+Force overrides are session-only and retain the selected sandbox's ended state until another
+force command or restart. Currency is Souls; prestige resource is Cursed Cores.
 
 | Machine | Base Souls / 5s | First upgrade cost | Unlock |
 | --- | ---: | ---: | --- |

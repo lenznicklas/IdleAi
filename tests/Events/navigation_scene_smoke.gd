@@ -19,7 +19,10 @@ func bar(): return game.get_node("BottomBar")
 func enter_event():
     if not game.get_node("MapPage").visible: button("MapButton").pressed.emit()
     await frames()
+    check(game.get_node("MapPage").find_child("EventEntryName",true,false).text == "Halloween Protocol", "Normal catalog selects Halloween despite saved Test Protocol ID")
     game.get_node("MapPage").find_child("EventMapEntry",true,false).pressed.emit()
+    check(page().find_child("EventTitle",true,false).text == "HALLOWEEN PROTOCOL", "Normal Event open renders Halloween without developer commands")
+    check(page().find_child("EventCurrency",true,false).text.contains("Souls"), "Normal open uses Souls")
     check(page().visible and not bar().visible, "Event hides the BottomBar synchronously")
     check(not quit_on_go_back, "Event intercepts system back instead of quitting")
     await frames()
@@ -39,7 +42,8 @@ func run_checks():
     var file = FileAccess.open("user://idle_ai_save.json",FileAccess.WRITE)
     file.store_string(JSON.stringify({"SaveVersion":22,"LastSaveUnix":now,"Rooms":[],"Events":{
         "Version":2,"LastEvaluationUnix":now,"LastEventId":"event_test_001","ProgressByEventId":{
-            "event_test_001":{"Currency":500000,"TotalCurrencyEarned":500000,"LastUpdateUnix":now}}}})); file.close()
+            "event_test_001":{"Currency":500000,"TotalCurrencyEarned":500000,"LastUpdateUnix":now},
+            "halloween_2026":{"Currency":1000000,"TotalCurrencyEarned":1000000,"LastUpdateUnix":now}}}})); file.close()
     file = FileAccess.open("user://singularity_save.json",FileAccess.WRITE)
     file.store_string(JSON.stringify({"SaveVersion":5,"Unlocked":true,"Matter":1000,"LastSaveUnix":now,
         "Sectors":[{"CoreUnlocked":true,"CoreLevel":1}]})); file.close()

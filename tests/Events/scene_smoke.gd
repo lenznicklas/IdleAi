@@ -34,6 +34,12 @@ func run_checks():
     var game = load("res://game.tscn").instantiate()
     root.add_child(game)
     for frame in range(20): await process_frame
+    game.get_node("BottomBar/Margin/HBox/ShopButton").pressed.emit()
+    for frame in range(5): await process_frame
+    for input in game.get_node("ShopPage").find_children("*", "LineEdit", true, false):
+        if input.placeholder_text == "ENTER CODE":
+            input.text = "event-force:event_test_001"
+            input.text_submitted.emit(input.text)
     game.get_node("BottomBar/Margin/HBox/MapButton").pressed.emit()
     for frame in range(5): await process_frame
     var entry = game.get_node("MapPage").find_child("EventMapEntry", true, false)
@@ -71,7 +77,8 @@ func run_checks():
     reward.pressed.emit()
     check(saved_progress().DeveloperCredits == 1, "repeated claim blocked")
     page.find_child("EventShopTab", true, false).pressed.emit()
-    check(page.find_child("EventShopPlaceholder", true, false).is_visible_in_tree(), "Shop placeholder navigation")
+    check(page.find_child("EventShopPanel", true, false).is_visible_in_tree()
+        and page.find_children("EventShop_*Card", "Control", true, false).size() == 8, "Configured sandbox Shop navigation")
     page.find_child("EventProgressTab", true, false).pressed.emit()
     var before = float(page.find_child("EventCurrency", true, false).text.split(" ")[0])
     var after = before
@@ -164,13 +171,21 @@ func run_checks():
     game = load("res://game.tscn").instantiate()
     root.add_child(game)
     for frame in range(20): await process_frame
+    game.get_node("BottomBar/Margin/HBox/ShopButton").pressed.emit()
+    for frame in range(5): await process_frame
+    for input in game.get_node("ShopPage").find_children("*", "LineEdit", true, false):
+        if input.placeholder_text == "ENTER CODE":
+            input.text = "event-force:event_test_001"
+            input.text_submitted.emit(input.text)
+            input.text = "event-ending-soon"
+            input.text_submitted.emit(input.text)
     game.get_node("BottomBar/Margin/HBox/MapButton").pressed.emit()
     for frame in range(4): await process_frame
     entry = game.get_node("MapPage").find_child("EventMapEntry", true, false)
     check(entry.find_child("EventEntryStatus", true, false).text == "ENDING SOON", "ending-soon map state")
     entry.pressed.emit()
     page = game.get_node("EventPage")
-    check(page.find_child("EventCountdown", true, false).text.begins_with("Ends in 30m"), "remaining time display")
+    check(page.find_child("EventCountdown", true, false).text.begins_with("Ends in 23h"), "remaining time display")
     check(page.visible, "recreated event scene opens")
     game.queue_free()
     for frame in range(4): await process_frame

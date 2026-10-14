@@ -26,6 +26,7 @@ func open_event():
     game.get_node("BottomBar/Margin/HBox/ShopButton").pressed.emit(); await frames()
     for input in game.get_node("ShopPage").find_children("*","LineEdit",true,false):
         if input.placeholder_text == "ENTER CODE": code = input
+    command("event-force:event_test_001")
     game.get_node("BottomBar/Margin/HBox/MapButton").pressed.emit(); await frames()
     game.get_node("MapPage").find_child("EventMapEntry",true,false).pressed.emit(); await frames()
     page = game.get_node("EventPage")

@@ -5,7 +5,7 @@ namespace IdleAi;
 
 public enum EventProductionScaling { Linear, Exponential }
 public enum EventUnlockCurrencyScope { Lifetime, CurrentRun }
-public enum EventShopCurrency { EventCurrency, PrestigeResource }
+public enum EventShopCurrency { EventCurrency, PrestigeResource, DataShards }
 
 public sealed record EventUnlockCondition
 {
@@ -40,6 +40,7 @@ public sealed record EventPrestigeConfiguration
 {
     public bool Enabled { get; init; }
     public string ResourceName { get; init; } = "Protocol Cores";
+    public string IconPath { get; init; } = "res://assets/ui/core_level.png";
     public double Requirement { get; init; } = 1_000_000;
     public double RequirementGrowth { get; init; } = 1;
     public double ProductionBonusPerResource { get; init; } = .25;
@@ -47,26 +48,64 @@ public sealed record EventPrestigeConfiguration
     public double RewardMultiplier { get; init; } = 1;
 }
 
+// Alternative paths are OR; populated requirements within a path are AND.
+public sealed record EventBotUnlockCondition
+{
+    public double LifetimeCurrency { get; init; }
+    public int PrestigeCount { get; init; }
+    public long PrestigeCurrency { get; init; } // lifetime earned; spending never re-locks a bot
+    public string MilestoneId { get; init; } = ""; // claimed reward
+    public string ChallengeId { get; init; } = ""; // completed, not necessarily claimed
+    public string ShopItemId { get; init; } = "";
+}
+public sealed record EventBotSecondaryBonus
+{
+    // Fraction, e.g. .1 reduces generator upgrade costs by 10%.
+    public double GeneratorUpgradeDiscount { get; init; }
+}
 public sealed record EventBotDefinition
 {
     public required string Id { get; init; }
     public required string Name { get; init; }
+    // Legacy strings remain compatible; validated against the shared BotRarity enum.
     public string Rarity { get; init; } = "Common";
+    public string EventId { get; init; } = ""; // empty inherits the containing event (legacy definitions)
+    public string Description { get; init; } = "";
+    public bool Enabled { get; init; } = true;
+    public bool AvailableFromStart { get; init; }
+    public bool GrantOnUnlock { get; init; } = true;
+    public IReadOnlyList<EventBotUnlockCondition> UnlockPaths { get; init; } = Array.Empty<EventBotUnlockCondition>();
+    public EventBotSecondaryBonus? SecondaryBonus { get; init; }
     public string IconPath { get; init; } = "";
     public double ProductionMultiplier { get; init; } = 1.1;
     public string UnlockMilestoneId { get; init; } = "";
 }
 
+public sealed record EventShopUnlockCondition
+{
+    public long RequiredPrestigeResource { get; init; }
+    public string RequiredBotId { get; init; } = "";
+    public string RequiredChallengeId { get; init; } = "";
+    public string RequiredMilestoneId { get; init; } = ""; // earned milestone, not necessarily claimed
+}
+
 public sealed record EventShopItem
 {
     public required string Id { get; init; }
+    public string EventId { get; init; } = ""; // empty inherits containing Event (legacy content)
+    public string Category { get; init; } = "Resources";
+    public bool Featured { get; init; }
+    public int SortOrder { get; init; }
+    public bool PermanentUnlock { get; init; } = true;
+    public string CostIconPath { get; init; } = "";
+    public EventShopUnlockCondition Unlock { get; init; } = new();
     public required string Name { get; init; }
     public string Description { get; init; } = "";
     public string IconPath { get; init; } = "";
     public double Cost { get; init; }
     public EventShopCurrency CostCurrency { get; init; }
     public required EventReward Reward { get; init; }
-    public int PurchaseLimit { get; init; } = 1;
+    public int PurchaseLimit { get; init; } = 1; // 0 = unlimited, otherwise maximum successful purchases
     public bool Enabled { get; init; } = true;
     public EventUnlockCondition Availability { get; init; } = new();
 }

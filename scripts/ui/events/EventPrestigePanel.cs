@@ -7,6 +7,9 @@ internal sealed class EventPrestigePanel
 {
     internal Control Root { get; }
     private readonly EventManager _manager;
+    private readonly EventTextureCache _textures;
+    private readonly EventImageView _coreIcon, _currencyIcon;
+    private string? _visualEventId;
     private readonly Control _overlay;
     private readonly PanelContainer _confirmation;
     private readonly Label _resource, _bonus, _requirement, _preview, _confirmText;
@@ -15,18 +18,26 @@ internal sealed class EventPrestigePanel
     private string? _confirmEventId;
     private readonly Action<int, long> _prestige;
     private readonly Func<EventDefinition?> _currentEvent;
-    internal EventPrestigePanel(EventManager manager, Control page, Action<int, long> prestige, Func<EventDefinition?> currentEvent)
+    private readonly Func<bool> _canInteract;
+    internal bool ConfirmationVisible => _overlay.Visible;
+    internal event Action? ConfirmationVisibilityChanged;
+    internal EventPrestigePanel(EventManager manager, EventTextureCache textures, Control page, Action<int, long> prestige, Func<EventDefinition?> currentEvent, Func<bool>? canInteract = null)
     {
-        _manager = manager; _prestige = prestige; _currentEvent = currentEvent;
+        _manager = manager; _textures = textures; _prestige = prestige; _currentEvent = currentEvent; _canInteract = canInteract ?? (() => true);
         var holder = new VBoxContainer { Name = "EventPrestigePanel", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         Root = holder;
         var box = EventUiStyle.Panel(holder, "PrestigeDetails");
         box.AddChild(EventUiStyle.Label("PrestigeTitle", "EVENT PRESTIGE", 20));
-        _resource = Text(box, "PrestigeResource"); _bonus = Text(box, "PrestigeBonus");
-        _requirement = Text(box, "PrestigeRequirement"); _preview = Text(box, "PrestigePreview");
+        var resourceRow = new HBoxContainer(); box.AddChild(resourceRow);
+        _coreIcon = new EventImageView(null, new(28, 28)) { Name = "PrestigeCoreIcon", Visible = false, CustomMinimumSize = new(28, 28) }; resourceRow.AddChild(_coreIcon);
+        _resource = Text(resourceRow, "PrestigeResource"); _bonus = Text(box, "PrestigeBonus");
+        var currencyRow = new HBoxContainer(); box.AddChild(currencyRow);
+        _currencyIcon = new EventImageView(null, new(28, 28)) { Name = "PrestigeCurrencyIcon", Visible = false, CustomMinimumSize = new(28, 28) }; currencyRow.AddChild(_currencyIcon);
+        _requirement = Text(currencyRow, "PrestigeRequirement"); _preview = Text(box, "PrestigePreview");
         _button = EventUiStyle.Button("EventPrestigeButton", "Prestige Event", Request);
         box.AddChild(_button);
         _overlay = new Control { Name = "EventPrestigeConfirmation", ZIndex = 10, Visible = false, MouseFilter = Control.MouseFilterEnum.Stop };
+        _overlay.VisibilityChanged += () => ConfirmationVisibilityChanged?.Invoke();
         _overlay.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect); page.AddChild(_overlay);
         var dim = new ColorRect { Color = new(0, 0, 0, .82f), MouseFilter = Control.MouseFilterEnum.Stop };
         dim.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect); _overlay.AddChild(dim);
@@ -44,10 +55,12 @@ internal sealed class EventPrestigePanel
     {
         var label = EventUiStyle.Label(name, "", 13);
         label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
+        label.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill; label.ClipText = true;
         parent.AddChild(label); return label;
     }
     private void Request()
     {
+        if (!_canInteract()) return;
         var d = _currentEvent();
         if (d == null) return;
         _quote = _manager.GetPrestigeQuote(d.Id);
@@ -68,9 +81,22 @@ internal sealed class EventPrestigePanel
         _prestige(_quote.PrestigeCount, _quote.ResourceGained);
     }
     internal void Dismiss() => _overlay.Hide();
+    internal bool DismissOnBack()
+    {
+        if (!_overlay.Visible) return false;
+        Dismiss();
+        return true;
+    }
     internal void Refresh(EventDefinition? d)
     {
         bool enabled = d?.Prestige.Enabled == true;
+        if (_visualEventId != d?.Id)
+        {
+            _visualEventId = d?.Id;
+            _coreIcon.SetTexture(_textures.Get(d?.Prestige.IconPath ?? ""));
+            _currencyIcon.SetTexture(_textures.Get(d?.CurrencyIconPath ?? ""));
+            _coreIcon.Visible = enabled; _currencyIcon.Visible = enabled && d?.CurrencyIconPath.Length > 0;
+        }
         var quote = d == null ? default : _manager.GetPrestigeQuote(d.Id);
         EventUiStyle.SetText(_resource, !enabled ? "Prestige is disabled for this event." : NumberFormatter.Format(quote.CurrentResource) + " " + d!.Prestige.ResourceName
             + " • " + NumberFormatter.Format(_manager.GetTotalPrestigeResourceEarned(d.Id)) + " earned");

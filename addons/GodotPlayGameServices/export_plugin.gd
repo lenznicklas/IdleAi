@@ -51,9 +51,9 @@ class AndroidExportPlugin extends EditorExportPlugin:
 
 	func _get_android_libraries(platform, debug):
 		if debug:
-			return PackedStringArray([_plugin_name + "/bin/debug/" + _plugin_name + "-debug.aar"])
+			return PackedStringArray([_plugin_name + "/bin/debug/" + _plugin_name + "-debug.aar", _plugin_name + "/bin/IdleAiFirebaseAuth.aar"])
 		else:
-			return PackedStringArray([_plugin_name + "/bin/release/" + _plugin_name + "-release.aar"])
+			return PackedStringArray([_plugin_name + "/bin/release/" + _plugin_name + "-release.aar", _plugin_name + "/bin/IdleAiFirebaseAuth.aar"])
 
 	func _get_android_dependencies(platform: EditorExportPlatform, debug: bool) -> PackedStringArray:
 		if not _supports_platform(platform):

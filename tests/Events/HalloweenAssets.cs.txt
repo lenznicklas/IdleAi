@@ -1,0 +1,39 @@
+using IdleAi;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+
+internal static partial class Program
+{
+    private static void HalloweenAssets()
+    {
+        var d = HalloweenEventDefinition.Create();
+        Check(d.IconPath == HalloweenEventAssets.Icon && d.BackgroundPath == HalloweenEventAssets.Background, "real Halloween identity/background");
+        Check(d.CurrencyIconPath == HalloweenEventAssets.Souls && d.Prestige.IconPath == HalloweenEventAssets.CursedCore, "both Halloween currencies configured centrally");
+        var paths = new HashSet<string> { d.IconPath, d.BackgroundPath, d.CurrencyIconPath, d.Prestige.IconPath };
+        void RewardPaths(EventReward r) { paths.Add(r.IconPath); foreach (var part in r.Contents) RewardPaths(part); }
+        foreach (var g in d.Generators) paths.Add(g.IconPath);
+        foreach (var b in d.Bots) paths.Add(b.IconPath);
+        foreach (var m in d.Milestones) RewardPaths(m.Reward);
+        foreach (var item in d.Shop) { paths.Add(item.IconPath); paths.Add(item.CostIconPath); RewardPaths(item.Reward); }
+        Check(paths.Count(p => p.StartsWith("res://assets/halloween_event/", StringComparison.Ordinal)) == 17, "every supplied PNG used by catalog");
+        Check(d.Generators.Select(g => g.IconPath).SequenceEqual(new[] { HalloweenEventAssets.AbandonedTerminal, HalloweenEventAssets.HauntedWorkstation,
+            HalloweenEventAssets.PossessedServer, HalloweenEventAssets.CursedDatacenter, HalloweenEventAssets.SoulProcessor, HalloweenEventAssets.NightmareAiCore }), "six machines mapped by identity, including legacy nightmare_core ID");
+        Check(d.Bots.Select(b => b.IconPath).SequenceEqual(new[] { HalloweenEventAssets.GhostBot, HalloweenEventAssets.PumpkinBot, HalloweenEventAssets.SkeletonBot, HalloweenEventAssets.ReaperBot }), "four dedicated bot images");
+        foreach (var milestone in d.Milestones)
+        {
+            if (milestone.Reward.Type == EventRewardType.EventBot)
+                Check(milestone.Reward.IconPath == d.Bots.Single(b => b.Id == milestone.Reward.Id).IconPath, "bot reward image agrees with inventory");
+            if (milestone.Reward.Type == EventRewardType.PrestigeResource)
+                Check(milestone.Reward.IconPath == d.Prestige.IconPath, "core reward icon agrees with Prestige");
+        }
+        Check(d.Shop.Single(i => i.Id == "soul_cache").IconPath == HalloweenEventAssets.RewardChest, "chest used for sealed soul cache");
+        Check(d.Shop.Single(i => i.Id == "garage_skin").IconPath == HalloweenEventAssets.GarageSkin, "single-room skin keeps truthful individual preview");
+        // Visual-only integration contract: stable identity, schedules, economy and ownership IDs.
+        Check(d.Generators.Select(g => g.BaseProduction).SequenceEqual(new[] { 1d, 30, 800, 25000, 800000, 30000000 }), "generator balance unchanged");
+        Check(d.Generators.Select(g => g.BaseUpgradeCost).SequenceEqual(new[] { 10d, 300, 8000, 250000, 8000000, 300000000 }), "upgrade prices unchanged");
+        Check(d.Bots.Select(b => b.ProductionMultiplier).SequenceEqual(new[] { 1.1, 1.3, 1.75, 2.5 }), "bot bonuses unchanged");
+        Check(d.Milestones.Count == 16 && d.Shop.Count == 5 && d.Challenges.Count == 0, "no content/gameplay systems added");
+        Check(d.Prestige.Requirement == 1000000 && d.Prestige.RequirementGrowth == 10 && d.Prestige.ProductionBonusPerResource == .2, "Prestige tuning unchanged");
+    }
+}

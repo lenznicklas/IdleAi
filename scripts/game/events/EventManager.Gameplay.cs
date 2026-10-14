@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace IdleAi;
 
@@ -19,7 +20,7 @@ public sealed partial class EventManager
             if (g.Id != generatorId) continue;
             var state = p.Generators[g.Id];
             double output = production.CycleProduction(g, p);
-            double cost = production.UpgradeCost(g, state.Level);
+            double cost = production.UpgradeCost(g, state.Level) * EventBotRules.UpgradeCostMultiplier(d, p);
             bool unlocked = g.Enabled && state.Unlocked;
             return new(state.Level, unlocked, output, IsActive(d) && unlocked ? output / g.CycleSeconds : 0, cost,
                 IsActive(d) && unlocked && state.Level < g.MaxLevel && double.IsFinite(cost) && p.Currency >= cost);
@@ -49,8 +50,10 @@ public sealed partial class EventManager
         {
             p.Currency -= snapshot.UpgradeCost;
             p.Generators[generatorId].Level++;
+            p.Challenges.TotalGeneratorUpgrades = checked(p.Challenges.TotalGeneratorUpgrades + 1);
             _production[eventId].RefreshUnlocks(p);
             _production[eventId].RefreshHistory(p);
+            RefreshChallenges(d, p, EventChallengeSignal.Upgrades | EventChallengeSignal.Generators | EventChallengeSignal.Production, NowUnix);
             return true;
         }, "Generator upgraded.");
     }
@@ -65,7 +68,9 @@ public sealed partial class EventManager
         var d = _byId[eventId];
         return Transaction(d, _ =>
         {
-            EventPrestigeService.Reset(_save.ProgressByEventId[eventId], _production[eventId], quote.ResourceGained);
+            var p = _save.ProgressByEventId[eventId];
+            EventPrestigeService.Reset(p, _production[eventId], quote.ResourceGained);
+            RefreshChallenges(d, p, EventChallengeSignal.Prestiges | EventChallengeSignal.Cores | EventChallengeSignal.Generators | EventChallengeSignal.Production, NowUnix);
             return true;
         }, "Event prestige completed.");
     }
@@ -80,7 +85,17 @@ public sealed partial class EventManager
         var undo = new List<Action>();
         bool committed = false;
         _actionInProgress = true;
-        try { committed = mutate(undo) && _save.IsValid() && TryPersist(); }
+        try
+        {
+            if (mutate(undo))
+            {
+                var progress = _save.ProgressByEventId[d.Id];
+                RefreshBotProgress(d, progress, NowUnix);
+                RefreshShopUnlocks(d, progress, NowUnix);
+                UpdateArchive(d, progress);
+                committed = _save.IsValid() && TryPersist();
+            }
+        }
         catch { committed = false; }
         finally
         {
@@ -106,7 +121,8 @@ public sealed partial class EventManager
             HighestLevel = p.HighestProgressionReached, PrestigeCount = p.PrestigeCount,
             PrestigeResource = p.PrestigeResource, TotalPrestigeResourceEarned = p.TotalPrestigeResourceEarned,
             HighestProduction = p.HighestProductionReached, RewardsClaimed = p.ClaimedRewards.Count,
-            RewardsTotal = d.Milestones.Count, CosmeticsOwned = p.Cosmetics.Count
+            RewardsTotal = d.Milestones.Count, BotsUnlocked = d.Bots.Count(b => p.UnlockedBots.Contains(b.Id)),
+            LegendaryBotOwned = d.Bots.Any(b => b.Rarity == nameof(BotRarity.Legendary) && p.OwnedBots.Contains(b.Id)), CosmeticsOwned = p.Cosmetics.Count
         };
     }
     public IEnumerable<EventArchiveResult> GetArchives()

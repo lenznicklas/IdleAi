@@ -101,7 +101,9 @@ internal static partial class Program
         Equal(migrated.GetGenerator(test.Id, "data_terminal").Level, 4, "old single-generator level migrates");
         Check(migrated.GetGenerators(test.Id).Count == 5 && migrated.IsRewardClaimed(test.Id, "data_100"), "old save gains generator defaults without resetting claims");
         Equal(old.Version, 2, "event save version migration");
-        now = 102; migrated.Tick(); Equal(migrated.GetProgress(test.Id).Currency, 6, "old cycle phase preserved");
+        now = 102; migrated.Tick();
+        var terminal = test.Generators[0];
+        Equal(migrated.GetProgress(test.Id).Currency, 2 + terminal.BaseProduction * Math.Pow(terminal.ProductionGrowth, 3), "old cycle phase preserved with current balance");
         Check(RoundTrip(old).IsValid(), "migrated save round trip valid");
     }
 

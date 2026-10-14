@@ -1,0 +1,143 @@
+using IdleAi;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text.Json;
+
+internal static partial class Program
+{
+    private static void Shop()
+    {
+        long now = 100; double shards = 100; bool saveOk = true, denySpend = false;
+        int saves = 0; bool reenter = false, nestedBlocked = false;
+        EventManager? manager = null;
+        var data = new EventSaveData { LastEvaluationUnix = now, ProgressByEventId = { ["shop"] = new()
+            { Currency = 1000, TotalCurrencyEarned = 1000, PrestigeResource = 10, TotalPrestigeResourceEarned = 10,
+              ShopPurchases = { ["retired_offer"] = 3 } } } };
+        EventShopItem Offer(string id, EventReward reward, int limit = 1, double cost = 10, EventShopCurrency currency = EventShopCurrency.EventCurrency) =>
+            new() { Id = id, EventId = "shop", Name = id, Cost = cost, CostCurrency = currency, Reward = reward, PurchaseLimit = limit };
+        var d = Definition("shop", end: 10000, output: 10) with
+        {
+            Prestige = new() { Enabled = true, Requirement = 100 },
+            Bots = [new() { Id = "shop_bot", Name = "Shop Bot" }],
+            Milestones = [new("track", 1300, new(EventRewardType.DeveloperCredits, 1))],
+            Challenges = [
+                new() { Id = "earn", EventId = "shop", Title = "Earn data", Type = EventChallengeType.EarnLifetimeCurrency, Target = 1300, Reward = new(EventRewardType.DeveloperCredits, 1) },
+                new() { Id = "purchase", EventId = "shop", Title = "Buy twice", Type = EventChallengeType.PurchaseShopItems, Target = 2, Reward = new(EventRewardType.DeveloperCredits, 1) },
+                new() { Id = "specific", EventId = "shop", Title = "Buy data", Type = EventChallengeType.PurchaseShopItems, ShopItemId = "data", Target = 1, Reward = new(EventRewardType.DeveloperCredits, 1) },
+                new() { Id = "bot_goal", EventId = "shop", Title = "Own bot", Type = EventChallengeType.OwnBot, BotId = "shop_bot", Reward = new(EventRewardType.DeveloperCredits, 1) }
+            ],
+            Shop = [
+                Offer("limited", new(EventRewardType.DeveloperCredits, 1), 2),
+                Offer("unlimited", new(EventRewardType.DeveloperCredits, 1), 0, 1),
+                Offer("core", new(EventRewardType.PrestigeResource, 1), 3, 20),
+                Offer("shards", new(EventRewardType.DataShards, 3), 2, 20),
+                Offer("data", new(EventRewardType.EventCurrency, 50), 1, 2, EventShopCurrency.PrestigeResource),
+                Offer("shard_cost", new(EventRewardType.EventCurrency, 30), 0, 5, EventShopCurrency.DataShards),
+                Offer("both_shards", new(EventRewardType.DataShards, 2), 0, 5, EventShopCurrency.DataShards),
+                Offer("skin", new(EventRewardType.BotSkin, 1, "existing_skin")),
+                Offer("global_skin", new(EventRewardType.BotSkin, 1, "already_global")),
+                Offer("bot", new(EventRewardType.EventBot, 1, "shop_bot")),
+                Offer("bundle", new(EventRewardType.Bundle, 1) { Contents = [new(EventRewardType.DataShards, 5), new(EventRewardType.EventBot, 1, "shop_bot")] }),
+                Offer("broken", new(EventRewardType.Bundle, 1) { Contents = [new(EventRewardType.DeveloperCredits, 9), new(EventRewardType.Custom, 1, "unregistered")] }),
+                Offer("unaffordable", new(EventRewardType.DeveloperCredits, 1), cost: 1e20),
+                Offer("life", new(EventRewardType.DeveloperCredits, 1)) with { Availability = new() { RequiredCurrencyEarned = 1300 } },
+                Offer("prestige", new(EventRewardType.DeveloperCredits, 1)) with { Availability = new() { RequiredPrestigeCount = 1 } },
+                Offer("hold_core", new(EventRewardType.DeveloperCredits, 1)) with { Unlock = new() { RequiredPrestigeResource = 10 } },
+                Offer("live_core", new(EventRewardType.DeveloperCredits, 1)) with { PermanentUnlock = false, Unlock = new() { RequiredPrestigeResource = 10 } },
+                Offer("generator", new(EventRewardType.DeveloperCredits, 1)) with { Availability = new() { RequiredGeneratorId = "generator", RequiredGeneratorLevel = 2 } },
+                Offer("bot_gate", new(EventRewardType.DeveloperCredits, 1)) with { Unlock = new() { RequiredBotId = "shop_bot" } },
+                Offer("challenge_gate", new(EventRewardType.DeveloperCredits, 1)) with { Unlock = new() { RequiredChallengeId = "earn" } },
+                Offer("track_gate", new(EventRewardType.DeveloperCredits, 1)) with { Unlock = new() { RequiredMilestoneId = "track" } },
+                Offer("disabled", new(EventRewardType.DeveloperCredits, 1)) with { Enabled = false }
+            ]
+        };
+        manager = new EventManager(data, [d], () => { saves++; if (reenter) nestedBlocked = !manager!.Buy(d.Id, "unlimited").Changed; return saveOk; }, () => now,
+            grantExternalReward: reward => { if (reward.Type != EventRewardType.DataShards) return null; shards += reward.Amount; return () => shards -= reward.Amount; },
+            validateCosmetic: reward => reward.Type == EventRewardType.BotSkin,
+            dataShardBalance: () => shards,
+            spendDataShards: cost => { if (denySpend || shards < cost) return null; shards -= cost; return () => shards += cost; },
+            cosmeticOwned: reward => reward.Id == "already_global");
+        var m = manager; m.Tick();
+        Check(!m.CanBuy("missing", "limited") && !m.Buy("missing", "limited").Changed && !m.Buy(d.Id, "missing").Changed, "unknown event/item safe");
+        Check(!m.CanBuy(d.Id, "disabled") && !m.CanBuy(d.Id, "unaffordable"), "disabled and insufficient rejected");
+        Check(m.GetShopItem(d.Id, "life").State == EventShopState.Locked && m.GetShopItem(d.Id, "prestige").State == EventShopState.Locked, "currency and prestige unlock requirements");
+        Check(!m.CanBuy(d.Id, "generator") && !m.CanBuy(d.Id, "bot_gate") && !m.CanBuy(d.Id, "challenge_gate") && !m.CanBuy(d.Id, "track_gate"), "generator bot challenge milestone gates locked");
+        int beforeSave = saves; reenter = true;
+        Check(m.Buy(d.Id, "limited", 0).Changed, "successful purchase"); reenter = false;
+        Check(saves == beforeSave + 1 && nestedBlocked, "one immediate save, reentrant double purchase rejected");
+        Equal(m.GetProgress(d.Id).Currency, 990, "exact event currency deduction");
+        Check(!m.Buy(d.Id, "limited", 0).Changed && m.PurchasedCount(d.Id, "limited") == 1, "double tap/stale count rejected");
+        Check(m.Buy(d.Id, "limited", 1).Changed && m.GetShopItem(d.Id, "limited").State == EventShopState.SoldOut, "configured maximum and sold out state");
+        Check(!m.Buy(d.Id, "limited").Changed, "limit cannot be bypassed");
+        for (int i = 0; i < 4; i++) Check(m.Buy(d.Id, "unlimited", i).Changed, "unlimited purchase " + i);
+        Check(m.GetChallenges(d.Id).Single(c => c.Definition.Id == "purchase").Complete, "purchase-count challenge hook");
+        Check(m.Buy(d.Id, "data").Changed, "prestige currency payment");
+        Equal(m.GetProgress(d.Id).PrestigeResource, 8, "exact core deduction");
+        Check(m.CanBuy(d.Id, "hold_core") && !m.CanBuy(d.Id, "live_core"), "permanent latch versus explicitly live balance gate");
+        Check(m.GetChallenges(d.Id).Single(c => c.Definition.Id == "specific").Complete, "specific-item purchase challenge");
+        Check(m.Buy(d.Id, "core").Changed, "prestige currency reward"); Equal(m.GetProgress(d.Id).PrestigeResource, 9, "core reward through shared grant");
+        Check(m.Buy(d.Id, "shards").Changed, "Data Shard reward"); Equal(shards, 103, "existing external shard grant");
+        Check(m.Buy(d.Id, "shard_cost", 0).Changed, "explicit Data Shard cost"); Equal(shards, 98, "global shards spent exactly");
+        denySpend = true; Check(!m.Buy(d.Id, "shard_cost", 1).Changed, "adapter refuses stale balance safely"); denySpend = false;
+        var before = m.GetProgress(d.Id); saveOk = false;
+        Check(!m.Buy(d.Id, "both_shards").Changed, "save failure rejects shard spend and grant");
+        Equal(shards, 98, "both external effects compensated"); Check(m.GetProgress(d.Id) == before && m.PurchasedCount(d.Id, "both_shards") == 0, "failed transaction restores event and count"); saveOk = true;
+        Check(!m.Buy(d.Id, "broken").Changed && m.GetProgress(d.Id) == before, "failed reward rolls back prior bundle effects and cost");
+        Check(m.GetShopItem(d.Id, "global_skin").State == EventShopState.Owned && !m.Buy(d.Id, "global_skin").Changed, "existing global cosmetic ownership blocks spend");
+        Check(m.Buy(d.Id, "skin").Changed && data.CosmeticEntitlements.Contains("bot:existing_skin"), "cosmetic shared global entitlement");
+        Check(!m.Buy(d.Id, "skin").Changed && m.GetShopItem(d.Id, "skin").State == EventShopState.Owned, "duplicate cosmetic blocked");
+        Check(m.Buy(d.Id, "bot").Changed && m.IsBotOwned(d.Id, "shop_bot") && m.CanBuy(d.Id, "bot_gate"), "bot purchase and unlock gate react immediately");
+        double priorShards = shards;
+        Check(!m.Buy(d.Id, "bundle").Changed && shards == priorShards, "owned bot inside bundle blocks all grants");
+        Check(m.GetChallenges(d.Id).Single(c => c.Definition.Id == "bot_goal").Complete, "bot purchase ownership challenge");
+        Check(m.Upgrade(d.Id).Changed && m.CanBuy(d.Id, "generator"), "generator unlock hook");
+        now = 300; m.Tick();
+        Check(m.CanBuy(d.Id, "life") && m.CanBuy(d.Id, "challenge_gate") && m.CanBuy(d.Id, "track_gate"), "earned currency/challenge/milestone gates unlock without UI polling");
+        Check(m.Prestige(d.Id, m.GetProgress(d.Id).PrestigeCount).Changed, "prestige after purchases");
+        Check(m.PurchasedCount(d.Id, "limited") == 2 && m.GetShopItem(d.Id, "skin").State == EventShopState.Owned && m.IsBotOwned(d.Id, "shop_bot"), "prestige preserves counts skins and bots");
+        Check(data.ProgressByEventId[d.Id].UnlockedShopItems.Contains("generator") && m.GetShopItem(d.Id, "generator").State != EventShopState.Locked, "permanent generator gate survives reset");
+        var copy = RoundTrip(data);
+        var reloaded = new EventManager(copy, [d], () => true, () => now, validateCosmetic: _ => true); reloaded.Tick();
+        Check(reloaded.PurchasedCount(d.Id, "limited") == 2 && reloaded.GetShopItem(d.Id, "limited").State == EventShopState.SoldOut, "purchase state persists across restart");
+        Check(!reloaded.Buy(d.Id, "unlimited", 0).Changed, "restart rejects replayed purchase quote");
+        Check(copy.CosmeticEntitlements.Contains("bot:existing_skin") && reloaded.GetShopItem(d.Id, "skin").State == EventShopState.Owned, "cosmetic persistence independent of adapter");
+        Check(reloaded.GetShopItem(d.Id, "shard_cost").State == EventShopState.Unavailable, "Data Shards cannot be spent without explicit adapter");
+        Check(copy.ProgressByEventId[d.Id].ShopPurchases.ContainsKey("retired_offer") && !reloaded.Buy(d.Id, "retired_offer").Changed, "unknown saved item history preserved safely");
+        var old = JsonSerializer.Deserialize<EventSaveData>(JsonSerializer.Serialize(data).Replace("\"UnlockedShopItems\"", "\"OldIgnoredField\""))!;
+        var legacy = new EventManager(old, [d], () => true, () => now); legacy.Tick();
+        Check(legacy.PurchasedCount(d.Id, "limited") == 2 && old.ProgressByEventId[d.Id].UnlockedShopItems.Contains("limited"), "legacy purchased-item unlock migration without reset");
+        copy.ProgressByEventId[d.Id].ShopPurchases["unlimited"] = int.MaxValue;
+        Check(reloaded.GetShopItem(d.Id, "unlimited").State == EventShopState.SoldOut && !reloaded.Buy(d.Id, "unlimited").Changed, "unlimited counter overflow safely blocked");
+        now = 11000; reloaded.Tick();
+        Check(reloaded.GetShopItem(d.Id, "skin").State == EventShopState.EventEnded && reloaded.GetShopItem(d.Id, "skin").Owned && !reloaded.Buy(d.Id, "unlimited").Changed, "expired shop read only");
+        Check(copy.CosmeticEntitlements.Contains("bot:existing_skin") && reloaded.PurchasedCount(d.Id, "limited") == 2, "expired history and permanent cosmetics preserved");
+        var sorted = d with { Shop = [d.Shop[0] with { Id = "z", Category = "Bots", SortOrder = 2 }, d.Shop[0] with { Id = "b", Category = "Bots", SortOrder = 1 }, d.Shop[0] with { Id = "featured", Featured = true, Category = "Resources" }] };
+        // No specific-item challenges in this independent sorting fixture.
+        sorted = sorted with { Challenges = [] };
+        var sorter = new EventManager(new(), [sorted], () => true, () => 100);
+        Check(sorter.GetShopItems(d.Id).Select(i => i.Id).SequenceEqual(new[] { "featured", "b", "z" }), "stable featured/category/config order");
+        foreach (var invalid in new[] { d.Shop[0] with { PurchaseLimit = -1 }, d.Shop[0] with { Cost = double.NaN },
+            d.Shop[0] with { Cost = -1 }, d.Shop[0] with { EventId = "wrong" },
+            d.Shop[0] with { CostCurrency = EventShopCurrency.PrestigeResource, Cost = .5 },
+            d.Shop[0] with { CostCurrency = (EventShopCurrency)999 } })
+        {
+            bool rejected = false;
+            try { _ = new EventManager(new(), [d with { Challenges = [], Shop = [invalid] }], () => true, () => now); }
+            catch (ArgumentException) { rejected = true; }
+            Check(rejected, "invalid shop configuration rejected");
+        }
+        var playShop = Definition("play_shop", end: 1000, output: 0) with
+        {
+            Challenges = [new() { Id = "play", EventId = "play_shop", Title = "Play a minute", Type = EventChallengeType.PlayMinutes, Target = 1, Reward = new(EventRewardType.DeveloperCredits, 1) }],
+            Shop = [new() { Id = "play_offer", Name = "Play offer", Cost = 1, Unlock = new() { RequiredChallengeId = "play" }, Reward = new(EventRewardType.DeveloperCredits, 1) }]
+        };
+        var playSave = new EventSaveData();
+        var playManager = new EventManager(playSave, [playShop], () => true, () => 100); playManager.Tick();
+        playManager.RecordEventPlayTime(playShop.Id, 60);
+        Check(playSave.ProgressByEventId[playShop.Id].UnlockedShopItems.Contains("play_offer"), "play-time challenge latches shop unlock without production polling");
+        var protocol = TestProtocolEventDefinition.Create();
+        Check(protocol.Shop.Count == 8 && protocol.Shop.Select(i => i.CostCurrency).Distinct().Count() == 3, "Test Protocol eight mixed-currency offers");
+        Check(protocol.Shop.Single(i => i.Id == "optimizer_license").Cost == 5000, "old license ID and price retained");
+    }
+}

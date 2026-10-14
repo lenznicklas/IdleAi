@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace IdleAi;
 
@@ -27,6 +28,7 @@ public sealed partial class EventManager
     private EventDefinition? _active;
     private readonly Dictionary<string, EventProductionService> _production = new(StringComparer.Ordinal);
     private bool _actionInProgress;
+    private bool _persistInProgress;
     private readonly Func<EventReward, bool>? _validateCosmetic;
 #if DEBUG
     private string? _debugForcedEventId;
@@ -44,7 +46,9 @@ public sealed partial class EventManager
     // are committed in one normal-game atomic save, or both rolled back on failure.
     public EventManager(EventSaveData save, IReadOnlyList<EventDefinition> definitions,
         Func<bool> persist, Func<long>? clock = null, Func<bool>? canWrite = null,
-        Func<EventReward, Action?>? grantExternalReward = null, Func<EventReward, bool>? validateCosmetic = null)
+        Func<EventReward, Action?>? grantExternalReward = null, Func<EventReward, bool>? validateCosmetic = null,
+        Func<double>? dataShardBalance = null, Func<double, Action?>? spendDataShards = null,
+        Func<EventReward, bool>? cosmeticOwned = null)
     {
         if (!save.IsValid()) throw new ArgumentException("Invalid event save data.", nameof(save));
         _save = save;
@@ -54,6 +58,7 @@ public sealed partial class EventManager
         _canWrite = canWrite ?? (() => true);
         _grantExternalReward = grantExternalReward;
         _validateCosmetic = validateCosmetic;
+        _dataShardBalance = dataShardBalance; _spendDataShards = spendDataShards; _cosmeticOwned = cosmeticOwned;
         _save.Version = 2;
         foreach (var definition in definitions)
         {
@@ -62,7 +67,13 @@ public sealed partial class EventManager
             var production = new EventProductionService(definition);
             EventDefinitionValidator.Validate(definition, production.Generators);
             _production.Add(definition.Id, production);
-            if (_save.ProgressByEventId.TryGetValue(definition.Id, out var progress)) production.Initialize(progress);
+            _challengeGroups.Add(definition.Id, definition.Challenges.Where(c => c.Enabled)
+                .GroupBy(c => ChallengeSignal(c.Type)).ToDictionary(g => g.Key, g => g.ToArray()));
+            if (_save.ProgressByEventId.TryGetValue(definition.Id, out var progress))
+            {
+                EventBotRules.Normalize(definition, progress);
+                production.Initialize(progress);
+            }
         }
     }
 
@@ -83,7 +94,7 @@ public sealed partial class EventManager
 
     public void Tick()
     {
-        if (_actionInProgress) return;
+        if (_actionInProgress || _persistInProgress) return;
         long now = NowUnix;
         if (ReadOnly) { _active = SelectAt(now); return; }
         bool changed = false;
@@ -105,8 +116,22 @@ public sealed partial class EventManager
             {
                 _save.LastEventId = selected.Id;
                 var progress = EnsureProgress(selected, cursor);
+                if (selected.Challenges.Count > 0)
+                {
+                    long todayStart = now - now % 86400;
+                    if (cursor < todayStart && todayStart < next) next = todayStart;
+                    long dailyEnd = ChallengeDayEnd(progress.Challenges.DailyUtcDay);
+                    if (cursor < dailyEnd && dailyEnd < next) next = dailyEnd;
+                }
+                int unlockedBefore = selected.Challenges.Count == 0 ? 0 : progress.Generators.Values.Count(g => g.Unlocked);
                 double earned = _production[selected.Id].Settle(progress, next - cursor);
                 if (earned > 0) { UnlockMilestones(selected, progress); changed = true; }
+                var signals = earned > 0 ? EventChallengeSignal.Earnings : EventChallengeSignal.None;
+                if (selected.Challenges.Count > 0 && unlockedBefore != progress.Generators.Values.Count(g => g.Unlocked))
+                    signals |= EventChallengeSignal.Generators | EventChallengeSignal.Production;
+                changed |= RefreshChallenges(selected, progress, signals, next, ChallengeUtcDay(cursor));
+                if (earned > 0 || signals != EventChallengeSignal.None) changed |= RefreshBotProgress(selected, progress, next);
+                if (earned > 0 || signals != EventChallengeSignal.None) changed |= RefreshShopUnlocks(selected, progress, next);
                 progress.LastUpdateUnix = next;
             }
             cursor = next;
@@ -122,40 +147,58 @@ public sealed partial class EventManager
                 changed = true;
             }
         var active = SelectAt(now);
-        if (active?.Id != _active?.Id) changed = true;
+        bool activeChanged = active?.Id != _active?.Id;
+        if (activeChanged) changed = true;
         _active = active;
         if (active != null)
         {
             changed |= !_save.ProgressByEventId.ContainsKey(active.Id);
-            EnsureProgress(active, now);
+            var progress = EnsureProgress(active, now);
+            if (activeChanged) changed |= RefreshChallenges(active, progress, EventChallengeSignal.All, now);
             _save.LastEventId = active.Id;
         }
         // Old claims and unknown/retired event IDs remain untouched in the dictionary.
-        if (initialized) TryPersist();
+        if (initialized || _challengeScheduleDirty)
+        {
+            changed |= _challengeScheduleDirty;
+            if (TryPersist()) _challengeScheduleDirty = false;
+        }
         if (changed) Changed?.Invoke();
     }
 
     public EventActionResult Upgrade(string eventId) => Upgrade(eventId,
         _production.TryGetValue(eventId, out var production) ? production.Generators[0].Id : "");
 
-    public EventActionResult ClaimReward(string eventId, string milestoneId)
+    public EventActionResult ClaimReward(string eventId, string milestoneId) =>
+        string.IsNullOrWhiteSpace(milestoneId) ? new(false, "Unknown milestone.") : ClaimRewards(eventId, milestoneId);
+
+    public EventActionResult ClaimAllRewards(string eventId) => ClaimRewards(eventId, null);
+
+    // Snapshot eligible rewards before granting: currency rewards cannot chain-unlock
+    // additional claims in the same batch. One transaction, save and notification.
+    private EventActionResult ClaimRewards(string eventId, string? milestoneId)
     {
         if (_actionInProgress) return Busy();
         Tick();
         if (ReadOnly || !_byId.TryGetValue(eventId, out var definition)
             || !_save.ProgressByEventId.TryGetValue(eventId, out var p)) return new(false, "Event unavailable.");
-        EventMilestone? milestone = null;
-        foreach (var candidate in definition.Milestones) if (candidate.Id == milestoneId) { milestone = candidate; break; }
-        if (milestone == null || !p.UnlockedMilestones.Contains(milestoneId)) return new(false, "Milestone is locked.");
-        if (p.ClaimedRewards.Contains(milestoneId)) return new(false, "Reward already claimed.");
-        if (p.Ended && !CanGrantAfterEnd(milestone.Reward)) return new(false, "Currency and core rewards expire with the event.");
+        var eligible = new List<EventMilestone>();
+        foreach (var m in definition.Milestones)
+            if ((milestoneId == null || m.Id == milestoneId) && CanClaimReward(eventId, m.Id)) eligible.Add(m);
+        if (eligible.Count == 0) return new(false, "No claimable rewards.");
         return Transaction(definition, undo =>
         {
-            if (!GrantReward(definition, p, milestone.Reward, undo)) return false;
-            p.ClaimedRewards.Add(milestoneId);
+            var signals = EventChallengeSignal.Rewards;
+            foreach (var m in eligible)
+            {
+                if (!GrantReward(definition, p, m.Reward, undo)) return false;
+                p.ClaimedRewards.Add(m.Id);
+                signals |= RewardChallengeSignals(m.Reward);
+            }
+            if (IsActive(definition)) RefreshChallenges(definition, p, signals, NowUnix);
             UpdateArchive(definition, p);
             return true;
-        }, "Milestone reward claimed.");
+        }, eligible.Count == 1 ? "Milestone reward claimed." : eligible.Count + " rewards claimed.");
     }
 
     private EventProgressSaveData EnsureProgress(EventDefinition definition, long timestamp)
@@ -165,8 +208,16 @@ public sealed partial class EventManager
             p = new() { LastUpdateUnix = timestamp };
             _save.ProgressByEventId.Add(definition.Id, p);
         }
+        EventBotRules.Normalize(definition, p);
         _production[definition.Id].Initialize(p);
         UnlockMilestones(definition, p);
+        EnsureChallengeSchedule(definition, p, timestamp);
+        if (!_botEnrolled.TryGetValue(definition.Id, out var enrolled) || !ReferenceEquals(enrolled, p))
+        {
+            _botEnrolled[definition.Id] = p;
+            if (!p.Ended && timestamp < definition.EndUnix) RefreshBotProgress(definition, p, timestamp);
+            RefreshShopUnlocks(definition, p, timestamp);
+        }
         return p;
     }
 
@@ -193,20 +244,25 @@ public sealed partial class EventManager
             || !double.IsFinite(p.TotalCurrencyEarned + amount)) throw new InvalidOperationException("Invalid event currency amount.");
         p.Currency += amount;
         p.TotalCurrencyEarned += amount;
+        ExcludeRewardCurrencyFromRepeats(d, p, amount);
         UnlockMilestones(d, p);
         _production[d.Id].RefreshUnlocks(p);
         _production[d.Id].RefreshHistory(p);
     }
     private static void UnlockMilestones(EventDefinition d, EventProgressSaveData p)
     {
+        if (p.Ended) return;
         foreach (var milestone in d.Milestones)
             if (p.TotalCurrencyEarned >= milestone.TargetAmount) p.UnlockedMilestones.Add(milestone.Id);
     }
 
     private bool TryPersist()
     {
+        if (_persistInProgress) return false;
+        _persistInProgress = true;
         try { return !ReadOnly && _persist(); }
         catch { return false; }
+        finally { _persistInProgress = false; }
     }
     private static EventActionResult SaveFailure() => new(false, "Could not save event progress. Action was reverted.");
 
@@ -264,6 +320,7 @@ public sealed partial class EventManager
         if (_active == null || !double.IsFinite(amount) || amount <= 0 || ReadOnly) return new(false, "No active event.");
         var before = _save.ProgressByEventId[_active.Id].Copy();
         AddCurrency(_active, _save.ProgressByEventId[_active.Id], amount);
+        RefreshChallenges(_active, _save.ProgressByEventId[_active.Id], EventChallengeSignal.Earnings | EventChallengeSignal.Generators | EventChallengeSignal.Production, NowUnix);
         if (!TryPersist()) { _save.ProgressByEventId[_active.Id] = before; return SaveFailure(); }
         Changed?.Invoke();
         return new(true, "Added test event currency.");

@@ -105,9 +105,7 @@ public sealed class UsernameSetupOverlayController
 		);
 
 		_connectionLabel.Text =
-			_aliases.IsFirebaseAuthenticated
-				? "Connected with Google Play Games + Firebase"
-				: "Connecting to Google Play Games + Firebase…";
+            _aliases.ConnectionMessage;
 
 		_overlay.Show();
 		_overlay.MoveToFront();
@@ -124,13 +122,14 @@ public sealed class UsernameSetupOverlayController
 
 	private void OnUsernameRequired()
 	{
+        if (Visible) return; // A delayed profile response must not reset an open/saving picker.
 		/*
 		 * Avoid interrupting another modal in the exact same frame as startup.
 		 * The deferred call also guarantees all UI nodes are ready.
 		 */
 		Callable
 			.From(
-				Open
+                () => { if (!Visible) Open(); }
 			)
 			.CallDeferred();
 	}
@@ -304,8 +303,8 @@ public sealed class UsernameSetupOverlayController
 		_usernameInput.Editable =
 			false;
 
-		_validationLabel.Text =
-			"Reserving username…";
+        _connectionLabel.Text = _aliases.ConnectionMessage;
+        _validationLabel.Text = _aliases.IsFirebaseAuthenticated ? "Reserving username…" : "Connecting…";
 
 		_aliases.SetUsername(
 			username

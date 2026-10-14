@@ -1,0 +1,108 @@
+using IdleAi;
+using System;
+
+internal static partial class Program
+{
+    private static void RewardTrack()
+    {
+        long now = 100;
+        bool saveOk = true;
+        int saves = 0, notifications = 0;
+        double shards = 0;
+        var d = Definition(end: 300, output: 0) with
+        {
+            Prestige = new() { Enabled = true, Requirement = 100 },
+            Bots = [new() { Id = "helper", Name = "Helper", UnlockMilestoneId = "bot" }],
+            Milestones =
+            [
+                new("data", 10, new(EventRewardType.EventCurrency, 50)),
+                new("shards", 20, new(EventRewardType.DataShards, 7)),
+                new("core", 30, new(EventRewardType.PrestigeResource, 2)),
+                new("bot", 40, new(EventRewardType.EventBot, 1, "helper")),
+                new("skin", 50, new(EventRewardType.MachineSkin, 1, MachineSkinCatalog.Room1HalloweenSkinId)),
+                new("later", 150, new(EventRewardType.DataShards, 3)),
+                new("future", 1000, new(EventRewardType.DataShards, 100))
+            ]
+        };
+        var save = new EventSaveData();
+        EventManager Create(EventSaveData data) => new(data, [d], () => { saves++; return saveOk; }, () => now,
+            grantExternalReward: r => { if (r.Type != EventRewardType.DataShards) return null;
+                shards += r.Amount; return () => shards -= r.Amount; },
+            validateCosmetic: r => MachineSkinCatalog.TryGet(r.Id, out _));
+        var m = Create(save); m.Tick();
+        var p = save.ProgressByEventId[d.Id];
+        p.Currency = p.TotalCurrencyEarned = 100; m.Tick();
+        Check(m.IsMilestoneUnlocked(d.Id, "skin") && !m.IsMilestoneUnlocked(d.Id, "later"), "reward unlock uses lifetime");
+        Check(m.Prestige(d.Id, 0).Changed, "reward fixture prestige");
+        Equal(m.GetProgress(d.Id).Currency, 0, "prestige resets wallet");
+        Equal(m.GetProgress(d.Id).TotalEarned, 100, "track lifetime survives prestige");
+        Check(m.CanClaimReward(d.Id, "skin"), "prestige keeps earned reward claimable");
+        saveOk = false;
+        Check(!m.ClaimAllRewards(d.Id).Changed, "batch save failure rejected");
+        Equal(shards, 0, "batch external reward rolled back");
+        Check(save.ProgressByEventId[d.Id].ClaimedRewards.Count == 0 && save.CosmeticEntitlements.Count == 0
+            && !m.IsBotOwned(d.Id, "helper"), "batch claims, cosmetics and bots rolled back");
+        Equal(m.GetProgress(d.Id).PrestigeResource, 1, "failed batch restores core resource");
+        saveOk = true;
+        saves = notifications = 0; m.Changed += () => notifications++;
+        Check(m.ClaimAllRewards(d.Id).Changed, "claim all succeeds");
+        Check(saves == 1 && notifications == 1, "batch one commit and notification");
+        Equal(shards, 7, "batch Data Shards reward");
+        Equal(m.GetProgress(d.Id).Currency, 50, "batch event currency reward");
+        Equal(m.GetProgress(d.Id).PrestigeResource, 3, "batch core reward");
+        Equal(m.GetTotalPrestigeResourceEarned(d.Id), 3, "core reward affects permanent multiplier");
+        Check(m.IsBotOwned(d.Id, "helper"), "batch bot unlock");
+        Check(save.CosmeticEntitlements.Contains("machine:" + MachineSkinCatalog.Room1HalloweenSkinId), "batch global skin entitlement");
+        Check(!m.IsRewardClaimed(d.Id, "later") && m.IsMilestoneUnlocked(d.Id, "later"), "new reward unlocked by grant excluded from batch snapshot");
+        Check(!m.ClaimReward(d.Id, "shards").Changed, "double tap cannot duplicate shard grant");
+        Check(m.ClaimReward(d.Id, "later").Changed, "new earned reward explicit claim");
+        Equal(shards, 10, "individual claim amount");
+        Check(!m.ClaimAllRewards(d.Id).Changed, "repeated claim all no-op");
+        var reloaded = RoundTrip(save); var restart = Create(reloaded); restart.Tick();
+        Check(!restart.ClaimReward(d.Id, "shards").Changed && !restart.ClaimAllRewards(d.Id).Changed, "restart cannot duplicate claims");
+        Check(reloaded.CosmeticEntitlements.SetEquals(save.CosmeticEntitlements) && restart.IsBotOwned(d.Id, "helper"), "skin and bot survive save load");
+        now = 400; restart.Tick();
+        double endedEarned = restart.GetProgress(d.Id).TotalEarned;
+        now += 86400; restart.Tick();
+        Equal(restart.GetProgress(d.Id).TotalEarned, endedEarned, "expired event no new progress");
+        Check(!restart.CanClaimReward(d.Id, "future"), "expired locked reward stays locked");
+
+        // Different reward rules are deliberately retained after expiration.
+        now = 100; var endedSave = new EventSaveData(); var expired = Create(endedSave); expired.Tick();
+        endedSave.ProgressByEventId[d.Id].Currency = endedSave.ProgressByEventId[d.Id].TotalCurrencyEarned = 100;
+        expired.Tick(); now = 400; expired.Tick();
+        Check(!expired.CanClaimReward(d.Id, "data") && !expired.CanClaimReward(d.Id, "core"), "event wallet and core rewards expire");
+        Check(expired.CanClaimReward(d.Id, "bot") && expired.CanClaimReward(d.Id, "skin") && expired.CanClaimReward(d.Id, "shards"), "earned permanent rewards remain available after end");
+        Check(expired.ClaimAllRewards(d.Id).Changed, "expired batch grants permanent rewards only");
+        Check(!expired.IsRewardClaimed(d.Id, "future") && !expired.IsRewardClaimed(d.Id, "data"), "expired batch cannot unlock or grant expired rewards");
+
+        // Unsupported future hooks fail the entire batch, including earlier grants.
+        now = 100;
+        var hookDefinition = d with { Bots = [], Milestones = [
+            new("first", 0, new(EventRewardType.DataShards, 8)),
+            new("unsupported", 0, new(EventRewardType.Custom, 1, "future-hook"))] };
+        double hookShards = 0;
+        var hookSave = new EventSaveData();
+        var hookManager = new EventManager(hookSave, [hookDefinition], () => true, () => now,
+            grantExternalReward: r => {
+                if (r.Type != EventRewardType.DataShards) return null;
+                hookShards += r.Amount; return () => hookShards -= r.Amount;
+            });
+        hookManager.Tick();
+        Check(!hookManager.ClaimReward(d.Id, "").Changed, "empty ID cannot become Claim All");
+        Check(!hookManager.ClaimAllRewards(d.Id).Changed && hookShards == 0
+            && hookSave.ProgressByEventId[d.Id].ClaimedRewards.Count == 0, "partial grant failure rolls back entire batch");
+        var endedReload = RoundTrip(endedSave);
+        var changedDefinition = d with { Milestones = [..d.Milestones,
+            new("added_after_end", 1, new(EventRewardType.DataShards, 100))] };
+        now = 1000;
+        var endedManager = new EventManager(endedReload, [changedDefinition], () => true, () => now);
+        endedManager.Tick();
+        Check(!endedManager.IsMilestoneUnlocked(d.Id, "added_after_end"), "catalog change cannot unlock a new reward on expired save");
+
+        var test = TestProtocolEventDefinition.Create();
+        Check(test.Milestones.Count == 10, "Test Protocol ten milestones");
+        Check(test.Milestones[0].Id == "data_100" && test.Milestones[0].Reward.Amount == 1, "legacy reward contract preserved");
+        Check(test.Milestones[^1].FinalReward, "explicit final reward metadata");
+    }
+}

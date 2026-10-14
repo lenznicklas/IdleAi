@@ -1,0 +1,242 @@
+using IdleAi;
+using System;
+using System.Linq;
+using System.Text.Json;
+
+internal static partial class Program
+{
+    private static EventChallengeDefinition Challenge(string id, EventChallengeType type, double target,
+        EventChallengeCategory category = EventChallengeCategory.Event) => new()
+    {
+        Id = id, EventId = "challenges", Title = id, Type = type, Target = target, Category = category,
+        Reward = new(EventRewardType.DataShards, 1)
+    };
+    private static EventDefinition ChallengeDefinition(long start, long end) => Definition("challenges", start, end) with
+    {
+        Generators = [new() { Id = "one", Name = "One", BaseProduction = 10, ProductionPerLevel = 10, BaseUpgradeCost = 1, UpgradeCostGrowth = 1.01 },
+            new() { Id = "two", Name = "Two", BaseProduction = 10, BaseUpgradeCost = 1, Unlock = new() { RequiredCurrencyEarned = 100 } }],
+        Prestige = new() { Enabled = true, Requirement = 100 },
+        Bots = [new() { Id = "helper", Name = "Helper", UnlockMilestoneId = "bot_reward" }],
+        Shop = [new() { Id = "cache", Name = "Cache", Cost = 2, PurchaseLimit = 10, Reward = new(EventRewardType.DeveloperCredits, 1) }],
+        Milestones = [new("m1", 10, new(EventRewardType.DataShards, 2)), new("m2", 20, new(EventRewardType.DataShards, 2)),
+            new("bot_reward", 40, new(EventRewardType.EventBot, 1, "helper"))]
+    };
+    private static EventChallengeSnapshot TaskState(EventManager m, string id) => m.GetChallenges("challenges").Single(s => s.Definition.Id == id);
+    private static void Challenges()
+    {
+        long now = 86400 + 100;
+        bool saveOk = true;
+        int saves = 0, notifications = 0;
+        double shards = 0;
+        var d = ChallengeDefinition(now, now + 3 * 86400) with { Challenges = [
+            Challenge("earn", EventChallengeType.EarnCurrency, 10),
+            Challenge("lifetime", EventChallengeType.EarnLifetimeCurrency, 20),
+            Challenge("upgrades", EventChallengeType.UpgradeGenerators, 2),
+            Challenge("level", EventChallengeType.ReachGeneratorLevel, 3) with { GeneratorId = "one" },
+            Challenge("live_level", EventChallengeType.ReachGeneratorLevel, 3) with { GeneratorId = "one", UseCurrentState = true },
+            Challenge("levels", EventChallengeType.ReachTotalGeneratorLevels, 4),
+            Challenge("unlock", EventChallengeType.UnlockGenerator, 1) with { GeneratorId = "two" },
+            Challenge("prestige", EventChallengeType.PerformPrestige, 1),
+            Challenge("cores", EventChallengeType.ReachPrestigeCurrency, 1),
+            Challenge("bot", EventChallengeType.UnlockBot, 1) with { BotId = "helper" },
+            Challenge("rewards", EventChallengeType.ClaimRewards, 2),
+            Challenge("shop", EventChallengeType.PurchaseShopItems, 1),
+            Challenge("production", EventChallengeType.ReachProductionPerSecond, 3),
+            Challenge("play", EventChallengeType.PlayMinutes, 1),
+            Challenge("repeat", EventChallengeType.UpgradeGenerators, 2) with { Repeatable = true }
+        ] };
+        var save = new EventSaveData();
+        EventManager Create(EventSaveData data) => new(data, [d], () => { saves++; return saveOk; }, () => now,
+            grantExternalReward: r => { if (r.Type != EventRewardType.DataShards) return null; shards += r.Amount; return () => shards -= r.Amount; });
+        var m = Create(save); m.Tick();
+        Check(m.GetChallenges(d.Id).Count == 15 && m.ClaimableChallengeCount(d.Id) == 0, "challenge enrollment without auto rewards");
+        now += 10; m.Tick();
+        Check(TaskState(m, "earn").Complete && TaskState(m, "lifetime").Complete, "currency and lifetime objectives");
+        Check(m.Upgrade(d.Id, "one").Changed && m.Upgrade(d.Id, "one").Changed, "real upgrades drive challenges");
+        Check(TaskState(m, "upgrades").Complete && TaskState(m, "level").Complete && TaskState(m, "live_level").Complete, "upgrade and level goals");
+        Check(TaskState(m, "production").Complete, "production target driven by upgrade");
+        now += 20; m.Tick();
+        Check(TaskState(m, "unlock").Complete && TaskState(m, "levels").Complete, "generator unlock and total levels goals");
+        Check(m.ClaimAllRewards(d.Id).Changed, "track batch fixture");
+        Check(TaskState(m, "bot").Complete && TaskState(m, "rewards").Complete, "bot and track-claim hooks");
+        Check(m.Buy(d.Id, "cache").Changed && TaskState(m, "shop").Complete, "shop purchase hook");
+        m.RecordEventPlayTime(d.Id, 60);
+        Check(TaskState(m, "play").Complete, "foreground Event play time");
+        var q = m.GetPrestigeQuote(d.Id);
+        Check(m.Prestige(d.Id, q.PrestigeCount).Changed, "prestige fixture");
+        Check(TaskState(m, "prestige").Complete && TaskState(m, "cores").Complete, "prestige and core hooks");
+        Check(TaskState(m, "upgrades").Progress == 2 && TaskState(m, "lifetime").Complete, "prestige preserves cumulative progress");
+        Check(TaskState(m, "level").Complete && !TaskState(m, "live_level").Complete, "high water and explicit current-state goals separated");
+        double beforeShards = shards;
+        saveOk = false;
+        Check(!m.ClaimAllChallenges(d.Id).Changed, "challenge batch save failure");
+        Equal(shards, beforeShards, "challenge batch external rollback");
+        Check(m.GetChallenges(d.Id).All(s => !s.Claimed), "challenge batch claim markers rolled back");
+        saveOk = true; saves = notifications = 0; m.Changed += () => notifications++;
+        Check(m.ClaimAllChallenges(d.Id).Changed, "challenge Claim All");
+        Check(saves == 1 && notifications == 1, "challenge batch one commit and notification");
+        Equal(shards, beforeShards + 14, "challenge batch amount");
+        Check(m.ClaimableChallengeCount(d.Id) == 0 && !m.ClaimAllChallenges(d.Id).Changed, "no instant repeated claim");
+        Check(!m.ClaimChallenge(d.Id, "lifetime").Changed && !m.ClaimChallenge(d.Id, "").Changed, "duplicate and empty challenge claim rejected");
+        var restored = RoundTrip(save); m = Create(restored); m.Tick();
+        Check(TaskState(m, "bot").Claimed && TaskState(m, "repeat").TimesClaimed == 1, "challenge save load");
+        Check(!m.ClaimChallenge(d.Id, "bot").Changed, "restart cannot regrant");
+        now += 20; m.Tick();
+        long beforeUpgrades = restored.ProgressByEventId[d.Id].Challenges.TotalGeneratorUpgrades;
+        saveOk = false;
+        Check(!m.Upgrade(d.Id, "one").Changed, "failed upgrade rejected");
+        Check(restored.ProgressByEventId[d.Id].Challenges.TotalGeneratorUpgrades == beforeUpgrades, "failed action does not advance cumulative counter");
+        saveOk = true;
+        Check(m.Upgrade(d.Id, "one").Changed && m.Upgrade(d.Id, "one").Changed, "next repeat cycle upgrades");
+        Check(TaskState(m, "repeat").Complete && !TaskState(m, "repeat").Claimed && TaskState(m, "repeat").TimesClaimed == 1, "repeat starts only after new gameplay");
+        Check(m.ClaimChallenge(d.Id, "repeat").Changed && TaskState(m, "repeat").TimesClaimed == 2, "repeat explicit second claim");
+        Check(!m.ClaimChallenge(d.Id, "repeat").Changed, "repeat duplicate prevention");
+        saves = 0;
+        for (int i = 0; i < 10; i++) { now++; m.Tick(); }
+        Check(saves == 0, "production and challenge ticks do not save each second");
+        DailyChallenges(); ChallengeCompatibility(); ChallengeRewardIntegration(); ChallengeOfflineRegression();
+    }
+    private static void DailyChallenges()
+    {
+        long now = 20 * 86400 + 86380;
+        int saves = 0; double shards = 0;
+        var d = ChallengeDefinition(now, now + 3 * 86400) with { Challenges = [
+            Challenge("daily_earn", EventChallengeType.EarnCurrency, 10, EventChallengeCategory.Daily),
+            Challenge("daily_upgrade", EventChallengeType.UpgradeGenerators, 1, EventChallengeCategory.Daily),
+            Challenge("daily_play", EventChallengeType.PlayMinutes, 1, EventChallengeCategory.Daily),
+            Challenge("impossible_rewards", EventChallengeType.ClaimRewards, 100, EventChallengeCategory.Daily),
+            Challenge("permanent_earn", EventChallengeType.EarnLifetimeCurrency, 10),
+            Challenge("expired_currency", EventChallengeType.EarnLifetimeCurrency, 10) with { Reward = new(EventRewardType.EventCurrency, 1) },
+            Challenge("late_bot", EventChallengeType.UnlockBot, 1) with { BotId = "helper" }
+        ] };
+        var save = new EventSaveData();
+        EventManager Create(EventSaveData data) => new(data, [d], () => { saves++; return true; }, () => now,
+            grantExternalReward: r => { shards += r.Amount; return () => shards -= r.Amount; });
+        var m = Create(save); m.Tick();
+        var ids = save.ProgressByEventId[d.Id].Challenges.DailyIds.ToArray();
+        Check(ids.Length == 3 && !ids.Contains("impossible_rewards"), "Daily selects configured count and excludes impossible finite rewards");
+        m.Tick(); Check(ids.SequenceEqual(save.ProgressByEventId[d.Id].Challenges.DailyIds), "same UTC day stable selection");
+        now += 5; m.Tick();
+        Check(m.Upgrade(d.Id, "one").Changed, "Daily upgrade action");
+        m.RecordEventPlayTime(d.Id, 60);
+        Check(m.ClaimChallenge(d.Id, "daily_play").Changed && !m.ClaimChallenge(d.Id, "daily_play").Changed, "Daily explicit duplicate-safe claim");
+        var round = RoundTrip(save); m = Create(round); m.Tick();
+        Check(ids.SequenceEqual(round.ProgressByEventId[d.Id].Challenges.DailyIds) && TaskState(m, "daily_play").Claimed, "Daily scene/restart preserves IDs and claims");
+        now = 21 * 86400; saves = 0; m.Tick();
+        var p = round.ProgressByEventId[d.Id];
+        Check(p.Challenges.DailyUtcDay == 21 && saves == 1, "UTC rollover saved once");
+        Check(TaskState(m, "daily_earn").Progress == 0 && TaskState(m, "daily_upgrade").Progress == 0 && TaskState(m, "daily_play").Progress == 0, "Daily baselines reset independent of wallet/cumulative counters");
+        Check(p.Challenges.TotalGeneratorUpgrades == 1 && p.Challenges.ActivePlaySeconds == 60, "Daily does not reset cumulative telemetry");
+        Check(p.Challenges.DailyHistory.ContainsKey("20:daily_play") && p.Challenges.DailyHistory["20:daily_play"].Claimed, "Daily completed/claimed history preserved");
+        Check(TaskState(m, "permanent_earn").Complete, "persistent objectives survive day reset");
+        now += 5; m.Tick();
+        Check(TaskState(m, "daily_earn").Complete, "new day currency earned normally");
+        long lastDay = p.Challenges.DailyUtcDay;
+        now = d.EndUnix + 2 * 86400; m.Tick();
+        Check(p.Ended && p.Challenges.DailyUtcDay == lastDay, "expired Event does not generate new Dailies");
+        Check(!m.ClaimChallenge(d.Id, "expired_currency").Changed, "challenge currency reward expiration follows track policy");
+        Check(m.ClaimChallenge(d.Id, "daily_earn").Changed && m.ClaimChallenge(d.Id, "permanent_earn").Changed, "expired earned permanent objectives claimable");
+        Check(m.ClaimReward(d.Id, "bot_reward").Changed && !TaskState(m, "late_bot").Complete, "post-event permanent grants cannot advance new challenges");
+        double play = p.Challenges.ActivePlaySeconds;
+        m.RecordEventPlayTime(d.Id, 86400); Equal(p.Challenges.ActivePlaySeconds, play, "expired play counter frozen");
+        double earned = p.TotalCurrencyEarned; now += 86400; m.Tick(); Equal(p.TotalCurrencyEarned, earned, "expired production frozen");
+
+        // Bulk offline settlement spans midnight but credits only today's earnings to today's Daily.
+        now = 30 * 86400 + 86390;
+        var offlineDefinition = ChallengeDefinition(now, now + 86400) with { DailyChallengeCount = 1,
+            Challenges = [Challenge("daily_earn", EventChallengeType.EarnCurrency, 1000, EventChallengeCategory.Daily)] };
+        var offlineSave = new EventSaveData();
+        var offline = new EventManager(offlineSave, [offlineDefinition], () => true, () => now);
+        offline.Tick(); now += 20; offline.Tick();
+        Equal(TaskState(offline, "daily_earn").Progress, 20, "offline midnight split credits only 10 seconds of current day");
+        Equal(offlineSave.ProgressByEventId[offlineDefinition.Id].Challenges.ActivePlaySeconds, 0, "offline never counts as active play");
+    }
+    private static void ChallengeRewardIntegration()
+    {
+        long now = 86400;
+        double shards = 0;
+        var d = ChallengeDefinition(now, now + 86400) with { Challenges = [
+            Challenge("currency", EventChallengeType.EarnLifetimeCurrency, 1) with { Reward = new(EventRewardType.EventCurrency, 10) },
+            Challenge("cores", EventChallengeType.EarnLifetimeCurrency, 1) with { Reward = new(EventRewardType.PrestigeResource, 2) },
+            Challenge("bot_grant", EventChallengeType.EarnLifetimeCurrency, 1) with { Reward = new(EventRewardType.EventBot, 1, "helper") },
+            Challenge("skin", EventChallengeType.EarnLifetimeCurrency, 1) with { Reward = new(EventRewardType.MachineSkin, 1, MachineSkinCatalog.Room1HalloweenSkinId) },
+            Challenge("bot_goal", EventChallengeType.UnlockBot, 1) with { BotId = "helper" },
+            Challenge("later", EventChallengeType.EarnLifetimeCurrency, 30)
+        ] };
+        var save = new EventSaveData();
+        var m = new EventManager(save, [d], () => true, () => now,
+            grantExternalReward: r => { if (r.Type != EventRewardType.DataShards) return null; shards += r.Amount; return () => shards -= r.Amount; },
+            validateCosmetic: r => MachineSkinCatalog.TryGet(r.Id, out _));
+        m.Tick(); now += 5; m.Tick();
+        Check(m.ClaimAllChallenges(d.Id).Changed, "mixed typed challenge rewards");
+        Equal(m.GetProgress(d.Id).Currency, 20, "challenge currency stays in originating event");
+        Equal(m.GetProgress(d.Id).PrestigeResource, 2, "challenge core reward");
+        Equal(m.GetTotalPrestigeResourceEarned(d.Id), 2, "challenge cores contribute permanent production boost");
+        Check(m.IsBotOwned(d.Id, "helper") && TaskState(m, "bot_goal").Complete && !TaskState(m, "bot_goal").Claimed, "bot reward updates next goal without chain claim");
+        Check(save.CosmeticEntitlements.Contains("machine:" + MachineSkinCatalog.Room1HalloweenSkinId), "challenge uses existing global skin entitlement");
+        Check(!TaskState(m, "later").Complete, "mixed reward batch excludes unearned future goal");
+        Check(m.ClaimChallenge(d.Id, "bot_goal").Changed && shards == 1, "explicit subsequent claim");
+        Check(!m.ClaimChallenge(d.Id, "currency").Changed, "mixed reward duplicate blocked");
+        var restored = RoundTrip(save);
+        Check(restored.CosmeticEntitlements.SetEquals(save.CosmeticEntitlements) && restored.ProgressByEventId[d.Id].Challenges.Progress["skin"].Claimed, "challenge cosmetic entitlement and claim persist together");
+
+        var unsupported = d with { Challenges = [Challenge("first", EventChallengeType.EarnLifetimeCurrency, 1),
+            Challenge("unsupported", EventChallengeType.EarnLifetimeCurrency, 1) with { Reward = new(EventRewardType.Custom, 1, "future") }] };
+        var failedSave = new EventSaveData();
+        var failed = new EventManager(failedSave, [unsupported], () => true, () => now,
+            grantExternalReward: r => { if (r.Type != EventRewardType.DataShards) return null; shards += r.Amount; return () => shards -= r.Amount; });
+        failed.Tick(); now += 5; failed.Tick();
+        double before = shards;
+        Check(!failed.ClaimAllChallenges(d.Id).Changed, "unsupported custom challenge hook fails batch");
+        Check(shards == before && failed.GetChallenges(d.Id).All(c => !c.Claimed), "partial challenge grant rolls back external rewards and claims");
+    }
+    private static void ChallengeOfflineRegression()
+    {
+        long now = 40 * 86400 + 86390;
+        var d = ChallengeDefinition(now, now + 3 * 86400) with { Challenges = [
+            Challenge("daily_data", EventChallengeType.EarnCurrency, 100, EventChallengeCategory.Daily),
+            Challenge("repeat_data", EventChallengeType.EarnCurrency, 10) with { Repeatable = true, Reward = new(EventRewardType.EventCurrency, 20) },
+            Challenge("other", EventChallengeType.EarnLifetimeCurrency, 10) with { Reward = new(EventRewardType.EventCurrency, 20) }
+        ] };
+        var withSave = new EventSaveData(); var withoutSave = new EventSaveData();
+        var withTasks = new EventManager(withSave, [d], () => true, () => now);
+        var withoutTasks = new EventManager(withoutSave, [d with { Challenges = [] }], () => true, () => now);
+        withTasks.Tick(); withoutTasks.Tick(); now += 6 * 3600; withTasks.Tick(); withoutTasks.Tick();
+        Equal(withTasks.GetProgress(d.Id).TotalEarned, withoutTasks.GetProgress(d.Id).TotalEarned, "six-hour offline challenge settlement does not double-count production");
+        foreach (var id in withSave.ProgressByEventId[d.Id].Generators.Keys)
+        {
+            var a = withSave.ProgressByEventId[d.Id].Generators[id]; var b = withoutSave.ProgressByEventId[d.Id].Generators[id];
+            Check(a.Unlocked == b.Unlocked && a.Level == b.Level, "challenges preserve offline generator progression");
+            Equal(a.CycleElapsedSeconds, b.CycleElapsedSeconds, "UTC splitting preserves partial production cycles");
+        }
+        Check(withTasks.ClaimChallenge(d.Id, "repeat_data").Changed, "repeat earning goal explicit claim");
+        Check(withTasks.ClaimChallenge(d.Id, "other").Changed, "second currency reward fixture");
+        Check(!withTasks.ClaimChallenge(d.Id, "repeat_data").Changed, "currency rewards cannot feed repeatable claim loops");
+        now += 5; withTasks.Tick();
+        Check(TaskState(withTasks, "repeat_data").Complete && !TaskState(withTasks, "repeat_data").Claimed, "new production legitimately rearms repeat earning goal");
+    }
+    private static void ChallengeCompatibility()
+    {
+        var legacy = JsonSerializer.Deserialize<EventProgressSaveData>("{\"Currency\":10,\"TotalCurrencyEarned\":20,\"PrestigeCount\":3}")!;
+        Check(legacy.Challenges.IsValid() && legacy.Challenges.TotalGeneratorUpgrades == 0, "missing telemetry safely starts at zero without inventing pre-Prestige upgrades");
+        Check(legacy.Currency == 10 && legacy.TotalCurrencyEarned == 20 && legacy.PrestigeCount == 3, "legacy progress untouched");
+        Check(!new EventChallengeSaveData { DailyIds = ["missing"] }.IsValid(), "invalid Daily reference rejected");
+        Check(!new EventChallengeProgress { Claimed = true }.IsValid(), "corrupt claimed marker rejected");
+        var test = TestProtocolEventDefinition.Create();
+        Check(test.Challenges.Count(c => c.Category == EventChallengeCategory.Event) == 7
+            && test.Challenges.Count(c => c.Category == EventChallengeCategory.Major) == 1 && test.DailyChallengeCount == 3, "Test Protocol goal counts");
+        long now = test.StartUnix + 100; var save = new EventSaveData();
+        var manager = new EventManager(save, [test], () => true, () => now); manager.Tick();
+        Check(manager.GetChallenges(test.Id).Count(c => c.Definition.Category == EventChallengeCategory.Daily) == 3, "Test Protocol selects three possible Dailies");
+        Check(test.Generators[0].BaseProduction == 5 && test.Prestige.Requirement == 500_000 && test.Milestones.Count == 10, "Test Protocol economy/track unchanged");
+        bool rejected = false;
+        try { _ = new EventManager(new(), [test with { Challenges = [test.Challenges[0] with { EventId = "other" }] }], () => true, () => now); }
+        catch (ArgumentException) { rejected = true; }
+        Check(rejected, "mismatched Event ID rejected");
+        int callbacks = 0;
+        EventManager? reentrant = null;
+        reentrant = new(new(), [test], () => { callbacks++; if (callbacks < 5) reentrant?.Tick(); return true; }, () => now);
+        reentrant.Tick();
+        Check(callbacks == 1, "enrollment save cannot recursively settle or save via main-game callback");
+    }
+}

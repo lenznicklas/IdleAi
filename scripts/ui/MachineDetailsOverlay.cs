@@ -987,22 +987,22 @@ public sealed class MachineDetailsOverlay
 			+ FormatPercent(
 				common
 			)
-			+ " • 6h durability"
+			+ " • " + BotService.FormatWorkingTime(BotCatalog.GetWorkingLifetimeSeconds(BotRarity.Common)) + " durability"
 			+ "\nRare: "
 			+ FormatPercent(
 				rare
 			)
-			+ " • 12h"
+			+ " • " + BotService.FormatWorkingTime(BotCatalog.GetWorkingLifetimeSeconds(BotRarity.Rare))
 			+ "\nEpic: "
 			+ FormatPercent(
 				epic
 			)
-			+ " • 24h"
+			+ " • " + BotService.FormatWorkingTime(BotCatalog.GetWorkingLifetimeSeconds(BotRarity.Epic))
 			+ "\nLegendary: "
 			+ FormatPercent(
 				legendary
 			)
-			+ " • 48h";
+			+ " • " + BotService.FormatWorkingTime(BotCatalog.GetWorkingLifetimeSeconds(BotRarity.Legendary));
 
 
 		_buyBotButton.Text =

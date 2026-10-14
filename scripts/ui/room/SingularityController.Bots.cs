@@ -625,16 +625,16 @@ public sealed partial class SingularityController
 				12,
 				"Common "
 					+ FormatChance(common)
-					+ " • 6h"
+					+ " • " + BotService.FormatWorkingTime(BotCatalog.GetWorkingLifetimeSeconds(BotRarity.Common))
 					+ "\nRare "
 					+ FormatChance(rare)
-					+ " • 12h"
+					+ " • " + BotService.FormatWorkingTime(BotCatalog.GetWorkingLifetimeSeconds(BotRarity.Rare))
 					+ "\nEpic "
 					+ FormatChance(epic)
-					+ " • 24h"
+					+ " • " + BotService.FormatWorkingTime(BotCatalog.GetWorkingLifetimeSeconds(BotRarity.Epic))
 					+ "\nLegendary "
 					+ FormatChance(legendary)
-					+ " • 48h"
+					+ " • " + BotService.FormatWorkingTime(BotCatalog.GetWorkingLifetimeSeconds(BotRarity.Legendary))
 			);
 
 		_singularityBotContent.AddChild(

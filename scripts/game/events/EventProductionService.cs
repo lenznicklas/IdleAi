@@ -63,11 +63,7 @@ internal sealed class EventProductionService
         ? 1 + p.TotalPrestigeResourceEarned * _definition.Prestige.ProductionBonusPerResource : 1;
     internal double GlobalMultiplier(EventProgressSaveData p)
     {
-        double botMultiplier = 1;
-        if (p.ActiveBotId != null && p.OwnedBots.Contains(p.ActiveBotId))
-            foreach (var bot in _definition.Bots)
-                if (bot.Id == p.ActiveBotId) { botMultiplier = bot.ProductionMultiplier; break; }
-        return _definition.ProductionMultiplier * PrestigeMultiplier(p) * botMultiplier;
+        return _definition.ProductionMultiplier * PrestigeMultiplier(p) * EventBotRules.Multiplier(_definition, p);
     }
     internal double CycleProduction(EventGeneratorDefinition g, EventProgressSaveData p)
     {

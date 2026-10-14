@@ -125,7 +125,7 @@ func run_checks():
     for viewport_size in [Vector2i(1080, 2400), Vector2i(720, 1600), Vector2i(540, 960)]:
         root.size = viewport_size
         for frame in range(5): await process_frame
-        for tab in ["Progress", "Prestige", "Bots", "Rewards", "Shop", "Archive"]:
+        for tab in ["Progress", "Prestige", "Bots", "Rewards", "Shop", "Archive", "Challenges"]:
             page.find_child("Event" + tab + "Tab", true, false).pressed.emit()
             for frame in range(3): await process_frame
             load("res://tests/Events/image_layout_checks.gd").verify(page, check)
@@ -136,10 +136,15 @@ func run_checks():
                     and button.has_theme_stylebox_override("focus"), "no default button visuals: " + str(button.name))
                 check(button.get_theme_stylebox("pressed").corner_radius_top_left >= 18,
                     "rounded pressed state: " + str(button.name))
-    var test_before_reset = save_file().Events.ProgressByEventId.event_test_001.Currency
+    var test_before_reset = save_file().Events.ProgressByEventId.event_test_001
     command("halloween-reset")
     check(halloween().Currency == 0 and halloween().PrestigeResource == 0, "only Halloween reset")
-    check(save_file().Events.ProgressByEventId.event_test_001.Currency == test_before_reset, "reset preserves Test Protocol")
+    var test_after_reset = save_file().Events.ProgressByEventId.event_test_001
+    # Test Protocol becomes active after event-end. Reset settles real elapsed time,
+    # so legitimate production may accrue while slower mobile/layout checks run.
+    var earned_during_reset = test_after_reset.TotalCurrencyEarned - test_before_reset.TotalCurrencyEarned
+    check(earned_during_reset >= 0 and is_equal_approx(test_after_reset.Currency - test_before_reset.Currency, earned_during_reset), "reset preserves Test Protocol wallet except legitimate production")
+    check(test_after_reset.ClaimedRewards == test_before_reset.ClaimedRewards and test_after_reset.PrestigeCount == test_before_reset.PrestigeCount, "reset preserves Test Protocol reward and prestige state")
     check(save_file().Events.CosmeticEntitlements.size() == 5, "reset preserves global cosmetics")
     root.size = Vector2i(720, 1280)
     for frame in range(4): await process_frame

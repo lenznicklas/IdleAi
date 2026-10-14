@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace IdleAi;
 
@@ -15,7 +16,7 @@ public sealed partial class EventManager
     {
         if (ReadOnly || !_byId.TryGetValue(eventId, out var d) || !_save.ProgressByEventId.TryGetValue(eventId, out var p)
             || !p.UnlockedMilestones.Contains(milestoneId) || p.ClaimedRewards.Contains(milestoneId)) return false;
-        foreach (var m in d.Milestones) if (m.Id == milestoneId) return !p.Ended || CanGrantAfterEnd(m.Reward);
+        foreach (var m in d.Milestones) if (m.Id == milestoneId) return CanGrantAfterEnd(m.Reward) || (!p.Ended && IsActive(d));
         return false;
     }
     private bool GrantReward(EventDefinition d, EventProgressSaveData p, EventReward reward, List<Action> undo)
@@ -31,9 +32,8 @@ public sealed partial class EventManager
                 _production[d.Id].RefreshHistory(p);
                 break;
             case EventRewardType.EventBot:
-                bool known = false;
-                foreach (var bot in d.Bots) if (bot.Id == reward.Id) { known = true; break; }
-                if (!known) return false;
+                if (!d.Bots.Any(bot => bot.Id == reward.Id && bot.Enabled)) return false;
+                p.UnlockedBots.Add(reward.Id);
                 p.OwnedBots.Add(reward.Id);
                 break;
             case EventRewardType.Cosmetic: p.Cosmetics.Add(reward.Id); break;
@@ -54,50 +54,5 @@ public sealed partial class EventManager
                 break;
         }
         return true;
-    }
-    public bool IsBotOwned(string eventId, string botId) => _save.ProgressByEventId.TryGetValue(eventId, out var p) && p.OwnedBots.Contains(botId);
-    public bool IsBotActive(string eventId, string botId) => _save.ProgressByEventId.TryGetValue(eventId, out var p) && p.ActiveBotId == botId;
-    public EventActionResult EquipBot(string eventId, string botId)
-    {
-        if (_actionInProgress) return Busy();
-        Tick();
-        if (!_byId.TryGetValue(eventId, out var d) || !IsActive(d) || !IsBotOwned(eventId, botId)) return new(false, "Bot unavailable.");
-        var p = _save.ProgressByEventId[eventId];
-        return Transaction(d, _ =>
-        {
-            p.ActiveBotId = p.ActiveBotId == botId ? null : botId;
-            _production[eventId].RefreshHistory(p);
-            return true;
-        }, "Event bot updated.");
-    }
-    public int PurchasedCount(string eventId, string itemId) => _save.ProgressByEventId.TryGetValue(eventId, out var p)
-        && p.ShopPurchases.TryGetValue(itemId, out int count) ? count : 0;
-    public bool CanBuy(string eventId, string itemId)
-    {
-        if (!_byId.TryGetValue(eventId, out var d) || !IsActive(d) || !_save.ProgressByEventId.TryGetValue(eventId, out var p)) return false;
-        foreach (var item in d.Shop)
-            if (item.Id == itemId) return item.Enabled && PurchasedCount(eventId, itemId) < item.PurchaseLimit
-                && _production[eventId].RequirementsMet(item.Availability, p)
-                && (item.CostCurrency == EventShopCurrency.EventCurrency ? p.Currency : p.PrestigeResource) >= item.Cost;
-        return false;
-    }
-    public EventActionResult Buy(string eventId, string itemId)
-    {
-        if (_actionInProgress) return Busy();
-        Tick();
-        if (!CanBuy(eventId, itemId)) return new(false, "Item unavailable, limit reached, or not enough currency.");
-        var d = _byId[eventId];
-        EventShopItem? item = null;
-        foreach (var candidate in d.Shop) if (candidate.Id == itemId) { item = candidate; break; }
-        if (item == null) return new(false, "Unknown shop item.");
-        var p = _save.ProgressByEventId[eventId];
-        return Transaction(d, undo =>
-        {
-            if (item.CostCurrency == EventShopCurrency.EventCurrency) p.Currency -= item.Cost; else p.PrestigeResource -= (long)item.Cost;
-            if (!GrantReward(d, p, item.Reward, undo)) return false;
-            p.ShopPurchases[itemId] = PurchasedCount(eventId, itemId) + 1;
-            _production[eventId].RefreshHistory(p);
-            return true;
-        }, "Event item purchased.");
     }
 }

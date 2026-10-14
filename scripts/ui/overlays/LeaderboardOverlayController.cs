@@ -74,6 +74,8 @@ public sealed class LeaderboardOverlayController
 	private Button _refreshButton =
 		null!;
 
+    private bool _retryOnReconnect;
+
 	private IdleAiLeaderboardKind _currentKind =
 		IdleAiLeaderboardKind.HighestTotalLevel;
 
@@ -108,7 +110,15 @@ public sealed class LeaderboardOverlayController
 
 	public void Initialize()
 	{
-		CreateUi();
+        CreateUi();
+        _aliases.ConnectionStateChanged += state =>
+        {
+            if (!Visible) return;
+            if (_retryOnReconnect && state == FirebaseConnectionState.Ready)
+            { _retryOnReconnect = false; Load(); }
+            else if (_refreshButton.Disabled)
+                _status.Text = state == FirebaseConnectionState.Ready ? "Loading Idle AI leaderboard…" : _aliases.ConnectionMessage;
+        };
 
 		_aliases.InGameLeaderboardLoaded +=
 			OnLeaderboardLoaded;
@@ -190,6 +200,7 @@ public sealed class LeaderboardOverlayController
 
 	private void Load()
 	{
+        _retryOnReconnect = false;
 		_lastTopEntries =
 			Array.Empty<IdleAiLeaderboardEntry>();
 
@@ -198,8 +209,8 @@ public sealed class LeaderboardOverlayController
 
 		ClearScoreRows();
 
-		_status.Text =
-			"Loading Idle AI leaderboard…";
+        _status.Text = _aliases.ConnectionState == FirebaseConnectionState.Ready
+            ? "Loading Idle AI leaderboard…" : _aliases.ConnectionMessage;
 
 		_status.Show();
 
@@ -264,6 +275,9 @@ public sealed class LeaderboardOverlayController
 			return;
 		}
 
+        _retryOnReconnect = _aliases.ConnectionState is FirebaseConnectionState.TemporaryFailure
+            or FirebaseConnectionState.Initializing or FirebaseConnectionState.Authenticating
+            or FirebaseConnectionState.AuthenticationFailure or FirebaseConnectionState.ServiceFailure;
 		_status.Text =
 			message;
 

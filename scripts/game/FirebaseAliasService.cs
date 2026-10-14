@@ -4,7 +4,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Text.Json;
-using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 
 namespace IdleAi;
 
@@ -29,59 +29,12 @@ public sealed partial class FirebaseAliasService : Node
 	private const string PlayGamesProviderId =
 		"playgames.google.com";
 
-	private const double ServerAuthTimeoutSeconds =
-		15.0;
-
-	private const int MinimumUsernameLength =
-		3;
-
-	private const int MaximumUsernameLength =
-		16;
-
-	private static readonly Regex UsernamePattern =
-		new(
-			"^[A-Za-z][A-Za-z0-9_]{2,15}$",
-			RegexOptions.CultureInvariant
-		);
-
-	private static readonly string[] ReservedPrefixes =
-	[
-		"admin",
-		"administrator",
-		"moderator",
-		"official",
-		"support",
-		"developer",
-		"idleai",
-		"idle_ai",
-		"firebase",
-		"google",
-		"anonymous"
-	];
-
 	private GodotObject? _playGames;
-
-	private Timer? _tokenRefreshTimer;
-
-	private Timer? _serverAuthTimeoutTimer;
-
-	private bool _initialized;
-
-	private bool _playGamesAuthenticated;
-
-	private bool _firebaseSignInRequested;
-
-	private bool _profileRequestInFlight;
-
+    private bool _initialized;
 	private bool _profileKnownMissing;
 
-	private string _firebaseIdToken =
-		"";
-
-	private string _firebaseUid =
-		"";
-
-	private long _firebaseTokenExpiresAtUnix;
+    private string _firebaseIdToken => Session.Token;
+    private string _firebaseUid => Session.Uid;
 
 	private string _currentPlayGamesPlayerId =
 		"";
@@ -170,100 +123,20 @@ public sealed partial class FirebaseAliasService : Node
 		);
 
 
-	public void Initialize()
-	{
-		if (_initialized)
-			return;
-
-		_initialized =
-			true;
-
-		if (OS.GetName() != "Android")
-		{
-			GD.Print(
-				"Firebase aliases: Android-only integration disabled in editor/desktop."
-			);
-
-			return;
-		}
-
-		if (!Engine.HasSingleton(PlayGamesPluginName))
-		{
-			GD.PushWarning(
-				"Firebase aliases: GodotPlayGameServices singleton was not found."
-			);
-
-			return;
-		}
-
-		_playGames =
-			Engine.GetSingleton(
-				PlayGamesPluginName
-			);
-
-		if (_playGames == null)
-			return;
-
-		GD.Print(
-			"Firebase aliases: project=",
-			FirebaseConfig.ProjectId,
-			" | projectNumber=",
-			FirebaseConfig.ProjectNumber,
-			" | PlayGamesWebClient=",
-			FirebaseConfig.PlayGamesWebClientId
-		);
-
-		ConnectPlayGamesSignals();
-
-		_tokenRefreshTimer =
-			new Timer
-			{
-				Name =
-					"FirebaseAliasTokenRefresh",
-
-				OneShot =
-					true,
-
-				WaitTime =
-					3000.0
-			};
-
-		_tokenRefreshTimer.Timeout +=
-			RequestFirebaseSignIn;
-
-		AddChild(
-			_tokenRefreshTimer
-		);
-
-		_serverAuthTimeoutTimer =
-			new Timer
-			{
-				Name =
-					"FirebaseServerAuthTimeout",
-
-				OneShot =
-					true,
-
-				WaitTime =
-					ServerAuthTimeoutSeconds
-			};
-
-		_serverAuthTimeoutTimer.Timeout +=
-			OnServerAuthTimeout;
-
-		AddChild(
-			_serverAuthTimeoutTimer
-		);
-
-		/*
-		 * GooglePlayGamesAchievementService also checks authentication. It is
-		 * fine for both consumers to listen to the same native singleton.
-		 */
-		_playGames.Call(
-			"isAuthenticated"
-		);
-	}
-
+    public void Initialize()
+    {
+        if (_initialized) return;
+        _initialized = true;
+        DebugLog("Firebase", "Initialization started");
+        if (OS.GetName() != "Android" || !Engine.HasSingleton(PlayGamesPluginName)) return;
+        _playGames = Engine.GetSingleton(PlayGamesPluginName);
+        ConnectPlayGamesSignals();
+        InitializeNativeAuth();
+        var timer = new Timer { Name = "FirebaseReconnect", WaitTime = 15, Autostart = true };
+        timer.Timeout += RequestFirebaseSignIn;
+        AddChild(timer);
+        RequestFirebaseSignIn();
+    }
 
 	private void ConnectPlayGamesSignals()
 	{
@@ -274,13 +147,6 @@ public sealed partial class FirebaseAliasService : Node
 			"userAuthenticated",
 			Callable.From<bool>(
 				OnPlayGamesAuthenticated
-			)
-		);
-
-		_playGames.Connect(
-			"serverSideAccessRequested",
-			Callable.From<string>(
-				OnServerSideAccessRequested
 			)
 		);
 
@@ -304,286 +170,6 @@ public sealed partial class FirebaseAliasService : Node
 				OnRawPlayerScoreLoaded
 			)
 		);
-	}
-
-
-	private void OnPlayGamesAuthenticated(
-		bool authenticated)
-	{
-		_playGamesAuthenticated =
-			authenticated;
-
-		if (!authenticated)
-		{
-			GD.Print(
-				"Firebase aliases: waiting for Google Play Games authentication."
-			);
-
-			return;
-		}
-
-		GD.Print(
-			"Firebase aliases: Google Play Games authenticated."
-		);
-
-		try
-		{
-			_playGames?.Call(
-				"loadCurrentPlayer",
-				true
-			);
-		}
-		catch (Exception exception)
-		{
-			GD.PushWarning(
-				"Firebase aliases: could not request current Play Games player: "
-					+ exception.Message
-			);
-		}
-
-		RequestFirebaseSignIn();
-	}
-
-
-	private void RequestFirebaseSignIn()
-	{
-		if (
-			!_playGamesAuthenticated
-			|| _playGames == null
-			|| _firebaseSignInRequested
-		)
-		{
-			return;
-		}
-
-		_firebaseSignInRequested =
-			true;
-
-		try
-		{
-			/*
-			 * The Play Games plugin returns an OAuth 2.0 server auth code via
-			 * serverSideAccessRequested. This is the code Firebase's
-			 * PlayGamesAuthProvider expects.
-			 */
-			_playGames.Call(
-				"requestServerSideAccess",
-				FirebaseConfig.PlayGamesWebClientId,
-				false
-			);
-
-			_serverAuthTimeoutTimer?.Start();
-
-			GD.Print(
-				"Firebase aliases: requested Play Games server auth code."
-			);
-		}
-		catch (Exception exception)
-		{
-			_serverAuthTimeoutTimer?.Stop();
-
-			_firebaseSignInRequested =
-				false;
-
-			ReportStatus(
-				"Firebase sign-in could not start: "
-					+ exception.Message
-			);
-		}
-	}
-
-
-	private void OnServerAuthTimeout()
-	{
-		if (!_firebaseSignInRequested)
-		{
-			return;
-		}
-
-		_firebaseSignInRequested =
-			false;
-
-		ReportStatus(
-			"Firebase sign-in timed out while requesting Play Games server access. "
-			+ "Check the Play Games Game server credential/Web client ID and try again."
-		);
-	}
-
-
-	private void OnServerSideAccessRequested(
-		string serverAuthCode)
-	{
-		_serverAuthTimeoutTimer?.Stop();
-
-		_firebaseSignInRequested =
-			false;
-
-		if (
-			string.IsNullOrWhiteSpace(
-				serverAuthCode
-			)
-		)
-		{
-			ReportStatus(
-				"Firebase sign-in failed: Play Games returned no server auth code."
-			);
-
-			return;
-		}
-
-		string postBody =
-			"code="
-			+ Uri.EscapeDataString(
-				serverAuthCode
-			)
-			+ "&providerId="
-			+ PlayGamesProviderId;
-
-		string requestBody =
-			JsonSerializer.Serialize(
-				new
-				{
-					postBody,
-					requestUri =
-						FirebaseConfig.AuthRequestUri,
-					returnIdpCredential =
-						true,
-					returnSecureToken =
-						true
-				}
-			);
-
-		string url =
-			"https://identitytoolkit.googleapis.com/v1/accounts:signInWithIdp?key="
-			+ Uri.EscapeDataString(
-				FirebaseConfig.WebApiKey
-			);
-
-		SendHttpRequest(
-			url,
-			[
-				"Content-Type: application/json"
-			],
-			HttpClient.Method.Post,
-			requestBody,
-			OnFirebaseSignInCompleted
-		);
-	}
-
-
-	private void OnFirebaseSignInCompleted(
-		long responseCode,
-		string responseBody)
-	{
-		if (
-			responseCode < 200
-			|| responseCode >= 300
-		)
-		{
-			ReportStatus(
-				"Firebase sign-in failed (HTTP "
-					+ responseCode
-					+ "): "
-					+ ReadFirebaseError(
-						responseBody
-					)
-			);
-
-			return;
-		}
-
-		try
-		{
-			using JsonDocument document =
-				JsonDocument.Parse(
-					responseBody
-				);
-
-			JsonElement root =
-				document.RootElement;
-
-			_firebaseIdToken =
-				GetJsonString(
-					root,
-					"idToken"
-				);
-
-			_firebaseUid =
-				GetJsonString(
-					root,
-					"localId"
-				);
-
-			long expiresInSeconds =
-				3600;
-
-			string expiresText =
-				GetJsonString(
-					root,
-					"expiresIn"
-				);
-
-			if (
-				long.TryParse(
-					expiresText,
-					out long parsedExpires
-				)
-				&& parsedExpires > 0
-			)
-			{
-				expiresInSeconds =
-					parsedExpires;
-			}
-
-			_firebaseTokenExpiresAtUnix =
-				CurrentUnixTime()
-				+ Math.Max(
-					60,
-					expiresInSeconds - 60
-				);
-
-			if (
-				string.IsNullOrWhiteSpace(
-					_firebaseIdToken
-				)
-				|| string.IsNullOrWhiteSpace(
-					_firebaseUid
-				)
-			)
-			{
-				throw new InvalidOperationException(
-					"Firebase response did not contain idToken/localId."
-				);
-			}
-
-			_tokenRefreshTimer?.Start(
-				Math.Max(
-					60,
-					expiresInSeconds - 300
-				)
-			);
-
-			GD.Print(
-				"Firebase aliases: Firebase Authentication succeeded."
-			);
-
-			AliasDataChanged?.Invoke();
-
-			TryLoadCurrentProfile();
-		}
-		catch (Exception exception)
-		{
-			_firebaseIdToken =
-				"";
-
-			_firebaseUid =
-				"";
-
-			ReportStatus(
-				"Firebase sign-in response could not be read: "
-					+ exception.Message
-			);
-		}
 	}
 
 
@@ -624,6 +210,7 @@ public sealed partial class FirebaseAliasService : Node
 			_currentPlayGamesPlayerId =
 				playerId;
 
+
 			if (HasUsername)
 			{
 				_aliasByPlayGamesPlayerId[
@@ -648,483 +235,51 @@ public sealed partial class FirebaseAliasService : Node
 	}
 
 
-	private void TryLoadCurrentProfile()
-	{
-		if (
-			_profileRequestInFlight
-			|| _profileKnownMissing
-			|| HasUsername
-			|| !IsFirebaseTokenFresh
-			|| string.IsNullOrWhiteSpace(
-				_firebaseUid
-			)
-			|| string.IsNullOrWhiteSpace(
-				_currentPlayGamesPlayerId
-			)
-		)
-		{
-			return;
-		}
-
-		_profileRequestInFlight =
-			true;
-
-		string url =
-			FirestoreDocumentsBaseUrl
-			+ "/profiles/"
-			+ Uri.EscapeDataString(
-				_firebaseUid
-			);
-
-		SendHttpRequest(
-			url,
-			FirebaseHeaders,
-			HttpClient.Method.Get,
-			"",
-			(responseCode, body) =>
-			{
-				_profileRequestInFlight =
-					false;
-
-				if (responseCode == 404)
-				{
-					_profileKnownMissing =
-						true;
-
-					UsernameRequired?.Invoke();
-
-					return;
-				}
-
-				if (
-					responseCode < 200
-					|| responseCode >= 300
-				)
-				{
-					ReportStatus(
-						"Could not load Idle AI profile (HTTP "
-							+ responseCode
-							+ "): "
-							+ ReadFirebaseError(
-								body
-							)
-					);
-
-					return;
-				}
-
-				try
-				{
-					using JsonDocument document =
-						JsonDocument.Parse(
-							body
-						);
-
-					JsonElement fields =
-						document.RootElement
-							.GetProperty(
-								"fields"
-							);
-
-					string username =
-						GetFirestoreString(
-							fields,
-							"username"
-						);
-
-					string playGamesPlayerId =
-						GetFirestoreString(
-							fields,
-							"playGamesPlayerId"
-						);
-
-					if (
-						string.IsNullOrWhiteSpace(
-							username
-						)
-					)
-					{
-						_profileKnownMissing =
-							true;
-
-						UsernameRequired?.Invoke();
-
-						return;
-					}
-
-					CurrentUsername =
-						username;
-
-					if (
-						!string.IsNullOrWhiteSpace(
-							playGamesPlayerId
-						)
-					)
-					{
-						_aliasByPlayGamesPlayerId[
-							playGamesPlayerId
-						] =
-							username;
-					}
-
-					_aliasByPlayGamesPlayerId[
-						_currentPlayGamesPlayerId
-					] =
-						username;
-
-					UsernameChanged?.Invoke(
-						username
-					);
-
-					AliasDataChanged?.Invoke();
-
-					GD.Print(
-						"Firebase aliases: Idle AI username loaded: ",
-						username
-					);
-				}
-				catch (Exception exception)
-				{
-					ReportStatus(
-						"Idle AI profile could not be parsed: "
-							+ exception.Message
-					);
-				}
-			}
-		);
-	}
-
-
-	public static bool ValidateUsername(
-		string username,
-		out string error)
-	{
-		string trimmed =
-			username.Trim();
-
-		if (
-			trimmed.Length
-				< MinimumUsernameLength
-			|| trimmed.Length
-				> MaximumUsernameLength
-		)
-		{
-			error =
-				"Use 3-16 characters.";
-
-			return false;
-		}
-
-		if (
-			!UsernamePattern.IsMatch(
-				trimmed
-			)
-		)
-		{
-			error =
-				"Start with a letter. Use only letters, numbers and _.";
-
-			return false;
-		}
-
-		string lower =
-			trimmed.ToLowerInvariant();
-
-		foreach (
-			string reserved
-				in ReservedPrefixes
-		)
-		{
-			if (
-				lower.StartsWith(
-					reserved,
-					StringComparison.Ordinal
-				)
-			)
-			{
-				error =
-					"This username is reserved.";
-
-				return false;
-			}
-		}
-
-		error =
-			"";
-
-		return true;
-	}
-
-
-	public void SetUsername(
-		string username)
-	{
-		string trimmed =
-			username.Trim();
-
-		if (
-			!ValidateUsername(
-				trimmed,
-				out string validationError
-			)
-		)
-		{
-			UsernameSaveFinished?.Invoke(
-				false,
-				validationError
-			);
-
-			return;
-		}
-
-		if (HasUsername)
-		{
-			UsernameSaveFinished?.Invoke(
-				false,
-				"Your Idle AI username is already set."
-			);
-
-			return;
-		}
-
-		if (
-			!IsFirebaseTokenFresh
-			|| string.IsNullOrWhiteSpace(
-				_firebaseUid
-			)
-			|| string.IsNullOrWhiteSpace(
-				_currentPlayGamesPlayerId
-			)
-		)
-		{
-			RequestFirebaseSignIn();
-
-			UsernameSaveFinished?.Invoke(
-				false,
-				"Firebase is not connected yet. Wait for the connection message, then try again."
-			);
-
-			return;
-		}
-
-		string lower =
-			trimmed.ToLowerInvariant();
-
-		string profileDocumentName =
-			FirestoreDocumentName(
-				"profiles",
-				_firebaseUid
-			);
-
-		string usernameDocumentName =
-			FirestoreDocumentName(
-				"usernames",
-				lower
-			);
-
-		string timestamp =
-			DateTime.UtcNow
-				.ToString(
-					"O"
-				);
-
-		Dictionary<string, object>
-			profileFields =
-				new()
-				{
-					[
-						"uid"
-					] =
-						StringValue(
-							_firebaseUid
-						),
-
-					[
-						"playGamesPlayerId"
-					] =
-						StringValue(
-							_currentPlayGamesPlayerId
-						),
-
-					[
-						"username"
-					] =
-						StringValue(
-							trimmed
-						),
-
-					[
-						"usernameLower"
-					] =
-						StringValue(
-							lower
-						),
-
-					[
-						"createdAt"
-					] =
-						TimestampValue(
-							timestamp
-						)
-				};
-
-		Dictionary<string, object>
-			usernameFields =
-				new()
-				{
-					[
-						"uid"
-					] =
-						StringValue(
-							_firebaseUid
-						),
-
-					[
-						"username"
-					] =
-						StringValue(
-							trimmed
-						),
-
-					[
-						"usernameLower"
-					] =
-						StringValue(
-							lower
-						)
-				};
-
-		/*
-		 * Both documents are created in one Firestore commit and both use
-		 * exists=false preconditions. The username document therefore acts as
-		 * a case-insensitive unique reservation without a check-then-write
-		 * race condition.
-		 */
-		object request =
-			new
-			{
-				writes =
-					new object[]
-					{
-						new
-						{
-							update =
-								new
-								{
-									name =
-										usernameDocumentName,
-
-									fields =
-										usernameFields
-								},
-
-							currentDocument =
-								new
-								{
-									exists =
-										false
-								}
-						},
-
-						new
-						{
-							update =
-								new
-								{
-									name =
-										profileDocumentName,
-
-									fields =
-										profileFields
-								},
-
-							currentDocument =
-								new
-								{
-									exists =
-										false
-								}
-						}
-					}
-			};
-
-		string body =
-			JsonSerializer.Serialize(
-				request
-			);
-
-		SendHttpRequest(
-			FirestoreCommitUrl,
-			FirebaseHeaders,
-			HttpClient.Method.Post,
-			body,
-			(responseCode, responseBody) =>
-			{
-				if (
-					responseCode >= 200
-					&& responseCode < 300
-				)
-				{
-					_profileKnownMissing =
-						false;
-
-					CurrentUsername =
-						trimmed;
-
-					_aliasByPlayGamesPlayerId[
-						_currentPlayGamesPlayerId
-					] =
-						trimmed;
-
-					_aliasMissingPlayerIds.Remove(
-						_currentPlayGamesPlayerId
-					);
-
-					UsernameSaveFinished?.Invoke(
-						true,
-						"Username saved."
-					);
-
-					UsernameChanged?.Invoke(
-						trimmed
-					);
-
-					AliasDataChanged?.Invoke();
-
-					GD.Print(
-						"Firebase aliases: username created: ",
-						trimmed
-					);
-
-					return;
-				}
-
-				string firebaseError =
-					ReadFirebaseError(
-						responseBody
-					);
-
-				bool alreadyExists =
-					responseBody.Contains(
-						"ALREADY_EXISTS",
-						StringComparison.OrdinalIgnoreCase
-					)
-					|| responseBody.Contains(
-						"FAILED_PRECONDITION",
-						StringComparison.OrdinalIgnoreCase
-					)
-					|| responseCode == 409;
-
-				UsernameSaveFinished?.Invoke(
-					false,
-					alreadyExists
-						? "That username is already taken."
-						: "Could not save username: "
-							+ firebaseError
-				);
-			}
-		);
-	}
+    public static bool ValidateUsername(string username, out string error) =>
+        UsernamePolicy.TryNormalize(username, out _, out _, out error);
+
+    private bool _usernameSaveInFlight;
+    public async void SetUsername(string username)
+    {
+        if (_usernameSaveInFlight) return;
+        if (!UsernamePolicy.TryNormalize(username, out var normalized, out _, out var error))
+        { UsernameSaveFinished?.Invoke(false, error); return; }
+        _usernameSaveInFlight = true;
+        try
+        {
+            await EnsureReadyAsync();
+            await LoadCurrentProfileAsync();
+            if (HasUsername) { UsernameSaveFinished?.Invoke(true, "Your username is already set."); return; }
+            await EnsurePlayerLoadedAsync();
+            string uid = _firebaseUid, playerId = _currentPlayGamesPlayerId;
+            string body = FirestoreProfileRequests.CreateUsernameCommit(FirebaseConfig.ProjectId, uid, playerId, normalized, DateTime.UtcNow);
+            DebugLog("Profile", "Reserving username");
+            var response = await Session.RequestAsync((token, refreshed) => SendRawHttpAsync("ReserveUsername", refreshed, FirestoreCommitUrl,
+                ["Authorization: Bearer " + token, "Content-Type: application/json"], HttpClient.Method.Post, body, _lifetime.Token), retryNetwork: false, expectedUid: uid);
+            if (uid != _firebaseUid) throw new FirebaseRequestException(409, "AUTH_USER_CHANGED");
+            if (response.Status is >= 200 and < 300)
+            {
+                _profileKnownMissing = false; CurrentUsername = normalized;
+                _aliasByPlayGamesPlayerId[playerId] = normalized; _aliasMissingPlayerIds.Remove(playerId);
+                UsernameSaveFinished?.Invoke(true, "Username saved.");
+                UsernameChanged?.Invoke(normalized); AliasDataChanged?.Invoke();
+                return;
+            }
+            var failure = FirebaseRequestException.Parse(response);
+            bool conflict = response.Status == 409 || failure.Code is "ALREADY_EXISTS" or "FAILED_PRECONDITION";
+            if (conflict || failure.Kind is FirebaseFailureKind.Network or FirebaseFailureKind.Service)
+            {
+                // Ambiguous commit: read the canonical profile, never replay a possibly successful create.
+                _profileKnownMissing = false;
+                await LoadCurrentProfileAsync();
+                if (HasUsername) { UsernameSaveFinished?.Invoke(true, "Username saved."); return; }
+            }
+            UsernameSaveFinished?.Invoke(false, conflict ? "That username is already taken." : failure.PlayerMessage);
+        }
+        catch (Exception e)
+        { LogFailure("CreateUsername", e); if (!_exiting) UsernameSaveFinished?.Invoke(false, PlayerError(e)); }
+        finally { _usernameSaveInFlight = false; }
+    }
 
 
 	// ==================================================
@@ -1329,7 +484,7 @@ public sealed partial class FirebaseAliasService : Node
 	}
 
 
-	public void EnsureAliases(
+	public async void EnsureAliases(
 		IEnumerable<string> playerIds)
 	{
 		List<string> unresolved =
@@ -1366,11 +521,11 @@ public sealed partial class FirebaseAliasService : Node
 		if (unresolved.Count == 0)
 			return;
 
-		if (!IsFirebaseTokenFresh)
-		{
-			RequestFirebaseSignIn();
-			return;
-		}
+        try { await EnsureReadyAsync(); }
+        catch (Exception) { return; }
+        // Other callers may have resolved/started these aliases while login was pending.
+        unresolved.RemoveAll(id => _aliasByPlayGamesPlayerId.ContainsKey(id) || _aliasMissingPlayerIds.Contains(id) || _aliasQueryInFlightPlayerIds.Contains(id));
+        if (unresolved.Count == 0) return;
 
 		foreach (
 			string playerId
@@ -1441,7 +596,6 @@ public sealed partial class FirebaseAliasService : Node
 
 		SendHttpRequest(
 			FirestoreRunQueryUrl,
-			FirebaseHeaders,
 			HttpClient.Method.Post,
 			JsonSerializer.Serialize(
 				bodyObject
@@ -1582,22 +736,7 @@ public sealed partial class FirebaseAliasService : Node
 	// HTTP / FIRESTORE HELPERS
 	// ==================================================
 
-	private bool IsFirebaseTokenFresh =>
-		!string.IsNullOrWhiteSpace(
-			_firebaseIdToken
-		)
-		&& CurrentUnixTime()
-			< _firebaseTokenExpiresAtUnix;
-
-
-	private string[] FirebaseHeaders =>
-	[
-		"Authorization: Bearer "
-			+ _firebaseIdToken,
-
-		"Content-Type: application/json"
-	];
-
+    private bool IsFirebaseTokenFresh => Session.IsFresh;
 
 	private static string FirestoreDocumentsBaseUrl =>
 		"https://firestore.googleapis.com/v1/projects/"
@@ -1613,19 +752,6 @@ public sealed partial class FirebaseAliasService : Node
 	private static string FirestoreRunQueryUrl =>
 		FirestoreDocumentsBaseUrl
 			+ ":runQuery";
-
-
-	private static string FirestoreDocumentName(
-		string collection,
-		string documentId)
-	{
-		return "projects/"
-			+ FirebaseConfig.ProjectId
-			+ "/databases/(default)/documents/"
-			+ collection
-			+ "/"
-			+ documentId;
-	}
 
 
 	private static Dictionary<string, object>
@@ -1656,76 +782,33 @@ public sealed partial class FirebaseAliasService : Node
 	}
 
 
-	private void SendHttpRequest(
-		string url,
-		string[] headers,
-		HttpClient.Method method,
-		string requestBody,
-		Action<long, string> completed)
-	{
-		HttpRequest request =
-			new()
-			{
-				UseThreads =
-					true
-			};
-
-		AddChild(
-			request
-		);
-
-		request.RequestCompleted +=
-			(
-				long result,
-				long responseCode,
-				string[] responseHeaders,
-				byte[] body
-			) =>
-			{
-				string text =
-					Encoding.UTF8.GetString(
-						body
-					);
-
-				completed(
-					responseCode,
-					text
-				);
-
-				request.QueueFree();
-			};
-
-		Error error =
-			request.Request(
-				url,
-				headers,
-				method,
-				requestBody
-			);
-
-		if (error == Error.Ok)
-			return;
-
-		request.QueueFree();
-
-		completed(
-			0,
-			"Godot HTTPRequest error: "
-				+ error
-		);
-	}
-
+    private async void SendHttpRequest(string url, HttpClient.Method method,
+        string requestBody, Action<long, string> completed)
+    {
+        FirebaseHttpResponse response;
+        try
+        {
+            response = await Session.RequestAsync((token, refreshed) => SendRawHttpAsync(
+                url == FirestoreCommitUrl ? "ReserveUsername" : method == HttpClient.Method.Patch ? "SubmitLeaderboardScores" : "QueryFirestore", refreshed, url,
+                ["Authorization: Bearer " + token, "Content-Type: application/json"], method, requestBody, _lifetime.Token),
+                retryNetwork: method == HttpClient.Method.Get || method == HttpClient.Method.Patch || url == FirestoreRunQueryUrl,
+                expectedUid: method == HttpClient.Method.Patch ? _firebaseUid : null);
+        }
+        catch (Exception e)
+        {
+            LogFailure("Firestore request", e);
+            response = e is FirebaseRequestException failure
+                ? new(failure.Status, JsonSerializer.Serialize(new { error = new { status = failure.Code, message = failure.Detail } }))
+                : new(0, "");
+        }
+        if (!_exiting && IsInsideTree()) completed(response.Status, response.Body);
+    }
 
 	private void ReportStatus(
 		string message)
 	{
-		GD.PushWarning(
-			message
-		);
-
-		StatusMessage?.Invoke(
-			message
-		);
+        DebugLog("Profile", message);
+        StatusMessage?.Invoke("Profile unavailable. Please try again.");
 	}
 
 
@@ -1771,8 +854,10 @@ public sealed partial class FirebaseAliasService : Node
 			return "";
 		}
 
-		return value.GetString()
-			?? "";
+        string text = value.GetString() ?? "";
+        if (fieldName == "username" && UsernamePolicy.TryNormalize(text, out var normalized, out _, out _, existing: true))
+            return normalized;
+        return text;
 	}
 
 
@@ -1800,60 +885,7 @@ public sealed partial class FirebaseAliasService : Node
 	}
 
 
-	private static string ReadFirebaseError(
-		string json)
-	{
-		if (
-			string.IsNullOrWhiteSpace(
-				json
-			)
-		)
-		{
-			return "Unknown Firebase error.";
-		}
-
-		try
-		{
-			using JsonDocument document =
-				JsonDocument.Parse(
-					json
-				);
-
-			if (
-				document.RootElement.TryGetProperty(
-					"error",
-					out JsonElement error
-				)
-			)
-			{
-				if (
-					error.ValueKind
-						== JsonValueKind.Object
-					&& error.TryGetProperty(
-						"message",
-						out JsonElement message
-					)
-				)
-				{
-					return message.GetString()
-						?? message.ToString();
-				}
-
-				return error.ToString();
-			}
-		}
-		catch
-		{
-			// Fall through to a bounded plain-text error below.
-		}
-
-		return json.Length <= 240
-			? json
-			: json[
-				..240
-			];
-	}
-
+    private static string ReadFirebaseError(string json) => FirebaseRequestException.SafeDiagnostic(new(0, json));
 
 	private static long CurrentUnixTime()
 	{

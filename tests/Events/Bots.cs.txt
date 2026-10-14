@@ -1,0 +1,89 @@
+using IdleAi;
+using System;
+using System.Linq;
+using System.Text.Json;
+
+internal static partial class Program
+{
+    private static void Bots()
+    {
+        long now = 100; bool persist = true; int saves = 0;
+        var d = Definition("bots", end: 1000, output: 10) with
+        {
+            Prestige = new() { Enabled = true, Requirement = 100, ProductionBonusPerResource = 1 },
+            Bots =
+            [
+                new() { Id = "early", EventId = "bots", Name = "Early", AvailableFromStart = true, ProductionMultiplier = 1.1 },
+                new() { Id = "earned", Name = "Earned", Rarity = "Rare", ProductionMultiplier = 1.25,
+                    UnlockPaths = [new() { LifetimeCurrency = 40 }], GrantOnUnlock = false },
+                new() { Id = "reward", Name = "Reward", Rarity = "Epic", ProductionMultiplier = 1.5, UnlockMilestoneId = "bot" },
+                new() { Id = "late", Name = "Late", Rarity = "Legendary", ProductionMultiplier = 2,
+                    UnlockPaths = [new() { PrestigeCount = 1, PrestigeCurrency = 1 }] },
+                new() { Id = "challenge", Name = "Challenge", UnlockPaths = [new() { ChallengeId = "own" }] },
+                new() { Id = "shop", Name = "Shop", ProductionMultiplier = 1.4, SecondaryBonus = new() { GeneratorUpgradeDiscount = .2 } },
+                new() { Id = "path", Name = "Path", UnlockPaths = [new() { MilestoneId = "bot" }, new() { ShopItemId = "license" }] },
+                new() { Id = "shop_path", Name = "Shop unlock", UnlockPaths = [new() { ShopItemId = "license" }] },
+                new() { Id = "disabled", Name = "Disabled", Enabled = false, AvailableFromStart = true }
+            ],
+            Milestones = [new("bot", 50, new(EventRewardType.EventBot, 1, "reward"))],
+            Shop = [new() { Id = "license", Name = "License", Cost = 5, PurchaseLimit = 3, Reward = new(EventRewardType.EventBot, 1, "shop") },
+                new() { Id = "bundle", Name = "Bundle", Cost = 1, Reward = new(EventRewardType.Bundle, 1) { Contents = [new(EventRewardType.EventBot, 1, "shop")] } }],
+            Challenges = [
+                new() { Id = "own", EventId = "bots", Title = "Own reward bot", Type = EventChallengeType.OwnBot, BotId = "reward", Reward = new(EventRewardType.DeveloperCredits, 1) },
+                new() { Id = "unlock", EventId = "bots", Title = "Unlock earned bot", Type = EventChallengeType.UnlockBot, BotId = "earned", Reward = new(EventRewardType.DeveloperCredits, 1) },
+                new() { Id = "equip", EventId = "bots", Title = "Equip bot", Type = EventChallengeType.EquipBot, BotId = "shop", Reward = new(EventRewardType.DeveloperCredits, 1) }
+            ]
+        };
+        var data = new EventSaveData();
+        var m = new EventManager(data, [d], () => { saves++; return persist; }, () => now);
+        m.Tick();
+        Check(m.GetBot(d.Id, "early").Owned && m.GetBot(d.Id, "early").Unlocked, "early bot granted, not equipped");
+        Check(!m.IsBotActive(d.Id, "early") && !m.GetBot(d.Id, "disabled").Owned, "no auto equip or disabled grants");
+        Equal(m.GetTotalProduction(d.Id), 2, "base output without bot");
+        Check(!m.EquipBot(d.Id, "late").Changed && !m.EquipBot(d.Id, "invalid").Changed, "locked and unknown equip blocked");
+        Check(m.EquipBot(d.Id, "early").Changed, "equip owned"); Equal(m.GetTotalProduction(d.Id), 2.2, "central bot output");
+        int priorSaves = saves; Check(!m.EquipBot(d.Id, "early").Changed && saves == priorSaves, "repeat equip no toggle or extra save");
+        now = 125; m.Tick();
+        Equal(m.GetProgress(d.Id).TotalEarned, 55, "offline uses same multiplier and partial cycles");
+        Check(m.GetBot(d.Id, "earned").Unlocked && !m.GetBot(d.Id, "earned").Owned, "unlock distinct from ownership");
+        Check(m.GetChallenges(d.Id).Single(c => c.Definition.Id == "unlock").Complete, "unlock challenge observes unlock without ownership");
+        Check(m.AcquireBot(d.Id, "earned").Changed && !m.AcquireBot(d.Id, "earned").Changed, "acquire once");
+        Check(m.EquipBot(d.Id, "earned").Changed && !m.IsBotActive(d.Id, "early"), "switch replaces previous bot");
+        Equal(m.GetTotalProduction(d.Id), 2.5, "exact rare bonus");
+        Check(m.ClaimReward(d.Id, "bot").Changed && m.GetBot(d.Id, "reward").Owned, "central track grant");
+        Check(m.GetBot(d.Id, "challenge").Owned && m.GetBot(d.Id, "path").Owned, "challenge completion and claimed milestone unlock paths");
+        Check(!m.ClaimReward(d.Id, "bot").Changed, "no duplicate track grant");
+        Check(m.Buy(d.Id, "license").Changed && !m.CanBuy(d.Id, "license") && !m.CanBuy(d.Id, "bundle"), "shop and nested bundle reject duplicate bots");
+        Check(m.IsBotOwned(d.Id, "shop_path"), "shop purchase unlock path");
+        Check(m.PurchasedCount(d.Id, "license") == 1 && !m.Buy(d.Id, "license").Changed, "purchase limit counter unaffected by rejected duplicate");
+        Check(m.EquipBot(d.Id, "shop").Changed, "shop bot equips");
+        Check(m.GetChallenges(d.Id).Single(c => c.Definition.Id == "equip").Complete, "equip challenge hook");
+        Equal(m.GetGenerator(d.Id, "generator").UpgradeCost, 8, "secondary bonus central upgrade quote");
+        persist = false; Check(!m.EquipBot(d.Id, "reward").Changed && m.IsBotActive(d.Id, "shop"), "failed equip save rolls back"); persist = true;
+        now = 200; m.Tick(); var quote = m.GetPrestigeQuote(d.Id);
+        Check(m.Prestige(d.Id, quote.PrestigeCount).Changed, "prestige with bot");
+        Check(m.IsBotActive(d.Id, "shop") && m.IsBotOwned(d.Id, "earned") && m.IsBotOwned(d.Id, "late"), "prestige preserves bot state and unlocks count/core paths");
+        Equal(m.GetTotalProduction(d.Id), 2 * (1 + quote.ResourceGained) * 1.4, "prestige and bot multipliers compose once");
+        var loaded = RoundTrip(data); var restarted = new EventManager(loaded, [d], () => true, () => now); restarted.Tick();
+        Check(restarted.IsBotActive(d.Id, "shop") && loaded.ProgressByEventId[d.Id].UnlockedBots.Contains("earned"), "save load preserves bot state");
+        var legacy = JsonSerializer.Deserialize<EventSaveData>(JsonSerializer.Serialize(data).Replace("\"UnlockedBots\"", "\"OldIgnoredBotField\""))!;
+        legacy.ProgressByEventId[d.Id].OwnedBots.Add("retired"); legacy.ProgressByEventId[d.Id].ActiveBotId = "not_owned_or_known";
+        Check(legacy.IsValid(), "invalid equipped reference does not invalidate entire save");
+        var migration = new EventManager(legacy, [d], () => true, () => now); migration.Tick();
+        Check(migration.IsBotOwned(d.Id, "shop") && legacy.ProgressByEventId[d.Id].UnlockedBots.Contains("shop"), "legacy ownership migrates without reset");
+        Check(!migration.GetBot(d.Id, "retired").Owned && legacy.ProgressByEventId[d.Id].OwnedBots.Contains("retired") && legacy.ProgressByEventId[d.Id].ActiveBotId == null, "unknown IDs preserved but cannot equip or produce");
+        now = 1100; restarted.Tick(); Equal(restarted.GetTotalProduction(d.Id), 0, "expired bot production zero");
+        Check(restarted.IsBotOwned(d.Id, "shop") && !restarted.EquipBot(d.Id, "early").Changed && !restarted.Buy(d.Id, "license").Changed, "expired ownership retained and actions blocked");
+        var isolated = Definition("other", end: 2000, output: 10);
+        var separate = new EventManager(data, [d, isolated], () => true, () => now); separate.Tick();
+        Equal(separate.GetTotalProduction("other"), 2, "equipped bot never affects another event");
+        bool rejected = false;
+        try { _ = new EventManager(new(), [d with { Bots = [d.Bots[0] with { EventId = "wrong_event" }] }], () => true, () => now); }
+        catch (ArgumentException) { rejected = true; }
+        Check(rejected, "cross-event bot definition rejected");
+        var test = TestProtocolEventDefinition.Create(); var testData = new EventSaveData(); long testNow = test.StartUnix + 10;
+        var protocol = new EventManager(testData, [test], () => true, () => testNow); protocol.Tick();
+        Check(test.Bots.Count == 4 && test.Bots.Select(b => b.Rarity).Distinct().Count() == 4, "Test Protocol four rarities");
+        Check(protocol.IsBotOwned(test.Id, "protocol_helper") && test.Bots.Select(b => b.ProductionMultiplier).SequenceEqual(new[] { 1.1, 1.25, 1.5, 2.0 }), "Test Protocol bonuses and stable helper ID");
+    }
+}

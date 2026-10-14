@@ -13,13 +13,25 @@ public partial class Game
 #endif
     private void InitializeEvents()
     {
+        // Gate before manager initialization: keep existing Event saves completely dormant.
+        // This also prevents creation of the Map card, Event page and automatic UI subscriptions.
+        if (!EventFeatureFlags.EnabledForSession) return;
+
         _eventManager = new EventManager(_state.Events, EventCatalog.Create(), TrySaveGame,
             canWrite: () => !_saveManager.LastLoadFailed && _purchases?.RecoveryBlocked != true,
             validateCosmetic: reward => reward.Type == EventRewardType.MachineSkin
                 ? MachineSkinCatalog.TryGet(reward.Id, out _) : BotSkinCatalog.TryGet(reward.Id, out _),
+            dataShardBalance: () => _state.Shop.DataShards,
+            spendDataShards: amount =>
+            {
+                if (!double.IsFinite(_state.Shop.DataShards) || _state.Shop.DataShards < amount || !_economy.TrySpendDataShards(amount)) return null;
+                return () => _economy.RefundDataShards(amount);
+            },
+            cosmeticOwned: reward => reward.Type == EventRewardType.MachineSkin
+                ? _services.MachineSkins.IsOwned(reward.Id) : _services.BotSkins.IsOwned(reward.Id),
             grantExternalReward: reward =>
             {
-                if (reward.Type != EventRewardType.DataShards) return null;
+                if (reward.Type != EventRewardType.DataShards || !double.IsFinite(_state.Shop.DataShards + reward.Amount)) return null;
                 _economy.GrantDataShards(reward.Amount);
                 return () => _economy.RefundDataShards(reward.Amount);
             });

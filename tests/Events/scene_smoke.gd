@@ -44,8 +44,9 @@ func run_checks():
     for frame in range(5): await process_frame
     var page = game.get_node("EventPage")
     check(page.visible and not game.get_node("MapPage").visible, "Event opens from map")
-    check(page.get_global_rect().end.y <= game.get_node("BottomBar").get_global_rect().position.y + 0.5,
-        "event drawing and input stay above bottom navigation")
+    check(not game.get_node("BottomBar").visible, "global bottom navigation hidden inside Event")
+    check(abs(page.get_global_rect().end.y - game.get_global_rect().end.y) < 0.5,
+        "Event fills the space previously reserved for global navigation")
     var image_checks = load("res://tests/Events/image_layout_checks.gd")
     await image_checks.verify_source_sizes(page, self, check)
     for viewport_size in [Vector2i(1080, 2400), Vector2i(720, 1600), Vector2i(540, 960)]:
@@ -60,7 +61,7 @@ func run_checks():
     check(not upgrade.disabled, "affordable upgrade enabled")
     upgrade.pressed.emit()
     check(saved_progress().ProgressionLevel == 2, "upgrade saved")
-    check(abs(saved_progress().Currency - (saved_progress().TotalCurrencyEarned - 10)) < 0.001, "event currency spent")
+    check(abs(saved_progress().Currency - (saved_progress().TotalCurrencyEarned - 5)) < 0.001, "event currency spent")
     page.find_child("EventRewardsTab", true, false).pressed.emit()
     var reward = page.find_child("EventReward_data_100", true, false)
     check(reward.is_visible_in_tree() and not reward.disabled, "Rewards tab has claimable milestone")
@@ -133,6 +134,8 @@ func run_checks():
         check(saved_progress().Currency == 0 and saved_progress().ProgressionLevel == 1,
             "test reset tool clears progression")
         check(saved_progress().ClaimedRewards.is_empty(), "test reset clears test claims")
+    page.find_child("EventCloseButton", true, false).pressed.emit()
+    check(game.get_node("BottomBar").visible, "closing Event restores bottom navigation before native input")
     var shop_button = game.get_node("BottomBar/Margin/HBox/ShopButton")
     var click = InputEventMouseButton.new()
     click.button_index = MOUSE_BUTTON_LEFT
@@ -147,7 +150,7 @@ func run_checks():
     Input.parse_input_event(click)
     Input.flush_buffered_events()
     for frame in range(2): await process_frame
-    check(not page.visible and game.get_node("ShopPage").visible, "native bottom navigation works from Event")
+    check(not page.visible and game.get_node("ShopPage").visible, "native bottom navigation works after leaving Event")
     game.queue_free()
     for frame in range(4): await process_frame
     # A saved future cursor acts as an injected clock for the ending-soon UI.

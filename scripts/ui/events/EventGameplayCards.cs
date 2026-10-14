@@ -37,6 +37,8 @@ internal sealed class EventGeneratorCard
     private readonly Button _upgrade;
     private readonly EventGeneratorDefinition _definition;
     private readonly string _unlockText;
+    private readonly EventImageView _costIcon;
+    private readonly bool _hasCostIcon;
     internal EventGeneratorCard(EventDefinition eventDefinition, EventGeneratorDefinition generator, EventTextureCache textures,
         IReadOnlyList<EventGeneratorDefinition> generators, Action upgrade, bool first)
     {
@@ -56,6 +58,9 @@ internal sealed class EventGeneratorCard
         _level = Slot("GeneratorLevel", "", 15, 18, 286, 312);
         _output = Slot("GeneratorOutput", "", 13, 18, 318, 344);
         _requirements = Slot("GeneratorRequirements", "", 12, 18, 350, 407, 3);
+        var costTexture = textures.Get(eventDefinition.CurrencyIconPath); _hasCostIcon = costTexture != null;
+        _costIcon = new EventImageView(costTexture, new(24, 24))
+            { Name = "GeneratorCostIcon", Position = new(18, 350), Size = new(24, 24), Visible = false }; Root.AddChild(_costIcon);
         _upgrade = EventUiStyle.Button(first ? "EventUpgradeButton" : "EventUpgrade_" + generator.Id, "", upgrade);
         _upgrade.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopWide);
         _upgrade.OffsetLeft = 18; _upgrade.OffsetRight = -18; _upgrade.OffsetTop = 424; _upgrade.OffsetBottom = 472;
@@ -79,6 +84,8 @@ internal sealed class EventGeneratorCard
         EventUiStyle.SetText(_output, "Output: " + NumberFormatter.Format(state.ProductionPerCycle) + " / cycle • "
             + NumberFormatter.Format(state.ProductionPerSecond) + "/s  (" + _definition.CycleSeconds.ToString("0.#") + "s)");
         EventUiStyle.SetText(_requirements, !state.Unlocked ? _unlockText : "Next upgrade: " + NumberFormatter.Format(state.UpgradeCost) + " " + currency);
+        _costIcon.Visible = state.Unlocked && _definition.Enabled && _hasCostIcon;
+        _requirements.OffsetLeft = _costIcon.Visible ? 50 : 18;
         _requirements.TooltipText = !state.Unlocked ? _unlockText : "";
         EventUiStyle.SetText(_upgrade, ended ? "EVENT ENDED" : !state.Unlocked ? "LOCKED" : state.Level >= _definition.MaxLevel ? "MAX LEVEL" : "Upgrade • " + NumberFormatter.Format(state.UpgradeCost));
         EventUiStyle.SetDisabled(_upgrade, !state.CanUpgrade);

@@ -31,6 +31,8 @@ internal partial class EventImageView : Control
         Fit();
     }
 
+    internal void SetTexture(Texture2D? texture) { if (_image.Texture == texture) return; _image.Texture = texture; Fit(); }
+
     private void Fit()
     {
         var native = _image.Texture?.GetSize() ?? Vector2.Zero;

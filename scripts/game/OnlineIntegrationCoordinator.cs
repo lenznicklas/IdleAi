@@ -14,12 +14,12 @@ public sealed partial class OnlineIntegrationCoordinator : Node
     {
         if (_initialized) return;
         _initialized = true;
+        var playGames = new GooglePlayGamesAchievementService();
+        playGames.Initialize();
         var aliases = new FirebaseAliasService { Name = "FirebaseAliasService" };
         AddChild(aliases);
         aliases.Initialize();
         var profile = new OnlineProfileService(aliases);
-        var playGames = new GooglePlayGamesAchievementService();
-        playGames.Initialize();
         var sync = new PlayGamesSyncService();
         AddChild(sync);
         sync.Initialize(playGames, profile, state, progression);

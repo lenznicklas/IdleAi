@@ -8,6 +8,11 @@
     <Compile Include="Runner.cs" />
     <Compile Include="Program.cs.txt" />
     <Compile Include="Gameplay.cs.txt" />
+    <Compile Include="RewardTrack.cs.txt" />
+    <Compile Include="Challenges.cs.txt" />
+    <Compile Include="Bots.cs.txt" />
+    <Compile Include="Shop.cs.txt" />
+    <Compile Include="HalloweenAssets.cs.txt" />
     <Reference Include="IdleAi"><HintPath>../../.godot/mono/temp/bin/Debug/IdleAi.dll</HintPath></Reference>
   </ItemGroup>
 </Project>

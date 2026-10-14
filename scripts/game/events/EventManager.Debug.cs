@@ -19,6 +19,7 @@ public sealed partial class EventManager
                     p.Generators[id].Level = Math.Clamp(level, g.StartingLevel, g.MaxLevel);
                     _production[d.Id].RefreshUnlocks(p);
                     _production[d.Id].RefreshHistory(p);
+                    RefreshChallenges(d, p, EventChallengeSignal.All, NowUnix);
                     return true;
                 }, "Generator level set.");
         return new(false, "Unknown generator ID.");
@@ -48,6 +49,7 @@ public sealed partial class EventManager
                 default: return false;
             }
             _production[d.Id].RefreshHistory(p);
+            RefreshChallenges(d, p, EventChallengeSignal.All, NowUnix);
             return true;
         }, "Event debug state updated.");
     }

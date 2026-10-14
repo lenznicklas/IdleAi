@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net9.0</TargetFramework><Nullable>enable</Nullable><EnableDefaultCompileItems>false</EnableDefaultCompileItems></PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="DeviceScenarios.cs" />
+    <Compile Include="../../scripts/game/FirebasePlayGamesGateway.cs" />
+    <Compile Include="../../scripts/game/FirebaseSession.cs" />
+    <Compile Include="../../scripts/game/FirebaseRequestException.cs" />
+    <Compile Include="../../scripts/game/UsernamePolicy.cs" />
+    <Compile Include="../../scripts/game/FirestoreProfileRequests.cs" />
+  </ItemGroup>
+</Project>

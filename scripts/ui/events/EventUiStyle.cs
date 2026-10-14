@@ -46,7 +46,24 @@ internal static class EventUiStyle
         button.AddThemeStyleboxOverride("hover_pressed", pressed);
         button.AddThemeStyleboxOverride("disabled", MapController.CreateNodeStyle(new(.035f, .045f, .060f, .96f), Muted, 2, 0));
         button.AddThemeStyleboxOverride("focus", new StyleBoxEmpty());
-        button.AddThemeFontSizeOverride("font_size", 16);
+        // The global readability pass has already adjusted existing controls. Styling must not undo it.
+        if (!button.HasThemeFontSizeOverride("font_size")) button.AddThemeFontSizeOverride("font_size", 16);
+    }
+    internal static void StyleTabButton(Button button, Color accent, bool active)
+    {
+        Color border = active ? accent : Muted;
+        var fill = active ? new Color(accent.R * .32f, accent.G * .32f, accent.B * .32f, .98f)
+            : new Color(.035f, .045f, .060f, .98f);
+        button.SetPressedNoSignal(active);
+        button.AddThemeStyleboxOverride("normal", MapController.CreateNodeStyle(fill, border, 2, active ? 10 : 3));
+        button.AddThemeStyleboxOverride("hover", MapController.CreateNodeStyle(fill.Lightened(.06f), border, 2, 6));
+        var pressed = MapController.CreateNodeStyle(fill, border, 2, active ? 10 : 3);
+        button.AddThemeStyleboxOverride("pressed", pressed);
+        button.AddThemeStyleboxOverride("hover_pressed", pressed);
+        button.AddThemeStyleboxOverride("focus", MapController.CreateNodeStyle(new(0, 0, 0, 0), accent.Lightened(.3f), 2, 0));
+        button.AddThemeStyleboxOverride("disabled", MapController.CreateNodeStyle(fill, Muted, 2, 0));
+        foreach (string state in new[] { "font_color", "font_hover_color", "font_pressed_color", "font_hover_pressed_color", "font_focus_color" })
+            button.AddThemeColorOverride(state, active ? accent.Lightened(.65f) : new Color(.82f, .87f, .93f));
     }
     internal static VBoxContainer Panel(Control parent, string name)
     {

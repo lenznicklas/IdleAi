@@ -1,6 +1,7 @@
 #nullable enable
 using System;
 using System.Collections.Generic;
+using System.Threading.Tasks;
 
 namespace IdleAi;
 
@@ -9,6 +10,11 @@ public sealed class OnlineProfileService
 {
     private readonly FirebaseAliasService _aliases;
     public OnlineProfileService(FirebaseAliasService aliases) { _aliases = aliases; }
+    public Task EnsureReadyAsync() => _aliases.EnsureReadyAsync();
+    public FirebaseConnectionState ConnectionState => _aliases.ConnectionState;
+    public string ConnectionMessage => _aliases.ConnectionMessage;
+    public event Action<FirebaseConnectionState>? ConnectionStateChanged
+    { add => _aliases.ConnectionStateChanged += value; remove => _aliases.ConnectionStateChanged -= value; }
     public bool HasUsername => _aliases.HasUsername;
     public string CurrentUsername => _aliases.CurrentUsername;
     public bool IsFirebaseAuthenticated => _aliases.IsFirebaseAuthenticated;

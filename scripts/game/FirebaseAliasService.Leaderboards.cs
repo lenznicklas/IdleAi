@@ -3,6 +3,8 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.Json;
+using System.Threading.Tasks;
+using System.Globalization;
 
 namespace IdleAi;
 
@@ -55,7 +57,7 @@ public sealed partial class FirebaseAliasService
 
 	private bool _leaderboardSyncInFlight;
 
-	private bool _leaderboardLoadInFlight;
+    private readonly HashSet<IdleAiLeaderboardKind> _leaderboardLoadsInFlight = [];
 
 
 	public event Action<
@@ -75,7 +77,24 @@ public sealed partial class FirebaseAliasService
 	// LOCAL -> FIREBASE SCORE SYNC
 	// ==================================================
 
-	public void SyncInGameLeaderboardScores(
+    private bool _scorePreparationInFlight;
+    public async void SyncInGameLeaderboardScores(long totalLevel, long prestigeCount)
+    {
+        _leaderboardLocalTotalLevel = Math.Max(0, totalLevel);
+        _leaderboardLocalPrestiges = Math.Max(0, prestigeCount);
+        if (_scorePreparationInFlight || _leaderboardSyncInFlight || OS.GetName() != "Android") return;
+        _scorePreparationInFlight = true;
+        try
+        {
+            await EnsureReadyAsync();
+            await LoadCurrentProfileAsync();
+            SyncInGameLeaderboardScoresReady(_leaderboardLocalTotalLevel, _leaderboardLocalPrestiges);
+        }
+        catch (Exception e) { DebugLog("Leaderboard", "Score sync pending: " + e.GetType().Name); }
+        finally { _scorePreparationInFlight = false; }
+    }
+
+	private void SyncInGameLeaderboardScoresReady(
 		long totalLevel,
 		long prestigeCount)
 	{
@@ -133,7 +152,7 @@ public sealed partial class FirebaseAliasService
 
 		string now =
 			DateTime.UtcNow.ToString(
-				"O"
+	            "O", CultureInfo.InvariantCulture
 			);
 
 		object body =
@@ -165,6 +184,7 @@ public sealed partial class FirebaseAliasService
 					}
 			};
 
+        DebugLog("Leaderboard", "Submitting scores");
 		long submittedLevel =
 			_leaderboardLocalTotalLevel;
 
@@ -173,7 +193,6 @@ public sealed partial class FirebaseAliasService
 
 		SendHttpRequest(
 			url,
-			FirebaseHeaders,
 			HttpClient.Method.Patch,
 			JsonSerializer.Serialize(
 				body
@@ -214,32 +233,33 @@ public sealed partial class FirebaseAliasService
 	// FIREBASE TOP 25
 	// ==================================================
 
-	public bool RequestInGameLeaderboard(
-		IdleAiLeaderboardKind kind)
-	{
-		if (_leaderboardLoadInFlight)
-			return true;
+    public bool RequestInGameLeaderboard(IdleAiLeaderboardKind kind)
+    {
+        if (!_leaderboardLoadsInFlight.Add(kind)) return true;
+        _ = LoadInGameLeaderboardAsync(kind);
+        return true;
+    }
 
-		if (
-			!IsFirebaseTokenFresh
-			|| string.IsNullOrWhiteSpace(
-				_firebaseUid
-			)
-		)
-		{
-			RequestFirebaseSignIn();
+    private async Task LoadInGameLeaderboardAsync(IdleAiLeaderboardKind kind)
+    {
+        try
+        {
+            DebugLog("Leaderboard", "Waiting for Firebase");
+            await EnsureReadyAsync();
+            await LoadCurrentProfileAsync();
+            DebugLog("Leaderboard", "Loading scores");
+            LoadInGameLeaderboardReady(kind);
+        }
+        catch (Exception e)
+        {
+            _leaderboardLoadsInFlight.Remove(kind);
+            if (_exiting) return;
+            InGameLeaderboardLoadFailed?.Invoke(kind, PlayerError(e));
+        }
+    }
 
-			InGameLeaderboardLoadFailed?.Invoke(
-				kind,
-				"Firebase is still connecting. Try Refresh in a moment."
-			);
-
-			return false;
-		}
-
-		_leaderboardLoadInFlight =
-			true;
-
+    private void LoadInGameLeaderboardReady(IdleAiLeaderboardKind kind)
+    {
 		/*
 		 * Read the existing public profile registry instead of Google display names.
 		 *
@@ -272,37 +292,21 @@ public sealed partial class FirebaseAliasService
 
 		SendHttpRequest(
 			FirestoreRunQueryUrl,
-			FirebaseHeaders,
 			HttpClient.Method.Post,
 			JsonSerializer.Serialize(
 				queryBody
 			),
 			(responseCode, responseBody) =>
 			{
-				_leaderboardLoadInFlight =
-					false;
+                _leaderboardLoadsInFlight.Remove(kind);
 
 				if (
 					responseCode < 200
 					|| responseCode >= 300
 				)
 				{
-					string message =
-						"Leaderboard database read failed (HTTP "
-						+ responseCode
-						+ "): "
-						+ ReadFirebaseError(
-							responseBody
-						);
-
-					GD.PushWarning(
-						message
-					);
-
-					InGameLeaderboardLoadFailed?.Invoke(
-						kind,
-						message
-					);
+                    InGameLeaderboardLoadFailed?.Invoke(kind,
+                        FirebaseRequestException.Parse(new(responseCode, responseBody)).PlayerMessage);
 
 					return;
 				}
@@ -342,13 +346,12 @@ public sealed partial class FirebaseAliasService
 
 					InGameLeaderboardLoadFailed?.Invoke(
 						kind,
-						message
-					);
+                        "Leaderboard unavailable. Please try again."
+                    );
 				}
 			}
 		);
 
-		return true;
 	}
 
 
@@ -601,6 +604,7 @@ public sealed partial class FirebaseAliasService
 					row.IsOwn
 			);
 
+        DebugLog("Leaderboard", $"Loaded {top.Count} players");
 		InGameLeaderboardLoaded?.Invoke(
 			kind,
 			top,
@@ -712,7 +716,7 @@ public sealed partial class FirebaseAliasService
 					0,
 					value
 				)
-				.ToString()
+				.ToString(CultureInfo.InvariantCulture)
 		};
 	}
 

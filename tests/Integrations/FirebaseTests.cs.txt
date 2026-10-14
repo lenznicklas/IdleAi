@@ -1,0 +1,154 @@
+using Godot;
+using IdleAi;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Reflection;
+using System.Text.Json;
+using System.Threading.Tasks;
+using System.Threading;
+
+internal static class FirebaseTests
+{
+    private static int checks;
+    private static void Check(bool value, string message) { if (!value) throw new Exception(message); checks++; }
+    private static void Field(object target, string name, object value) => target.GetType()
+        .GetField(name, BindingFlags.NonPublic | BindingFlags.Instance).SetValue(target, value);
+    private static FirebaseAliasService Service(Node parent, FirebaseSession session,
+        Func<string, HttpClient.Method, string, Task<FirebaseHttpResponse>> send)
+    {
+        var service = new FirebaseAliasService();
+        Field(service, "_session", session); Field(service, "_currentPlayGamesPlayerId", "gpg");
+        typeof(FirebaseAliasService).GetProperty("HttpTransportOverride", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(service, send);
+        parent.AddChild(service);
+        return service;
+    }
+    private static FirebaseCredentials Credentials() => new("fake-token", "fake-refresh", "own", long.MaxValue);
+    private static FirebaseSession Session() => new(() => Task.FromResult(Credentials()), _ => throw new Exception("Unexpected refresh"), () => 1);
+    private static object Str(string value) => new { stringValue = value };
+    private static string Profile(string name) => JsonSerializer.Serialize(new { fields = new { username = Str(name), playGamesPlayerId = Str("gpg") } });
+    public static async Task Run(Node parent)
+    {
+        var login = new TaskCompletionSource<FirebaseCredentials>(); int starts = 0, gets = 0, queries = 0;
+        var session = new FirebaseSession(() => { starts++; return login.Task; }, _ => throw new Exception("Unexpected refresh"), () => 1);
+        var rows = Enumerable.Range(0, 30).Select(i => new { document = new { fields = new
+        {
+            uid = Str("p" + i), username = Str("Player_" + i), highestTotalLevel = new { integerValue = (100 - i).ToString() },
+            prestigeCount = new { integerValue = "5" }
+        } } }).ToList<object>();
+        rows.Add(new { document = new { fields = new { uid = Str("own"), username = Str("OwnPlayer"), highestTotalLevel = new { integerValue = "1" }, prestigeCount = new { integerValue = "0" } } } });
+        var service = Service(parent, session, (url, method, body) =>
+        {
+            if (method == HttpClient.Method.Get) { gets++; return Task.FromResult(new FirebaseHttpResponse(200, Profile("OwnPlayer"))); }
+            queries++; Check(url.EndsWith("documents:runQuery") && method == HttpClient.Method.Post, "Leaderboard endpoint/method unchanged");
+            return Task.FromResult(new FirebaseHttpResponse(200, JsonSerializer.Serialize(rows)));
+        });
+        var level = new TaskCompletionSource<bool>(); var prestige = new TaskCompletionSource<bool>();
+        service.InGameLeaderboardLoaded += (kind, top, own) =>
+        {
+            Check(top.Count == 25 && own != null && own.Username == "OwnPlayer", "Top 25 and own profile preserved");
+            if (kind == IdleAiLeaderboardKind.HighestTotalLevel)
+            {
+                Check(top[0].Score == 100 && own.Rank == 31, "Own rank outside Top 25 preserved"); level.TrySetResult(true);
+            }
+            else { Check(top.All(row => row.Rank == 1) && own.Rank == 31, "Competition ranks for tied scores preserved"); prestige.TrySetResult(true); }
+        };
+        service.RequestInGameLeaderboard(IdleAiLeaderboardKind.HighestTotalLevel);
+        service.RequestInGameLeaderboard(IdleAiLeaderboardKind.HighestTotalLevel);
+        service.RequestInGameLeaderboard(IdleAiLeaderboardKind.MostPrestiges);
+        Check(starts == 1 && gets == 0 && queries == 0, "Real leaderboard API waits for shared login; duplicate kind coalesced");
+        login.SetResult(Credentials()); await Task.WhenAll(level.Task, prestige.Task).WaitAsync(TimeSpan.FromSeconds(5));
+        Check(gets == 1 && queries == 2, "Profile load shared; both leaderboard tabs complete");
+        service.QueueFree();
+
+        int commits = 0; var commit = new TaskCompletionSource<FirebaseHttpResponse>();
+        var fresh = Service(parent, Session(), (url, method, body) =>
+        {
+            if (method == HttpClient.Method.Get) return Task.FromResult(new FirebaseHttpResponse(404, ""));
+            commits++;
+            Check(url.EndsWith("documents:commit") && method == HttpClient.Method.Post, "Username endpoint/method unchanged");
+            using var doc = JsonDocument.Parse(body);
+            Check(doc.RootElement.GetProperty("writes")[0].GetProperty("update").GetProperty("name").GetString().EndsWith("/usernames/player_42"), "Username reservation uses normalized identity");
+            return commit.Task;
+        });
+        bool saved = false; fresh.UsernameSaveFinished += (ok, _) => saved = ok;
+        fresh.SetUsername(" Player_42 "); fresh.SetUsername("OtherPlayer");
+        Check(commits == 1 && !saved, "Repeated username submit cannot race two commits");
+        commit.SetResult(new(200, "{}"));
+        Check(saved && fresh.CurrentUsername == "Player_42", "Successful commit publishes normalized username");
+        fresh.QueueFree();
+
+        int attempt = 0; var conflict = Service(parent, Session(), (url, method, _) =>
+        {
+            if (method == HttpClient.Method.Get) return Task.FromResult(++attempt == 1
+                ? new FirebaseHttpResponse(404, "") : new FirebaseHttpResponse(200, Profile("RecoveredPlayer")));
+            return Task.FromResult(new FirebaseHttpResponse(409, "{\"error\":{\"status\":\"ALREADY_EXISTS\"}}"));
+        });
+        bool recovered = false; conflict.UsernameSaveFinished += (ok, _) => recovered = ok;
+        conflict.SetUsername("RecoveredPlayer");
+        Check(recovered && conflict.CurrentUsername == "RecoveredPlayer", "Commit conflict recovers own existing profile after an ambiguous prior write");
+        conflict.QueueFree();
+        var abandonedLogin = new TaskCompletionSource<FirebaseCredentials>();
+        var abandonedSession = new FirebaseSession(() => abandonedLogin.Task, _ => throw new Exception("Unexpected refresh"), () => 1);
+        var abandoned = Service(parent, abandonedSession, (_, _, _) => throw new Exception("Disposed service must not send requests"));
+        int lateEvents = 0;
+        abandoned.InGameLeaderboardLoaded += (_, _, _) => lateEvents++;
+        abandoned.InGameLeaderboardLoadFailed += (_, _) => lateEvents++;
+        abandoned.RequestInGameLeaderboard(IdleAiLeaderboardKind.HighestTotalLevel);
+        abandoned.QueueFree();
+        await parent.ToSignal(parent.GetTree(), SceneTree.SignalName.ProcessFrame);
+        await parent.ToSignal(parent.GetTree(), SceneTree.SignalName.ProcessFrame);
+        abandonedLogin.SetResult(Credentials());
+        Check(lateEvents == 0, "Scene teardown suppresses late auth/leaderboard callbacks");
+        // An immediate username request must wait through the whole Firebase exchange.
+        var slowLogin = new TaskCompletionSource<FirebaseCredentials>(); int earlyRequests = 0;
+        var slow = Service(parent, new FirebaseSession(() => slowLogin.Task, _ => throw new Exception("Unexpected refresh"), () => 1),
+            (url, method, body) => { earlyRequests++; return Task.FromResult(method == HttpClient.Method.Get
+                ? new FirebaseHttpResponse(404, "") : new FirebaseHttpResponse(200, "{}")); });
+        bool earlySaved = false; slow.UsernameSaveFinished += (ok, _) => earlySaved = ok;
+        slow.SetUsername("EarlyPlayer");
+        slow.Notification((int)MainLoop.NotificationApplicationPaused);
+        slow.Notification((int)MainLoop.NotificationApplicationResumed);
+        Check(earlyRequests == 0 && !earlySaved, "Username and resume join delayed startup without premature Firestore requests");
+        slowLogin.SetResult(Credentials());
+        Check(earlySaved && earlyRequests == 2, "Early username automatically resumes profile lookup and atomic commit");
+        slow.QueueFree();
+
+        var diagnostics = new List<string>(); int reads = 0, refreshes = 0;
+        var expiredSession = new FirebaseSession(() => Task.FromResult(Credentials()),
+            _ => { refreshes++; return Task.FromResult(new FirebaseCredentials("replacement-token", "r", "own", long.MaxValue)); }, () => 1);
+        var refreshService = Service(parent, expiredSession, (url, method, body) =>
+        {
+            if (method == HttpClient.Method.Get) return Task.FromResult(++reads == 1
+                ? new FirebaseHttpResponse(401, "{\"error\":{\"status\":\"UNAUTHENTICATED\"}}") : new FirebaseHttpResponse(404, ""));
+            return Task.FromResult(new FirebaseHttpResponse(400, "{\"error\":{\"status\":\"INVALID_ARGUMENT\",\"message\":\"bad typed field\",\"details\":[{\"reason\":\"TEST_FIELD_ERROR\"}]}}"));
+        });
+        typeof(FirebaseAliasService).GetProperty("HttpDiagnosticObserver", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(refreshService, (Action<string>)diagnostics.Add);
+        string failureMessage = ""; refreshService.UsernameSaveFinished += (_, message) => failureMessage = message;
+        refreshService.SetUsername("ErrorPlayer");
+        Check(refreshes == 1 && reads == 2, "Real profile API refreshes a 401 once before username creation");
+        Check(diagnostics.Any(d => d.Contains("operation=LoadProfile") && d.Contains("HTTP=401") && d.Contains("uidPresent=True") && d.Contains("attemptedBeforeReady=False")), "HTTP diagnostics contain operation, state and UID context");
+        Check(diagnostics.Any(d => d.Contains("refreshAttempted=True")) && diagnostics.Any(d => d.Contains("TEST_FIELD_ERROR")), "Refresh retry and exact structured 400 details logged");
+        Check(!failureMessage.Contains("Offline", StringComparison.OrdinalIgnoreCase), "Username 400 never displayed as offline");
+        Check(diagnostics.All(d => !d.Contains("fake-token") && !d.Contains("replacement-token")), "Transport diagnostics never include tokens");
+        refreshService.QueueFree();
+
+        // Exercise real Godot HttpRequest nodes against a deliberately closed loopback port.
+        var transport = Service(parent, Session(), (_, _, _) => throw new Exception("Override must be removed"));
+        typeof(FirebaseAliasService).GetProperty("HttpTransportOverride", BindingFlags.NonPublic | BindingFlags.Instance).SetValue(transport, null);
+        var raw = typeof(FirebaseAliasService).GetMethod("SendRawHttpAsync", BindingFlags.NonPublic | BindingFlags.Instance);
+        Task<FirebaseHttpResponse> Raw(CancellationToken cancellation) => (Task<FirebaseHttpResponse>)raw.Invoke(transport,
+            new object[] { "TransportLifecycle", false, "http://127.0.0.1:9/fixture", Array.Empty<string>(), HttpClient.Method.Get, "", cancellation, Array.Empty<string>() });
+        var parallel = Enumerable.Range(0, 6).Select(_ => Raw(CancellationToken.None)).ToArray();
+        Check(transport.GetChildren().OfType<HttpRequest>().Count() == 6, "Concurrent requests own six distinct HttpRequest nodes");
+        using var abortHttp = new CancellationTokenSource(); var interrupted = Raw(abortHttp.Token); abortHttp.Cancel();
+        try { await interrupted; throw new Exception("Expected HTTP cancellation"); } catch (OperationCanceledException) { }
+        var responses = await Task.WhenAll(parallel).WaitAsync(TimeSpan.FromSeconds(8));
+        Check(responses.All(r => r.Status == 0), "Parallel real transport failures independently complete");
+        await parent.ToSignal(parent.GetTree(), SceneTree.SignalName.ProcessFrame);
+        await parent.ToSignal(parent.GetTree(), SceneTree.SignalName.ProcessFrame);
+        Check(transport.GetChildren().OfType<HttpRequest>().Count() == 0, "Success/failure/cancellation clean up request nodes");
+        transport.QueueFree();
+        Console.WriteLine($"Firebase Godot integration: {checks} assertions passed.");
+    }
+}

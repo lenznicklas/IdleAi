@@ -26,21 +26,26 @@ public sealed class EventArchiveResult
     public double HighestProduction { get; set; }
     public int RewardsClaimed { get; set; }
     public int RewardsTotal { get; set; }
+    public int BotsUnlocked { get; set; }
+    public bool LegendaryBotOwned { get; set; }
     public int CosmeticsOwned { get; set; }
     public EventArchiveResult Copy() => (EventArchiveResult)MemberwiseClone();
 }
 
 public sealed class EventProgressSaveData
 {
+    public EventChallengeSaveData Challenges { get; set; } = new();
     public int GeneratorDataVersion { get; set; }
     public Dictionary<string, EventGeneratorSaveData> Generators { get; set; } = [];
     public double PrestigeEarnedCheckpoint { get; set; }
     public long PrestigeResource { get; set; }
     public long TotalPrestigeResourceEarned { get; set; }
     public double HighestProductionReached { get; set; }
+    public HashSet<string> UnlockedBots { get; set; } = [];
     public HashSet<string> OwnedBots { get; set; } = [];
     public string? ActiveBotId { get; set; }
     public HashSet<string> Cosmetics { get; set; } = [];
+    public HashSet<string> UnlockedShopItems { get; set; } = [];
     public Dictionary<string, int> ShopPurchases { get; set; } = [];
     public EventArchiveResult? Archive { get; set; }
     public double Currency { get; set; }
@@ -58,12 +63,12 @@ public sealed class EventProgressSaveData
 
     public EventProgressSaveData Copy() => new()
     {
-        GeneratorDataVersion = GeneratorDataVersion,
+        Challenges = Challenges.Copy(), GeneratorDataVersion = GeneratorDataVersion,
         Generators = Generators.ToDictionary(pair => pair.Key, pair => pair.Value.Copy()),
         PrestigeEarnedCheckpoint = PrestigeEarnedCheckpoint, PrestigeResource = PrestigeResource,
         TotalPrestigeResourceEarned = TotalPrestigeResourceEarned,
-        HighestProductionReached = HighestProductionReached, OwnedBots = new(OwnedBots), ActiveBotId = ActiveBotId,
-        Cosmetics = new(Cosmetics), ShopPurchases = new(ShopPurchases), Archive = Archive?.Copy(),
+        HighestProductionReached = HighestProductionReached, UnlockedBots = new(UnlockedBots), OwnedBots = new(OwnedBots), ActiveBotId = ActiveBotId,
+        Cosmetics = new(Cosmetics), ShopPurchases = new(ShopPurchases), UnlockedShopItems = new(UnlockedShopItems), Archive = Archive?.Copy(),
         Currency = Currency, TotalCurrencyEarned = TotalCurrencyEarned,
         ProgressionLevel = ProgressionLevel, PrestigeCount = PrestigeCount,
         HighestProgressionReached = HighestProgressionReached, LastUpdateUnix = LastUpdateUnix,
@@ -94,7 +99,7 @@ public sealed class EventSaveData
             && ValidProgress(pair.Value));
 
     private static bool ValidProgress(EventProgressSaveData p) =>
-        p.GeneratorDataVersion is 0 or 2 && p.Generators != null && p.Generators.All(pair =>
+        p.Challenges != null && p.Challenges.IsValid() && p.GeneratorDataVersion is 0 or 2 && p.Generators != null && p.Generators.All(pair =>
             !string.IsNullOrWhiteSpace(pair.Key) && pair.Value != null && pair.Value.Level >= 1
             && double.IsFinite(pair.Value.CycleElapsedSeconds) && pair.Value.CycleElapsedSeconds >= 0
             && double.IsFinite(pair.Value.Multiplier) && pair.Value.Multiplier > 0)
@@ -102,9 +107,10 @@ public sealed class EventSaveData
         && p.PrestigeEarnedCheckpoint <= p.TotalCurrencyEarned && p.PrestigeResource >= 0
         && p.TotalPrestigeResourceEarned >= p.PrestigeResource
         && double.IsFinite(p.HighestProductionReached) && p.HighestProductionReached >= 0
+        && p.UnlockedBots != null && p.UnlockedBots.All(id => !string.IsNullOrWhiteSpace(id))
         && p.OwnedBots != null && p.OwnedBots.All(id => !string.IsNullOrWhiteSpace(id))
-        && (p.ActiveBotId == null || p.OwnedBots.Contains(p.ActiveBotId))
         && p.Cosmetics != null && p.Cosmetics.All(id => !string.IsNullOrWhiteSpace(id))
+        && p.UnlockedShopItems != null && p.UnlockedShopItems.All(id => !string.IsNullOrWhiteSpace(id))
         && p.ShopPurchases != null && p.ShopPurchases.All(pair => !string.IsNullOrWhiteSpace(pair.Key) && pair.Value >= 0)
         && double.IsFinite(p.Currency) && p.Currency >= 0 && double.IsFinite(p.TotalCurrencyEarned)
         && p.TotalCurrencyEarned >= p.Currency && p.ProgressionLevel >= 1 && p.PrestigeCount >= 0

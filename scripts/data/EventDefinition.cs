@@ -6,7 +6,7 @@ using System.Text.Json.Serialization;
 namespace IdleAi;
 
 public enum EventType { Weekend, Seasonal, Major }
-public enum EventRewardType { DeveloperCredits, DataShards, EventCurrency, PrestigeResource, EventBot, Cosmetic, MachineSkin, BotSkin, Bundle }
+public enum EventRewardType { DeveloperCredits, DataShards, EventCurrency, PrestigeResource, EventBot, Cosmetic, MachineSkin, BotSkin, Bundle, Custom }
 
 public sealed record EventReward(EventRewardType Type, double Amount, string Id = "")
 {
@@ -14,7 +14,14 @@ public sealed record EventReward(EventRewardType Type, double Amount, string Id 
     public string IconPath { get; init; } = "";
     public IReadOnlyList<EventReward> Contents { get; init; } = [];
 }
-public sealed record EventMilestone(string Id, double TargetAmount, EventReward Reward);
+// Existing enum ordinals and milestone IDs are durable save/catalog contracts.
+public sealed record EventMilestone(string Id, double TargetAmount, EventReward Reward)
+{
+    public string Title { get; init; } = "";
+    public string Description { get; init; } = "";
+    public bool Featured { get; init; }
+    public bool FinalReward { get; init; }
+}
 
 public sealed record EventProgressionConfiguration
 {
@@ -65,5 +72,7 @@ public sealed record EventDefinition
     public IReadOnlyList<EventStoryMessage> Story { get; init; } = [];
     public EventThemeConfiguration Theme { get; init; } = new();
     public IReadOnlyList<EventMilestone> Milestones { get; init; } = [];
+    public IReadOnlyList<EventChallengeDefinition> Challenges { get; init; } = [];
+    public int DailyChallengeCount { get; init; } = 3;
     public EventContentConfiguration Content { get; init; } = new();
 }

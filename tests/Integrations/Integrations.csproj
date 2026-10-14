@@ -5,6 +5,7 @@
   </PropertyGroup>
   <ItemGroup>
     <Compile Include="Program.cs.txt" />
+    <Compile Include="FirebaseTests.cs.txt" />
     <Compile Include="Runner.cs" />
     <Reference Include="IdleAi"><HintPath>../../.godot/mono/temp/bin/Debug/IdleAi.dll</HintPath></Reference>
   </ItemGroup>

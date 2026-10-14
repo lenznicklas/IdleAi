@@ -19,7 +19,7 @@ public static class BotCatalog
 						BotRarity.Common,
 						"Common Bot",
 						1.0,
-						6.0 * Hour,
+						24.0 * Hour,
 						GD.Load<Texture2D>(
 							"res://assets/bots/common.png"
 						)
@@ -33,7 +33,7 @@ public static class BotCatalog
 						BotRarity.Rare,
 						"Rare Bot",
 						1.2,
-						12.0 * Hour,
+						36.0 * Hour,
 						GD.Load<Texture2D>(
 							"res://assets/bots/rare.png"
 						)
@@ -47,7 +47,7 @@ public static class BotCatalog
 						BotRarity.Epic,
 						"Epic Bot",
 						1.4,
-						24.0 * Hour,
+						48.0 * Hour,
 						GD.Load<Texture2D>(
 							"res://assets/bots/epic.png"
 						)
@@ -61,7 +61,7 @@ public static class BotCatalog
 						BotRarity.Legendary,
 						"Legendary Bot",
 						1.5,
-						48.0 * Hour,
+						72.0 * Hour,
 						GD.Load<Texture2D>(
 							"res://assets/bots/legendary.png"
 						)

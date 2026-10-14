@@ -188,3 +188,250 @@ EventDeveloperTools, Game.Events integration, EventView/EventController/EventUiS
 EventMapEntry, BotSkinService/MachineSkinService ownership checks, the existing Shop code
 input length, and Event test runner/project/scene fixtures. The normal atomic save,
 Event runtime timer, map registration and Singularity gameplay were retained.
+
+### Test Protocol balancing
+
+Test Protocol economy values live in `TestProtocolEventDefinition.cs`. See
+[`docs/event-balance.md`](../../../docs/event-balance.md) for the before/after review and
+[`tests/EventBalance/README.md`](../../../tests/EventBalance/README.md) for the standalone
+production/Prestige simulator, pacing assertions and JSON tuning overrides.
+
+### Export visibility switch
+
+`EventFeatureFlags.EventsEnabled` is currently **true**. Normal startup creates the
+Event Map card, Event view and runtime through the existing bootstrap. Existing
+Event progress is loaded normally, including the usual elapsed-time settlement.
+
+For a temporary export without Events, set this one constant to `false`. Disabled
+startup skips Event initialization and leaves stored progress and cosmetic ownership
+in the normal save path without settling or migrating Event data.
+
+DEBUG builds retain the explicit `--event-tools` opt-in for Event testing; export
+release builds compile out this override. Existing Event smoke tests keep their
+usual `-- --event-tools` command. The disabled-startup test below is only applicable
+when the central flag is set to `false`:
+
+```sh
+XDG_DATA_HOME=/tmp/idle-ai-event-disabled-test godot-mono --headless --path . --script tests/Events/disabled_scene_smoke.gd
+```
+
+### Event navigation chrome
+
+EventController derives global BottomBar visibility from the Event page's visibility,
+not from the selected tab. Event uses the full page height; only ordinary content
+padding remains at the bottom. Closing Event or opening Map, Shop, Lab or Singularity
+restores global navigation. Deferred Singularity chrome restoration cannot reveal the
+bar while Event remains open. Escape/controller back and the Android window back
+signal dismiss a Prestige confirmation first, then return Event to Map. The previous
+system-back quit policy is restored on exit/teardown. Resume and scene reload retain
+the same visibility rule.
+
+```sh
+XDG_DATA_HOME=/tmp/idle-ai-event-navigation-test godot-mono --headless --path . --script tests/Events/navigation_scene_smoke.gd
+```
+
+This scene test covers every Event tab at three viewport sizes, full-height layout,
+native input in the reclaimed bottom region, deferred chrome writes, background/resume,
+close/back/global navigation, Singularity round trips and scene recreation.
+
+### Internal Event tabs
+
+EventView owns one cached set of tab sections. A compact single-line header shows
+name/time, Event and Prestige currencies, and production; longer values are clipped
+with full-value tooltips. Progress description, level and next-unlock details belong
+to the scrollable Progress section. The rounded navigation grid remains two rows of
+three 56-pixel-high buttons, outside the single expanding content ScrollContainer.
+Selected tabs use a persistent toggle highlight, and all button states use Event
+styles without resetting the global readability font adjustment.
+
+The existing MobileScrollController supplies touch dragging/inertia. Switching tabs,
+opening a modal or leaving Event stops motion. Content actions respect its post-drag
+tap guard; the Prestige modal suspends underlying scroll input. There is no nested
+scrolling or horizontal scrolling. Scroll offsets are cached in memory per Event ID
+and tab, then restored after container layout. A revision check discards stale restores
+when tabs change quickly. Tab and scroll state survive modal dismissal and reopening
+the same view; no new save fields are introduced. Back still closes a modal first,
+then leaves Event for Map, rather than walking through tab history.
+
+```sh
+XDG_DATA_HOME=/tmp/idle-ai-event-tabs-test godot-mono --headless --path . --script tests/Events/tabs_scene_smoke.gd -- --event-tools
+```
+
+This fixture checks portrait/window and narrow logical sizes, fixed header/content/tab
+bounds, active/pressed/focus styling, touch input, independent scroll restoration,
+rapid switching, modal input isolation, retained nodes/textures/signals, unchanged
+progression during tab changes, long header values, and state retained on reopening.
+
+### Reward track
+
+Milestones retain their durable IDs, target amounts and typed rewards. Optional
+Title/Description, Featured and FinalReward fields affect presentation only.
+Definitions own all targets, grants and asset paths. Test Protocol has ten milestones;
+the original four IDs/grants remain intact. No paid/global skins are awarded by
+the sandbox and no placeholder global assets are created.
+
+EventManager uses TotalCurrencyEarned and persisted UnlockedMilestones, independent
+of the spendable wallet and Prestige checkpoint. Ended events stop unlocking rewards.
+Existing earned permanent rewards remain claimable; Event currency/core rewards and
+bundles containing them require the event to be active. This retains the existing
+expiration policy. Claimed rewards stay visible in archived result tracks.
+
+ClaimReward and ClaimAllRewards share one transaction. A batch snapshots eligible
+milestones before granting, so currency grants can unlock but cannot automatically
+claim later rewards. Internal state, global skin entitlements, external Data Shards
+and claim markers commit in one main save; failure rolls them back. The action guard
+blocks reentry, and saved milestone IDs prevent duplicate grants after restart.
+MachineSkin/BotSkin rewards use the existing global ownership synchronization.
+Custom rewards provide an ID-based future hook through grantExternalReward and must
+return an undo action; unsupported hooks fail safely. No save-schema change is needed.
+
+The existing Rewards section/scroller caches fixed 270px cards and fitted EventImageView
+art. One lifetime track bar and per-card bars show progression; future cards stay visible.
+Only dynamic text/progress/state is refreshed, and styling changes only when state changes.
+Claim All appears for at least two eligible rewards. Texture caching, tab scroll retention,
+drag guards, navigation and modal behavior remain shared with the other Event tabs.
+
+```sh
+dotnet build tests/Events/Events.csproj --no-restore
+XDG_DATA_HOME=/tmp/idle-ai-event-domain-tests godot-mono --headless --path tests/Events
+XDG_DATA_HOME=/tmp/idle-ai-event-rewards-test godot-mono --headless --path . --script tests/Events/rewards_scene_smoke.gd
+```
+
+RewardTrack domain regressions cover lifetime/Prestige, grant types, individual/batch
+claims, one batch save/notification, rollback, duplicate prevention, save/reload,
+expiration and future-hook failure. The scene fixture verifies all ten cards, portrait
+bounds down to 320 logical pixels, fitted art, custom button states, real Claim All,
+Data Shards/bot/core integration and reward persistence across scene restart.
+
+### Event challenges / tasks
+
+EventChallengeDefinition is optional catalog data on EventDefinition. It includes a
+stable ID, owning Event ID, category (Daily/Event/Major), typed target, optional
+generator/bot ID, existing EventReward, availability conditions, Enabled, Repeatable
+and UseCurrentState. TestProtocolChallenges owns its pool (three selected Dailies),
+seven Event goals and one highlighted Major goal. No production/economy tuning changes
+are required to configure tasks. Future Events opt in by supplying definitions.
+
+Supported metrics: earnings since enrollment; lifetime earnings; cumulative generator
+upgrades; specific/any generator level; total unlocked generator levels; generator
+unlock; Prestige count; Prestige wallet; bot ownership; Reward Track claims; shop
+purchase count; production/s; and foreground Event play minutes. Reach goals preserve
+high-water progress by default. UseCurrentState explicitly makes those goals live
+(e.g. a level goal can fall back to ACTIVE after Prestige). Completed/claimed state
+freezes on expiration. EarnLifetimeCurrency includes older saved lifetime earnings;
+EarnCurrency starts at task enrollment. Daily cumulative goals use today's baseline.
+
+EventProgressSaveData.Challenges defaults safely for older saves and is deep-copied
+with all Event transactions. It stores progress/baselines, completion/claim counts,
+UTC day, selected Daily IDs, retired earned Daily history, cumulative upgrades and
+active play seconds. Existing PrestigeCount, ClaimedRewards and ShopPurchases are
+already durable cumulative metrics and are reused rather than duplicated. Historical
+upgrade counts cannot be reconstructed after old Prestiges: new telemetry starts at
+zero without altering any existing generator, wallet, lifetime or reward data.
+
+The manager groups definitions by relevant gameplay signal. Production settlement
+updates earning goals; an actual unlock also updates generator/production goals.
+Upgrades, Prestige, bot/economy grants, track claims and purchases update their groups
+inside their existing transactions. Enrollment/activation does a single full catch-up.
+The shared one-second runtime samples foreground Event play with a monotonic clock;
+offline/background/normal-game time is excluded. No extra timer, per-frame evaluation,
+production settlement in the UI, or per-production-tick saves are introduced.
+
+Daily selection is deterministic from Event ID, integer UTC day and challenge ID,
+then saved. Eligibility checks finite unclaimed track rewards/shop limits, known
+systems and configured availability conditions. Selection never changes mid-day.
+Daily IDs/baselines rotate once on a newer UTC day for the active Event. Offline
+settlement splits at the saved day's end and today's boundary, crediting today's
+Daily earnings accurately without generating missed days retroactively. Previous
+earned/claimed Daily records are archived on rollover; unclaimed prior-day tasks
+retire at that reset. The last active day's completed permanent rewards remain
+claimable after Event expiration, following the Reward Track policy; Event currency
+and Prestige currency rewards require an active Event. Expired Events cannot enroll
+new tasks or advance existing ones through later permanent reward grants.
+
+Claims and Claim All call the same GrantReward and atomic Transaction used by the
+Reward Track. A batch snapshots eligible goals before grants, commits claims and all
+typed rewards in one main save, and rolls everything back on failure. Newly completed
+goals wait for another explicit claim. Repeatable goals are supported for cumulative
+metrics: the claimed cycle stays visible until new progress starts, then rearms from
+its new baseline. Currency rewards do not advance repeatable earning cycles, avoiding
+mutually feeding reward loops. Main-save callbacks cannot recursively settle/save
+while a manager persistence operation is already running.
+
+Challenges reuse EventView's one content scroller, texture cache and per-tab scroll
+state. Fixed-size cards are retained across ticks/tabs, with only affected text/bars
+and changed styles refreshed. Daily rotation replaces only retired Daily cards.
+A full-width Challenges button sits below the original two rows of three tabs and
+shows a non-flashing ready count. Claim All appears for at least two eligible goals.
+Existing back/modal handling and BottomBar ownership are unchanged.
+
+Debug commands (Debug build AND --event-tools, through the existing Shop code box):
+- event-challenges-complete / event-challenges-ready: mark selected unclaimed goals ready
+- event-challenge-progress:challenge_id:10: set a selected goal's debug progress
+- event-challenges-claim-all: grant currently eligible challenge rewards
+- event-dailies-reset: force deterministic selection/baselines on the current UTC day
+- event-day-next: advance the challenge UTC day without adding production/offline income
+
+The simulated day offset is session-only; the selected day/claims are saved. After
+restarting a simulated-day session, event-dailies-reset can restore the real UTC day.
+These commands never expose normal players to challenge resets or extra reward grants.
+
+```sh
+dotnet build tests/Events/Events.csproj --no-restore
+XDG_DATA_HOME=/tmp/idle-ai-event-domain-tests godot-mono --headless --path tests/Events
+XDG_DATA_HOME=/tmp/idle-ai-event-challenges-test godot-mono --headless --path . --script tests/Events/challenges_scene_smoke.gd -- --event-tools
+```
+
+Tests cover all thirteen metrics, Prestige/current-state distinctions, typed rewards,
+individual/batch/repeat claims, transaction and partial-grant rollback, UTC/offline
+boundaries, retired history, expiration, legacy defaults, persisted selection/claims,
+reentrant save callbacks, unchanged six-hour production and Test Protocol definitions.
+The scene fixture covers all goal categories, badge updates, debug commands, real
+reward grants/restart, active/background play, portrait bounds (320 logical px), art,
+button styles, cached nodes/signals, seven-tab navigation and expired claims.
+Server rotations, a historical-Daily browser and the optional Map badge are not added.
+
+Challenge implementation file manifest (other existing workspace changes are unrelated):
+
+Added:
+- scripts/data/EventChallengeDefinition.cs
+- scripts/data/EventChallengeSaveData.cs
+- scripts/game/events/EventManager.Challenges.cs
+- scripts/game/events/EventManager.Challenges.Debug.cs
+- scripts/game/events/TestProtocolChallenges.cs
+- scripts/ui/events/EventChallengeCard.cs
+- tests/Events/Challenges.cs.txt
+- tests/Events/challenges_scene_smoke.gd
+
+Modified:
+- scripts/data/EventDefinition.cs
+- scripts/data/EventSaveData.cs
+- scripts/game/events/EventDefinitionValidator.cs
+- scripts/game/events/EventDeveloperTools.cs
+- scripts/game/events/EventManager.cs
+- scripts/game/events/EventManager.Gameplay.cs
+- scripts/game/events/EventManager.Rewards.cs
+- scripts/game/events/EventManager.Debug.cs
+- scripts/game/events/EventRuntime.cs
+- scripts/game/events/TestProtocolEventDefinition.cs
+- scripts/game/events/README.md
+- scripts/ui/events/EventView.cs
+- scripts/ui/events/EventController.cs
+- tests/EventBalance/EventBalance.csproj
+- tests/Events/Events.csproj
+- tests/Events/Program.cs.txt
+- tests/Events/tabs_scene_smoke.gd
+- tests/Events/navigation_scene_smoke.gd
+- tests/Events/halloween_scene_smoke.gd
+
+## Reusable Event Bots
+
+See [Event Bot architecture, tuning, save compatibility, debug commands and validation](../../../docs/event-bots.md). Bots now have separate unlock/ownership/equipped states, alternative configured unlock paths, shared rarity validation, cached cards/detail UI and central reward/shop/challenge integration. Optional bot leveling remains deferred. Normal Room and Singularity bot behavior is unchanged.
+
+## Reusable Event Shop
+
+See [Event Shop definitions, transactions, currencies, save compatibility, commands and validation](../../../docs/event-shop.md). The existing Shop now supports optional Data Shard costs through the existing economy, persistent unlocks, explicit purchase states, global ownership checks, unlimited/finite limits, configured category grouping/sorting and cached cards. Test Protocol supplies eight offers. Temporary boosts are deferred pending correct offline timestamp-boundary settlement.
+
+## Halloween PNG visuals
+
+The [Halloween asset integration report](../../../docs/halloween-png-assets.md) maps all 17 supplied `assets/halloween_event` PNGs, retained generic fallbacks and validation. `HalloweenEventAssets` centralizes exact-case paths; generic widgets consume configured images, including the Prestige resource icon. No Halloween gameplay or balance changes accompany the asset mapping.

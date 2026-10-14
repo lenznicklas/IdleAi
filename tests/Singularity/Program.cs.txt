@@ -75,7 +75,7 @@ public static class Program
     {
         // Runner must have its own XDG_DATA_HOME: this harness only touches its isolated user:// store.
         Check(ProjectSettings.GlobalizePath(Path).Contains("Singularity regression tests"), "isolated project profile");
-        DefaultsAndUnlock(); CoresAndSectors(); Nodes(); Production(); Bots(); Persistence(); Offline(); Events(); BuildSystems();
+        DefaultsAndUnlock(); CoresAndSectors(); Nodes(); Production(); Bots(); ConfiguredBotLifetimes(); Persistence(); Offline(); Events(); BuildSystems();
         Clear();
         Console.WriteLine($"Singularity: {_assertions} assertions passed.");
     }
@@ -331,6 +331,41 @@ public static class Program
         Equal(bots.Production.GetSectorOutputPerSecond(0),.05+expected,"core receives no Quantum or bot multiplier");
         foreach(var botNode in new[]{compute,amplifier,cooling,quantum,external}) {botNode.BotDurabilityInitialized=true;botNode.BotDurabilitySecondsRemaining=0;}
         Equal(bots.Production.GetNodeDisplayedOutput(0,2),.25*1.58*(1.3*1.2*1.3)*1.24,"broken support bots retain only base node effect");
+    }
+    private static void ConfiguredBotLifetimes()
+    {
+        foreach (var (rarity, hours, oldHours) in new[]
+        {
+            (BotRarity.Common, 24, 6), (BotRarity.Rare, 36, 12),
+            (BotRarity.Epic, 48, 24), (BotRarity.Legendary, 72, 48)
+        })
+        {
+            var d = new Domain(); var node = d.Node(0, 0, SingularityNodeType.Compute);
+            node.BotRarity = rarity; node.BotPurchasePriceMatter = 100;
+            d.Bots.InitializeNodeBotDurability(node);
+            double lifetime = hours * 3600;
+            Equal(node.BotDurabilitySecondsRemaining, lifetime, "Singularity configured lifetime: " + rarity);
+            d.Bots.ConsumeSingularityBotWork(60);
+            Equal(node.BotDurabilitySecondsRemaining, lifetime - 60, "Singularity runtime wear");
+            d.Offline.ApplyOfflineIncomeFromTimestamp(_now, _now + 3600);
+            Equal(node.BotDurabilitySecondsRemaining, lifetime - 3660, "Singularity offline wear");
+            d.Offline.ApplyOfflineIncomeFromTimestamp(_now + 3600, _now + 3600 + (long)lifetime);
+            Check(node.BotBroken, "Singularity lifetime reaches zero");
+            Equal(d.Bots.GetNodeBotEffectiveMultiplier(0, 0), 1, "broken Singularity bot contributes no bonus");
+            d.Data.Matter = 1000;
+            Equal(d.Bots.GetNodeBotRepairCost(0, 0), 20, "Singularity repair price unchanged");
+            Check(d.Bots.RepairNodeBot(0, 0).Changed, "Singularity repair succeeds");
+            Equal(node.BotDurabilitySecondsRemaining, lifetime, "Singularity repair restores new lifetime");
+            Check(!d.Bots.RepairNodeBot(0, 0).Changed, "Singularity full bot cannot be repaired twice");
+            foreach (double remaining in new[] { 0, 1234.5, oldHours * 3600.0 })
+            {
+                node.BotDurabilitySecondsRemaining = remaining;
+                d.Persistence.Save(); var loaded = new Domain(); loaded.Persistence.Load();
+                var restored = loaded.Sectors.GetNode(0, 0);
+                Equal(restored.BotDurabilitySecondsRemaining, remaining, "Singularity old save seconds preserved");
+                Check(restored.BotRarity == rarity, "Singularity old bot retained");
+            }
+        }
     }
     private static void Bots()
     {

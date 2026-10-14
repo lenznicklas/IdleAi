@@ -38,6 +38,65 @@ class Program
     static SlotData Bot(double lifetime, BotRarity rarity = BotRarity.Rare) => new()
     { Unlocked = true, BotRarity = rarity, BotDurabilityInitialized = true,
       BotDurabilitySecondsRemaining = lifetime };
+    static void ConfiguredLifetimeTests()
+    {
+        var rarities = new[] { BotRarity.Common, BotRarity.Rare, BotRarity.Epic, BotRarity.Legendary };
+        var hours = new[] { 24, 36, 48, 72 };
+        var oldHours = new[] { 6, 12, 24, 48 };
+        var multipliers = new[] { 1.0, 1.2, 1.4, 1.5 };
+        for (int rarityIndex = 0; rarityIndex < rarities.Length; rarityIndex++)
+        {
+            var rarity = rarities[rarityIndex]; double lifetime = hours[rarityIndex] * 3600;
+            Equal(BotCatalog.GetWorkingLifetimeSeconds(rarity), lifetime, "exact configured lifetime: " + rarity);
+            Equal(BotCatalog.GetMultiplier(rarity), multipliers[rarityIndex], "unchanged production multiplier: " + rarity);
+            var (state, economy, offline) = Create();
+            for (int roomIndex = 1; roomIndex < 4; roomIndex++)
+            {
+                state.Rooms.Add(state.Rooms[0]);
+                var room = new RoomState { Unlocked = true };
+                room.Slots.Add(new SlotData { Unlocked = true, MachineLevel = 1 });
+                state.RoomStates.Add(room);
+            }
+            foreach (var room in state.RoomStates)
+            {
+                var slot = room.Slots[0]; slot.BotRarity = rarity; slot.BotPurchasePrice = 100;
+                slot.InitializeBotDurability(); Equal(slot.BotDurabilitySecondsRemaining, lifetime, "full lifetime in Rooms 1–4");
+            }
+            new ProductionService(state, economy, new PipelineService(state, economy)).Update(60);
+            foreach (var room in state.RoomStates)
+                Equal(room.Slots[0].BotDurabilitySecondsRemaining, lifetime - 60, "runtime wear in Rooms 1–4");
+            var mapper = new GameSaveService(state, economy);
+            offline.ApplyFromSave(mapper.CreateSave(1000), 4600);
+            foreach (var room in state.RoomStates)
+                Equal(room.Slots[0].BotDurabilitySecondsRemaining, lifetime - 3660, "one hour offline wear in Rooms 1–4");
+            offline.ApplyFromSave(mapper.CreateSave(4600), 4600 + (long)lifetime);
+            state.Tokens = 1000;
+            var bots = new BotService(state, economy);
+            for (int roomIndex = 0; roomIndex < 4; roomIndex++)
+            {
+                var slot = state.RoomStates[roomIndex].Slots[0];
+                Equal(slot.BotDurabilitySecondsRemaining, 0, "offline clamps at zero");
+                Equal(slot.BotBroken && !slot.HasWorkingBot && !slot.IsRunning ? 1 : 0, 1, "broken bot disables automation");
+                Equal(bots.GetRepairPrice(slot), 20, "repair price remains 20% of purchase");
+                Equal(bots.RepairBot(roomIndex, 0).Changed ? 1 : 0, 1, "repair succeeds in Rooms 1–4");
+                Equal(slot.BotDurabilitySecondsRemaining, lifetime, "repair restores new full lifetime");
+                Equal(slot.HasWorkingBot && slot.IsRunning ? 1 : 0, 1, "repair resumes automation");
+                Equal(bots.RepairBot(roomIndex, 0).Changed ? 1 : 0, 0, "full durability cannot be repaired twice");
+            }
+            // Prior-release remaining seconds survive main-save JSON/hydration exactly, including broken bots.
+            foreach (double remaining in new[] { 0, 1234.5, oldHours[rarityIndex] * 3600.0 })
+            {
+                foreach (var room in state.RoomStates) room.Slots[0].BotDurabilitySecondsRemaining = remaining;
+                var json = System.Text.Json.JsonSerializer.Serialize(mapper.CreateSave(1000));
+                mapper.ApplySave(System.Text.Json.JsonSerializer.Deserialize<SaveGameData>(json));
+                foreach (var room in state.RoomStates)
+                {
+                    Equal(room.Slots[0].BotDurabilitySecondsRemaining, remaining, "old bot lifetime is not reset or rescaled");
+                    Equal(room.Slots[0].BotRarity == rarity ? 1 : 0, 1, "old bot ownership retained");
+                }
+            }
+        }
+    }
     static void DurabilityTests()
     {
         foreach (double lifetime in new[] { 0.0, .000001, .5, 30, 100, 150, 40000 })
@@ -159,6 +218,7 @@ class Program
     }
     public static void Main()
     {
+        ConfiguredLifetimeTests();
         DurabilityTests();
         // Includes zero/backward time, short/base, very long uncapped time, and all boost overlaps.
         foreach (long now in new long[] { 999, 1000, 1001, 1100, 1000 + 365L * 86400 })

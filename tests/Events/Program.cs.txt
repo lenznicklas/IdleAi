@@ -28,7 +28,7 @@ internal static partial class Program
     public static void Main()
     {
         Check(ProjectSettings.GlobalizePath("user://").Contains("Events regression tests"), "isolated test profile");
-        ProductionAndUpgrades(); BoundariesAndSwitching(); ClaimsAndFailures(); Persistence(); Validation(); Gameplay(); Halloween();
+        ProductionAndUpgrades(); BoundariesAndSwitching(); ClaimsAndFailures(); Persistence(); Validation(); Gameplay(); Halloween(); RewardTrack(); Challenges(); Bots(); Shop(); HalloweenAssets();
         Console.WriteLine($"Events: {_checks} assertions passed.");
     }
 

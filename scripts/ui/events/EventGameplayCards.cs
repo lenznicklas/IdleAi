@@ -35,6 +35,7 @@ internal sealed class EventGeneratorCard
     internal Control Root { get; }
     private readonly Label _level, _output, _requirements;
     private readonly Button _upgrade;
+    private readonly ProgressBar _cycleProgress;
     private readonly EventGeneratorDefinition _definition;
     private readonly string _unlockText;
     private readonly EventImageView _costIcon;
@@ -61,6 +62,16 @@ internal sealed class EventGeneratorCard
         var costTexture = textures.Get(eventDefinition.CurrencyIconPath); _hasCostIcon = costTexture != null;
         _costIcon = new EventImageView(costTexture, new(24, 24))
             { Name = "GeneratorCostIcon", Position = new(18, 350), Size = new(24, 24), Visible = false }; Root.AddChild(_costIcon);
+        var accent = Color.FromHtml(eventDefinition.Theme.AccentHex);
+        _cycleProgress = new ProgressBar { Name = "EventMachineCycleProgress_" + generator.Id,
+            ShowPercentage = false, MinValue = 0, MaxValue = 1, Step = 0,
+            MouseFilter = Control.MouseFilterEnum.Ignore, Visible = false };
+        _cycleProgress.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopWide);
+        _cycleProgress.OffsetLeft = 18; _cycleProgress.OffsetRight = -18;
+        _cycleProgress.OffsetTop = 400; _cycleProgress.OffsetBottom = 412;
+        _cycleProgress.AddThemeStyleboxOverride("background", MapController.CreateNodeStyle(new(.04f, .05f, .07f), EventUiStyle.Muted, 0, 0));
+        _cycleProgress.AddThemeStyleboxOverride("fill", MapController.CreateNodeStyle(accent, accent, 0, 0));
+        Root.AddChild(_cycleProgress);
         _upgrade = EventUiStyle.Button(first ? "EventUpgradeButton" : "EventUpgrade_" + generator.Id, "", upgrade);
         _upgrade.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopWide);
         _upgrade.OffsetLeft = 18; _upgrade.OffsetRight = -18; _upgrade.OffsetTop = 424; _upgrade.OffsetBottom = 472;
@@ -78,8 +89,12 @@ internal sealed class EventGeneratorCard
         Root.AddChild(label);
         return label;
     }
+    internal void RefreshCycle(double progress) => _cycleProgress.Value = progress;
+
     internal void Refresh(EventGeneratorSnapshot state, bool ended, string currency)
     {
+        _cycleProgress.Visible = state.Unlocked && _definition.Enabled;
+        _requirements.OffsetBottom = _cycleProgress.Visible ? 392 : 407;
         EventUiStyle.SetText(_level, !_definition.Enabled ? "DISABLED" : state.Unlocked ? "Level " + state.Level : "LOCKED");
         EventUiStyle.SetText(_output, "Output: " + NumberFormatter.Format(state.ProductionPerCycle) + " / cycle • "
             + NumberFormatter.Format(state.ProductionPerSecond) + "/s  (" + _definition.CycleSeconds.ToString("0.#") + "s)");

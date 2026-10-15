@@ -27,6 +27,20 @@ public sealed partial class EventManager
         }
         return default;
     }
+    // Presentation only: interpolate between the existing whole-second economy ticks.
+    public double GetGeneratorCycleProgress(string eventId, string generatorId, double fractionalSecond = 0)
+    {
+        if (!_byId.TryGetValue(eventId, out var definition)
+            || !_save.ProgressByEventId.TryGetValue(eventId, out var progress)
+            || !progress.Generators.TryGetValue(generatorId, out var state) || !state.Unlocked) return 0;
+        var generator = GetGenerators(eventId).FirstOrDefault(g => g.Id == generatorId && g.Enabled);
+        if (generator == null || generator.CycleSeconds <= 0) return 0;
+        double elapsed = state.CycleElapsedSeconds;
+        if (IsActive(definition))
+            elapsed += Math.Max(0, NowUnix - progress.LastUpdateUnix) + Math.Clamp(fractionalSecond, 0, 1);
+        return Math.Clamp((elapsed % generator.CycleSeconds) / generator.CycleSeconds, 0, 1);
+    }
+
     public double GetTotalProduction(string eventId) => _byId.TryGetValue(eventId, out var definition) && IsActive(definition)
         && _save.ProgressByEventId.TryGetValue(eventId, out var p) && _production.TryGetValue(eventId, out var production)
         ? production.TotalPerSecond(p) : 0;

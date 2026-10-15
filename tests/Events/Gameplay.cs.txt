@@ -24,6 +24,21 @@ internal static partial class Program
         Check(manager.GetGenerators(d.Id).Count == 3, "multiple generator definitions");
         Check(manager.GetGenerator(d.Id, "a").Unlocked && !manager.GetGenerator(d.Id, "b").Unlocked, "immediate versus currency unlock");
         Check(!manager.Upgrade(d.Id, "b").Changed, "locked generator upgrade rejected");
+        Equal(manager.GetGeneratorCycleProgress(d.Id, "a"), 0, "new machine cycle starts empty");
+        Equal(manager.GetGeneratorCycleProgress(d.Id, "a", .5), .1, "cycle bar interpolates between economy ticks");
+        Equal(manager.GetGeneratorCycleProgress(d.Id, "b", .5), 0, "locked machine has no cycle progress");
+        now = 102;
+        Equal(manager.GetGeneratorCycleProgress(d.Id, "a", .5), .5, "cycle preview includes unsettled time");
+        Equal(manager.GetProgress(d.Id).Currency, 0, "cycle preview does not generate currency");
+        Equal(save.ProgressByEventId[d.Id].Generators["a"].CycleElapsedSeconds, 0, "cycle preview does not mutate saved timer");
+        manager.Tick();
+        Equal(manager.GetGeneratorCycleProgress(d.Id, "a", .5), .5, "settlement preserves visual cycle phase");
+        now = 105;
+        Equal(manager.GetGeneratorCycleProgress(d.Id, "a"), 0, "cycle bar wraps at production boundary");
+        manager.Tick();
+        Equal(manager.GetGeneratorCycleProgress(d.Id, "a", .25), .05, "next cycle progresses after payout");
+        Equal(manager.GetProgress(d.Id).Currency, 10, "existing cycle awards tokens");
+
         now = 125; manager.Tick(); Equal(manager.GetProgress(d.Id).Currency, 150, "offline unlock occurs at producing boundary");
         Equal(manager.GetTotalProduction(d.Id), 12, "central total production");
         var modifiers = d with { ProductionMultiplier = 2, Generators = [d.Generators[0] with { Multiplier = 3 }] };

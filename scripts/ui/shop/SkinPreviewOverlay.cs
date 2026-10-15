@@ -6,7 +6,7 @@ namespace IdleAi;
 
 public sealed class SkinPreviewOverlay
 {
-    private readonly Game _root;
+    private readonly Node _root;
     private readonly string _overlayName;
 
     private Control _overlay = null!;
@@ -14,6 +14,9 @@ public sealed class SkinPreviewOverlay
     private Label _title = null!;
     private GridContainer _gallery = null!;
     private Label _hint = null!;
+    private Label _details = null!;
+
+    public event Action? VisibilityChanged;
 
     private Tween? _openTween;
     private ulong _blockCloseUntil;
@@ -23,7 +26,7 @@ public sealed class SkinPreviewOverlay
         && _overlay.Visible;
 
     public SkinPreviewOverlay(
-        Game root,
+        Node root,
         string overlayName = "SkinPreviewOverlay")
     {
         _root = root;
@@ -58,6 +61,7 @@ public sealed class SkinPreviewOverlay
         IReadOnlyList<Texture2D?> textures,
         IReadOnlyList<string>? labels = null)
     {
+        _details.Hide();
         ClearGallery();
 
         int visibleCount = 0;
@@ -107,6 +111,19 @@ public sealed class SkinPreviewOverlay
         PlayOpenAnimation();
     }
 
+    // The room image preview also supports callers with bot detail text.
+    public void OpenDetail(Texture2D? texture, string title, string rarity, string details)
+    {
+        OpenGallery(title, new Texture2D?[] { texture }, new[] { rarity });
+        SetDetails(details);
+    }
+
+    public void SetDetails(string details)
+    {
+        _details.Text = details;
+        _details.Visible = !string.IsNullOrEmpty(details);
+    }
+
     public void Close()
     {
         _openTween?.Kill();
@@ -137,6 +154,7 @@ public sealed class SkinPreviewOverlay
         );
 
         _overlay.GuiInput += OnOverlayInput;
+        _overlay.VisibilityChanged += () => VisibilityChanged?.Invoke();
         _root.AddChild(_overlay);
 
         ColorRect dim =
@@ -172,6 +190,7 @@ public sealed class SkinPreviewOverlay
         _panel =
             new PanelContainer
             {
+                Name = "PreviewPanel",
                 SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
                 SizeFlagsVertical = Control.SizeFlags.ExpandFill,
                 MouseFilter = Control.MouseFilterEnum.Ignore
@@ -211,6 +230,7 @@ public sealed class SkinPreviewOverlay
         _title =
             new Label
             {
+                Name = "PreviewTitle",
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center,
                 AutowrapMode = TextServer.AutowrapMode.WordSmart,
@@ -234,6 +254,17 @@ public sealed class SkinPreviewOverlay
         _gallery.AddThemeConstantOverride("h_separation", 12);
         _gallery.AddThemeConstantOverride("v_separation", 12);
         box.AddChild(_gallery);
+
+        _details = new Label
+        {
+            Name = "BotDetailText",
+            AutowrapMode = TextServer.AutowrapMode.WordSmart,
+            MouseFilter = Control.MouseFilterEnum.Ignore,
+            Visible = false
+        };
+        _details.AddThemeFontSizeOverride("font_size", 13);
+        _details.AddThemeColorOverride("font_color", ShopUi.TextSecondary);
+        box.AddChild(_details);
 
         _hint =
             new Label

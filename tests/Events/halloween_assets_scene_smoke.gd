@@ -20,6 +20,19 @@ func find(name): return page.find_child(name, true, false)
 func tab(name): find("Event" + name + "Tab").pressed.emit(); await frames()
 func images(node, filename):
     return node.find_children("*", "TextureRect", true, false).filter(func(image): return image.texture != null and image.texture.resource_path == DIR + filename + ".png")
+func verify_bot_image(node, filename):
+    var path = filename if filename.begins_with("res://") else DIR + filename + ".png"
+    var matches = node.find_children("*", "TextureRect", true, false).filter(func(image): return image.texture != null and image.texture.resource_path == path)
+    check(matches.size() == 1, "Bot texture assigned: " + filename)
+    if matches.size() != 1: return
+    var image = matches[0]
+    var area = image.get_parent().get_parent()
+    check(image.size.x >= 16 and image.size.y >= 16, "Bot image has drawable dimensions: " + filename + " " + str(image.size))
+    check(area.get_global_rect().grow(.5).encloses(image.get_global_rect()), "Bot image contained: " + filename)
+    if node.name == "EventBotDetail":
+        check(image.stretch_mode == TextureRect.STRETCH_KEEP_ASPECT_CENTERED, "Room detail centers bot without distortion: " + filename)
+    else:
+        check(image.get_global_rect().get_center().distance_to(area.get_global_rect().get_center()) < 1, "Bot image centered: " + filename)
 func run_checks():
     if not OS.get_environment("XDG_DATA_HOME").contains("halloween-assets-test") or not "--event-tools" in OS.get_cmdline_user_args():
         push_error("Use isolated halloween-assets-test profile with --event-tools"); quit(1); return
@@ -76,11 +89,13 @@ func run_checks():
     await tab("Bots")
     for id in ["ghost_bot","pumpkin_bot","skeleton_bot","reaper_bot"]:
         check(images(find("EventBot_"+id+"Card"), id).size() == 1, "Inventory bot: " + id)
+        verify_bot_image(find("EventBot_"+id+"Card"), id)
         check(find("EventBot_"+id+"Card").find_child("BotName", true, false).text == id.replace("_", " ").capitalize(), "Halloween bot name: " + id)
         find("EventBotDetails_"+id).pressed.emit(); await frames()
         check(images(find("EventBotDetail"), id).size() == 1, "Detail bot: " + id)
-        check(find("EventBotDetail").scale == Vector2.ONE, "No detail scale animation")
-        find("EventBotDetailClose").pressed.emit(); await frames()
+        verify_bot_image(find("EventBotDetail"), id)
+        check(find("EventBotDetail").scale == Vector2.ONE, "Shared overlay root remains unscaled")
+        root.go_back_requested.emit(); await frames()
     await tab("Rewards")
     for id in ["ghost_bot","pumpkin_bot","skeleton_bot","reaper_bot","bot_skin_pack","machine_skin_pack"]:
         check(images(find("EventRewardsPanel"), id).size() >= 1, "Reward preview: " + id)
@@ -128,6 +143,14 @@ func run_checks():
         check(find("EventGenerator_data_terminal" if halloween else "EventGenerator_abandoned_terminal") == null, "Previous generator cards removed")
         for name in ["Progress", "Prestige", "Bots", "Rewards", "Challenges", "Shop"]:
             await tab(name)
+            if name == "Bots" and not halloween:
+                var test_bots = {"protocol_helper":"common", "protocol_optimizer":"rare", "protocol_neural":"epic", "protocol_prototype":"legendary"}
+                for id in test_bots:
+                    var path = "res://assets/bots/" + test_bots[id] + ".png"
+                    verify_bot_image(find("EventBot_" + id + "Card"), path)
+                    find("EventBotDetails_" + id).pressed.emit(); await frames()
+                    verify_bot_image(find("EventBotDetail"), path)
+                    root.go_back_requested.emit(); await frames()
             var forbidden = ["Test Protocol", "Event Data", "Protocol Cores", "Data Terminal", "Compute Rack", "Helper Drone", "Optimizer Bot"] if halloween else ["Souls", "Cursed Cores", "Ghost Bot", "Pumpkin Bot"]
             for label in page.find_children("*", "Label", true, false):
                 if not label.is_visible_in_tree(): continue

@@ -28,7 +28,7 @@ Equip/acquire/reward/shop actions use the existing transactional save/rollback a
 
 Reward Track, challenge reward and shop grants all use EventManager.GrantReward. Unlock/own/equip challenge metrics are distinct; OwnBot and EquipBot enum values are appended to preserve existing enum numbers. Bot progression hooks run on relevant economy/actions and enrollment. A bounded dependency closure allows an unlock-bot challenge to complete and unlock another bot without per-frame polling. Expired permanent claims cannot advance new objectives.
 
-Cards, textures and one detail modal are reused. Card slots have fixed bounds, numeric changes do not resize cards, and the shared EventImageView fits assets without overflow. The modal has no scale/tween/border animation, suspends underlying list gestures, closes before Event on system back, and preserves the selected tab/scroll. Card widgets skip unchanged state updates; there are no new timers or per-frame listeners and no saves per production tick.
+Cards, textures and one detail modal are reused. Card slots have fixed bounds, numeric changes do not resize cards, and the shared EventImageView fits assets without overflow. Details reuse the room bot image preview (SkinPreviewOverlay), including its near-fullscreen frame, large graphic, opening animation and tap-anywhere dismissal. EventBotDetailPanel only binds Event name, rarity, description, bonus, requirements and status. Equip/acquire stays on the cards. The preview suspends underlying list gestures, closes before Event on system back, and preserves the selected tab/scroll. Card widgets skip unchanged state updates; there are no new timers or per-frame listeners and no saves per production tick.
 
 ## Test Protocol configuration
 
@@ -114,4 +114,16 @@ Validation results for this change:
 - Existing Reward Track scene: 840 checks, zero failures.
 - Existing Challenges scene: 998 checks, zero failures.
 
-The existing tab/challenge scene checks were adjusted to count visible scrollers and reject nested tab scrolling: the bot detail modal owns an independent, normally hidden scroller, with the underlying mobile list gesture handler disabled while it is open.
+The existing tab/challenge scene checks were adjusted to count visible scrollers and reject nested tab scrolling: the shared bot preview has no nested scroller, and the underlying mobile list gesture handler is disabled while it is open.
+
+## Missing bot images: initial layout fix
+
+The Halloween paths and resource loads were correct, and both cards/details read `EventBotDefinition.IconPath` through the shared texture cache. However, `EventImageView` fitted its texture in its constructor while its size was still zero. Bot cards assign the fixed 88×112 slot size before entering the scene tree, when Godot does not deliver the resize notification. The inner TextureRect consequently kept a 0×0 minimum/drawing size. The four Halloween card checks reproduced this even with valid, non-null textures; detail images already sized correctly in the reproduction.
+
+`EventImageView._Ready()` now refits the texture after attachment. Existing resize/texture-change fitting, native-size caps, aspect-preserving centered drawing, cached resources and fixed card dimensions remain in use. No per-frame work, UI-specific paths, asset changes or gameplay/save changes were added.
+
+Regression checks now reject zero-size visible images, verify drawable/centered/bounded images in all four Halloween cards/details, and verify every Test Protocol card/detail while switching events repeatedly. Exact-case `ghost_bot.png`, `pumpkin_bot.png`, `skeleton_bot.png` and `reaper_bot.png` paths/imports were checked. The Android preset already exports all resources with only `promo/*` excluded; no export configuration change is necessary.
+
+Changed files: `scripts/ui/events/EventImageView.cs`, `tests/Events/halloween_assets_scene_smoke.gd`, `tests/Events/image_layout_checks.gd` and this document. Debug and ExportRelease builds pass with zero errors (existing warnings remain). The expanded Halloween/Test Protocol asset scene passes 7,047 checks, Event Bots 67 and Event Shop 910. Tests run headless on Linux with isolated saves, not on a physical Android device.
+
+The additional tab regression passes all 2,203 checks, but Godot reports two ObjectDB instances/one resource still held during that fixture's shutdown. The dedicated asset, Bot and Shop scene fixtures exit successfully without that warning.

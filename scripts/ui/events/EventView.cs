@@ -72,6 +72,7 @@ internal sealed partial class EventView : Control
     internal bool DismissConfirmationOnBack() => _botDetail.DismissOnBack() || _prestige.DismissOnBack();
     private string _selectedTab = "";
     private readonly ScrollContainer _scroll;
+    private readonly EventContentFrame _contentFrame;
     private readonly MobileScrollController _mobileScroll;
     private readonly Dictionary<(string EventId, string Tab), int> _scrollPositions = [];
     private bool _scrollRestorePending;
@@ -130,10 +131,11 @@ internal sealed partial class EventView : Control
         _scroll = new ScrollContainer { Name = "EventScroll", SizeFlagsVertical = SizeFlags.ExpandFill,
             HorizontalScrollMode = ScrollContainer.ScrollMode.Disabled, VerticalScrollMode = ScrollContainer.ScrollMode.ShowNever,
             ClipContents = true, FollowFocus = false };
-        layout.AddChild(_scroll);
+        _contentFrame = new EventContentFrame(_scroll);
+        layout.AddChild(_contentFrame);
         var body = new VBoxContainer { Name = "EventContent", SizeFlagsHorizontal = SizeFlags.ExpandFill };
         body.AddThemeConstantOverride("separation", 12); _scroll.AddChild(body);
-        _mobileScroll = new MobileScrollController { Name = "EventMobileScroll" };
+        _mobileScroll = new MobileScrollController { Name = "EventMobileScroll", SmoothMouseWheel = true };
         AddChild(_mobileScroll); _mobileScroll.Setup(_scroll, allowTopOverscroll: false, allowBottomOverscroll: false);
         _generatorRows = Section(body, "Progress", "EventProgressPanel");
         _description = EventUiStyle.Label("EventDescription", "", 12); _description.AutowrapMode = TextServer.AutowrapMode.WordSmart;
@@ -169,6 +171,8 @@ internal sealed partial class EventView : Control
         _shopSummary = Message("EventShopSummary", "", 13); _shopRows.AddChild(_shopSummary);
         _archiveRows = Section(body, "Archive", "EventArchivePanel");
         _archiveRows.AddChild(Message("ArchiveNote", "Completed Major Events retain their final stats, rewards and cosmetic completion.", 12));
+        body.AddChild(new Control { Name = "EventContentBottomClearance", CustomMinimumSize = new(0, EventContentFrame.BottomClearance),
+            MouseFilter = MouseFilterEnum.Ignore });
         var navigation = new VBoxContainer { Name = "EventTabs" };
         navigation.AddThemeConstantOverride("separation", 8); layout.AddChild(navigation);
         var tabs = new GridContainer { Name = "EventPrimaryTabs", Columns = 3 };
@@ -183,7 +187,7 @@ internal sealed partial class EventView : Control
             if (tab == "Challenges") navigation.AddChild(button); else tabs.AddChild(button);
             _tabs[tab] = button;
         }
-        _botDetail = new EventBotDetailPanel(this, manager, textures, _botAction);
+        _botDetail = new EventBotDetailPanel(this, manager, textures);
         _botDetail.VisibilityChanged += SyncScrollInput;
         SelectTab("Progress");
         VisibilityChanged += () =>
@@ -332,6 +336,7 @@ internal sealed partial class EventView : Control
             foreach (Node child in _endIcons.GetChildren()) { _endIcons.RemoveChild(child); child.QueueFree(); }
             if (d != null) AddResultIcons(_endIcons, d);
             Color accent = Color.FromHtml(d?.Theme.AccentHex ?? "#33b3f2");
+            _contentFrame.SetTheme(_backgroundColor.Color, accent);
             _header.AddThemeStyleboxOverride("panel", MapController.CreateNodeStyle(new(.025f, .018f, .04f, .97f), accent, 2, 8));
             _title.Modulate = accent.Lightened(.35f);
             StyleTabs();
@@ -408,6 +413,15 @@ internal sealed partial class EventView : Control
         _botDetail.Refresh();
         if (_selectedTab == "Archive") RefreshArchives();
     }
+    public override void _Process(double delta)
+    {
+        if (!IsVisibleInTree() || _selectedTab != "Progress" || CurrentEvent is not { } definition) return;
+        double now = Time.GetUnixTimeFromSystem();
+        double fraction = now - Math.Floor(now);
+        foreach (var item in _generators)
+            item.Card.RefreshCycle(_manager.GetGeneratorCycleProgress(definition.Id, item.Definition.Id, fraction));
+    }
+
     private void RefreshChallengeCards(EventDefinition? d, bool ended, bool active)
     {
         if (d == null) return;

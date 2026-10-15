@@ -12,6 +12,7 @@ static func verify(page, check):
         var native = image.texture.get_size()
         var bounds = area.get_global_rect()
         var rect = image.get_global_rect()
+        check.call(rect.size.x > 0 and rect.size.y > 0, label + ": nonzero drawable image")
         check.call(image.expand_mode == TextureRect.EXPAND_IGNORE_SIZE, label + ": native size ignored")
         check.call(image.stretch_mode == TextureRect.STRETCH_KEEP_ASPECT_CENTERED, label + ": aspect fit centered")
         check.call(bounds.grow(0.5).encloses(rect), label + ": image stays inside slot")

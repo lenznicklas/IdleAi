@@ -22,6 +22,27 @@ func identities(node):
     var result := [node.get_instance_id()]
     for child in node.get_children(): result.append_array(identities(child))
     return result
+func verify_content_edges(scroll, navigation):
+    var frame = page.find_child("EventContentFrame", true, false)
+    var backdrop = page.find_child("EventContentBackdrop", true, false)
+    var top = page.find_child("EventContentTopFade", true, false)
+    var bottom = page.find_child("EventContentBottomFade", true, false)
+    check(scroll.get_parent() == frame and scroll.get_global_rect() == frame.get_global_rect(), "Edge treatment reserves no extra viewport space")
+    check(backdrop.get_global_rect().position.y < scroll.get_global_rect().position.y, "Backdrop continues upward through layout gap")
+    check(bottom.get_global_rect().end.y <= navigation.get_global_rect().position.y + .5, "Fade stops before tab buttons")
+    check(bottom.size.y <= 60.5, "Bottom transition stays subtle on mobile")
+    for layer in [frame, backdrop, top, bottom]:
+        check(layer.mouse_filter == Control.MOUSE_FILTER_IGNORE, "Visual layer passes touch/scroll input: " + layer.name)
+    for layer in [backdrop, top, bottom]:
+        var gradient = layer.get_theme_stylebox("panel").texture.gradient
+        check(gradient.sample(0).a == 0 and gradient.sample(1).a == 0, "Gradient blends into page at both edges: " + layer.name)
+    scroll.scroll_vertical = 0; await frames(2)
+    check(not top.visible, "Unscrolled heading remains clear")
+    scroll.scroll_vertical = int(scroll.get_v_scroll_bar().max_value); await frames(2)
+    check(top.visible == (scroll.scroll_vertical > 0), "Top edge softens only clipped scrolling content")
+    var sections = scroll.find_child("EventContent", true, false).get_children().filter(func(node): return node.visible and node.name != "EventContentBottomClearance")
+    check(sections.size() == 1 and sections[0].get_global_rect().end.y <= bottom.get_global_rect().position.y + 1, "Last content can scroll completely above fade")
+    scroll.scroll_vertical = 0; await frames(2)
 func run_checks():
     if not OS.get_environment("XDG_DATA_HOME").contains("event-tabs-test") or not "--event-tools" in OS.get_cmdline_user_args():
         push_error("Use isolated event-tabs-test profile with --event-tools"); quit(1); return
@@ -52,6 +73,7 @@ func run_checks():
         var fixed_scroll = scroll.get_global_rect()
         for tab in tabs:
             await switch_tab(tab)
+            await verify_content_edges(scroll, navigation)
             check(header.get_global_rect() == fixed_header,tab+": fixed header at "+str(dimensions))
             check(navigation.get_global_rect() == fixed_tabs,tab+": fixed navigation at "+str(dimensions))
             check(scroll.get_global_rect() == fixed_scroll,tab+": shared content bounds at "+str(dimensions))

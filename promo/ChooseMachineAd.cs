@@ -16,12 +16,12 @@ public partial class ChooseMachineAd : Control
     private const double ProductionDuration = 2.5;
     private readonly ChooseMachineRoundData[] _rounds =
     {
-        new(new("BASIC\nPROCESSOR", "res://promo_assets/basic.png", 25, new Color("54dcff")),
-            new("AI\nDESKTOP", "res://promo_assets/desktop.png", 100, new Color("ff85db"))),
-        new(new("SERVER\nRACK", "res://promo_assets/server.png", 500, new Color("54dcff")),
-            new("AI\nSUPERCOMPUTER", "res://promo_assets/supercomputer.png", 2500, new Color("ff85db"))),
-        new(new("QUANTUM\nSERVER", "res://promo_assets/quantum.png", 10000, new Color("54dcff")),
-            new("SINGULARITY\nCORE", "res://promo_assets/singularity.png", 50000, new Color("ff85db")))
+        new(new("ABANDONED\nTERMINAL", "res://promo_assets/halloween/abandoned_terminal.png", 25_000, new Color("d99a58")),
+            new("HAUNTED\nWORKSTATION", "res://promo_assets/halloween/haunted_workstation.png", 2_500_000, new Color("a5bd78"))),
+        new(new("POSSESSED\nSERVER", "res://promo_assets/halloween/possessed_server.png", 250_000_000, new Color("bb8257")),
+            new("CURSED\nDATACENTER", "res://promo_assets/halloween/cursed_datacenter.png", 25_000_000_000, new Color("9dc66d"))),
+        new(new("SOUL\nPROCESSOR", "res://promo_assets/halloween/soul_processor.png", 2_500_000_000_000, new Color("cf9253")),
+            new("NIGHTMARE AI\nCORE", "res://promo_assets/halloween/nightmare_ai_core.png", 2_500_000_000_000_000, new Color("a9ca76")))
     };
     public int CurrentRound { get; private set; }
     public double PromoMoney { get; private set; }
@@ -29,7 +29,7 @@ public partial class ChooseMachineAd : Control
     public bool IsFinished => _phase == Phase.Finished;
     private ChooseMachineOption Option(int index) => index == 0
         ? _rounds[CurrentRound].LeftMachine : _rounds[CurrentRound].RightMachine;
-    private static double Interval(int index) => index == 0 ? .5 : .2;
+    private static double Interval(int index) => index == 0 ? .28 : .12;
     private readonly Control[] _cards = new Control[2];
     private readonly TextureRect[] _machines = new TextureRect[2];
     private readonly StyleBoxFlat[] _styles = new StyleBoxFlat[2];
@@ -41,6 +41,7 @@ public partial class ChooseMachineAd : Control
     private readonly RandomNumberGenerator _random = new();
     private Control _content = null!, _effects = null!, _tapOverlay = null!;
     private Label _headline = null!, _cue = null!, _money = null!, _roundLabel = null!;
+    private TextureRect _eventIcon = null!;
     private Font _font = null!;
     private PackedScene _tapScene = null!;
     private Phase _phase;
@@ -55,22 +56,32 @@ public partial class ChooseMachineAd : Control
         _tapScene = GD.Load<PackedScene>("res://TapIndicator.tscn");
         var background = new TextureRect
         {
-            Texture = GD.Load<Texture2D>("res://promo_assets/background.png"),
+            Texture = GD.Load<Texture2D>("res://promo_assets/halloween/background.png"),
             ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
             StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered,
             MouseFilter = MouseFilterEnum.Ignore
         };
         AddChild(background);
         background.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-        var shade = new ColorRect { Color = new Color(.015f, .025f, .06f, .91f), MouseFilter = MouseFilterEnum.Ignore };
+        var shade = new ColorRect { Color = new Color(.012f, .009f, .022f, .48f), MouseFilter = MouseFilterEnum.Ignore };
         AddChild(shade);
         shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         // x=48..600 leaves the right-hand Reel controls clear; y=170..1040 is the safe area.
         _content = new Control { Size = new Vector2(720, 1280), MouseFilter = MouseFilterEnum.Ignore };
         AddChild(_content);
-        _headline = Text(_content, "CHOOSE YOUR\nMACHINE", new Vector2(48, 180), new Vector2(552, 120), 40, Colors.White);
-        _roundLabel = Text(_content, "", new Vector2(48, 140), new Vector2(552, 30), 18, new Color("a9bdcf"));
-        _money = Text(_content, "$ 0", new Vector2(48, 315), new Vector2(552, 72), 46, new Color("60ffb8"));
+        _roundLabel = Text(_content, "", new Vector2(48, 132), new Vector2(552, 30), 17, new Color("d7b9a0"));
+        _eventIcon = new TextureRect
+        {
+            Name = "HalloweenEventIcon",
+            Texture = GD.Load<Texture2D>("res://promo_assets/halloween/event_icon.png"),
+            Position = new Vector2(52, 178), Size = new Vector2(82, 82),
+            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+            StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+            MouseFilter = MouseFilterEnum.Ignore
+        };
+        _content.AddChild(_eventIcon);
+        _headline = Text(_content, "CHOOSE YOUR\nHALLOWEEN MACHINE", new Vector2(142, 178), new Vector2(470, 92), 31, new Color("f3e9df"));
+        _money = Text(_content, "$ 0", new Vector2(48, 300), new Vector2(552, 82), 52, new Color("b8d18d"));
         _money.Name = "MoneyCounter";
         for (int i = 0; i < 2; i++) BuildCard(i);
         _effects = new Control { Size = _content.Size, MouseFilter = MouseFilterEnum.Ignore };
@@ -99,10 +110,10 @@ public partial class ChooseMachineAd : Control
     private void BuildCard(int index)
     {
         var option = Option(index);
-        var style = new StyleBoxFlat { BgColor = new Color("101e32"), BorderColor = option.Accent,
+        var style = new StyleBoxFlat { BgColor = new Color("17131d"), BorderColor = option.Accent,
             BorderWidthLeft = 2, BorderWidthRight = 2, BorderWidthTop = 2, BorderWidthBottom = 2,
             CornerRadiusTopLeft = 24, CornerRadiusTopRight = 24, CornerRadiusBottomLeft = 24,
-            CornerRadiusBottomRight = 24, ShadowColor = new Color(option.Accent, .2f), ShadowSize = 12 };
+            CornerRadiusBottomRight = 24, ShadowColor = new Color(option.Accent, .12f), ShadowSize = 8 };
         var card = new Panel { Name = index == 0 ? "WeakMachine" : "StrongMachine",
             Position = new Vector2(48 + index * 284, 410), Size = new Vector2(268, 480),
             PivotOffset = new Vector2(134, 240), MouseFilter = MouseFilterEnum.Ignore };
@@ -132,8 +143,8 @@ public partial class ChooseMachineAd : Control
         image.Resized += () => image.PivotOffset = image.Size / 2;
         image.PivotOffset = image.Size / 2;
         _machines[index] = image;
-        _names[index] = Text(card, option.Name, new Vector2(4, 307), new Vector2(260, 64), 21, Colors.White);
-        _rates[index] = Text(card, "+" + FormatNumber(option.ProductionPerSecond) + " / SEC", new Vector2(4, 378), new Vector2(260, 35), 24, option.Accent);
+        _names[index] = Text(card, option.Name, new Vector2(4, 307), new Vector2(260, 64), 18, new Color("f3e9df"));
+        _rates[index] = Text(card, "+" + FormatNumber(option.ProductionPerSecond) + " / SEC", new Vector2(4, 378), new Vector2(260, 35), 19, option.Accent);
     }
 
     public override void _Input(InputEvent @event)
@@ -166,7 +177,7 @@ public partial class ChooseMachineAd : Control
         tween.TweenProperty(_cards[index], "scale", Vector2.One * 1.055f, .22)
             .SetTrans(Tween.TransitionType.Back).SetEase(Tween.EaseType.Out);
         tween.TweenProperty(_cards[1 - index], "modulate", new Color(.68f, .68f, .68f), .22);
-        Burst(index, index == 1 ? 16 : 6);
+        Burst(index, index == 1 ? 26 : 12);
     }
 
     public override void _Process(double delta)
@@ -226,14 +237,17 @@ public partial class ChooseMachineAd : Control
     {
         var option = Option(index);
         _energy[index] = 1;
+        float centerX = 48 + index * 284 + 134;
+        float spawnX = centerX - 170 + _random.RandfRange(-42, 42);
+        float spawnY = 690 + _random.RandfRange(-22, 18);
         var number = Text(_effects, "+$" + FormatNumber(option.ProductionPerSecond * Interval(index)),
-            new Vector2(48 + index * 284 + _random.RandfRange(-16, 16), 565), new Vector2(268, 50),
-            index == 1 ? 34 : 25, option.Accent);
+            new Vector2(spawnX, spawnY), new Vector2(340, 72),
+            index == 1 ? 54 : 43, option.Accent);
         number.AddThemeColorOverride("font_outline_color", new Color("081220"));
-        number.AddThemeConstantOverride("outline_size", 5);
+        number.AddThemeConstantOverride("outline_size", 7);
         var tween = number.CreateTween().SetParallel();
-        tween.TweenProperty(number, "position:y", 425f, .65).SetEase(Tween.EaseType.Out);
-        tween.TweenProperty(number, "modulate:a", 0f, .65);
+        tween.TweenProperty(number, "position:y", spawnY - _random.RandfRange(220, 290), .9).SetEase(Tween.EaseType.Out);
+        tween.TweenProperty(number, "modulate:a", 0f, .9);
         tween.Chain().TweenCallback(Callable.From(number.QueueFree));
         Burst(index, index == 1 ? 5 : 2);
         if (index == 1 && _selected == index) _shake = 1.4f;
@@ -243,8 +257,8 @@ public partial class ChooseMachineAd : Control
     {
         for (int i = 0; i < count; i++)
         {
-            var mote = new ColorRect { Position = new Vector2(182 + index * 284, 650),
-                Size = Vector2.One * (index == 1 ? 5 : 3), Color = Option(index).Accent, MouseFilter = MouseFilterEnum.Ignore };
+            var mote = new ColorRect { Position = new Vector2(182 + index * 284, 690),
+                Size = Vector2.One * (index == 1 ? 7 : 4), Color = Option(index).Accent, MouseFilter = MouseFilterEnum.Ignore };
             _effects.AddChild(mote);
             var tween = mote.CreateTween().SetParallel();
             tween.TweenProperty(mote, "position", mote.Position + Vector2.FromAngle(_random.RandfRange(0, Mathf.Tau)) * _random.RandfRange(25, 100), .4)
@@ -266,7 +280,7 @@ public partial class ChooseMachineAd : Control
         _elapsed = 0;
         _shake = 0;
         _content.Position = Vector2.Zero;
-        _roundLabel.Text = $"IDLE AI  •  ROUND {CurrentRound + 1} / 3";
+        _roundLabel.Text = $"HALLOWEEN PROTOCOL  •  ROUND {CurrentRound + 1} / 3";
         _cue.Text = "TAP A MACHINE";
         _cue.AddThemeColorOverride("font_color", Colors.White);
         for (int i = 0; i < 2; i++)
@@ -311,12 +325,7 @@ public partial class ChooseMachineAd : Control
 
     private static string FormatNumber(double value)
     {
-        string[] suffixes = { "", "K", "M", "B", "T" };
-        int index = 0;
-        while (value >= 1000 && index < suffixes.Length - 1) { value /= 1000; index++; }
-        // Floor at the displayed precision so rounding never suggests unearned money.
-        value = Math.Floor(value * 10 + .000001) / 10;
-        return value.ToString("0.#", System.Globalization.CultureInfo.InvariantCulture) + suffixes[index];
+        return IdleAi.NumberFormatter.Format(value);
     }
 
     public void ResetScene()

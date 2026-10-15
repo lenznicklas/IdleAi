@@ -5,6 +5,8 @@ namespace IdleAi;
 
 public partial class MobileScrollController : Node
 {
+	public bool SmoothMouseWheel { get; set; }
+
 	private const float DragThreshold =
 		8.0f;
 
@@ -207,6 +209,17 @@ public partial class MobileScrollController : Node
 			return;
 		}
 
+
+        if (SmoothMouseWheel && @event is InputEventMouseButton wheel && wheel.Pressed
+            && (wheel.ButtonIndex == MouseButton.WheelUp || wheel.ButtonIndex == MouseButton.WheelDown)
+            && _scroll.GetGlobalRect().HasPoint(wheel.Position))
+        {
+            double direction = wheel.ButtonIndex == MouseButton.WheelDown ? 1 : -1;
+            if (Math.Sign(_velocity) != Math.Sign(direction)) _velocity = 0;
+            _velocity += direction * 560 * wheel.Factor;
+            GetViewport().SetInputAsHandled();
+            return;
+        }
 
 		if (
 			@event

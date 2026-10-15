@@ -31,6 +31,10 @@ internal partial class EventImageView : Control
         Fit();
     }
 
+    // Fixed-size slots can receive Size before entering the tree, when Resized
+    // is not delivered. Refit after attachment so their textures cannot stay 0x0.
+    public override void _Ready() => Fit();
+
     internal void SetTexture(Texture2D? texture) { if (_image.Texture == texture) return; _image.Texture = texture; Fit(); }
 
     private void Fit()

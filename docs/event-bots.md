@@ -20,7 +20,7 @@ The single saved `ActiveBotId` selects one owned, enabled bot. Re-equipping the 
 
 The optional discount affects the manager's centralized generator upgrade quote and spend. Neither effect applies to other Events or normal gameplay. Expired Events produce zero and reject bot acquire/equip/shop actions; ownership and the last selection remain visible as history.
 
-`UnlockedBots` is an additive save field with an empty default. Existing `OwnedBots` and `ActiveBotId` fields retain their names and semantics. Normalization mirrors old ownership into unlocks, retains retired/unknown ownership IDs, and clears an invalid/disabled/unowned equipped reference without rejecting the whole save. No save version migration, currency reset or ownership reset is needed. Archive results add unlocked bot count and Legendary ownership.
+`UnlockedBots` is an additive save field with an empty default. Existing `OwnedBots` and `ActiveBotId` fields retain their names and semantics. Normalization mirrors old ownership into unlocks, retains retired/unknown ownership IDs, and clears an invalid/disabled/unowned equipped reference without rejecting the whole save. No save version migration, currency reset or ownership reset is needed. Event ownership remains saved after the event ends; there is no Event history screen.
 
 Equip/acquire/reward/shop actions use the existing transactional save/rollback and reentrancy guard. Rewards remain explicit and claim IDs prevent duplicate grants. Repeated bot grants are idempotent; shops reject an already-owned bot, including inside a bundle, before charging or incrementing purchase counts. Prestige keeps unlocks, ownership and selection.
 

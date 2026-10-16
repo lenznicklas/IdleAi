@@ -52,6 +52,7 @@ public sealed partial class BotSkinService
 			state;
 
 		Load();
+		RecordDiscoveries();
 	}
 
 
@@ -478,8 +479,14 @@ public sealed partial class BotSkinService
 	}
 
 
+	private void RecordDiscoveries()
+	{
+		foreach (string id in _ownedSkinIds) _state.Archive.Discover(AiArchiveDiscovery.BotSkin(id));
+	}
+
 	private void Save()
 	{
+		RecordDiscoveries();
 		string path =
 			ProjectSettings.GlobalizePath(
 				SkinSavePath

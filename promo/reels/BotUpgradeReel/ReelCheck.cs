@@ -27,7 +27,7 @@ public partial class ReelCheck : Control
             {
                 GetWindow().Size = size;
                 GetWindow().ContentScaleSize = size;
-                var reel = GD.Load<PackedScene>("res://BotUpgradeReel.tscn").Instantiate<BotUpgradeReel>();
+                var reel = GD.Load<PackedScene>("res://reels/BotUpgradeReel/BotUpgradeReel.tscn").Instantiate<BotUpgradeReel>();
                 AddChild(reel); reel.SetProcess(false);
                 await Frames();
                 // Test the composition at this size directly as well as the project's stretched viewport.
@@ -101,7 +101,7 @@ public partial class ReelCheck : Control
                 Check(button.GetGlobalRect().End.Y <= size.Y - Math.Max(16, size.Y * .04), "no bottom recording safe area");
                 reel.QueueFree(); await Frames();
             }
-            var rapid = GD.Load<PackedScene>("res://BotUpgradeReel.tscn").Instantiate<BotUpgradeReel>();
+            var rapid = GD.Load<PackedScene>("res://reels/BotUpgradeReel/BotUpgradeReel.tscn").Instantiate<BotUpgradeReel>();
             AddChild(rapid); rapid.SetProcess(false);
             for (int tap = 0; tap < 12; tap++) rapid.UpgradeBot();
             Check(rapid.RarityIndex == 3 && rapid.IncomePerSecond == 10_000_000, "rapid upgrades overshot legendary");

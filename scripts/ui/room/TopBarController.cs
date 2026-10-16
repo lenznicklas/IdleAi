@@ -3,7 +3,7 @@ using System;
 
 namespace IdleAi;
 
-public sealed class TopBarController
+public sealed partial class TopBarController : Node
 {
 	private const double PopupVisibleSeconds =
 		2.5;
@@ -20,7 +20,6 @@ public sealed class TopBarController
 	private readonly Game _root;
 	private readonly GameState _state;
 	private readonly ProgressionService _progression;
-	private readonly LevelRewardService _levelRewards;
 
 	private TextureRect _background = null!;
 	private TextureButton _tokenCard = null!;
@@ -31,24 +30,19 @@ public sealed class TopBarController
 	private Label _roomLabel = null!;
 	private PanelContainer _tokenPopup = null!;
 	private PanelContainer _levelPopup = null!;
+	private StyleBoxFlat _popupStyle = null!;
 
-	private Tween? _tokenFadeTween;
-	private Tween? _levelGlowTween;
+	private Tween? _popupTween;
+	private PanelContainer? _activePopup;
+	private Control? _activeCard;
 
-	private int _tokenPopupGeneration;
-	private int _observedMilestone = -1;
-	private TextureRect _rewardIndicator = null!;
-	private Tween? _milestoneTween;
-
-	public event Action? MilestoneReached;
+	private int _popupGeneration;
 	public event Action? StatsRequested;
-	public event Action? LevelRewardsRequested;
 
 	public TopBarController(
 		Game root,
 		GameState state,
-		ProgressionService progression,
-		LevelRewardService levelRewards)
+		ProgressionService progression)
 	{
 		_root =
 			root;
@@ -59,13 +53,16 @@ public sealed class TopBarController
 		_progression =
 			progression;
 
-		_levelRewards =
-			levelRewards;
 	}
 
 	public void Initialize()
 	{
 		CacheNodes();
+		// Share one private style across TopBar tooltips without recoloring other panels.
+		_popupStyle = (StyleBoxFlat)_tokenPopup.GetThemeStylebox("panel").Duplicate();
+		_tokenPopup.AddThemeStyleboxOverride("panel", _popupStyle);
+		_levelPopup.AddThemeStyleboxOverride("panel", _popupStyle);
+		UpdatePopupAccent();
 
 		_tokenCard.Pressed +=
 			OnTokenPressed;
@@ -76,28 +73,14 @@ public sealed class TopBarController
 		_levelCard.Pressed +=
 			OnLevelPressed;
 
-		_rewardIndicator = new TextureRect {
-			Texture = ShopUi.DataShard, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-			StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
-			MouseFilter = Control.MouseFilterEnum.Ignore,
-			TooltipText = "Total Level reward ready to claim"
-		};
-		_levelCard.AddChild(_rewardIndicator);
-		_rewardIndicator.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopRight);
-		_rewardIndicator.OffsetLeft = -26;
-		_rewardIndicator.OffsetRight = -4;
-		_rewardIndicator.OffsetTop = 4;
-		_rewardIndicator.OffsetBottom = 26;
-		_observedMilestone = _levelRewards.CurrentLevel / LevelRewardService.RewardInterval;
 		HidePopups();
-		UpdateLevelRewardGlow();
 	}
 
 	private void OnTokenPressed()
 	{
 		PlayNavigationHaptic();
 
-		ToggleTokenPopup();
+		TogglePopup(_tokenPopup, _tokenCard);
 	}
 
 	private void OnStatsPressed()
@@ -113,9 +96,7 @@ public sealed class TopBarController
 	{
 		PlayNavigationHaptic();
 
-		HidePopups();
-
-		LevelRewardsRequested?.Invoke();
+		TogglePopup(_levelPopup, _levelCard);
 	}
 
 	private static void PlayNavigationHaptic()
@@ -178,10 +159,6 @@ public sealed class TopBarController
 				"TokenPopup"
 			);
 
-		/*
-		 * Keep the old LevelPopup node for scene compatibility, but the level
-		 * card now opens the dedicated reward-road overlay instead.
-		 */
 		_levelPopup =
 			_root.GetNode<PanelContainer>(
 				"LevelPopup"
@@ -190,89 +167,14 @@ public sealed class TopBarController
 
 	public void UpdateValues()
 	{
+		UpdatePopupAccent();
 		_tokenLabel.Text =
 			NumberFormatter.Format(
 				_state.Tokens
 			);
 
 		_levelLabel.Text = "LV " + _progression.GetTotalLevel();
-		int milestone = _levelRewards.CurrentLevel / LevelRewardService.RewardInterval;
-		if (milestone > _observedMilestone && _observedMilestone >= 0) {
-			MilestoneReached?.Invoke();
-			_milestoneTween?.Kill();
-			_levelLabel.Scale = Vector2.One;
-			_levelLabel.PivotOffset = _levelLabel.Size / 2;
-			_milestoneTween = _levelLabel.CreateTween();
-			_milestoneTween.TweenProperty(_levelLabel, "scale", Vector2.One * 1.12f, .2);
-			_milestoneTween.TweenProperty(_levelLabel, "scale", Vector2.One, .8).SetTrans(Tween.TransitionType.Back);
-		}
-		_observedMilestone = Math.Max(_observedMilestone, milestone);
-
-		UpdateLevelRewardGlow();
-	}
-
-	private void UpdateLevelRewardGlow()
-	{
-		bool shouldGlow =
-			_levelRewards
-				.HasClaimableReward;
-
-		_rewardIndicator.Visible = shouldGlow;
-		_levelLabel.OffsetRight = shouldGlow ? -28 : -5;
-		if (shouldGlow)
-		{
-			if (_levelGlowTween != null)
-				return;
-
-			_levelCard.Modulate =
-				Colors.White;
-
-			_levelGlowTween =
-				_root.CreateTween();
-
-			_levelGlowTween.SetLoops();
-
-			_levelGlowTween.TweenProperty(
-				_levelCard,
-				"modulate",
-				new Color(
-					1.30f,
-					1.20f,
-					0.55f,
-					1.0f
-				),
-				0.9
-			)
-			.SetTrans(
-				Tween.TransitionType.Sine
-			)
-			.SetEase(
-				Tween.EaseType.InOut
-			);
-
-			_levelGlowTween.TweenProperty(
-				_levelCard,
-				"modulate",
-				Colors.White,
-				0.9
-			)
-			.SetTrans(
-				Tween.TransitionType.Sine
-			)
-			.SetEase(
-				Tween.EaseType.InOut
-			);
-
-			return;
-		}
-
-		_levelGlowTween?.Kill();
-
-		_levelGlowTween =
-			null;
-
-		_levelCard.Modulate =
-			Colors.White;
+		LevelBadgeProgress.Update(_state);
 	}
 
 	public void SetRoomName(
@@ -285,6 +187,7 @@ public sealed class TopBarController
 	public void ApplyTheme(
 		RoomThemeTextures theme)
 	{
+		UpdatePopupAccent();
 		_background.Texture =
 			theme.Bar;
 
@@ -326,146 +229,82 @@ public sealed class TopBarController
 			pressed;
 	}
 
-	private void ToggleTokenPopup()
+	private async void TogglePopup(PanelContainer popup, Control card)
 	{
-		_levelPopup.Hide();
-
-		if (_tokenPopup.Visible)
-		{
-			HideTokenPopup();
-
-			return;
-		}
-
-		OpenTokenPopup();
+		bool close = _activePopup == popup && popup.Visible;
+		HidePopups();
+		if (close) return;
+		int generation = _popupGeneration;
+		_activePopup = popup; _activeCard = card;
+		popup.Modulate = new Color(1, 1, 1, 0);
+		popup.Show(); popup.MoveToFront();
+		FitPopup();
+		SetProcess(true); SetProcessInput(true);
+		// Shape wrapped text before positioning/fading either tooltip.
+		await ToSignal(GetTree(), SceneTree.SignalName.ProcessFrame);
+		if (!GodotObject.IsInstanceValid(this) || !IsInsideTree() || generation != _popupGeneration) return;
+		FitPopup();
+		_popupTween = CreateTween();
+		_popupTween.TweenProperty(popup, "modulate:a", 1f, .12).SetTrans(Tween.TransitionType.Sine).SetEase(Tween.EaseType.Out);
+		_popupTween.TweenInterval(PopupVisibleSeconds);
+		_popupTween.TweenProperty(popup, "modulate:a", 0f, PopupFadeSeconds);
+		_popupTween.TweenCallback(Callable.From(HidePopups));
 	}
 
-	private async void OpenTokenPopup()
+	private void UpdatePopupAccent()
 	{
-		_tokenPopupGeneration++;
-
-		int generation =
-			_tokenPopupGeneration;
-
-		_tokenFadeTween?.Kill();
-
-		_tokenFadeTween =
-			null;
-
-		_tokenPopup.Modulate =
-			Colors.White;
-
-		await PositionPopup(
-			_tokenPopup,
-			_tokenCard
-		);
-
-		if (
-			generation
-			!= _tokenPopupGeneration
-		)
-		{
-			return;
-		}
-
-		await _root.ToSignal(
-			_root.GetTree()
-				.CreateTimer(
-					PopupVisibleSeconds
-				),
-
-			SceneTreeTimer.SignalName.Timeout
-		);
-
-		if (
-			generation
-				!= _tokenPopupGeneration
-			|| !_tokenPopup.Visible
-		)
-		{
-			return;
-		}
-
-		_tokenFadeTween =
-			_root.CreateTween();
-
-		_tokenFadeTween.TweenProperty(
-			_tokenPopup,
-			"modulate:a",
-			0.0f,
-			PopupFadeSeconds
-		);
-
-		await _root.ToSignal(
-			_tokenFadeTween,
-			Tween.SignalName.Finished
-		);
-
-		if (
-			generation
-			!= _tokenPopupGeneration
-		)
-		{
-			return;
-		}
-
-		_tokenPopup.Hide();
-
-		_tokenPopup.Modulate =
-			Colors.White;
-
-		_tokenFadeTween =
-			null;
+		_popupStyle.BorderColor = _root.ActiveAreaAccent;
 	}
 
-	private void HideTokenPopup()
+	private void FitPopup()
 	{
-		_tokenPopupGeneration++;
+		UpdatePopupAccent();
+		if (_activePopup == null || _activeCard == null) return;
+		Rect2 bounds = _root.GetGlobalRect().Intersection(GetViewport().GetVisibleRect());
+		const float margin = 12, gap = 6;
+		float width = Mathf.Min(230, Mathf.Max(1, bounds.Size.X - margin * 2));
+		if (!Mathf.IsEqualApprox(_activePopup.CustomMinimumSize.X, width))
+		{
+			_activePopup.CustomMinimumSize = new(width, 70);
+		}
+		// Wrapped labels can initially measure at zero width. Let the panel shrink
+		// back to its content height after the container has laid out the text.
+		_activePopup.Size = new(width, 0);
+		Rect2 card = _activeCard.GetGlobalRect();
+		float x = Mathf.Clamp(card.GetCenter().X - _activePopup.Size.X / 2,
+			bounds.Position.X + margin, Mathf.Max(bounds.Position.X + margin, bounds.End.X - margin - _activePopup.Size.X));
+		// Keep the entire TopBar, including the room name, clear of both tooltips.
+		float y = Mathf.Max(card.End.Y, _background.GetParent<Control>().GetGlobalRect().End.Y) + gap;
+		if (y + _activePopup.Size.Y > bounds.End.Y - margin) y = card.Position.Y - _activePopup.Size.Y - gap;
+		y = Mathf.Clamp(y, bounds.Position.Y + margin, Mathf.Max(bounds.Position.Y + margin, bounds.End.Y - margin - _activePopup.Size.Y));
+		_activePopup.GlobalPosition = new(x, y);
+	}
 
-		_tokenFadeTween?.Kill();
+	public override void _Process(double delta)
+	{
+		if (_activePopup == null || !_activePopup.Visible || _activeCard == null || !_activeCard.IsVisibleInTree()) HidePopups();
+		else FitPopup();
+	}
 
-		_tokenFadeTween =
-			null;
-
-		_tokenPopup.Hide();
-
-		_tokenPopup.Modulate =
-			Colors.White;
+	public override void _Input(InputEvent input)
+	{
+		Vector2 position;
+		if (input is InputEventScreenTouch { Pressed: true } touch) position = touch.Position;
+		else if (input is InputEventMouseButton { Pressed: true, ButtonIndex: MouseButton.Left } mouse) position = mouse.Position;
+		else return;
+		if (_activePopup != null && _activeCard != null
+			&& !_activePopup.GetGlobalRect().HasPoint(position) && !_activeCard.GetGlobalRect().HasPoint(position)) HidePopups();
 	}
 
 	public void HidePopups()
 	{
-		HideTokenPopup();
-
-		_levelPopup.Hide();
+		_popupGeneration++;
+		_popupTween?.Kill(); _popupTween = null;
+		if (GodotObject.IsInstanceValid(_tokenPopup)) { _tokenPopup.Hide(); _tokenPopup.Modulate = Colors.White; }
+		if (GodotObject.IsInstanceValid(_levelPopup)) { _levelPopup.Hide(); _levelPopup.Modulate = Colors.White; }
+		_activePopup = null; _activeCard = null;
+		SetProcess(false); SetProcessInput(false);
 	}
 
-	private async System.Threading.Tasks.Task PositionPopup(
-		Control popup,
-		Control card)
-	{
-		popup.Modulate =
-			Colors.White;
-
-		popup.Show();
-
-		await _root.ToSignal(
-			_root.GetTree(),
-			SceneTree.SignalName.ProcessFrame
-		);
-
-		if (!popup.Visible)
-			return;
-
-		popup.GlobalPosition =
-			new Vector2(
-				card.GlobalPosition.X
-					+ card.Size.X / 2
-					- popup.Size.X / 2,
-
-				card.GlobalPosition.Y
-					+ card.Size.Y
-					+ 6
-			);
-	}
+	public override void _ExitTree() => HidePopups();
 }

@@ -49,7 +49,7 @@ public partial class AdDemo : Control
     {
         _random.Randomize();
         _font = GD.Load<Font>("res://promo_assets/Orbitron-Regular.ttf");
-        _tapIndicatorScene = GD.Load<PackedScene>("res://TapIndicator.tscn");
+        _tapIndicatorScene = GD.Load<PackedScene>("res://shared/TapIndicator.tscn");
         BuildUi();
         ResetPromo();
     }
@@ -343,22 +343,7 @@ public partial class AdDemo : Control
 
     private void Burst(int count, Color color)
     {
-        for (int i = 0; i < count; i++)
-        {
-            var mote = new ColorRect
-            {
-                Position = new Vector2(330, 563), Size = new Vector2(5, 5), Color = color,
-                MouseFilter = MouseFilterEnum.Ignore
-            };
-            _content.AddChild(mote);
-            mote.AddToGroup("promo_transient");
-            float angle = _random.RandfRange(0, Mathf.Tau);
-            var target = mote.Position + Vector2.FromAngle(angle) * _random.RandfRange(80, 250);
-            var tween = mote.CreateTween().SetParallel();
-            tween.TweenProperty(mote, "position", target, .45).SetTrans(Tween.TransitionType.Cubic).SetEase(Tween.EaseType.Out);
-            tween.TweenProperty(mote, "modulate:a", 0f, .45);
-            tween.Chain().TweenCallback(Callable.From(mote.QueueFree));
-        }
+        PromoVisuals.Burst(_content, new Vector2(330, 563), count, color, _random);
     }
 
     private void Flash(float strength)

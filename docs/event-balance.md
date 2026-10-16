@@ -1,6 +1,6 @@
 # Test Protocol balance review
 
-All tuning is in `scripts/game/events/TestProtocolEventDefinition.cs`, referenced by EventCatalog. Shared Event formulas, UI, Halloween, Bots, Shop, Archive, schedules and non-Event gameplay are unchanged. The existing Halloween definition was inspected; its balance remains provisional for the final event. Test Protocol currently defines no Bots or Shop inventory, so there is no bot/shop multiplier in these estimates.
+All tuning is in `scripts/game/events/TestProtocolEventDefinition.cs`, referenced by EventCatalog. Shared Event formulas, UI, Halloween, Bots, Shop, schedules and non-Event gameplay are unchanged. The existing Halloween definition was inspected; its balance remains provisional for the final event. Test Protocol currently defines no Bots or Shop inventory, so there is no bot/shop multiplier in these estimates.
 
 ## Generator tuning
 

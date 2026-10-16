@@ -129,7 +129,7 @@ internal static partial class Program
         var halloween = definitions.Single(d => d.Id == HalloweenEventDefinition.EventId);
         Check(halloween.Type == EventType.Major && halloween.StartUnix == new DateTimeOffset(2026, 10, 14, 0, 0, 0, TimeSpan.Zero).ToUnixTimeSeconds()
             && halloween.EndUnix - halloween.StartUnix == 20 * 86400, "Halloween fixed live schedule");
-        Check(halloween.Generators.Count == 6 && halloween.Bots.Count == 4 && halloween.Milestones.Count == 16, "Halloween content counts");
+        Check(halloween.Generators.Count == 6 && halloween.Bots.Count == 4 && halloween.Milestones.Count == 14, "Halloween content counts");
         var save = new EventSaveData(); bool saveOk = true; double shards = 0;
         var manager = new EventManager(save, definitions, () => saveOk, () => now, grantExternalReward: reward =>
         { shards += reward.Amount; return () => shards -= reward.Amount; },
@@ -169,19 +169,28 @@ internal static partial class Program
         saveOk = true;
         for (int i = 0; i < 5; i++) Check(manager.Buy(halloween.Id, "shard_exchange").Changed, "limited shard shop purchase " + i);
         Check(!manager.Buy(halloween.Id, "shard_exchange").Changed, "shop limit enforced"); Equal(shards, 25, "shard exchange reward");
-        Check(manager.ClaimReward(halloween.Id, "souls_5000000").Changed, "existing bot skin entitlement awarded");
+        Check(!manager.ClaimReward(halloween.Id, "souls_5000000").Changed
+            && !manager.ClaimReward(halloween.Id, "souls_1000000000").Changed, "retired pack milestones never grant free skins");
+        p = save.ProgressByEventId[halloween.Id]; p.PrestigeResource = p.TotalPrestigeResourceEarned = 100;
+        Check(manager.Buy(halloween.Id, "bot_skin").Changed, "bot pack bought with cores");
+        Equal(manager.GetShopBalance(halloween.Id, EventShopCurrency.PrestigeResource), 50, "bot pack costs 50 cores");
         saveOk = false;
-        Check(!manager.ClaimReward(halloween.Id, "souls_1000000000").Changed, "cosmetic bundle save failure rejected");
-        Check(!save.CosmeticEntitlements.Any(id => id.StartsWith("machine:")) && !manager.IsRewardClaimed(halloween.Id, "souls_1000000000"), "cosmetic bundle and claim marker rolled back together");
+        Check(!manager.Buy(halloween.Id, "machine_skin").Changed, "cosmetic bundle save failure rejected");
+        Check(!save.CosmeticEntitlements.Any(id => id.StartsWith("machine:"))
+            && manager.PurchasedCount(halloween.Id, "machine_skin") == 0, "bundle and purchase count rolled back together");
+        Equal(manager.GetShopBalance(halloween.Id, EventShopCurrency.PrestigeResource), 50, "failed bundle purchase refunds cores");
         saveOk = true;
-        Check(manager.ClaimReward(halloween.Id, "souls_1000000000").Changed, "final machine skin pack explicitly claimed");
+        Check(manager.Buy(halloween.Id, "machine_skin").Changed, "machine pack bought with cores");
+        Equal(manager.GetShopBalance(halloween.Id, EventShopCurrency.PrestigeResource), 0, "machine pack costs 50 cores");
         Check(save.CosmeticEntitlements.Contains("bot:" + BotSkinCatalog.HalloweenSkinId), "global bot skin ID reused");
         foreach (var id in MachineSkinCatalog.HalloweenSkinIds) Check(save.CosmeticEntitlements.Contains("machine:" + id), "global machine skin ID reused: " + id);
-        Check(!manager.ClaimReward(halloween.Id, "souls_1000000000").Changed, "final pack cannot be claimed twice");
+        Check(!manager.Buy(halloween.Id, "machine_skin").Changed && !manager.Buy(halloween.Id, "bot_skin").Changed, "packs cannot be purchased twice");
         Check(!manager.IsRewardClaimed(halloween.Id, "souls_100000000"), "other high rewards not automatically granted");
         var persisted = RoundTrip(save);
         var reload = new EventManager(persisted, definitions, () => true, () => now); reload.Tick();
         Check(reload.PurchasedCount(halloween.Id, "shard_exchange") == 5 && !reload.Buy(halloween.Id, "shard_exchange").Changed, "shop limits survive restart");
+        Check(reload.GetShopItem(halloween.Id, "bot_skin").Owned && reload.GetShopItem(halloween.Id, "machine_skin").Owned,
+            "purchased packs remain owned after reload");
         Check(reload.IsBotActive(halloween.Id, "ghost_bot"), "bot active state persists");
         var state = State(); state.Events = persisted;
         var machines = new MachineSkinService(state); var bots = new BotSkinService(state);
@@ -191,18 +200,33 @@ internal static partial class Program
         Check(new MachineSkinService(state).IsHalloweenPackOwned && new BotSkinService(state).IsOwned(BotSkinCatalog.HalloweenSkinId), "cosmetics persist independently of event progression after sync");
         // Save a single terminal to check exact offline end cap independently of unlocks.
         var boundary = halloween with { StartUnix = 100, EndUnix = 113, Generators = [halloween.Generators[0]], Bots = [],
-            Milestones = [], Shop = [], Story = [] };
+            Milestones = [], Shop = [], Story = [], Challenges = [] };
         now = 100; var boundarySave = new EventSaveData();
         var capped = new EventManager(boundarySave, [boundary], () => true, () => now); capped.Tick();
         now = 200; capped.Tick(); Equal(capped.GetProgress(boundary.Id).Currency, 2, "Halloween offline ends at exact timestamp");
         Check(!capped.Upgrade(boundary.Id).Changed && !capped.Prestige(boundary.Id, 0).Changed, "expired Halloween actions blocked");
         Equal(capped.GetTotalProduction(boundary.Id), 0, "expired production rate is zero");
-        var archive = capped.GetArchives().Single();
-        Check(archive.Name == halloween.Name && archive.TotalEarned == 2 && archive.Year == 1970, "completed Major archive snapshot");
-        Equal(archive.HighestProduction, .2, "archive retains highest production");
-        Check(RoundTrip(boundarySave).ProgressByEventId[boundary.Id].Archive != null, "archive survives save/load");
+        Check(RoundTrip(boundarySave).ProgressByEventId[boundary.Id].Ended, "ended progress survives save/load");
+        Check(boundarySave.ProgressByEventId[boundary.Id].Archive == null, "ending creates no event history");
+        // A previously obtained individual skin must not block buying the remaining pack.
+        now = halloween.StartUnix + 100;
+        var partialSave = new EventSaveData();
+        var partial = new EventManager(partialSave, definitions, () => true, () => now, validateCosmetic: _ => true);
+        partial.Tick(); var partialProgress = partialSave.ProgressByEventId[halloween.Id];
+        partialProgress.PrestigeResource = partialProgress.TotalPrestigeResourceEarned = 50;
+        partialProgress.Cosmetics.Add("machine:" + MachineSkinCatalog.Room1HalloweenSkinId);
+        Check(partial.CanBuy(halloween.Id, "machine_skin"), "partially owned machine pack remains purchasable");
+        Check(partial.Buy(halloween.Id, "machine_skin").Changed && !partial.CanBuy(halloween.Id, "machine_skin"), "partial pack purchase fills missing skins once");
+        var legacy = RoundTrip(save);
+        legacy.ProgressByEventId[halloween.Id].UnlockedMilestones.UnionWith(["souls_5000000", "souls_1000000000"]);
+        legacy.ProgressByEventId[halloween.Id].ClaimedRewards.UnionWith(["souls_5000000", "souls_1000000000"]);
+        var legacyManager = new EventManager(legacy, definitions, () => true, () => now, validateCosmetic: _ => true);
+        legacyManager.Tick();
+        Check(legacyManager.GetShopItem(halloween.Id, "bot_skin").Owned && legacyManager.GetShopItem(halloween.Id, "machine_skin").Owned,
+            "legacy milestone pack ownership remains valid");
+        Check(!legacyManager.Buy(halloween.Id, "machine_skin").Changed, "legacy owned pack cannot be charged again");
         now = halloween.EndUnix + 5; manager.Tick();
         Check(!manager.Buy(halloween.Id, "signal_badge").Changed && !manager.Prestige(halloween.Id, 1).Changed, "expired purchases and prestige blocked");
-        Check(manager.GetArchives().Single().CosmeticsOwned == 5, "archive cosmetic completion");
+        Check(persisted.ProgressByEventId[halloween.Id].Cosmetics.Count == 5, "permanent cosmetic ownership retained");
     }
 }

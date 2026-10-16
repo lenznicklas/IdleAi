@@ -97,16 +97,18 @@ func run_checks():
         check(find("EventBotDetail").scale == Vector2.ONE, "Shared overlay root remains unscaled")
         root.go_back_requested.emit(); await frames()
     await tab("Rewards")
-    for id in ["ghost_bot","pumpkin_bot","skeleton_bot","reaper_bot","bot_skin_pack","machine_skin_pack"]:
+    for id in ["ghost_bot","pumpkin_bot","skeleton_bot","reaper_bot"]:
         check(images(find("EventRewardsPanel"), id).size() >= 1, "Reward preview: " + id)
     await tab("Shop")
     check(images(find("EventShop_soul_cacheCard"), "reward_chest").size() == 1, "Chest shop icon")
     check(images(find("EventShop_soul_cacheCard"), "cursed_core").size() == 1, "Core shop cost")
     check(images(find("EventShop_bot_skinCard"), "bot_skin_pack").size() == 1, "Bot pack shop icon")
-    check(images(find("EventShop_bot_skinCard"), "souls").size() == 1, "Soul shop cost")
+    check(images(find("EventShop_bot_skinCard"), "cursed_core").size() == 1, "Bot pack costs Cursed Cores")
+    check(images(find("EventShop_machine_skinCard"), "machine_skin_pack").size() == 1, "Machine pack shop icon")
+    check(images(find("EventShop_machine_skinCard"), "cursed_core").size() == 1, "Machine pack costs Cursed Cores")
     for size in [Vector2i(1080,2400),Vector2i(720,1600),Vector2i(540,960)]:
         root.size = size; await frames()
-        for name in ["Progress","Prestige","Bots","Rewards","Shop","Archive","Challenges"]:
+        for name in ["Progress","Prestige","Bots","Rewards","Shop","Challenges"]:
             await tab(name)
             load("res://tests/Events/image_layout_checks.gd").verify(page, check)
             for image in page.find_children("*","TextureRect",true,false):
@@ -114,13 +116,9 @@ func run_checks():
                 check(image.expand_mode == TextureRect.EXPAND_IGNORE_SIZE and image.stretch_mode == TextureRect.STRETCH_KEEP_ASPECT_CENTERED, "All visible sprites fitted")
                 check(image.get_global_rect().end.x <= page.get_global_rect().end.x+1, "No image horizontal overflow")
             check(find("EventScroll").scroll_horizontal == 0 and not game.get_node("BottomBar").visible, "Stable full-screen portrait navigation")
-    command("event-end"); await tab("Archive")
-    find("ViewArchive_halloween_2026").pressed.emit(); await frames(); await tab("Progress")
+    command("event-end"); await tab("Progress")
     for icon in ["event_icon","souls","cursed_core"]:
-        check(images(find("EventEndIcons"),icon).size() == 1, "Final results identity/currency: " + icon)
-    await tab("Archive")
-    for icon in ["event_icon","souls","cursed_core"]:
-        check(images(find("ArchiveIcons_halloween_2026"),icon).size() == 1, "Archive identity/currency: " + icon)
+        check(images(find("EventEndIcons"),icon).size() == 1, "Ended event identity/currency: " + icon)
     var seen = {}
     for image in page.find_children("*","TextureRect",true,false):
         if image.texture == null or not image.texture.resource_path.begins_with(DIR): continue
@@ -128,7 +126,7 @@ func run_checks():
         if path in seen: check(seen[path] == image.texture.get_instance_id(), "Shared cached texture: " + path)
         seen[path] = image.texture.get_instance_id()
     check(seen.size() == 17, "All 17 source assets represented without placeholder duplication")
-    # Explicit archive browsing is intentionally historical; reopening follows active data.
+    # Reopening follows active event data.
     game.get_node("BottomBar/Margin/HBox/MapButton").pressed.emit(); await frames()
     entry.pressed.emit(); await frames()
     # Switch away from ended results, then back again with every tab instantiated.

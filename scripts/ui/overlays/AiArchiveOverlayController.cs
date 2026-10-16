@@ -73,7 +73,7 @@ public sealed class AiArchiveOverlayController
         Text(_content, "Track everything you've discovered.", 18);
         foreach (var category in _snapshot.Categories)
         {
-            var button = NavigationButton($"{category.Name}    {category.Completed} / {category.Total}    ›", () => Category(category));
+            var button = NavigationButton($"{category.Name}  {category.Completed}/{category.Total}  ›", () => Category(category));
             if (category.Total > 0 && category.Completed == category.Total) button.AddThemeColorOverride("font_color", Gold);
             _content.AddChild(button);
         }
@@ -89,10 +89,13 @@ public sealed class AiArchiveOverlayController
             var card = new PanelContainer(); card.AddThemeStyleboxOverride("panel", Style(new Color("102039"), entry.Accent ?? (entry.Complete ? Gold : new Color("254d6b"))));
             _content.AddChild(card);
             var row = new HBoxContainer(); row.AddThemeConstantOverride("separation", 14); card.AddChild(row);
-            if (entry.Icon != null)
+            if (entry.BadgeNumber > 0 && entry.Icon != null)
+                row.AddChild(new NumberedBadgeView(entry.Icon, entry.BadgeNumber) { CustomMinimumSize = new Vector2(144, 144) });
+            else if (entry.Icon != null)
             {
                 var icon = new TextureRect { Texture = entry.Icon, CustomMinimumSize = new Vector2(68, 68),
                     ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize, StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+                    TextureFilter = category.Name == "EVENT BADGES" ? CanvasItem.TextureFilterEnum.LinearWithMipmaps : CanvasItem.TextureFilterEnum.ParentNode,
                     Modulate = entry.Concealed ? new Color(0.03f, 0.05f, 0.08f, 1) : entry.Complete ? Colors.White : new Color(0.45f, 0.5f, 0.6f),
                     MouseFilter = Control.MouseFilterEnum.Ignore };
                 row.AddChild(icon);
@@ -134,7 +137,7 @@ public sealed class AiArchiveOverlayController
     }
     internal static Button NavigationButton(string text, Action action)
     {
-        var button = new Button { Text = text, CustomMinimumSize = new Vector2(0, 68), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+        var button = new Button { Text = text, ClipText = true, TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis, CustomMinimumSize = new Vector2(0, 68), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         button.AddThemeFontSizeOverride("font_size", 20); button.AddThemeColorOverride("font_color", Cyan);
         // Navigation stays in the normal palette; gold is reserved for collection status.
         // Define every interactive state so touch/keyboard input cannot fall back to a loud theme.

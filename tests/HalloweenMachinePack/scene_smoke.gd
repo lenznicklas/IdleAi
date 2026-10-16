@@ -39,7 +39,7 @@ func run_checks():
     if funded:
         button.pressed.emit()
         for i in range(3): await process_frame
-        check(button.text == "OWNED" and button.disabled, "purchase changes offer to owned")
+        check(not machine.visible and button.disabled, "purchase hides owned offer")
         for room in range(1,5):
             var card = game.find_child("MachineSkinCard_room_%d_halloween" % room, true, false)
             var equip = card.find_children("*", "Button", true, false)[0]

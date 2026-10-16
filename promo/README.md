@@ -1,12 +1,148 @@
+# Promo project layout
+
+Each reel has its own folder containing its scene, C# script, Godot UID metadata,
+and any reel-specific runtime checks. Shared components and effects live in
+`shared/`; existing artwork and fonts remain in `promo_assets/`.
+
+| Folder | Scene to open with F6 |
+| --- | --- |
+| `reels/AdDemo/` | `AdDemo.tscn` |
+| `reels/ChooseMachineAd/` | `ChooseMachineAd.tscn` |
+| `reels/BotUpgradeReel/` | `BotUpgradeReel.tscn` |
+| `reels/OneUpgradeTooMany/` | `OneUpgradeTooMany.tscn` |
+| `reels/IBrokeMyGameAgain/` | `IBrokeMyGameAgain.tscn` |
+
+Open `promo/project.godot` as the Godot project. F5 continues to launch
+`reels/OneUpgradeTooMany/OneUpgradeTooMany.tscn`; use F6 for another reel.
+Build and export configuration stays at the project root.
+
+---
+
+# I broke my game again — automatic 12-second reel
+
+Open **reels/IBrokeMyGameAgain/IBrokeMyGameAgain.tscn** in the separate `promo/project.godot` project and
+press **F6**. Record in 9:16 at 720×1280 or 1080×1920. Production starts on frame
+one; upgrades and visible tap ripples run automatically. Press **R** to restart.
+The final question holds after 12 seconds. This scene is silent for music added
+in editing and does not change either project’s startup scene or gameplay.
+
+```sh
+dotnet build promo/PromoRecording.csproj
+godot-mono --path promo res://reels/IBrokeMyGameAgain/IBrokeMyGameAgain.tscn
+```
+
+| Time | Beat |
+| --- | --- |
+| 0 | “I BROKE MY GAME AGAIN”, Retro Core already producing $12K/s |
+| 1.00 / 2.15 / 3.40 | Visible upgrades to $4.8M/s → $2.1B/s → $800T/s |
+| 4.80 / 6.40 | $12aa/s → $480ab/s; faster money, stronger motion and glow |
+| 8.00 | $21ac/s; UI jitter, distortion and lightning begin |
+| 8.80–9.65 | Second surge: rapid counter, dense income, stronger shake and tearing |
+| 9.65–10.00 | Heavy glitch hold with machine and floating-money animations frozen |
+| 10.15–12.00 | “Should I leave this in the game?” with small Idle AI attribution |
+
+Visual theme: green server room, cream-and-green Retro Core, olive instrument
+panels, lime/amber income and warm-white lettering. Uses actual Room 3 Retro
+machine artwork and `assets/background/bg_room3.png`, copied unchanged into
+`reels/IBrokeMyGameAgain/assets/` so this stays a standalone promo project.
+The room is deliberately visible under a lighter forest shade. Tap rings,
+platform/glow, particles, lightning, scan lines and the ending share the palette.
+
+Reuses PromoMachine, PromoVisuals money rise/fade, TapIndicator, the existing font,
+and configurable promo overload shader/energy colors. Other reels retain their
+existing assets and effect palettes.
+Money labels are capped at 48; spawning permits one batch per frame. The headline
+and rate stay readable, with glitches limited to the last third. R restores all
+animation processing, effects, rates, counter, and layout. No saves or services.
+
+Validation:
+
+```sh
+XDG_DATA_HOME=/tmp/idle-ai-promo-check godot-mono --headless --path promo res://reels/IBrokeMyGameAgain/IBrokeMyGameAgainCheck.tscn
+```
+
+Checks the timeline, rate suffixes, delayed distortion, counter, money rise/fade,
+climax hold, clean ending, replay, and text/safe areas at three vertical sizes.
+
+---
+
+# One upgrade too many — automatic 11-second reel
+
+Open **reels/OneUpgradeTooMany/OneUpgradeTooMany.tscn** in this separate promo project and press **F6**.
+It starts producing immediately and plays hands-free; press **R** to restart.
+The final card holds indefinitely, so stop the recording at about 11 seconds.
+Normal gameplay is unchanged; this is the promo project’s current default scene.
+
+From the repository root:
+
+```sh
+dotnet build promo/PromoRecording.csproj
+godot-mono --path promo res://reels/OneUpgradeTooMany/OneUpgradeTooMany.tscn
+```
+
+Record at **720×1280** or **1080×1920**, 9:16. The composition scales uniformly,
+with the headline, rates, button and ending inside x=48–600 / y=164–1010 of the
+720×1280 canvas, leaving room for social controls. It is silent for adding a music
+track during editing. The Upgrade button and taps are staged automatically;
+recording requires no live input. The machine remains the same Server Rack.
+
+| Time | Beat |
+| --- | --- |
+| 0.00 | Normal production, immediate floating income, hook and Upgrade button |
+| 0.65 | Level 10: +12.0K, small pulse |
+| 1.40 | Level 30: +2.40M, brighter glow |
+| 2.15 | Level 80: +8.70B, first shake/flash |
+| 2.95 | Level 160: +640T, bigger bursts |
+| 3.75 | Level 320: +91.0aa, distortion starts |
+| 4.60 | Level 640: +7.20ac, doubled money, unstable lower UI |
+| 5.45 | Level 1000: +999af, triple money bursts every 45ms |
+| 6.15–6.90 | Post-upgrade surge: stronger glow, zoom, shake, lightning and screen tearing |
+| 7.45–7.57 | Quick fade to dark; all overload visuals disappear |
+| 7.70 | “I think I broke the game.” |
+| 8.50 | Small “Idle AI — Coming Soon” |
+| 11.00 | Complete; final card holds |
+
+Uses the existing background/tint, Orbitron font, Server Rack texture,
+PromoMachine animation/glow, TapIndicator and NumberFormatter.
+PromoVisuals shares background and floating-money effects with BotUpgradeReel,
+and particle bursts with AdDemo. Existing reels keep their default intensity.
+
+The early scene is clean. Money frequency, size, burst count, machine pulse,
+particles and glow increase on every upgrade. Late upgrades introduce rotating
+energy arcs, lightning, persistent shake/zoom, machine tilt, flickering status,
+and small rate/button jitter. A screen-reading canvas shader adds RGB separation,
+horizontal tearing, scan lines, exposure flutter and short upgrade flashes.
+The headline stays fixed; income text retains its full value through the glitches.
+After the seventh upgrade, a second surge drives overload from 65% to 100%.
+Money is bounded at 48 live labels; spawning uses at most one batch per frame to
+avoid catch-up storms after recording hitches. The final frame holds cleanly;
+R clears particles, money, touch ripples, tilt, zoom, distortion and ending state.
+The ending contains only the requested message and Coming Soon line.
+
+No services, gameplay state, saves, new assets or audio dependencies are used.
+
+Validation:
+
+```sh
+XDG_DATA_HOME=/tmp/idle-ai-promo-check godot-mono --headless --path promo res://reels/OneUpgradeTooMany/OneUpgradeTooManyCheck.tscn
+XDG_DATA_HOME=/tmp/idle-ai-promo-check godot-mono --headless --path promo res://reels/BotUpgradeReel/ReelCheck.tscn
+```
+
+The first checks automated timing, income escalation, safe areas/text widths at
+three 9:16 sizes, persistent machine identity, shared floating-number animation,
+glitch/energy progression, the post-final surge, clean ending and replay reset. The second checks the existing bot reel.
+
+---
+
 # Idle AI recording sandbox
 
 ## Common → Legendary bot reel
 
-Open `BotUpgradeReel.tscn` in **this promo project** and press F6, or run:
+Open `reels/BotUpgradeReel/BotUpgradeReel.tscn` in **this promo project** and press F6, or run:
 
 ```sh
 dotnet build promo/PromoRecording.csproj
-godot-mono --path promo res://BotUpgradeReel.tscn
+godot-mono --path promo res://reels/BotUpgradeReel/BotUpgradeReel.tscn
 ```
 
 One fixed Server machine produces automatically. Wait briefly at Common, then tap
@@ -39,11 +175,11 @@ dependency. Neither project's default scene nor any normal game balance changes.
 Headless regression check (after importing the promo project):
 
 ```sh
-godot-mono --headless --path promo res://ReelCheck.tscn
+godot-mono --headless --path promo res://reels/BotUpgradeReel/ReelCheck.tscn
 ```
 
 For an Android recording, run this scene with F6 using the promo project's existing
-remote deployment workflow. Its normal export/default scene remains unchanged.
+remote deployment workflow. Its export/default scene remains OneUpgradeTooMany.
 
 This folder is a **separate Godot 4.7.2 Mono project**, deliberately not a scene launched from the production game. Its `res://` root is this folder. Open `promo/project.godot`, not the repository's `project.godot`, to record or export it.
 
@@ -53,12 +189,12 @@ This is the alternative to changing the production main scene or disabling its P
 
 1. Import `promo/project.godot` into the Godot **Mono/.NET** project manager.
 2. Build the C# solution using the editor's Build button.
-3. Press F5, or open `AdDemo.tscn` and press F6.
+3. Open `reels/AdDemo/AdDemo.tscn` and press F6. F5 runs the default OneUpgradeTooMany reel.
 4. Tap the large button, or use Space. Five upgrade taps fill the bar; the sixth tap evolves. Evolution takes approximately 0.62 seconds. Tap every 0.4–0.7 seconds for a roughly 15–25 second trip through all five machines.
 
 Controls: **Space** upgrade, **E** force evolution, **R** reset, **1–5** select stage, **F** toggle desktop fullscreen. The final Mystery PC is a terminal teaser: upgrades and evolution stop immediately, the lower UI fades out over 0.65 seconds, and a gold COMING SOON fades in over 0.65 seconds after a 0.20-second delay. Money/income and the machine remain visible. Reset and stage selection cancel active evolution, teaser fades and effects, restoring the normal UI. Selecting stage 5 directly also enters the teaser state. Touch uses the same native Godot Button as desktop input.
 
-Every Android touch press or desktop left-click produces a white touch ripple at the pointer position, including on the upgrade button and teaser screen. `TapIndicator.tscn` / `TapIndicator.cs` are reusable visual components: two translucent rings and a soft center expand and fade over 0.34 seconds, then free themselves. A separate canvas layer renders them above UI and flashes without following screen shake or consuming input. Synthesized touch/mouse events are ignored to avoid duplicate indicators; simultaneous physical touches each get their own ripple. Releases, drags, right-clicks and keyboard controls do not spawn ripples.
+Every Android touch press or desktop left-click produces a white touch ripple at the pointer position, including on the upgrade button and teaser screen. `shared/TapIndicator.tscn` / `shared/TapIndicator.cs` are reusable visual components: two translucent rings and a soft center expand and fade over 0.34 seconds, then free themselves. A separate canvas layer renders them above UI and flashes without following screen shake or consuming input. Synthesized touch/mouse events are ignored to avoid duplicate indicators; simultaneous physical touches each get their own ripple. Releases, drags, right-clicks and keyboard controls do not spawn ripples.
 
 The portrait composition uses 720×1280 with aspect kept and black bars on taller/wider screens. Important UI stays within x=60–600 and y=136–1102, reserving the right edge and the top/bottom for recording overlays. Currency is sponsored locally on taps so recording never stalls. No money is saved. Numbers are capped at large finite values for very long sessions.
 
@@ -66,8 +202,8 @@ The sandbox is intentionally silent; `score.wav` is music rather than an upgrade
 
 ## Choose Your Machine (standalone second ad)
 
-Open `ChooseMachineAd.tscn` in this **promo project** and press F6 (Run Current Scene).
-F5 still runs the original AdDemo. Click/tap either large artwork card, or press **1** / **2**;
+Open `reels/ChooseMachineAd/ChooseMachineAd.tscn` in this **promo project** and press F6 (Run Current Scene).
+F5 runs OneUpgradeTooMany; use F6 to run this scene. Click/tap either large artwork card, or press **1** / **2**;
 **R** resets at any point. Physical touch and left-click use the existing exact-position
 TapIndicator, with synthesized duplicate events filtered. Selection locks immediately.
 
@@ -80,13 +216,13 @@ over 0.2 seconds and resets all values/effects. No game economy or saves are inv
 
 For Android scene testing, enable **Deploy with Remote Debug** and **Small Deploy with
 Network Filesystem** in the promo editor, connect an ARM64 phone via USB/ADB, select
-the Android device in the run target, then press F6 with `ChooseMachineAd.tscn` open.
+the Android device in the run target, then press F6 with `reels/ChooseMachineAd/ChooseMachineAd.tscn` open.
 Use the existing Android Promo preset and this project's own Android build template.
 Test both choices, simultaneous touches, touches during comparison, and several automatic
-replays. The normal exported promo APK still opens AdDemo; remote F6 tests this scene
+replays. New promo APK exports open OneUpgradeTooMany; remote F6 tests this scene
 without changing either project's main scene or export configuration.
 
-## Export the promo APK (AdDemo)
+## Export the promo APK (default: OneUpgradeTooMany)
 
 In the **promo project**:
 
@@ -121,7 +257,7 @@ No existing scene, save schema, gameplay value, startup path, or Android integra
 
 ## Files and copied assets
 
-Core implementation: `AdDemo.tscn`, `AdDemo.cs`, `PromoMachine.cs`, `PromoMachineData.cs`, `TapIndicator.tscn`, `TapIndicator.cs`. Standalone configuration: `project.godot`, `PromoRecording.csproj`, `PromoRecording.sln`, `export_presets.cfg`, `.gdignore`, `.gitignore`. Godot-generated `.uid` and `.import` metadata accompany the scripts/artwork.
+Core implementation: `reels/AdDemo/AdDemo.tscn`, `reels/AdDemo/AdDemo.cs`, `shared/PromoMachine.cs`, `shared/PromoMachineData.cs`, `shared/TapIndicator.tscn`, `shared/TapIndicator.cs`. Standalone configuration: `project.godot`, `PromoRecording.csproj`, `PromoRecording.sln`, `export_presets.cfg`, `.gdignore`, `.gitignore`. Godot-generated `.uid` and `.import` metadata accompany the scripts/artwork.
 
 Machine/background/font/icon assets are **unchanged copies**, except the supplied Mystery PC teaser artwork. Originals remain untouched:
 

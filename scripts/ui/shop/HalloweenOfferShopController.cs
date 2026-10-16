@@ -29,6 +29,9 @@ public sealed partial class HalloweenOfferShopController
 	private readonly Game _root;
 	private readonly BotSkinService _skinService;
 	private readonly MachineSkinService _machineService;
+	private PanelContainer _botOfferCard = null!;
+	private PanelContainer _machineOfferCard = null!;
+	private PanelContainer _offersHeader = null!;
 	private Button _machineOfferButton = null!;
 	private Label _machineOfferStatus = null!;
 	private const string MachineOfferImagePath = "res://assets/shop/events/halloween_machine_skin.png";
@@ -85,77 +88,16 @@ public sealed partial class HalloweenOfferShopController
 
 	public void Refresh()
 	{
+		if (_botOfferCard == null || _machineOfferCard == null) return;
+		// Ownership is already persisted by the skin services, including Event grants.
+		_botOfferCard.Visible = !_skinService.IsOwned(BotSkinCatalog.HalloweenSkinId);
+		_machineOfferCard.Visible = !_machineService.IsHalloweenPackOwned;
+		_offersHeader.Visible = _botOfferCard.Visible || _machineOfferCard.Visible;
+		_offerStatus.Text = "LIMITED HALLOWEEN OFFER • SAVE 10 SHARDS";
+		_offerStatus.AddThemeColorOverride("font_color", ShopUi.Gold);
+		_offerButton.Text = "BUY • 40 SHARDS";
+		_offerButton.Disabled = !_botOfferCard.Visible || _skinService.DataShards < HalloweenOfferPrice;
 		RefreshMachineOffer();
-		if (
-			_offerButton == null
-			|| _offerStatus == null
-		)
-		{
-			return;
-		}
-
-		bool owned =
-			_skinService.IsOwned(
-				BotSkinCatalog.HalloweenSkinId
-			);
-
-		bool equipped =
-			_skinService.IsEquipped(
-				BotSkinCatalog.HalloweenSkinId
-			);
-
-		if (equipped)
-		{
-			_offerStatus.Text =
-				"● OWNED • ACTIVE";
-
-			_offerStatus.AddThemeColorOverride(
-				"font_color",
-				ShopUi.Green
-			);
-
-			_offerButton.Text =
-				"ACTIVE";
-
-			_offerButton.Disabled =
-				true;
-
-			return;
-		}
-
-		if (owned)
-		{
-			_offerStatus.Text =
-				"OWNED";
-
-			_offerStatus.AddThemeColorOverride(
-				"font_color",
-				ShopUi.Green
-			);
-
-			_offerButton.Text =
-				"EQUIP";
-
-			_offerButton.Disabled =
-				false;
-
-			return;
-		}
-
-		_offerStatus.Text =
-			"LIMITED HALLOWEEN OFFER • SAVE 10 SHARDS";
-
-		_offerStatus.AddThemeColorOverride(
-			"font_color",
-			ShopUi.Gold
-		);
-
-		_offerButton.Text =
-			"BUY • 40 SHARDS";
-
-		_offerButton.Disabled =
-			_skinService.DataShards
-			< HalloweenOfferPrice;
 	}
 
 	public void ReorderMainShopSections()
@@ -255,352 +197,111 @@ public sealed partial class HalloweenOfferShopController
 
 	private void CreateOffersSection()
 	{
-		CreateSectionHeader(
-			"OFFERS",
-			"Limited seasonal deals."
-		);
-
-		PanelContainer panel =
-			new()
-			{
-				Name =
-					"HalloweenOfferCard",
-
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
-
-				MouseFilter =
-					Control.MouseFilterEnum.Pass
-			};
-
-		StyleBoxFlat panelStyle =
-			ShopUi.CreatePanelStyle();
-
-		panelStyle.BorderColor =
-			new Color(
-				ShopUi.Gold.R,
-				ShopUi.Gold.G,
-				ShopUi.Gold.B,
-				0.86f
-			);
-
-		panel.AddThemeStyleboxOverride(
-			"panel",
-			panelStyle
-		);
-
-		_content.AddChild(
-			panel
-		);
-
-		MarginContainer margin =
-			CreateCardMargin();
-
-		panel.AddChild(
-			margin
-		);
-
-		VBoxContainer box =
-			new()
-			{
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
-			};
-
-		box.AddThemeConstantOverride(
-			"separation",
-			10
-		);
-
-		margin.AddChild(
-			box
-		);
-
-		Texture2D? offerTexture =
-			LoadOfferTexture();
-
-		if (offerTexture != null)
-		{
-			TextureRect image =
-				new()
-				{
-					Texture =
-						offerTexture,
-
-					CustomMinimumSize =
-						new Vector2(
-							0,
-							270
-						),
-
-					SizeFlagsHorizontal =
-						Control.SizeFlags.ExpandFill,
-
-					ExpandMode =
-						TextureRect.ExpandModeEnum.IgnoreSize,
-
-					StretchMode =
-						TextureRect.StretchModeEnum.KeepAspectCovered,
-
-					MouseFilter =
-						Control.MouseFilterEnum.Ignore
-				};
-
-			box.AddChild(
-				image
-			);
-		}
-
-		Label kicker =
-			ShopUi.CreateMutedLabel(
-				12
-			);
-
-		kicker.Text =
-			"HALLOWEEN SEASON";
-
-		kicker.HorizontalAlignment =
-			HorizontalAlignment.Left;
-
-		kicker.AddThemeColorOverride(
-			"font_color",
-			ShopUi.Gold
-		);
-
-		box.AddChild(
-			kicker
-		);
-
-		Label title =
-			ShopUi.CreateLabel(
-				22
-			);
-
-		title.Text =
-			"HALLOWEEN BOT SKIN PACK";
-
-		title.HorizontalAlignment =
-			HorizontalAlignment.Left;
-
-		box.AddChild(
-			title
-		);
-
-		Label description =
-			ShopUi.CreateMutedLabel(
-				13
-			);
-
-		description.Text =
-			"Common, Rare, Epic and Legendary Halloween bot skins.";
-
-		description.HorizontalAlignment =
-			HorizontalAlignment.Left;
-
-		box.AddChild(
-			description
-		);
-
-		HBoxContainer priceRow =
-			new()
-			{
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill
-			};
-
-		priceRow.AddThemeConstantOverride(
-			"separation",
-			14
-		);
-
-		box.AddChild(
-			priceRow
-		);
-
-		Label oldPrice =
-			ShopUi.CreateMutedLabel(
-				13
-			);
-
-		oldPrice.Text =
-			"WAS 50 SHARDS";
-
-		oldPrice.HorizontalAlignment =
-			HorizontalAlignment.Left;
-
-		/*
-		 * ShopUi.CreateLabel() enables WordSmart autowrap globally. Inside an
-		 * HBox that allowed both price labels to collapse to almost zero width,
-		 * so Godot wrapped one character per line (the vertical text bug).
-		 * Price strings are intentionally single-line UI, so disable wrapping
-		 * and give each side a real minimum width.
-		 */
-		oldPrice.AutowrapMode =
-			TextServer.AutowrapMode.Off;
-
-		oldPrice.SizeFlagsHorizontal =
-			Control.SizeFlags.ExpandFill;
-
-		oldPrice.CustomMinimumSize =
-			new Vector2(
-				120,
-				28
-			);
-
-		priceRow.AddChild(
-			oldPrice
-		);
-
-		Label salePrice =
-			ShopUi.CreateLabel(
-				18
-			);
-
-		salePrice.Text =
-			"NOW 40 DATA SHARDS";
-
-		salePrice.HorizontalAlignment =
-			HorizontalAlignment.Left;
-
-		salePrice.AutowrapMode =
-			TextServer.AutowrapMode.Off;
-
-		salePrice.SizeFlagsHorizontal =
-			Control.SizeFlags.ExpandFill;
-
-		salePrice.CustomMinimumSize =
-			new Vector2(
-				190,
-				32
-			);
-
-		salePrice.AddThemeColorOverride(
-			"font_color",
-			ShopUi.Gold
-		);
-
-		priceRow.AddChild(
-			salePrice
-		);
-
-		_offerStatus =
-			ShopUi.CreateMutedLabel(
-				13
-			);
-
-		_offerStatus.HorizontalAlignment =
-			HorizontalAlignment.Left;
-
-		_offerStatus.CustomMinimumSize =
-			new Vector2(
-				0,
-				28
-			);
-
-		box.AddChild(
-			_offerStatus
-		);
-
-		_offerButton =
-			new Button
-			{
-				CustomMinimumSize =
-					new Vector2(
-						0,
-						54
-					),
-
-				SizeFlagsHorizontal =
-					Control.SizeFlags.ExpandFill,
-
-				FocusMode =
-					Control.FocusModeEnum.None
-			};
-
-		ShopUi.ApplyPrimaryButtonStyle(
-			_offerButton
-		);
-
-		_offerButton.Pressed +=
-			BuyOrEquipHalloween;
-
-		box.AddChild(
-			_offerButton
-		);
+		CreateSectionHeader("OFFERS", "Limited seasonal deals.");
+		_botOfferCard = CreateOfferCard(
+			"HalloweenOfferCard", "HalloweenBotPreview", LoadOfferTexture(),
+			"HALLOWEEN BOT SKIN PACK",
+			"Common, Rare, Epic and Legendary Halloween bot skins.",
+			"WAS 50 SHARDS", "NOW 40 DATA SHARDS", BuyOrEquipHalloween,
+			out _offerStatus, out _offerButton);
 	}
 
 	private void CreateMachineOfferCard()
 	{
-		PanelContainer panel = new()
+		_machineOfferCard = CreateOfferCard(
+			"HalloweenMachineOfferCard", "HalloweenMachinePreview",
+			ResourceLoader.Exists(MachineOfferImagePath) ? GD.Load<Texture2D>(MachineOfferImagePath) : null,
+			"HALLOWEEN MACHINE SKIN PACK",
+			"Four Halloween machine skins: one each for Room 1 (Garage), Room 2 (Server Room), Room 3 (Data Center) and Room 4 (Quantum Lab). Equip each in Machine Skin Collection.",
+			"", "100 DATA SHARDS", () =>
+			{
+				MachineSkinResult result = _machineService.BuyHalloweenPack();
+				Refresh();
+				MessageRequested?.Invoke(result.Message);
+				if (result.Changed)
+				{
+					Input.VibrateHandheld(18, 0.14f);
+					StateChanged?.Invoke();
+				}
+			}, out _machineOfferStatus, out _machineOfferButton);
+	}
+
+	// Both seasonal offers share every layout decision. Native texture dimensions
+	// never affect the image slot, and KeepAspectCentered shows the entire artwork.
+	private PanelContainer CreateOfferCard(
+		string name, string imageName, Texture2D? texture, string titleText,
+		string descriptionText, string oldPriceText, string priceText, Action purchase,
+		out Label status, out Button button)
+	{
+		var panel = new PanelContainer
 		{
-			Name = "HalloweenMachineOfferCard",
-			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
+			Name = name, SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
 			MouseFilter = Control.MouseFilterEnum.Pass
 		};
-		StyleBoxFlat style = ShopUi.CreatePanelStyle();
+		var style = ShopUi.CreatePanelStyle();
 		style.BorderColor = new Color(ShopUi.Gold.R, ShopUi.Gold.G, ShopUi.Gold.B, 0.86f);
 		panel.AddThemeStyleboxOverride("panel", style);
 		_content.AddChild(panel);
-		MarginContainer margin = CreateCardMargin();
+		var margin = CreateCardMargin();
 		panel.AddChild(margin);
-		VBoxContainer box = new() { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		var box = new VBoxContainer { SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
 		box.AddThemeConstantOverride("separation", 10);
 		margin.AddChild(box);
 
-		TextureRect image = new()
+		var imageArea = new CenterContainer
 		{
-			Name = "HalloweenMachinePreview",
-			Texture = ResourceLoader.Exists(MachineOfferImagePath)
-				? GD.Load<Texture2D>(MachineOfferImagePath) : null,
-			CustomMinimumSize = new Vector2(0, 270),
+			Name = "OfferImageArea", CustomMinimumSize = new Vector2(0, 270),
 			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-			ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-			StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
 			MouseFilter = Control.MouseFilterEnum.Ignore
 		};
-		box.AddChild(image);
-		Label kicker = ShopUi.CreateMutedLabel(12);
-		kicker.Text = "HALLOWEEN SEASON";
-		kicker.HorizontalAlignment = HorizontalAlignment.Left;
-		kicker.AddThemeColorOverride("font_color", ShopUi.Gold);
-		box.AddChild(kicker);
-		Label title = ShopUi.CreateLabel(22);
-		title.Text = "HALLOWEEN MACHINE SKIN PACK";
-		title.HorizontalAlignment = HorizontalAlignment.Left;
-		box.AddChild(title);
-		Label description = ShopUi.CreateMutedLabel(13);
-		description.Text = "Four Halloween machine skins: one each for Room 1 (Garage), Room 2 (Server Room), Room 3 (Data Center) and Room 4 (Quantum Lab). Equip each in Machine Skin Collection.";
-		description.HorizontalAlignment = HorizontalAlignment.Left;
-		box.AddChild(description);
-		Label price = ShopUi.CreateLabel(18);
-		price.Text = "100 DATA SHARDS";
-		price.HorizontalAlignment = HorizontalAlignment.Left;
+		box.AddChild(imageArea);
+		imageArea.AddChild(new TextureRect
+		{
+			Name = imageName, ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
+			Texture = texture, CustomMinimumSize = new Vector2(270, 270),
+			StretchMode = TextureRect.StretchModeEnum.KeepAspectCentered,
+			MouseFilter = Control.MouseFilterEnum.Ignore
+		});
+		Label AddText(string nodeName, string text, int fontSize, float height, bool muted = false)
+		{
+			var label = muted ? ShopUi.CreateMutedLabel(fontSize) : ShopUi.CreateLabel(fontSize);
+			label.Name = nodeName;
+			label.Text = text;
+			label.HorizontalAlignment = HorizontalAlignment.Left;
+			label.CustomMinimumSize = new Vector2(0, height);
+			box.AddChild(label);
+			return label;
+		}
+		AddText("OfferSeason", "HALLOWEEN SEASON", 12, 20, true)
+			.AddThemeColorOverride("font_color", ShopUi.Gold);
+		AddText("OfferTitle", titleText, 22, 64);
+		AddText("OfferDescription", descriptionText, 13, 112, true);
+		var priceRow = new HBoxContainer { Name = "OfferPriceRow", SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
+		priceRow.AddThemeConstantOverride("separation", 14);
+		box.AddChild(priceRow);
+		var oldPrice = ShopUi.CreateMutedLabel(13);
+		oldPrice.Text = oldPriceText;
+		oldPrice.AutowrapMode = TextServer.AutowrapMode.Off;
+		oldPrice.CustomMinimumSize = new Vector2(120, 32);
+		oldPrice.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
+		priceRow.AddChild(oldPrice);
+		var price = ShopUi.CreateLabel(18);
+		price.Text = priceText;
 		price.AutowrapMode = TextServer.AutowrapMode.Off;
+		price.CustomMinimumSize = new Vector2(190, 32);
+		price.SizeFlagsHorizontal = Control.SizeFlags.ExpandFill;
 		price.AddThemeColorOverride("font_color", ShopUi.Gold);
-		box.AddChild(price);
-		_machineOfferStatus = ShopUi.CreateMutedLabel(13);
-		_machineOfferStatus.HorizontalAlignment = HorizontalAlignment.Left;
-		_machineOfferStatus.CustomMinimumSize = new Vector2(0, 28);
-		box.AddChild(_machineOfferStatus);
-		_machineOfferButton = new Button
+		priceRow.AddChild(price);
+		status = AddText("OfferStatus", "", 13, 28, true);
+		button = new Button
 		{
-			CustomMinimumSize = new Vector2(0, 54),
-			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill,
-			FocusMode = Control.FocusModeEnum.None
+			Name = "OfferBuyButton", CustomMinimumSize = new Vector2(0, 54),
+			SizeFlagsHorizontal = Control.SizeFlags.ExpandFill, FocusMode = Control.FocusModeEnum.None
 		};
-		ShopUi.ApplyPrimaryButtonStyle(_machineOfferButton);
-		_machineOfferButton.Pressed += () =>
-		{
-			MachineSkinResult result = _machineService.BuyHalloweenPack();
-			MessageRequested?.Invoke(result.Message);
-			if (result.Changed)
-			{
-				Input.VibrateHandheld(18, 0.14f);
-				StateChanged?.Invoke();
-			}
-			Refresh();
-		};
-		box.AddChild(_machineOfferButton);
+		ShopUi.ApplyPrimaryButtonStyle(button);
+		button.Pressed += purchase;
+		box.AddChild(button);
+		return panel;
 	}
 
 	private void RefreshMachineOffer()
@@ -642,6 +343,7 @@ public sealed partial class HalloweenOfferShopController
 				);
 		}
 
+		Refresh();
 		MessageRequested?.Invoke(
 			result.Message
 		);
@@ -656,7 +358,6 @@ public sealed partial class HalloweenOfferShopController
 			StateChanged?.Invoke();
 		}
 
-		Refresh();
 	}
 
 	private static Texture2D? LoadOfferTexture()
@@ -700,6 +401,7 @@ public sealed partial class HalloweenOfferShopController
 			ShopUi.CreateSectionStyle()
 		);
 
+		_offersHeader = panel;
 		_content.AddChild(
 			panel
 		);

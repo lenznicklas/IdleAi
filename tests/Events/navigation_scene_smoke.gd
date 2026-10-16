@@ -56,7 +56,7 @@ func run_checks():
     await enter_event()
     for viewport_size in [Vector2i(720,1280),Vector2i(540,960),Vector2i(1080,2400)]:
         root.size = viewport_size; await frames(6)
-        for tab in ["Progress","Prestige","Bots","Rewards","Shop","Archive","Challenges"]:
+        for tab in ["Progress","Prestige","Bots","Rewards","Shop","Challenges"]:
             page().find_child("Event"+tab+"Tab",true,false).pressed.emit(); await frames(3)
             event_chrome(tab + " " + str(viewport_size))
     # Native event coordinates use the base viewport, matching the existing input smoke tests.

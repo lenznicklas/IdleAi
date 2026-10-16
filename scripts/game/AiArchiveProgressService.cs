@@ -6,7 +6,7 @@ using System.Linq;
 namespace IdleAi;
 
 public sealed record AiArchiveEntry(string Id, string Name, string Detail, bool Complete,
-    Texture2D? Icon = null, bool Concealed = false, Color? Accent = null);
+    Texture2D? Icon = null, bool Concealed = false, Color? Accent = null, int BadgeNumber = 0);
 public sealed record AiArchiveCategory(string Name, string Description, IReadOnlyList<AiArchiveEntry> Entries)
 {
     public int Completed => Entries.Count(entry => entry.Complete);
@@ -19,7 +19,7 @@ public sealed record AiArchiveSnapshot(IReadOnlyList<AiArchiveCategory> Categori
     public int Percent => Total == 0 ? 0 : (int)Math.Floor(100.0 * Completed / Total);
 }
 
-/// <summary>A read-only projection of existing catalogs and progress. Owns no gameplay state.</summary>
+/// <summary>Projects permanent collection history, seeding legacy discoveries from proven state.</summary>
 public sealed class AiArchiveProgressService
 {
     private readonly GameState _state;
@@ -27,8 +27,6 @@ public sealed class AiArchiveProgressService
     private readonly LabService _lab;
     private readonly Func<string, bool> _botOwned;
     private readonly Func<string, bool> _machineOwned;
-    private readonly Func<string, bool> _botEquipped;
-    private readonly Func<int, string, bool> _machineEquipped;
     private readonly Func<bool> _singularityUnlocked;
 
     public AiArchiveProgressService(GameState state, ProgressionService progression, LabService lab,
@@ -38,16 +36,22 @@ public sealed class AiArchiveProgressService
     {
         _state = state; _progression = progression; _lab = lab;
         _botOwned = botOwned; _machineOwned = machineOwned;
-        _botEquipped = botEquipped ?? (_ => false);
-        _machineEquipped = machineEquipped ?? ((_, _) => false);
         _singularityUnlocked = singularityUnlocked ?? (() => false);
     }
 
     public AiArchiveSnapshot Capture()
     {
+        AiArchiveDiscovery.ObserveRun(_state);
+        AiArchiveDiscovery.ObservePermanentRewards(_state);
+        // Legacy cosmetic ownership is evidence for discovery, never the display source.
+        foreach (var skin in BotSkinCatalog.GetAll())
+            if (_botOwned(skin.Id)) _state.Archive.Discover(AiArchiveDiscovery.BotSkin(skin.Id));
+        if (_botOwned(BotSkinCatalog.KorpoSkinId)) _state.Archive.Discover(AiArchiveDiscovery.BotSkin(BotSkinCatalog.KorpoSkinId));
+        foreach (var skin in MachineSkinCatalog.GetAll())
+            if (_machineOwned(skin.Id)) _state.Archive.Discover(AiArchiveDiscovery.MachineSkin(skin.Id));
         var bots = Enum.GetValues<BotRarity>().Select(rarity => {
             var bot = BotCatalog.Get(rarity);
-            bool known = _state.RoomStates.Any(room => room.Slots.Any(slot => slot.BotRarity == rarity));
+            bool known = _state.Archive.Contains(AiArchiveDiscovery.Bot(rarity));
             return new AiArchiveEntry(rarity.ToString(), bot.Name, rarity.ToString(), known, bot.DefaultTexture, !known);
         }).ToList();
         var machines = new List<AiArchiveEntry>();
@@ -55,36 +59,37 @@ public sealed class AiArchiveProgressService
         for (int r = 0; r < _state.Rooms.Count; r++)
         {
             var room = _state.Rooms[r];
-            var progress = r < _state.RoomStates.Count ? _state.RoomStates[r] : null;
-            bool known = progress != null && (progress.Unlocked || progress.DataShardUnlockRewardClaimed);
+            bool known = _state.Archive.Contains("room:" + r);
             rooms.Add(new($"room:{r}", room.Name, known ? "Discovered" : "Locked", known,
                 room.Background, false, RoomThemePalette.GetAccentColor(r)));
             for (int tier = 0; tier < room.Machines.Count; tier++)
             {
                 var machine = room.Machines[tier];
-                bool reached = progress != null && progress.Slots.Any(slot => slot.Unlocked && slot.MachineTier >= tier);
+                bool reached = _state.Archive.Contains(AiArchiveDiscovery.Machine(r, tier));
                 machines.Add(new($"machine:{r}:{tier}", machine.MachineName, $"{room.Name} · Tier {tier + 1}",
                     reached, machine.DefaultTexture, !reached));
             }
         }
-        bool singularity = _singularityUnlocked();
+        if (_singularityUnlocked()) _state.Archive.Discover("singularity");
+        bool singularity = _state.Archive.Contains("singularity");
         rooms.Add(new("singularity", "The Singularity", singularity ? "Discovered" : "Locked", singularity,
             Accent: new Color("e8bd61")));
-        var skins = new List<AiArchiveEntry>();
+        var botSkinEntries = new List<AiArchiveEntry>();
+        var machineSkinEntries = new List<AiArchiveEntry>();
         var botSkins = BotSkinCatalog.GetAll().ToList();
-        if (_botOwned(BotSkinCatalog.KorpoSkinId) && BotSkinCatalog.TryGet(BotSkinCatalog.KorpoSkinId, out var secret))
+        if (_state.Archive.Contains(AiArchiveDiscovery.BotSkin(BotSkinCatalog.KorpoSkinId)) && BotSkinCatalog.TryGet(BotSkinCatalog.KorpoSkinId, out var secret))
             botSkins.Add(secret);
         foreach (var skin in botSkins)
         {
-            bool owned = _botOwned(skin.Id);
-            skins.Add(new("bot:" + skin.Id, skin.Name, "Bot skin · " + (owned ? (_botEquipped(skin.Id) ? "Equipped" : "Owned") : "Locked"),
+            bool owned = _state.Archive.Contains(AiArchiveDiscovery.BotSkin(skin.Id));
+            botSkinEntries.Add(new("bot:" + skin.Id, skin.Name, "Bot skin · " + (owned ? "Unlocked permanently" : "Locked"),
                 owned, skin.GetBotTexture(BotRarity.Common)));
         }
         foreach (var skin in MachineSkinCatalog.GetAll().Where(skin => skin.IsComplete))
         {
-            bool owned = _machineOwned(skin.Id);
+            bool owned = _state.Archive.Contains(AiArchiveDiscovery.MachineSkin(skin.Id));
             string room = _state.Rooms[skin.RoomIndex].Name;
-            skins.Add(new("machine:" + skin.Id, skin.Name, room + " · " + (owned ? (_machineEquipped(skin.RoomIndex, skin.Id) ? "Equipped" : "Owned") : "Locked"),
+            machineSkinEntries.Add(new("machine:" + skin.Id, skin.Name, room + " · " + (owned ? "Unlocked permanently" : "Locked"),
                 owned, skin.GetMachineTexture(0)));
         }
         var research = ResearchCatalog.All.Select(definition => {
@@ -94,8 +99,13 @@ public sealed class AiArchiveProgressService
             return new AiArchiveEntry(definition.Id, definition.Name, $"{definition.Branch} · {status}", complete);
         }).ToList();
         var achievements = new List<AiArchiveEntry>();
-        void Achievement(string id, string name, string condition) => achievements.Add(new(id, name, condition,
-            GooglePlayGamesAchievementService.IsLocallyEarned(id, _state, _progression)));
+        void Achievement(string id, string name, string condition)
+        {
+            if (GooglePlayGamesAchievementService.IsLocallyEarned(id, _state, _progression)
+                || id == GooglePlayGamesAchievementService.AutomatedIntelligenceId && bots.Any(bot => bot.Complete))
+                _state.Archive.Discover("achievement:" + id);
+            achievements.Add(new(id, name, condition, _state.Archive.Contains("achievement:" + id)));
+        }
         Achievement(GooglePlayGamesAchievementService.HelloWorldId, "Hello, World!", "Start your first machine.");
         Achievement(GooglePlayGamesAchievementService.AutomatedIntelligenceId, "Automated Intelligence", "Own your first bot.");
         Achievement(GooglePlayGamesAchievementService.MovingUpId, "Moving Up", "Reach total Level 150.");
@@ -103,12 +113,30 @@ public sealed class AiArchiveProgressService
         Achievement(GooglePlayGamesAchievementService.PrestigiousId, "Prestigious", "Perform your first Prestige.");
         Achievement(GooglePlayGamesAchievementService.ServerOnlineId, "Server Online", "Unlock Server Room.");
         Achievement(GooglePlayGamesAchievementService.QuantumLeapId, "Quantum Leap", "Unlock Quantum Lab.");
+        var badges = EventCatalog.Create().Where(d => d.Enabled || _state.Events.ProgressByEventId.ContainsKey(d.Id)
+                || _state.Archive.Discovered.Any(id => id.StartsWith("badge:" + d.Id + ":", StringComparison.Ordinal)))
+            .SelectMany(d => EventRewardCollection.Rewards(d).Where(r => r.Type == EventRewardType.Cosmetic)
+                .DistinctBy(r => r.Id).Select(reward => {
+                    bool owned = _state.Archive.Contains(AiArchiveDiscovery.Badge(d.Id, reward.Id));
+                    return new AiArchiveEntry(d.Id + ":" + reward.Id,
+                        EventRewardCollection.DisplayName(reward),
+                        d.Name + " · " + (owned ? "Unlocked permanently" : "Locked"), owned,
+                        reward.IconPath.Length > 0 ? GD.Load<Texture2D>(reward.IconPath) : null);
+                })).ToList();
+        var normalBadges = new List<AiArchiveEntry>();
+        int levelTier = _state.Archive.HighestLevelBadgeTier;
+        if (levelTier > 0)
+            normalBadges.Add(new("level_badge", "Level Badge", $"Tier {levelTier} · Reached {(long)levelTier * LevelBadgeProgress.LevelInterval} total levels",
+                true, GD.Load<Texture2D>(LevelBadgeProgress.IconPath), BadgeNumber: levelTier));
         return new(new AiArchiveCategory[] {
-            new("BOTS", "Rarities of currently assigned bots. Sold bots are not tracked historically.", bots),
-            new("MACHINES", "Machine tiers reached in this run. Higher tiers include earlier tiers.", machines),
-            new("SKINS", "Owned cosmetic packs. Secret packs appear only after unlock.", skins),
+            new("BOTS", "Bot rarities obtained at least once, including sold or removed bots.", bots),
+            new("MACHINES", "Machine tiers discovered across all runs. Prestige keeps discoveries.", machines),
+            new("MACHINE SKINS", "Machine skins unlocked at least once.", machineSkinEntries),
+            new("BOT SKINS", "Bot skins unlocked at least once. Secret packs appear after discovery.", botSkinEntries),
             new("RESEARCH", "Completed research across Hardware, Robotics and Infrastructure.", research),
-            new("ACHIEVEMENTS", "Local achievement conditions; online synchronization is separate.", achievements),
+            new("ACHIEVEMENTS", "Discovered local achievements; online synchronization is separate.", achievements),
+            new("BADGES", "Permanent non-event badges. Level Badge upgrades every 150 total levels.", normalBadges),
+            new("EVENT BADGES", "Permanent event collectibles, including past events.", badges),
             new("ROOMS", "Unlocked rooms, including retained room reward history.", rooms)
         });
     }

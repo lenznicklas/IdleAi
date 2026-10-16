@@ -5,7 +5,7 @@ var failures := 0
 var game
 var page
 var code
-var tabs := ["Progress","Prestige","Bots","Rewards","Shop","Archive","Challenges"]
+var tabs := ["Progress","Prestige","Bots","Rewards","Shop","Challenges"]
 func check(ok, message):
     checks += 1
     if not ok:
@@ -82,7 +82,7 @@ func run_checks():
             var nav = page.find_child("EventTabs",true,false)
             var scroll = page.find_child("EventScroll",true,false)
             check(scroll.get_global_rect().end.y <= nav.get_global_rect().position.y,"Content stays above fixed challenge navigation")
-            check(page.find_child("EventChallengesTab",true,false).get_global_rect().end.x <= page.get_global_rect().end.x+1,"Full-width Challenges tab fits")
+            check(page.find_child("EventChallengesTab",true,false).get_global_rect().end.x <= page.get_global_rect().end.x+1,"Challenges grid tab fits")
             check(page.find_children("*","ScrollContainer",true,false).filter(func(node): return node.is_visible_in_tree()).size() == 1 and scroll.find_children("*","ScrollContainer",true,false).is_empty(),"Challenges reuse one scroller")
     command("event-challenge-progress:major_complete:49"); await frames()
     var major = page.find_child("EventChallengeCard_major_complete",true,false)

@@ -5,6 +5,8 @@ namespace IdleAi;
 
 public sealed class SaveGameData
 {
+	public AiArchiveSaveData Archive { get; set; } = new();
+
 	public int SaveVersion { get; set; }
 
 	public EventSaveData Events { get; set; } = new();
@@ -39,6 +41,7 @@ public sealed class SaveGameData
 	// SHOP
 	public double DataShards { get; set; }
 
+	// Legacy migration evidence only; level milestones now update Archive.HighestLevelBadgeTier.
 	public int HighestClaimedLevelReward { get; set; }
 
 	public long ShopProductionBoostEndUnix { get; set; }

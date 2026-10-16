@@ -96,8 +96,12 @@ func run_checks():
     check(halloween().ShopPurchases.soul_cache == 1, "shop count persistent")
     command("event-ready-rewards")
     page.find_child("EventRewardsTab", true, false).pressed.emit()
-    page.find_child("EventReward_souls_1000000000", true, false).pressed.emit()
-    page.find_child("EventReward_souls_5000000", true, false).pressed.emit()
+    check(page.find_child("EventReward_souls_1000000000", true, false) == null and page.find_child("EventReward_souls_5000000", true, false) == null, "Skin packs removed from milestones")
+    page.find_child("EventShopTab", true, false).pressed.emit()
+    command("event-shop-fund:machine_skin")
+    page.find_child("EventShop_machine_skin", true, false).pressed.emit()
+    command("event-shop-fund:bot_skin")
+    page.find_child("EventShop_bot_skin", true, false).pressed.emit()
     check(save_file().Events.CosmeticEntitlements.size() == 5, "real skin entitlements saved atomically")
     var machine_skins = JSON.parse_string(FileAccess.get_file_as_string("user://idle_ai_machine_skins.json"))
     var bot_skins = JSON.parse_string(FileAccess.get_file_as_string("user://idle_ai_cosmetics.json"))
@@ -113,19 +117,18 @@ func run_checks():
     check(entry.find_child("EventEntryStatus", true, false).text == "ENDING SOON", "last 24h map state")
     entry.pressed.emit()
     command("event-end")
-    check(halloween().Ended and halloween().Archive != null, "Halloween expiration archives result")
+    check(halloween().Ended, "Halloween expiration persists ended state")
     page.find_child("EventShopTab", true, false).pressed.emit()
     check(buy.disabled, "expired shop disabled")
     page.find_child("EventPrestigeTab", true, false).pressed.emit()
     check(prestige.disabled, "expired prestige disabled")
-    page.find_child("EventArchiveTab", true, false).pressed.emit()
-    check(page.find_child("Archive_halloween_2026", true, false) != null, "archive entry UI")
+    check(page.find_child("EventArchiveTab", true, false) == null, "No Event Archive UI")
     check(save_file().Events.ProgressByEventId.event_test_001.Currency == test_wallet, "Test Protocol currency isolated during Halloween")
     # Validate native logical bounds at two portrait viewport sizes.
     for viewport_size in [Vector2i(1080, 2400), Vector2i(720, 1600), Vector2i(540, 960)]:
         root.size = viewport_size
         for frame in range(5): await process_frame
-        for tab in ["Progress", "Prestige", "Bots", "Rewards", "Shop", "Archive", "Challenges"]:
+        for tab in ["Progress", "Prestige", "Bots", "Rewards", "Shop", "Challenges"]:
             page.find_child("Event" + tab + "Tab", true, false).pressed.emit()
             for frame in range(3): await process_frame
             load("res://tests/Events/image_layout_checks.gd").verify(page, check)

@@ -39,16 +39,8 @@ public partial class BotUpgradeReel : Control
     {
         Theme = new Theme { DefaultFont = GD.Load<Font>("res://promo_assets/Orbitron-Regular.ttf"), DefaultFontSize = 20 };
         _botTextures = Array.ConvertAll(Rarities, rarity => GD.Load<Texture2D>($"res://promo_assets/bots/{rarity.ToLowerInvariant()}.png"));
-        _tapScene = GD.Load<PackedScene>("res://TapIndicator.tscn");
-        var background = new TextureRect
-        {
-            Texture = GD.Load<Texture2D>("res://promo_assets/background.png"),
-            ExpandMode = TextureRect.ExpandModeEnum.IgnoreSize,
-            StretchMode = TextureRect.StretchModeEnum.KeepAspectCovered, MouseFilter = MouseFilterEnum.Ignore
-        };
-        AddChild(background); background.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
-        var shade = new ColorRect { Color = new Color(.015f, .025f, .06f, .88f), MouseFilter = MouseFilterEnum.Ignore };
-        AddChild(shade); shade.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
+        _tapScene = GD.Load<PackedScene>("res://shared/TapIndicator.tscn");
+        PromoVisuals.Background(this);
         var margin = _margin = new MarginContainer { MouseFilter = MouseFilterEnum.Ignore };
         AddChild(margin); margin.SetAnchorsAndOffsetsPreset(LayoutPreset.FullRect);
         foreach (string side in new[] { "left", "right", "top", "bottom" }) margin.AddThemeConstantOverride("margin_" + side, 48);
@@ -183,20 +175,13 @@ public partial class BotUpgradeReel : Control
     private void SpawnMoneyPopup(double amount)
     {
         if (_effects.GetChildCount() >= 6) return;
-        var number = Text("+$" + IdleAi.NumberFormatter.Format(amount), RarityIndex == 3 ? 32 : 25, ColorsByRarity[RarityIndex]);
-        number.Name = "MoneyPopup";
-        number.AddThemeColorOverride("font_outline_color", new Color("081220"));
-        number.AddThemeConstantOverride("outline_size", 5);
         float width = Mathf.Min(400, Size.X - 32);
         var machineRect = _machine.GetGlobalRect();
         var center = _effects.GetGlobalTransformWithCanvas().AffineInverse() * machineRect.GetCenter();
         float stagger = (_popupSequence++ % 3 - 1) * Mathf.Min(24, Size.X / 30);
-        number.Position = new Vector2(Mathf.Clamp(center.X - width / 2 + stagger, 16, Size.X - width - 16), center.Y);
-        number.Size = new Vector2(width, 48); _effects.AddChild(number);
-        var tween = number.CreateTween().SetParallel();
-        tween.TweenProperty(number, "position:y", number.Position.Y - 100, .65).SetEase(Tween.EaseType.Out);
-        tween.TweenProperty(number, "modulate:a", 0f, .65);
-        tween.Chain().TweenCallback(Callable.From(number.QueueFree));
+        var position = new Vector2(Mathf.Clamp(center.X - width / 2 + stagger, 16, Size.X - width - 16), center.Y);
+        PromoVisuals.Money(_effects, "+$" + IdleAi.NumberFormatter.Format(amount), position,
+            new Vector2(width, 48), RarityIndex == 3 ? 32 : 25, ColorsByRarity[RarityIndex]);
     }
 
     private void ShowEndCard()

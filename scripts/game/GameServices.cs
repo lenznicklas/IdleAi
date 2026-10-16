@@ -19,7 +19,6 @@ public sealed class GameServices
 	public QuantumService Quantum { get; }
 	public BotSkinService BotSkins { get; }
 	public MachineSkinService MachineSkins { get; }
-	public LevelRewardService LevelRewards { get; }
 	public GameSettingsService Settings { get; }
     public SettingsPersistenceService SettingsPersistence { get; }
     public AudioService Audio { get; }
@@ -42,7 +41,6 @@ public sealed class GameServices
 		QuantumService quantum,
 		BotSkinService botSkins,
 		MachineSkinService machineSkins,
-		LevelRewardService levelRewards,
 		GameSettingsService settings, SettingsPersistenceService settingsPersistence, AudioService audio, HapticsService haptics)
 	{
 		State = state;
@@ -61,7 +59,6 @@ public sealed class GameServices
 		Quantum = quantum;
 		BotSkins = botSkins;
 		MachineSkins = machineSkins;
-		LevelRewards = levelRewards;
 		Settings = settings;
         SettingsPersistence = settingsPersistence;
         Audio = audio;

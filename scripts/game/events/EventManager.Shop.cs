@@ -57,6 +57,11 @@ public sealed partial class EventManager
             string key = (reward.Type == EventRewardType.MachineSkin ? "machine:" : "bot:") + reward.Id;
             if (_save.CosmeticEntitlements.Contains(key) || p.Cosmetics.Contains(key) || _cosmeticOwned?.Invoke(reward) == true) return true;
         }
+        // A skin pack remains purchasable while any part is missing. Existing
+        // individual ownership must not block acquiring the rest of the pack.
+        if (reward.Type == EventRewardType.Bundle && EventRewardCollection.Leaves(reward)
+            .All(part => part.Type is EventRewardType.MachineSkin or EventRewardType.BotSkin))
+            return reward.Contents.All(part => RewardAlreadyOwned(part, p));
         return reward.Contents.Any(part => RewardAlreadyOwned(part, p));
     }
     private bool RewardAvailable(EventReward reward, EventDefinition d) => reward.Type switch

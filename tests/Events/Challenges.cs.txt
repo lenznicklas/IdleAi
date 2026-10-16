@@ -35,6 +35,7 @@ internal static partial class Program
             Challenge("level", EventChallengeType.ReachGeneratorLevel, 3) with { GeneratorId = "one" },
             Challenge("live_level", EventChallengeType.ReachGeneratorLevel, 3) with { GeneratorId = "one", UseCurrentState = true },
             Challenge("levels", EventChallengeType.ReachTotalGeneratorLevels, 4),
+            Challenge("machine_count", EventChallengeType.UnlockGenerators, 2),
             Challenge("unlock", EventChallengeType.UnlockGenerator, 1) with { GeneratorId = "two" },
             Challenge("prestige", EventChallengeType.PerformPrestige, 1),
             Challenge("cores", EventChallengeType.ReachPrestigeCurrency, 1),
@@ -49,7 +50,7 @@ internal static partial class Program
         EventManager Create(EventSaveData data) => new(data, [d], () => { saves++; return saveOk; }, () => now,
             grantExternalReward: r => { if (r.Type != EventRewardType.DataShards) return null; shards += r.Amount; return () => shards -= r.Amount; });
         var m = Create(save); m.Tick();
-        Check(m.GetChallenges(d.Id).Count == 15 && m.ClaimableChallengeCount(d.Id) == 0, "challenge enrollment without auto rewards");
+        Check(m.GetChallenges(d.Id).Count == 16 && m.ClaimableChallengeCount(d.Id) == 0, "challenge enrollment without auto rewards");
         now += 10; m.Tick();
         Check(TaskState(m, "earn").Complete && TaskState(m, "lifetime").Complete, "currency and lifetime objectives");
         Check(m.Upgrade(d.Id, "one").Changed && m.Upgrade(d.Id, "one").Changed, "real upgrades drive challenges");
@@ -57,6 +58,7 @@ internal static partial class Program
         Check(TaskState(m, "production").Complete, "production target driven by upgrade");
         now += 20; m.Tick();
         Check(TaskState(m, "unlock").Complete && TaskState(m, "levels").Complete, "generator unlock and total levels goals");
+        Check(TaskState(m, "machine_count").Complete, "generic machine count goal");
         Check(m.ClaimAllRewards(d.Id).Changed, "track batch fixture");
         Check(TaskState(m, "bot").Complete && TaskState(m, "rewards").Complete, "bot and track-claim hooks");
         Check(m.Buy(d.Id, "cache").Changed && TaskState(m, "shop").Complete, "shop purchase hook");
@@ -75,7 +77,7 @@ internal static partial class Program
         saveOk = true; saves = notifications = 0; m.Changed += () => notifications++;
         Check(m.ClaimAllChallenges(d.Id).Changed, "challenge Claim All");
         Check(saves == 1 && notifications == 1, "challenge batch one commit and notification");
-        Equal(shards, beforeShards + 14, "challenge batch amount");
+        Equal(shards, beforeShards + 15, "challenge batch amount");
         Check(m.ClaimableChallengeCount(d.Id) == 0 && !m.ClaimAllChallenges(d.Id).Changed, "no instant repeated claim");
         Check(!m.ClaimChallenge(d.Id, "lifetime").Changed && !m.ClaimChallenge(d.Id, "").Changed, "duplicate and empty challenge claim rejected");
         var restored = RoundTrip(save); m = Create(restored); m.Tick();

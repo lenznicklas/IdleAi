@@ -338,7 +338,7 @@ public partial class SaveManager : Node
 					json
 				);
 
-			return data?.Events != null && data.Events.IsValid()
+			return data?.Archive != null && data.Archive.IsValid() && data.Events != null && data.Events.IsValid()
 				&& data.Rooms != null && data.Rooms.All(room =>
 				room?.Slots != null && room.Slots.All(slot => slot != null));
 		}

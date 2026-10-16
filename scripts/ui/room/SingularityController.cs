@@ -86,12 +86,7 @@ public sealed partial class SingularityController
 		0.12f;
 
 	private static readonly Color Accent =
-		new(
-			0.92f,
-			0.66f,
-			0.20f,
-			1.0f
-		);
+		RoomThemePalette.SingularityAccent;
 
 	private static readonly Color ComputeColor =
 		new(

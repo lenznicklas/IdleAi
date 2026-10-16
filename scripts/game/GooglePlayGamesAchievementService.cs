@@ -622,8 +622,8 @@ public sealed class GooglePlayGamesAchievementService
 		// MOVING UP
 		// Reach total Level 150.
 		//
-		// HighestClaimedLevelReward also survives Prestige, allowing an
-		// existing save that already claimed Level 150 to be recognized.
+		// Permanent Level Badge history survives Prestige. Legacy claimed-level
+		// evidence is retained for older saves.
 		// --------------------------------------------------
 
 		if (IsLocallyEarned(MovingUpId, state, progression))
@@ -685,7 +685,7 @@ public sealed class GooglePlayGamesAchievementService
     {
         HelloWorldId => state.Stats.TotalEarned > 0.0 || HasRunningMachine(state),
         AutomatedIntelligenceId => state.Stats.GetMachineSpending("Bots") > 0.0 || HasAnyBot(state),
-        MovingUpId => progression.GetTotalLevel() >= 150 || state.Shop.HighestClaimedLevelReward >= 150,
+        MovingUpId => state.Archive.HighestLevelBadgeTier > 0 || progression.GetTotalLevel() >= 150 || state.Shop.HighestClaimedLevelReward >= 150,
         ResearcherId => state.Lab.CompletedResearch.Count > 0,
         PrestigiousId => state.Prestige.PrestigeCount >= 1,
         ServerOnlineId => HasEverUnlockedRoom(state, "Server Room"),

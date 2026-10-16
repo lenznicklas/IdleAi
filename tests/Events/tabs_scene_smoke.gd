@@ -5,7 +5,7 @@ var failures := 0
 var checks := 0
 var game
 var page
-var tabs := ["Progress","Prestige","Bots","Rewards","Shop","Archive","Challenges"]
+var tabs := ["Progress","Prestige","Bots","Rewards","Shop","Challenges"]
 func check(ok, message):
     checks += 1
     if not ok:
@@ -132,7 +132,7 @@ func run_checks():
     # Fast changes invalidate old pending restoration, rather than applying another tab's offset.
     for tab in tabs: tab_button(tab).pressed.emit()
     await frames()
-    check(scroll.scroll_vertical == offsets.Archive,"Rapid switching restores final tab only")
+    check(scroll.scroll_vertical == offsets[tabs.back()],"Rapid switching restores final tab only")
     await create_timer(0.2).timeout # Existing mobile gesture guard intentionally suppresses post-drag taps.
     await switch_tab("Prestige")
     var font_size = tab_button("Prestige").get_theme_font_size("font_size")
@@ -177,6 +177,19 @@ func run_checks():
     check(game.get_node("BottomBar").visible,"Leaving Event restores normal bar")
     game.get_node("MapPage").find_child("EventMapEntry",true,false).pressed.emit(); await frames()
     check(tab_button("Rewards").button_pressed and scroll.scroll_vertical == remembered,"Reopening same Event preserves tab and scroll")
+    check(page.find_child("EventArchiveTab",true,false) == null, "No Event Archive navigation")
+    check(page.find_child("EventArchivePanel",true,false) == null and page.find_child("EventCollectedContent",true,false) == null, "No history or collection content in Events")
+    check(page.find_child("EventPrimaryTabs",true,false).get_child_count() == 6, "Exactly six navigation options in a complete grid")
+    check(page.find_children("*", "ScrollContainer", true, false).size() == 1, "All six sections share a single scroll surface")
+    var reward_card = page.find_child("EventRewardCard_souls_10000",true,false)
+    check(reward_card.find_child("RewardName",true,false).text == "Corrupted Signal badge", "Badge milestone uses its configured name")
+    check(reward_card.find_child("EventImage",true,false).texture.resource_path.ends_with("event_icon.png"), "Badge milestone uses neutral Event artwork")
+    var badge_shop = page.find_child("EventShop_signal_badgeCard",true,false)
+    check(badge_shop.find_child("ShopItemName",true,false).text == "Haunted Network badge", "Badge purchase uses its configured reward name")
+    for image in page.find_children("*", "TextureRect", true, false):
+        check(image.texture == null or not image.texture.resource_path.begins_with("res://assets/event_badges/"), "Badge artwork stays exclusively in Stats AI Archive")
+    for label in page.find_children("*", "Label", true, false):
+        check(not "ai archive reward" in label.text.to_lower(), "No generic badge reward placeholders")
     game.queue_free(); await frames(6)
     print("Event tabs smoke: ",checks," checks, failures=",failures)
     quit(1 if failures else 0)

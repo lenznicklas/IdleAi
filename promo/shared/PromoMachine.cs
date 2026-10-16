@@ -10,6 +10,7 @@ public partial class PromoMachine : Control
     private Tween? _punch;
     private float _clock;
     private float _energy;
+    public float VisualIntensity { get; set; }
     public Color Accent { get; private set; } = Colors.Cyan;
 
     public override void _Ready()
@@ -69,7 +70,7 @@ public partial class PromoMachine : Control
     {
         var center = new Vector2(240, 220);
         for (int ring = 7; ring >= 1; ring--)
-            DrawCircle(center, 112 + ring * 15 + _energy * 12, new Color(Accent, .015f + _energy * .009f));
+            DrawCircle(center, 112 + ring * 15 + _energy * 12, new Color(Accent, .015f + _energy * .009f + VisualIntensity * .018f));
         var platform = new Vector2[97];
         for (int i = 0; i < platform.Length; i++)
         {
@@ -77,11 +78,12 @@ public partial class PromoMachine : Control
             platform[i] = new Vector2(240 + Mathf.Cos(angle) * 180, 360 + Mathf.Sin(angle) * 25);
         }
         DrawPolyline(platform, new Color(Accent, .45f), 2, true);
-        for (int i = 0; i < 12; i++)
+        int particles = 12 + (int)(VisualIntensity * 24);
+        for (int i = 0; i < particles; i++)
         {
-            float angle = _clock * .3f + i * Mathf.Tau / 12;
+            float angle = _clock * .3f + i * Mathf.Tau / particles;
             var point = center + new Vector2(Mathf.Cos(angle) * 208, Mathf.Sin(angle) * 164);
-            DrawCircle(point, 2 + _energy * 2, new Color(Accent, .55f));
+            DrawCircle(point, 2 + _energy * 2 + VisualIntensity * 2, new Color(Accent, .55f));
         }
     }
 }

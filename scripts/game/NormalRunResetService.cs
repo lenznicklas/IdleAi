@@ -14,6 +14,7 @@ public sealed class NormalRunResetService
 
 	public void Reset()
 	{
+		AiArchiveDiscovery.ObserveRun(_state);
 		_economy.ResetRunTokens();
 		_state.CurrentRoomIndex = 0;
 		for (int roomIndex = 0; roomIndex < _state.RoomStates.Count; roomIndex++)

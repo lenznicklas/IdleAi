@@ -6,6 +6,8 @@ namespace IdleAi;
 /// <summary>Deferred gameplay/UI startup; online ownership lives in its coordinator.</summary>
 public partial class Game
 {
+    internal Color ActiveAreaAccent => RoomThemePalette.GetAreaAccentColor(
+        _state.CurrentRoomIndex, _singularityController?.Visible ?? false);
     internal bool IsSingularityUnlockedForArchive => _singularityService?.Unlocked ?? false;
 
 	private OnlineIntegrationCoordinator? _onlineIntegrations;

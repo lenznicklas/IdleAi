@@ -35,6 +35,7 @@ internal static class EventShopPresentation
     }
     internal static string Reward(EventReward reward, EventDefinition d)
     {
+        if (EventPresentation.HasBadge(reward)) return EventPresentation.RewardName(reward, d);
         if (reward.Name.Length > 0) return reward.Name;
         return reward.Type switch
         {
@@ -62,19 +63,22 @@ internal sealed class EventShopCard
     private readonly Action<int> _purchase;
     private EventShopSnapshot _snapshot;
     private bool _busy;
+    private readonly bool _hideWhenOwned;
     private ulong? _lastPurchaseInput;
     internal EventShopCard(EventDefinition d, EventShopItem item, EventTextureCache textures, Action<int> purchase)
     {
         _purchase = purchase;
+        _hideWhenOwned = d.Id == HalloweenEventDefinition.EventId
+            && item.Reward.Type is EventRewardType.BotSkin or EventRewardType.MachineSkin;
         var accent = item.Featured ? EventUiStyle.Ending : Color.FromHtml(d.Theme.AccentHex);
         Root = new Control { Name = "EventShop_" + item.Id + "Card", CustomMinimumSize = new(0, 456), SizeFlagsHorizontal = Control.SizeFlags.ExpandFill };
         var panel = new PanelContainer { MouseFilter = Control.MouseFilterEnum.Ignore };
         panel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         panel.AddThemeStyleboxOverride("panel", MapController.CreateNodeStyle(new(.035f, .025f, .05f, .97f), accent, 2, item.Featured ? 9 : 5)); Root.AddChild(panel);
-        var image = new EventImageView(textures.Get(item.IconPath), new(88, 108)) { Position = new(16, 18), Size = new(88, 108) }; Root.AddChild(image);
-        Slot("ShopItemName", item.Name, 17, 116, 18, 70, 2);
+        var image = new EventImageView(textures.Get(EventPresentation.HasBadge(item.Reward) ? d.IconPath : item.IconPath), new(88, 108)) { Position = new(16, 18), Size = new(88, 108) }; Root.AddChild(image);
+        Slot("ShopItemName", EventPresentation.HasBadge(item.Reward) ? EventPresentation.RewardName(item.Reward, d) : item.Name, 17, 116, 18, 70, 2);
         Slot("ShopItemCategory", (item.Featured ? "FEATURED • " : "") + item.Category.ToUpperInvariant(), 12, 116, 78, 122, 2).Modulate = accent;
-        Slot("ShopItemDescription", item.Description, 13, 16, 138, 196, 3);
+        Slot("ShopItemDescription", EventPresentation.HasBadge(item.Reward) ? "Unlock this badge permanently in Stats > AI Archive." : item.Description, 13, 16, 138, 196, 3);
         Slot("ShopItemReward", "Reward: " + EventShopPresentation.Reward(item.Reward, d), 13, 16, 202, 242, 2);
         var currency = new EventImageView(textures.Get(EventShopPresentation.CurrencyIcon(d, item)), new(26, 26)) { Position = new(16, 250), Size = new(26, 26) }; Root.AddChild(currency);
         Slot("ShopItemPrice", NumberFormatter.Format(item.Cost) + " " + EventShopPresentation.CurrencyName(d, item.CostCurrency), 15, 52, 250, 280);
@@ -116,6 +120,7 @@ internal sealed class EventShopCard
     internal void Refresh(EventShopSnapshot snapshot)
     {
         _snapshot = snapshot;
+        Root.Visible = !_hideWhenOwned || !(snapshot.Owned || snapshot.PurchasedCount > 0);
         EventUiStyle.SetText(_status, (snapshot.State == EventShopState.EventEnded && snapshot.Owned ? "OWNED • " : "") + EventShopPresentation.State(snapshot.State));
         EventUiStyle.SetText(_limit, snapshot.PurchaseLimit == 0 ? snapshot.PurchasedCount + " purchased • No limit" : snapshot.PurchasedCount + " / " + snapshot.PurchaseLimit + " purchased");
         EventUiStyle.SetText(_requirements, snapshot.State == EventShopState.Locked ? _requirementText : "");

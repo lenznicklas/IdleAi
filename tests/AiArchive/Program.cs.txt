@@ -9,6 +9,68 @@ static class Program
     static void Eq<T>(T actual, T expected, string label)
     { checks++; if (!Equals(actual, expected)) throw new Exception($"{label}: {actual} != {expected}"); }
     static AiArchiveCategory Category(AiArchiveSnapshot snapshot, string name) => snapshot.Categories.Single(c => c.Name == name);
+    static void History()
+    {
+        GameState Fresh()
+        {
+            var state = new GameState(RoomCatalog.Create());
+            foreach (var room in state.Rooms)
+            {
+                var progress = new RoomState(); progress.Slots.Add(new SlotData()); state.RoomStates.Add(progress);
+            }
+            state.RoomStates[0].Unlocked = true; state.RoomStates[0].Slots[0].Unlocked = true;
+            return state;
+        }
+        var state = Fresh(); var economy = new EconomyService(state);
+        var progression = new ProgressionService(state, economy);
+        economy.GrantTokens(1e100);
+        var botService = new BotService(state, economy);
+        Eq(botService.BuyBot(0, 0).Changed, true, "obtain bot without opening Archive");
+        var rarity = state.RoomStates[0].Slots[0].BotRarity!.Value;
+        Eq(botService.SellBot(0, 0).Changed, true, "sell bot without opening Archive");
+        Eq(state.Archive.Contains(AiArchiveDiscovery.Bot(rarity)), true, "acquisition records rarity before removal");
+        var slot = state.RoomStates[0].Slots[0];
+        slot.MachineLevel = state.Rooms[0].Machines[0].MaxLevel;
+        Eq(progression.UpgradeMachine(0, 0, 1).Changed, true, "advance machine tier without opening Archive");
+        Eq(state.Archive.Contains(AiArchiveDiscovery.Machine(0, 1)), true, "tier acquisition records discovery");
+        var prestige = new PrestigeService(state, economy);
+        state.RunEarnedTokens = prestige.GetRequiredRunTokens();
+        Eq(prestige.Prestige().Success, true, "real prestige resets the normal run");
+        Eq(state.RoomStates[0].Slots[0].MachineTier, 0, "normal tier resets");
+        var botSkins = new HashSet<string> { BotSkinCatalog.KorpoSkinId };
+        var machineSkin = MachineSkinCatalog.GetAll().First(s => s.IsComplete);
+        var machineSkins = new HashSet<string> { machineSkin.Id };
+        var archive = new AiArchiveProgressService(state, progression, new LabService(state, economy), botSkins.Contains, machineSkins.Contains);
+        state.Events.ProgressByEventId[HalloweenEventDefinition.EventId] = new EventProgressSaveData { Ended = true,
+            Cosmetics = ["corrupted_signal_badge"] };
+        archive.Capture();
+        botSkins.Clear(); machineSkins.Clear(); state.Events = new();
+        // Simulate inventory removal, replacement and a depleted/broken bot.
+        slot.BotRarity = BotRarity.Legendary;
+        AiArchiveDiscovery.ObserveRun(state);
+        slot.ConsumeBotWork(double.MaxValue); slot.ClearBot();
+        var snapshot = archive.Capture();
+        Eq(Category(snapshot, "BOTS").Entries.Single(e => e.Id == rarity.ToString()).Complete, true, "sold bot remains discovered");
+        Eq(Category(snapshot, "BOTS").Entries.Single(e => e.Id == "Legendary").Complete, true, "removed replacement remains discovered");
+        Eq(Category(snapshot, "MACHINES").Entries.Single(e => e.Id == "machine:0:1").Complete, true, "prestige preserves machine discovery");
+        Eq(Category(snapshot, "BOT SKINS").Entries.Single(e => e.Id == "bot:korpo_skin").Complete, true, "removed bot skin remains discovered");
+        Eq(Category(snapshot, "MACHINE SKINS").Entries.Single(e => e.Id == "machine:" + machineSkin.Id).Complete, true, "removed machine skin remains discovered");
+        Eq(Category(snapshot, "EVENT BADGES").Entries.Single(e => e.Id.EndsWith(":corrupted_signal_badge")).Complete, true, "ended event badge history is independent");
+        var saves = new GameSaveService(state, economy);
+        var data = System.Text.Json.JsonSerializer.Deserialize<SaveGameData>(System.Text.Json.JsonSerializer.Serialize(saves.CreateSave(1000)))!;
+        var restored = Fresh(); var restoredEconomy = new EconomyService(restored);
+        var restoredSaves = new GameSaveService(restored, restoredEconomy); restoredSaves.ApplySave(data);
+        Eq(restored.Archive.Discovered.SetEquals(state.Archive.Discovered), true, "all discovery IDs survive JSON save/load");
+        data.Archive.Discovered.Clear();
+        Eq(restored.Archive.Discovered.Count > 0, true, "loaded discovery history owns its copy");
+        var legacy = new SaveGameData { SaveVersion = 22,
+            Rooms = [new RoomSaveData { Unlocked = true, Slots = [new SlotSaveData { Unlocked = true, MachineTier = 2, BotRarity = BotRarity.Epic }] }] };
+        var migrated = Fresh(); var migratedEconomy = new EconomyService(migrated);
+        new GameSaveService(migrated, migratedEconomy).ApplySave(legacy);
+        Eq(migrated.Archive.Contains(AiArchiveDiscovery.Machine(0, 2)), true, "legacy higher tier seeds discovery");
+        Eq(migrated.Archive.Contains(AiArchiveDiscovery.Bot(BotRarity.Epic)), true, "legacy assigned bot seeds rarity");
+        Eq(migrated.Archive.Contains(AiArchiveDiscovery.Bot(BotRarity.Legendary)), false, "migration invents no unproven rarity");
+    }
     public static void Main()
     {
         var state = new GameState(RoomCatalog.Create());
@@ -24,11 +86,23 @@ static class Program
             machineOwned.Contains, singularityUnlocked: () => singularity);
         var zero = service.Capture();
         Eq(MachineSkinCatalog.GetAll().Count(s => s.IsComplete), MachineSkinCatalog.GetAll().Count, "repository machine packs available");
-        Eq(zero.Categories.Count, 6, "six categories"); Eq(zero.Completed, 0, "zero progress"); Eq(zero.Percent, 0, "zero percentage");
+        Eq(zero.Categories.Count, 9, "nine categories"); Eq(zero.Completed, 0, "zero progress"); Eq(zero.Percent, 0, "zero percentage");
         Eq(Category(zero, "ROOMS").Total, state.Rooms.Count + 1, "catalog rooms plus singularity");
         Eq(Category(zero, "MACHINES").Total, state.Rooms.Sum(r => r.Machines.Count), "catalog machine total");
         Eq(Category(zero, "RESEARCH").Total, ResearchCatalog.All.Count, "catalog research total");
-        Eq(Category(zero, "SKINS").Entries.Any(e => e.Id.Contains("korpo")), false, "secret absent");
+        Eq(Category(zero, "BOT SKINS").Entries.Any(e => e.Id.Contains("korpo")), false, "secret absent");
+        var badgePaths = new Dictionary<string, string> {
+            ["corrupted_signal_badge"] = "halloween_corrupted_signal.png",
+            ["containment_breach_badge"] = "halloween_containment_brach.png",
+            ["haunted_network_badge"] = "halloween_haunted_network.png"
+        };
+        foreach (var pair in badgePaths)
+        {
+            var badge = Category(zero, "EVENT BADGES").Entries.Single(e => e.Id.EndsWith(":" + pair.Key));
+            Eq(badge.Icon?.ResourcePath, "res://assets/event_badges/" + pair.Value, "correct supplied badge artwork: " + pair.Key);
+            Eq(badge.Complete, false, "badge artwork does not unlock reward");
+            Eq(badge.Concealed, false, "locked badge artwork remains visible");
+        }
         Eq(Category(zero, "BOTS").Entries.All(e => e.Concealed), true, "undiscovered bots concealed");
         state.RoomStates[0].Unlocked = true; state.RoomStates[0].Slots[0].Unlocked = true;
         state.RoomStates[0].Slots[0].MachineTier = 2;
@@ -40,7 +114,7 @@ static class Program
         Eq(Category(mid, "MACHINES").Completed, 3, "higher tier includes previous tiers");
         Eq(Category(mid, "BOTS").Completed, 1, "assigned rarity");
         Eq(Category(mid, "RESEARCH").Completed, 1, "completed research");
-        Eq(Category(mid, "SKINS").Completed, 1, "owned skin only");
+        Eq(Category(mid, "BOT SKINS").Completed, 1, "owned skin only");
         Eq(Category(mid, "ACHIEVEMENTS").Entries.Single(e => e.Id == GooglePlayGamesAchievementService.ResearcherId).Complete, true, "local researcher");
         Eq(Category(mid, "ACHIEVEMENTS").Entries.Single(e => e.Id == GooglePlayGamesAchievementService.AutomatedIntelligenceId).Complete, true, "local bot achievement");
         Eq(mid.Completed, mid.Categories.Sum(c => c.Completed), "aggregate completed");
@@ -49,7 +123,7 @@ static class Program
         botOwned.Add(BotSkinCatalog.KorpoSkinId); var secret = service.Capture();
         Eq(secret.Total, mid.Total + 1, "revealed secret enters denominator");
         Eq(secret.Completed, mid.Completed + 1, "owned secret enters numerator");
-        Eq(Category(secret, "SKINS").Entries.Single(e => e.Id == "bot:korpo_skin").Name, "Korpo", "revealed secret named");
+        Eq(Category(secret, "BOT SKINS").Entries.Single(e => e.Id == "bot:korpo_skin").Name, "Korpo", "revealed secret named");
         state.RoomStates[1].DataShardUnlockRewardClaimed = true;
         Eq(Category(service.Capture(), "ROOMS").Completed, 2, "room history survives prestige");
         state.Stats.AddEarned(1); state.Prestige.PrestigeCount = 1; state.Shop.HighestClaimedLevelReward = 150;
@@ -61,11 +135,30 @@ static class Program
             room.Unlocked = true; room.Slots[0].Unlocked = true; room.Slots[0].MachineTier = 3;
             foreach (var rarity in Enum.GetValues<BotRarity>()) room.Slots.Add(new SlotData { BotRarity = rarity });
         }
+        foreach (var definition in EventCatalog.Create().Where(d => d.Enabled))
+        {
+            var eventProgress = new EventProgressSaveData { Ended = true };
+            foreach (var reward in EventRewardCollection.Rewards(definition).Where(r => r.Type == EventRewardType.Cosmetic))
+                eventProgress.Cosmetics.Add(reward.Id);
+            state.Events.ProgressByEventId[definition.Id] = eventProgress;
+        }
+        state.Events = System.Text.Json.JsonSerializer.Deserialize<EventSaveData>(
+            System.Text.Json.JsonSerializer.Serialize(state.Events))!;
+        Eq(Category(service.Capture(), "EVENT BADGES").Completed, Category(zero, "EVENT BADGES").Total,
+            "earned event badges survive save/load and event end");
         singularity = true; var late = service.Capture();
         foreach (var category in late.Categories) Eq(category.Completed, category.Total, "late " + category.Name);
         Eq(late.Percent, 100, "late completion");
+        Eq(Category(zero, "BADGES").Entries.Count, 0, "Level Badge hidden before 150");
+        state.LifetimeLevelBase = 1500; var badgeSnapshot = service.Capture();
+        Eq(Category(badgeSnapshot, "BADGES").Entries.Count, 1, "only one evolving level badge entry");
+        int highestTier = Category(badgeSnapshot, "BADGES").Entries.Single().BadgeNumber;
+        state.LifetimeLevelBase = 0;
+        Eq(Category(service.Capture(), "BADGES").Entries.Single().BadgeNumber, highestTier, "badge cannot downgrade with total reset");
         Eq(GooglePlayGamesAchievementService.IsLocallyEarned("unknown", state, progression), false, "unknown achievement");
-        Eq(Category(late, "SKINS").Total, BotSkinCatalog.GetAll().Count + 1 + MachineSkinCatalog.GetAll().Count(s => s.IsComplete), "catalog skins total");
+        Eq(Category(late, "BOT SKINS").Total, BotSkinCatalog.GetAll().Count + 1, "bot skins category total");
+        Eq(Category(late, "MACHINE SKINS").Total, MachineSkinCatalog.GetAll().Count(s => s.IsComplete), "machine skins category total");
+        History();
         Console.WriteLine($"AI Archive: {checks} assertions passed.");
     }
 }

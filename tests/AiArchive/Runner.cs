@@ -21,7 +21,7 @@ public partial class Runner : Game
         var font = new FontFile { Data = File.ReadAllBytes(Path.Combine(repository, "assets/fonts/Orbitron-Regular.ttf")) };
         font.TakeOverPath("res://assets/fonts/Orbitron-Regular.ttf");
         Theme = new Theme { DefaultFont = font, DefaultFontSize = 18 };
-        try { Program.Main(); await ArchiveUi.Run(this); GetTree().Quit(); }
+        try { Program.Main(); await ArchiveUi.Run(this); await BadgePopupTests.Run(this); GetTree().Quit(); }
         catch (Exception exception) { Console.Error.WriteLine(exception); GetTree().Quit(1); }
     }
 }

@@ -8,16 +8,7 @@ public sealed class ShopData
 	public double DataShards { get; set; } =
 		GameConfig.InitialDataShards;
 
-	/*
-	 * Permanent reward-road progress.
-	 *
-	 * Example:
-	 * 0   -> nothing claimed yet
-	 * 150 -> Level 150 reward claimed
-	 * 300 -> Level 150 + 300 claimed
-	 *
-	 * This survives Prestige so the same free Shards cannot be farmed again.
-	 */
+	// Legacy save evidence only. Used to migrate level badge history; never claimable.
 	public int HighestClaimedLevelReward { get; set; }
 
 	public long ProductionBoostEndUnix { get; set; }

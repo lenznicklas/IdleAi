@@ -241,8 +241,7 @@ theme_override_styles/panel = SubResource("PopupStyle")
 
 [node name="Label" type="Label" parent="LevelPopup" unique_id=554957572]
 layout_mode = 2
-text = "Level
-Your combined machine progression."
+text = "Your Level increases as you progress. Every 150 Levels, your Level Badge is upgraded."
 horizontal_alignment = 1
 vertical_alignment = 1
 autowrap_mode = 2

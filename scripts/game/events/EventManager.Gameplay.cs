@@ -106,7 +106,7 @@ public sealed partial class EventManager
                 var progress = _save.ProgressByEventId[d.Id];
                 RefreshBotProgress(d, progress, NowUnix);
                 RefreshShopUnlocks(d, progress, NowUnix);
-                UpdateArchive(d, progress);
+
                 committed = _save.IsValid() && TryPersist();
             }
         }
@@ -125,29 +125,12 @@ public sealed partial class EventManager
         Changed?.Invoke();
         return new(true, success);
     }
-    private static void UpdateArchive(EventDefinition d, EventProgressSaveData p)
-    {
-        if (!p.Ended || d.Type != EventType.Major) return;
-        p.Archive = new()
-        {
-            EventId = d.Id, Name = d.Name, Year = DateTimeOffset.FromUnixTimeSeconds(d.StartUnix).Year,
-            CurrencyName = d.CurrencyName, TotalEarned = p.TotalCurrencyEarned,
-            HighestLevel = p.HighestProgressionReached, PrestigeCount = p.PrestigeCount,
-            PrestigeResource = p.PrestigeResource, TotalPrestigeResourceEarned = p.TotalPrestigeResourceEarned,
-            HighestProduction = p.HighestProductionReached, RewardsClaimed = p.ClaimedRewards.Count,
-            RewardsTotal = d.Milestones.Count, BotsUnlocked = d.Bots.Count(b => p.UnlockedBots.Contains(b.Id)),
-            LegendaryBotOwned = d.Bots.Any(b => b.Rarity == nameof(BotRarity.Legendary) && p.OwnedBots.Contains(b.Id)), CosmeticsOwned = p.Cosmetics.Count
-        };
-    }
-    public IEnumerable<EventArchiveResult> GetArchives()
-    {
-        foreach (var p in _save.ProgressByEventId.Values) if (p.Archive != null) yield return p.Archive.Copy();
-    }
     public long GetTotalPrestigeResourceEarned(string id) => _save.ProgressByEventId.TryGetValue(id, out var p) ? p.TotalPrestigeResourceEarned : 0;
     public string GetMilestoneTargetText(string id, string milestoneId)
     {
         foreach (var m in _byId[id].Milestones) if (m.Id == milestoneId) return NumberFormatter.Format(m.TargetAmount) + " " + _byId[id].CurrencyName;
         return milestoneId;
     }
-    public int ClaimedRewardCount(string id) => _save.ProgressByEventId.TryGetValue(id, out var p) ? p.ClaimedRewards.Count : 0;
+    public int ClaimedRewardCount(string id) => _byId.TryGetValue(id, out var d) && _save.ProgressByEventId.TryGetValue(id, out var p)
+        ? d.Milestones.Count(m => p.ClaimedRewards.Contains(m.Id)) : 0;
 }

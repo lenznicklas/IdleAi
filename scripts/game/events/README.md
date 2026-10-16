@@ -14,8 +14,8 @@ new per-frame updates, particle systems, real-money purchases or secondary save 
 UTC Unix start/end overrides. New event occurrences require unique event/milestone IDs.
 Only one event runs: Major > Seasonal > Weekend, then latest start, then ordinal ID.
 The map and open Event view follow the active definition. With no active event, enabled
-last-event results remain visible. Only explicit Archive navigation pins a historical view.
-Saved disabled IDs cannot override selection. Completed Major Events can be reopened from Archive.
+last-event results remain visible until another event is selected.
+Saved disabled IDs cannot override selection. There is no Event history navigation.
 
 Each generator has its own stable ID, name/description/image, enabled state, starting/
 maximum level, linear or exponential production curve, multiplier, exponential upgrade
@@ -79,10 +79,9 @@ force command or restart. Currency is Souls; prestige resource is Cursed Cores.
 | Nightmare AI Core | 30,000,000 | 300,000,000 | Prestige 4 |
 
 Production grows x1.18 per level; costs grow x1.6. This is a tunable first balance pass,
-not a claim of playtesting the full 14-day progression. Sixteen explicit-claim lifetime
-milestones span 100 to 1B Souls. The final reward is the existing four-room Halloween
-Machine Skin Pack. Rewards also include Data Shards, Souls, Cursed Cores, two permanent
-event badges, the global Halloween Bot Skin Pack and bot ownership:
+not a claim of playtesting the full event progression. Fourteen explicit-claim lifetime
+milestones span 100 to 250M Souls. Rewards include Data Shards, Souls, Cursed Cores,
+two permanent event badges and bot ownership. Skin packs are purchased in the Shop:
 
 | Bot | Rarity | Multiplier | Claim milestone |
 | --- | --- | ---: | ---: |
@@ -95,13 +94,13 @@ One event bot can be equipped; no normal-room bot, research or durability state 
 Shop items are data-driven (ID, title/image/description, cost currency/cost, reward,
 availability condition, enabled flag, purchase limit). Halloween has a 50K Soul cache
 for one Cursed Core (limit 3), 5 Data Shards for 100K Souls (limit 5), a network badge,
-the existing bot skin pack, and the existing Garage machine skin. No real-money flow.
+the Halloween Bot Skin Pack and four-room Machine Skin Pack for 50 Cursed Cores each
+(one purchase per pack), and the existing Garage machine skin. No real-money flow.
 Story lines select the latest lifetime threshold reached; there is no dialogue system.
 
 On expiry, upgrades, prestige, bot equipment and purchases stop. Durable unlocked
 rewards (shards, bots, cosmetics) remain claimable; Soul/core rewards expire so they
-cannot extend ended progression. Final Major Event results retain name/year, lifetime
-earnings, highest level/production, prestige count, cores earned, rewards and cosmetics.
+cannot extend ended progression. Permanent entitlements and purchase history remain saved.
 
 ## Assets and cosmetics
 
@@ -120,8 +119,8 @@ and `res://assets/events/halloween/network.svg` (dark network/server backdrop wi
 purple fog and orange/green signal fragments). No required asset paths are missing.
 The four existing Halloween bot portraits are reused as themed placeholder character
 art; bespoke Ghost/Pumpkin/Skeleton/Reaper portraits can replace their configured paths
-later. Badges are stored collectible IDs using the Soul icon; a global badge display
-system is intentionally deferred.
+later. Badges are stored collectible IDs using the Soul icon and are displayed only
+in the Stats AI Archive.
 
 Cosmetic claims add tagged canonical skin IDs to `Events.CosmeticEntitlements` in the
 same atomic main save as the claim/purchase marker. Existing `IsOwned` services recognize
@@ -138,7 +137,7 @@ old single-generator level/phase, others receive starting defaults. The old prog
 fields remain first-generator mirrors for compatibility. Each generator stores level,
 unlock, phase and modifier. Event progression additionally stores the lifetime prestige
 checkpoint, current/ever-earned cores, highest production, bots/equipment, cosmetics,
-shop counts and an optional final archive result. Old rewards, balances, timestamps,
+shop counts and inert legacy result fields for save compatibility. Old rewards, balances, timestamps,
 unknown/retired IDs and event content state are preserved. Snapshots clone collections.
 
 ## Debug commands
@@ -155,7 +154,7 @@ Release builds omit the tools. Commands target the current active event unless n
 - `event-ready-prestige`: top up earnings for current prestige availability.
 - `event-ready-rewards`: top up lifetime earnings; does not automatically claim rewards.
 - `event-ending-soon`: simulate a final 23-hour window until restart.
-- `event-end`: save expiration and archive the current event.
+- `event-end`: save expiration of the current event.
 - `halloween-reset`: reset only Halloween progression; global cosmetics survive.
 - `event-reset`: reset only Test Protocol progression; global cosmetics survive.
 
@@ -172,8 +171,7 @@ XDG_DATA_HOME=/tmp/idle-ai-halloween-scene-test godot-mono --headless --path . -
 
 Both scene fixtures require isolated profile markers and create their own test saves.
 Run existing GameSave and Singularity scene regressions as well. Intentionally deferred:
-full-duration balance playtesting, dedicated bot character portraits, a global badge
-collection view, challenges, elaborate story UI, reward animations and real-money shops.
+full-duration balance playtesting, elaborate story UI, reward animations and real-money shops.
 Normal room/Singularity gameplay and their economies remain unchanged.
 
 ## Files in this phase
@@ -277,7 +275,7 @@ EventManager uses TotalCurrencyEarned and persisted UnlockedMilestones, independ
 of the spendable wallet and Prestige checkpoint. Ended events stop unlocking rewards.
 Existing earned permanent rewards remain claimable; Event currency/core rewards and
 bundles containing them require the event to be active. This retains the existing
-expiration policy. Claimed rewards stay visible in archived result tracks.
+expiration policy. Claimed reward state persists after the event ends.
 
 ClaimReward and ClaimAllRewards share one transaction. A batch snapshots eligible
 milestones before granting, so currency grants can unlock but cannot automatically
@@ -438,3 +436,26 @@ See [Event Shop definitions, transactions, currencies, save compatibility, comma
 ## Halloween PNG visuals
 
 The [Halloween asset integration report](../../../docs/halloween-png-assets.md) maps all 17 supplied `assets/halloween_event` PNGs, retained generic fallbacks and validation. `HalloweenEventAssets` centralizes exact-case paths; generic widgets consume configured images, including the Prestige resource icon. No Halloween gameplay or balance changes accompany the asset mapping.
+
+### Event badges in Stats
+
+Event navigation has exactly six sections: Progress, Prestige, Bots, Rewards,
+Shop and Challenges. Events has no archive or history section.
+`EventRewardCollection` traverses configured rewards for AI Archive under Stats.
+Halloween badges use the supplied PNGs in `assets/event_badges/`, including the
+source filename `halloween_containment_brach.png` for Containment Breach. The
+Archive uses aspect-fit images with linear mipmap filtering for mobile scaling.
+Generic `Cosmetic` rewards are badges. Committed `EventProgressSaveData.Cosmetics`
+seed permanent AI Archive discoveries without a second grant path.
+Event claim/purchase cards display the configured badge name shared with AI Archive,
+while badge artwork and collection browsing remain in Stats AI Archive. The Souls
+exchange offer costs one Cursed Core and immediately grants 50,000 Souls (limit 3).
+Legacy archive save fields are inert and round-trip for compatibility.
+Keep retired definitions in the catalog for permanent badge names and artwork.
+
+`UnlockGenerators` is a count objective over enabled, unlocked machines in the
+current run. Like other reach goals it remembers its high-water mark unless
+`UseCurrentState` is set. Existing challenge enum values are unchanged. Halloween
+now defines six event goals through the same configuration used by other events.
+All Event tabs share one `MobileScrollController` with both overscroll edges
+and smooth wheel input enabled; no nested scrolling surfaces are added.

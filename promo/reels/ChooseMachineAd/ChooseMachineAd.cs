@@ -53,7 +53,7 @@ public partial class ChooseMachineAd : Control
     {
         _random.Randomize();
         _font = GD.Load<Font>("res://promo_assets/Orbitron-Regular.ttf");
-        _tapScene = GD.Load<PackedScene>("res://TapIndicator.tscn");
+        _tapScene = GD.Load<PackedScene>("res://shared/TapIndicator.tscn");
         var background = new TextureRect
         {
             Texture = GD.Load<Texture2D>("res://promo_assets/halloween/background.png"),

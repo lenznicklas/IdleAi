@@ -1,6 +1,7 @@
 using Godot;
 using System;
 using System.Collections.Generic;
+using System.Linq;
 
 namespace IdleAi;
 
@@ -20,7 +21,14 @@ internal static class EventPresentation
         }
         return parts.Count == 0 ? "Available immediately" : "Requires: " + string.Join("\n", parts);
     }
-    internal static string RewardName(EventReward reward, EventDefinition d) => !string.IsNullOrEmpty(reward.Name) ? reward.Name :
+    // Names come from the same reward config as AI Archive. Badge art remains in Stats.
+    internal static bool HasBadge(EventReward reward) => EventRewardCollection.Leaves(reward).Any(r => r.Type == EventRewardType.Cosmetic);
+    internal static string RewardIcon(EventReward reward, EventDefinition d) => HasBadge(reward) ? d.IconPath
+        : reward.IconPath.Length > 0 ? reward.IconPath : d.IconPath;
+    internal static string RewardName(EventReward reward, EventDefinition d) => HasBadge(reward)
+        ? reward.Type == EventRewardType.Bundle
+            ? string.Join(" + ", reward.Contents.Select(r => RewardName(r, d))) : EventRewardCollection.DisplayName(reward)
+        : !string.IsNullOrEmpty(reward.Name) ? reward.Name :
         NumberFormatter.Format(reward.Amount) + " " + (reward.Type switch
         {
             EventRewardType.DeveloperCredits => "developer credits", EventRewardType.EventCurrency => d.CurrencyName,

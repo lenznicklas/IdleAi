@@ -20,7 +20,7 @@ All filenames/paths below are case-sensitive. `HalloweenEventAssets` is the cent
 | pumpkin_bot.png | Bot | Pumpkin Bot card/detail and its track reward |
 | skeleton_bot.png | Bot | Skeleton Bot card/detail and its track reward |
 | reaper_bot.png | Bot | Reaper Bot card/detail and its track reward |
-| reward_chest.png | Resource cache / Shop | Recovered Soul Cache Shop offer |
+| reward_chest.png | Resource cache / Shop | 50,000 Souls Shop exchange (1 Cursed Core; formerly Recovered Soul Cache) |
 | machine_skin_pack.png | Cosmetic pack | Final four-room Halloween Machine Skin Pack reward preview |
 | bot_skin_pack.png | Cosmetic pack | Halloween Bot Skin Pack Reward Track and Shop previews |
 

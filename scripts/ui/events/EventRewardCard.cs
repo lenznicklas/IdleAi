@@ -25,12 +25,12 @@ internal sealed class EventRewardCard
         _panel.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.FullRect);
         Root.AddChild(_panel);
         Slot("RewardRequirement", NumberFormatter.Format(milestone.TargetAmount) + " " + d.CurrencyName, 14, 16, 12, 40);
-        var icon = new EventImageView(textures.Get(string.IsNullOrEmpty(milestone.Reward.IconPath) ? d.IconPath : milestone.Reward.IconPath), new(64, 72))
+        var icon = new EventImageView(textures.Get(EventPresentation.RewardIcon(milestone.Reward, d)), new(64, 72))
         { Position = new(16, 48), Size = new(64, 72) };
         Root.AddChild(icon);
-        string title = string.IsNullOrEmpty(milestone.Title) ? EventPresentation.RewardName(milestone.Reward, d) : milestone.Title;
+        string title = EventPresentation.HasBadge(milestone.Reward) || string.IsNullOrEmpty(milestone.Title) ? EventPresentation.RewardName(milestone.Reward, d) : milestone.Title;
         var name = Slot("RewardName", title, 16, 92, 48, 108, 2);
-        name.TooltipText = title + (milestone.Description.Length > 0 ? "\n" + milestone.Description : "");
+        name.TooltipText = title + (!EventPresentation.HasBadge(milestone.Reward) && milestone.Description.Length > 0 ? "\n" + milestone.Description : "");
         _progress = Slot("RewardProgress", "", 12, 16, 125, 151);
         _bar = new ProgressBar { Name = "RewardProgressBar", ShowPercentage = false, MouseFilter = Control.MouseFilterEnum.Ignore };
         _bar.SetAnchorsAndOffsetsPreset(Control.LayoutPreset.TopWide);

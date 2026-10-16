@@ -96,6 +96,8 @@ public sealed class BotService
 		slot.BotRarity =
 			rarity;
 
+		_state.Archive.Discover(AiArchiveDiscovery.Bot(rarity));
+
 		slot.BotPurchasePrice =
 			cost;
 
@@ -269,6 +271,7 @@ public sealed class BotService
 
 		_economy.RefundTokens(refund);
 
+		_state.Archive.Discover(AiArchiveDiscovery.Bot(slot.BotRarity!.Value));
 		slot.ClearBot();
 
 		slot.IsRunning =

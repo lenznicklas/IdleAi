@@ -61,12 +61,16 @@ public sealed class SingularityService
 		_economy = new SingularityEconomy(_data);
 		// The sector callback first runs during Load, after the bot RNG has been initialized.
 		_sectors = new SingularitySectorService(_data, _economy, SaveAndNotify, Save, () => _bots!.RollContent());
-		_bots = new SingularityBotService(_data, _sectors, _economy, SaveAndNotify, state?.Lab, roll);
+		_bots = new SingularityBotService(_data, _sectors, _economy, SaveAndNotify, state?.Lab, roll, rarity => state?.Archive.Discover(AiArchiveDiscovery.Bot(rarity)));
 		_nodes = new SingularityNodeService(_data, _sectors, _economy, SaveAndNotify, _bots.RollContent);
 		_production = new SingularityProductionService(_data, _sectors, _bots);
 		_persistence = new SingularityPersistenceService(_data, _sectors, _bots, now);
 		_offline = new SingularityOfflineService(_data, _bots, _production, _persistence, _economy, () => Changed?.Invoke(), now);
 		_persistence.Load();
+		if (state != null)
+			foreach (var sector in _data.Sectors)
+				foreach (var node in sector.Nodes)
+					if (node.BotRarity is { } rarity) state.Archive.Discover(AiArchiveDiscovery.Bot(rarity));
 		_sectors.EnsureSector(0);
 		_sectors.RebuildGridIndex();
 		_offline.PendingOfflineEarnings = _offline.ApplyOfflineIncomeFromTimestamp(_data.LastSaveUnix, now());

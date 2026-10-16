@@ -12,6 +12,11 @@ public readonly record struct RoomThemeTextures(
 
 public static class RoomThemePalette
 {
+	public static readonly Color SingularityAccent = new(0.92f, 0.66f, 0.20f, 1.0f);
+
+	public static Color GetAreaAccentColor(int room, bool singularityVisible) =>
+		singularityVisible ? SingularityAccent : GetAccentColor(room);
+
 	public static RoomThemeTextures Create(
 		int room)
 	{

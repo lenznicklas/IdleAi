@@ -152,6 +152,7 @@ public sealed class ProgressionService
 			1;
 
 		slot.ResetDataShardMilestones();
+		AiArchiveDiscovery.ObserveRun(_state);
 
 		return new ProgressionResult(
 			true,
@@ -444,6 +445,7 @@ public sealed class ProgressionService
 			totalSpent
 		);
 
+		LevelBadgeProgress.Update(_state);
 		string message =
 			upgradedLevels == 1
 				? GetUpgradeMessage(
@@ -513,6 +515,7 @@ public sealed class ProgressionService
 		);
 
 		slot.MachineTier++;
+		AiArchiveDiscovery.ObserveRun(_state);
 
 		slot.MachineLevel =
 			1;
@@ -610,6 +613,7 @@ public sealed class ProgressionService
 
 		roomState.DataShardUnlockRewardClaimed =
 			true;
+		AiArchiveDiscovery.ObserveRun(_state);
 
 		return new ProgressionResult(
 			true,

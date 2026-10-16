@@ -143,7 +143,6 @@ public sealed partial class EventManager
             {
                 progress.Ended = true;
                 progress.LastUpdateUnix = Math.Min(now, definition.EndUnix);
-                UpdateArchive(definition, progress);
                 changed = true;
             }
         var active = SelectAt(now);
@@ -196,7 +195,6 @@ public sealed partial class EventManager
                 signals |= RewardChallengeSignals(m.Reward);
             }
             if (IsActive(definition)) RefreshChallenges(definition, p, signals, NowUnix);
-            UpdateArchive(definition, p);
             return true;
         }, eligible.Count == 1 ? "Milestone reward claimed." : eligible.Count + " rewards claimed.");
     }
@@ -338,7 +336,6 @@ public sealed partial class EventManager
         {
             var p = _save.ProgressByEventId[d.Id];
             p.Ended = true;
-            UpdateArchive(d, p);
             return true;
         }, "Event expiration simulated and saved.");
         if (result.Changed) Tick();

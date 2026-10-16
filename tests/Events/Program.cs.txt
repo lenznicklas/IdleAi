@@ -1,6 +1,7 @@
 using Godot;
 using IdleAi;
 using System;
+using System.Linq;
 using System.Collections.Generic;
 using System.Text.Json;
 
@@ -28,8 +29,36 @@ internal static partial class Program
     public static void Main()
     {
         Check(ProjectSettings.GlobalizePath("user://").Contains("Events regression tests"), "isolated test profile");
-        ProductionAndUpgrades(); BoundariesAndSwitching(); ClaimsAndFailures(); Persistence(); Validation(); Gameplay(); Halloween(); RewardTrack(); Challenges(); Bots(); Shop(); HalloweenAssets();
+        ProductionAndUpgrades(); BoundariesAndSwitching(); ClaimsAndFailures(); Persistence(); Validation(); Gameplay(); Halloween(); RewardTrack(); Challenges(); Bots(); Shop(); HalloweenAssets(); BadgePersistence();
         Console.WriteLine($"Events: {_checks} assertions passed.");
+    }
+
+    private static void BadgePersistence()
+    {
+        long now = 100;
+        var d = Definition("collection", 100, 200) with { Type = EventType.Seasonal,
+            Milestones = [new("badge", 0, new(EventRewardType.Cosmetic, 1, "badge") { Name = "Badge" })],
+            Challenges = [new() { Id = "badge_goal", EventId = "collection", Title = "Badge goal",
+                Type = EventChallengeType.EarnLifetimeCurrency, Target = 1,
+                Reward = new(EventRewardType.Cosmetic, 1, "challenge_badge") }] };
+        var save = new EventSaveData();
+        var manager = new EventManager(save, [d], () => true, () => now); manager.Tick();
+        Check(save.ProgressByEventId[d.Id].Cosmetics.Count == 0, "badges start locked");
+        Check(manager.ClaimReward(d.Id, "badge").Changed, "badge grant uses milestone transaction");
+        now += 10; manager.Tick();
+        Check(manager.ClaimChallenge(d.Id, "badge_goal").Changed, "challenge grants permanent badge");
+        now = 300; manager.Tick();
+        var restored = RoundTrip(save);
+        var loaded = new EventManager(restored, [d], () => true, () => now); loaded.Tick();
+        Check(restored.ProgressByEventId[d.Id].Cosmetics.SetEquals(["badge", "challenge_badge"]), "badge ownership survives event end and reload");
+        Check(!loaded.ClaimChallenge(d.Id, "badge_goal").Changed, "reloaded badge challenge cannot double claim");
+        Check(restored.ProgressByEventId[d.Id].Archive == null, "new progression creates no event history");
+        Check(!loaded.Upgrade(d.Id).Changed, "ended event cannot be played");
+        restored.ProgressByEventId[d.Id].Archive = new EventArchiveResult { EventId = d.Id, RewardsClaimed = 1 };
+        var legacy = RoundTrip(restored);
+        var legacyManager = new EventManager(legacy, [d], () => true, () => now); legacyManager.Tick();
+        Check(legacy.ProgressByEventId[d.Id].Archive?.RewardsClaimed == 1
+            && legacy.ProgressByEventId[d.Id].Cosmetics.Contains("badge"), "legacy result payload round-trips without affecting badge ownership");
     }
 
     private static void ProductionAndUpgrades()

@@ -49,6 +49,7 @@ public sealed partial class MachineSkinService
 			state;
 
 		Load();
+		RecordDiscoveries();
 	}
 
 
@@ -542,8 +543,14 @@ public sealed partial class MachineSkinService
 	}
 
 
+	private void RecordDiscoveries()
+	{
+		foreach (string id in _ownedSkinIds) _state.Archive.Discover(AiArchiveDiscovery.MachineSkin(id));
+	}
+
 	private void Save()
 	{
+		RecordDiscoveries();
 		string path =
 			ProjectSettings.GlobalizePath(
 				SavePath

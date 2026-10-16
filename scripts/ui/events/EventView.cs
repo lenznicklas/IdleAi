@@ -29,10 +29,7 @@ internal sealed partial class EventView : Control
     private readonly List<(EventMilestone Definition, EventRewardCard Card)> _rewards = [];
     private readonly List<(EventBotDefinition Definition, EventBotCard Card)> _bots = [];
     private readonly List<(EventShopItem Definition, EventShopCard Card)> _shop = [];
-    private readonly VBoxContainer _generatorRows, _rewardRows, _botRows, _shopRows, _archiveRows;
-    private readonly Dictionary<string, Label> _archives = [];
-    private readonly HashSet<string> _archiveWanted = [];
-    private readonly List<string> _archiveRemoved = [];
+    private readonly VBoxContainer _generatorRows, _rewardRows, _botRows, _shopRows;
     private readonly EventPrestigePanel _prestige;
     private readonly EventBotDetailPanel _botDetail;
     private readonly EventImageView _coreIcon;
@@ -41,30 +38,12 @@ internal sealed partial class EventView : Control
     private readonly Action<string, int> _buyAction;
     private readonly Label _shopSummary;
     private string? _eventId;
-    private string? _focusedEventId;
-    private string? _observedDisplayEventId;
-    private bool _viewingArchive;
-    internal EventDefinition? CurrentEvent
-    {
-        get
-        {
-            var display = _manager.DisplayEvent;
-            if (!_viewingArchive && _observedDisplayEventId != display?.Id)
-            {
-                // Only explicit Archive navigation may pin a historical definition.
-                _focusedEventId = display?.Id;
-                _observedDisplayEventId = display?.Id;
-            }
-            return _focusedEventId == null ? display : _manager.GetDefinition(_focusedEventId);
-        }
-    }
+    internal EventDefinition? CurrentEvent => _manager.DisplayEvent;
     internal void OpenCurrent()
     {
-        _viewingArchive = false;
-        _focusedEventId = _observedDisplayEventId = _manager.DisplayEvent?.Id;
 #if DEBUG
         GD.Print("[Event] Active Event ID: " + (_manager.ActiveEvent?.Id ?? "none")
-            + " | Rendered Event ID: " + (_focusedEventId ?? "none"));
+            + " | Rendered Event ID: " + (CurrentEvent?.Id ?? "none"));
 #endif
         Refresh(true);
         RestoreTabScroll();
@@ -136,7 +115,7 @@ internal sealed partial class EventView : Control
         var body = new VBoxContainer { Name = "EventContent", SizeFlagsHorizontal = SizeFlags.ExpandFill };
         body.AddThemeConstantOverride("separation", 12); _scroll.AddChild(body);
         _mobileScroll = new MobileScrollController { Name = "EventMobileScroll", SmoothMouseWheel = true };
-        AddChild(_mobileScroll); _mobileScroll.Setup(_scroll, allowTopOverscroll: false, allowBottomOverscroll: false);
+        AddChild(_mobileScroll); _mobileScroll.Setup(_scroll);
         _generatorRows = Section(body, "Progress", "EventProgressPanel");
         _description = EventUiStyle.Label("EventDescription", "", 12); _description.AutowrapMode = TextServer.AutowrapMode.WordSmart;
         _description.MaxLinesVisible = 3; _description.ClipText = true; _generatorRows.AddChild(_description);
@@ -169,22 +148,25 @@ internal sealed partial class EventView : Control
         _botRows = Section(body, "Bots", "EventBotsPanel");
         _shopRows = Section(body, "Shop", "EventShopPanel");
         _shopSummary = Message("EventShopSummary", "", 13); _shopRows.AddChild(_shopSummary);
-        _archiveRows = Section(body, "Archive", "EventArchivePanel");
-        _archiveRows.AddChild(Message("ArchiveNote", "Completed Major Events retain their final stats, rewards and cosmetic completion.", 12));
         body.AddChild(new Control { Name = "EventContentBottomClearance", CustomMinimumSize = new(0, EventContentFrame.BottomClearance),
             MouseFilter = MouseFilterEnum.Ignore });
         var navigation = new VBoxContainer { Name = "EventTabs" };
         navigation.AddThemeConstantOverride("separation", 8); layout.AddChild(navigation);
-        var tabs = new GridContainer { Name = "EventPrimaryTabs", Columns = 3 };
+        var tabs = new GridContainer { Name = "EventPrimaryTabs", Columns = 2 };
+        // Both layouts contain complete rows of the same six actions. Narrow
+        // portrait widths need two columns to keep navigation labels readable.
+        Resized += () => tabs.Columns = Size.X < 560 ? 2 : 3;
         tabs.AddThemeConstantOverride("h_separation", 8); tabs.AddThemeConstantOverride("v_separation", 8); navigation.AddChild(tabs);
-        foreach (string tab in new[] { "Progress", "Prestige", "Bots", "Rewards", "Shop", "Archive", "Challenges" })
+        foreach (string tab in new[] { "Progress", "Prestige", "Bots", "Rewards", "Shop", "Challenges" })
         {
             string selected = tab;
             var button = EventUiStyle.Button("Event" + tab + "Tab", tab, () => SelectTab(selected));
             button.SizeFlagsHorizontal = SizeFlags.ExpandFill;
+            button.ClipText = true;
+            button.TextOverrunBehavior = TextServer.OverrunBehavior.TrimEllipsis;
             button.AddThemeFontSizeOverride("font_size", 14); // Readability pass brings navigation text to 16px.
             button.CustomMinimumSize = new(0, 56); button.ToggleMode = true; button.FocusMode = FocusModeEnum.All;
-            if (tab == "Challenges") navigation.AddChild(button); else tabs.AddChild(button);
+            tabs.AddChild(button);
             _tabs[tab] = button;
         }
         _botDetail = new EventBotDetailPanel(this, manager, textures);
@@ -313,7 +295,11 @@ internal sealed partial class EventView : Control
                 previousCategory = category;
             }
             string target = s.Id;
-            var card = new EventShopCard(d, s, _textures, count => _buyAction(target, count));
+            var card = new EventShopCard(d, s, _textures, count =>
+            {
+                _buyAction(target, count);
+                Refresh(true);
+            });
             _shopRows.AddChild(card.Root); _shop.Add((s, card));
         }
         if (items.Count == 0) _shopRows.AddChild(Message("EventShopPlaceholder", "No event items available yet.", 14));
@@ -411,7 +397,6 @@ internal sealed partial class EventView : Control
         RefreshChallengeCards(d, ended, active);
         _prestige.Refresh(d);
         _botDetail.Refresh();
-        if (_selectedTab == "Archive") RefreshArchives();
     }
     public override void _Process(double delta)
     {
@@ -464,47 +449,6 @@ internal sealed partial class EventView : Control
         {
             if (path.Length == 0) continue;
             row.AddChild(new EventImageView(_textures.Get(path), new(32, 32)) { CustomMinimumSize = new(32, 32) });
-        }
-    }
-    private void RefreshArchives()
-    {
-        _archiveWanted.Clear();
-        foreach (var result in _manager.GetArchives())
-        {
-            _archiveWanted.Add(result.EventId);
-            if (!_archives.TryGetValue(result.EventId, out var label))
-            {
-                label = EventUiStyle.Label("Archive_" + result.EventId, "", 14); label.AutowrapMode = TextServer.AutowrapMode.WordSmart;
-                var icons = new HBoxContainer { Name = "ArchiveIcons_" + result.EventId };
-                if (_manager.GetDefinition(result.EventId) is { } archivedDefinition) AddResultIcons(icons, archivedDefinition);
-                icons.Visible = icons.GetChildCount() > 0;
-                _archiveRows.AddChild(icons);
-                _archiveRows.AddChild(label); _archives.Add(result.EventId, label);
-                string target = result.EventId;
-                _archiveRows.AddChild(EventUiStyle.Button("ViewArchive_" + target, "View results", () => RunContentAction(() =>
-                {
-                    _focusedEventId = target;
-                    _viewingArchive = true;
-                    SelectTab("Progress");
-                })));
-                GetParent()?.GetNodeOrNull<UiReadabilityController>("UiReadabilityController")?.ApplyToSubtree(label);
-            }
-            EventUiStyle.SetText(label, result.Name + " • " + result.Year + "\n" + NumberFormatter.Format(result.TotalEarned) + " " + result.CurrencyName
-                + " • Highest level " + result.HighestLevel + "\nPrestiges: " + result.PrestigeCount + " • Highest: " + NumberFormatter.Format(result.HighestProduction)
-                + "/s\n" + (_manager.GetDefinition(result.EventId)?.Prestige.ResourceName ?? "Prestige currency") + " earned: " + NumberFormatter.Format(result.TotalPrestigeResourceEarned)
-                + "\nRewards: " + result.RewardsClaimed + "/" + result.RewardsTotal + " • Cosmetics: " + result.CosmeticsOwned
-                + "\nBots unlocked: " + result.BotsUnlocked + (result.LegendaryBotOwned ? " • Legendary owned" : ""));
-        }
-        _archiveRemoved.Clear();
-        foreach (var pair in _archives) if (!_archiveWanted.Contains(pair.Key)) _archiveRemoved.Add(pair.Key);
-        foreach (string id in _archiveRemoved)
-        {
-            var label = _archives[id];
-            _archiveRows.RemoveChild(label); label.QueueFree(); _archives.Remove(id);
-            var icons = _archiveRows.GetNodeOrNull<Control>("ArchiveIcons_" + id);
-            if (icons != null) { _archiveRows.RemoveChild(icons); icons.QueueFree(); }
-            var button = _archiveRows.GetNodeOrNull<Button>("ViewArchive_" + id);
-            if (button != null) { _archiveRows.RemoveChild(button); button.QueueFree(); }
         }
     }
 }

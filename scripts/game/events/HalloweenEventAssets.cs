@@ -4,6 +4,11 @@ namespace IdleAi;
 public static class HalloweenEventAssets
 {
     private const string Root = "res://assets/halloween_event/";
+    private const string BadgeRoot = "res://assets/event_badges/";
+    public const string CorruptedSignalBadge = BadgeRoot + "halloween_corrupted_signal.png";
+    public const string HauntedNetworkBadge = BadgeRoot + "halloween_haunted_network.png";
+    // Match the supplied filename exactly (the source asset spells breach as brach).
+    public const string ContainmentBreachBadge = BadgeRoot + "halloween_containment_brach.png";
     public const string Icon = Root + "event_icon.png";
     public const string Background = Root + "background.png";
     public const string Souls = Root + "souls.png";

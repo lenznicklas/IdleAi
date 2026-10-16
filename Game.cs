@@ -40,6 +40,7 @@ public partial class Game : Control
 			LoadGame();
 
 		_production.PrepareAfterLoad();
+		_ui.StartLevelBadgeNotifications();
 
 		_ui.UpdateAll();
 		_labUi.Refresh();
@@ -472,8 +473,8 @@ public partial class Game : Control
 				_progression.GetTotalLevel(),
 				" | lifetimeBase=",
 				_state.LifetimeLevelBase,
-				" | levelRewardClaim=",
-				_state.Shop.HighestClaimedLevelReward,
+				" | levelBadgeTier=",
+				_state.Archive.HighestLevelBadgeTier,
 				" | dataShards=",
 				_state.Shop.DataShards
 			);
@@ -516,8 +517,8 @@ public partial class Game : Control
 			save.SaveVersion,
 			" | lifetimeBase=",
 			loadState.RestoredLifetimeLevelBase,
-			" | levelRewardClaim=",
-			_state.Shop.HighestClaimedLevelReward,
+			" | levelBadgeTier=",
+			_state.Archive.HighestLevelBadgeTier,
 			" | dataShards=",
 			_state.Shop.DataShards
 		);

@@ -47,6 +47,7 @@ public sealed class EventProgressSaveData
     public HashSet<string> Cosmetics { get; set; } = [];
     public HashSet<string> UnlockedShopItems { get; set; } = [];
     public Dictionary<string, int> ShopPurchases { get; set; } = [];
+    // Legacy payload retained only for save round-tripping; Events has no history feature.
     public EventArchiveResult? Archive { get; set; }
     public double Currency { get; set; }
     public double TotalCurrencyEarned { get; set; }

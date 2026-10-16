@@ -49,6 +49,9 @@ public partial class Game
     private int _eventCosmeticCount = -1;
     private void SyncEventCosmetics()
     {
+        // Manager.Changed fires after reward commits. Mirror permanent discoveries
+        // here so failed reward transactions cannot unlock Archive entries.
+        AiArchiveDiscovery.ObservePermanentRewards(_state);
         int count = _state.Events.CosmeticEntitlements.Count;
         if (_eventCosmeticCount == count) return;
         _eventCosmeticCount = count;

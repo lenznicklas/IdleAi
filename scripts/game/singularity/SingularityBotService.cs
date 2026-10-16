@@ -16,14 +16,16 @@ internal sealed class SingularityBotService
 	private readonly SingularitySectorService _sectors;
 	private readonly SingularityEconomy _economy;
 	private readonly Action _saveAndNotify;
+	private readonly Action<BotRarity>? _discover;
 
-	internal SingularityBotService(SingularitySaveData data, SingularitySectorService sectors, SingularityEconomy economy, Action saveAndNotify, LabData? lab, Func<double>? roll)
+	internal SingularityBotService(SingularitySaveData data, SingularitySectorService sectors, SingularityEconomy economy, Action saveAndNotify, LabData? lab, Func<double>? roll, Action<BotRarity>? discover = null)
 	{
 		_data = data;
 		_sectors = sectors;
 		_economy = economy;
 		_saveAndNotify = saveAndNotify;
 		_lab = lab;
+		_discover = discover;
 		if (roll == null)
 		{
 			var random = new RandomNumberGenerator();
@@ -113,6 +115,7 @@ internal sealed class SingularityBotService
 		node.BotRarity =
 			rarity;
 
+		_discover?.Invoke(rarity);
 		node.BotPurchasePriceMatter =
 			cost;
 

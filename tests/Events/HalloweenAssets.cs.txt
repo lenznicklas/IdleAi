@@ -48,11 +48,19 @@ internal static partial class Program
         }
         Check(d.Shop.Single(i => i.Id == "soul_cache").IconPath == HalloweenEventAssets.RewardChest, "chest used for sealed soul cache");
         Check(d.Shop.Single(i => i.Id == "garage_skin").IconPath == HalloweenEventAssets.GarageSkin, "single-room skin keeps truthful individual preview");
+        Check(!d.Milestones.SelectMany(m => EventRewardCollection.Leaves(m.Reward))
+            .Any(r => r.Type is EventRewardType.BotSkin or EventRewardType.MachineSkin), "skin packs are not milestone drops");
+        foreach (string id in new[] { "machine_skin", "bot_skin" })
+        {
+            var item = d.Shop.Single(s => s.Id == id);
+            Check(item.CostCurrency == EventShopCurrency.PrestigeResource && item.Cost == 50 && item.PurchaseLimit == 1,
+                "pack is a one-time 50-core purchase: " + id);
+        }
         // Visual-only integration contract: stable identity, schedules, economy and ownership IDs.
         Check(d.Generators.Select(g => g.BaseProduction).SequenceEqual(new[] { 1d, 30, 800, 25000, 800000, 30000000 }), "generator balance unchanged");
         Check(d.Generators.Select(g => g.BaseUpgradeCost).SequenceEqual(new[] { 10d, 300, 8000, 250000, 8000000, 300000000 }), "upgrade prices unchanged");
         Check(d.Bots.Select(b => b.ProductionMultiplier).SequenceEqual(new[] { 1.1, 1.3, 1.75, 2.5 }), "bot bonuses unchanged");
-        Check(d.Milestones.Count == 16 && d.Shop.Count == 5 && d.Challenges.Count == 0, "no content/gameplay systems added");
+        Check(d.Milestones.Count == 14 && d.Shop.Count == 6 && d.Challenges.Count == 6, "existing reward track and shop retained alongside configured challenges");
         Check(d.Prestige.Requirement == 1000000 && d.Prestige.RequirementGrowth == 10 && d.Prestige.ProductionBonusPerResource == .2, "Prestige tuning unchanged");
     }
 }

@@ -21,9 +21,11 @@ public sealed class GameSaveService
 
 	public SaveGameData CreateSave(long nowUnix)
 	{
+		AiArchiveDiscovery.ObserveRun(_state);
 		return new SaveGameData
 			{
 				SaveVersion = SaveVersion,
+				Archive = _state.Archive.Copy(),
 				Events = _state.Events.Copy(),
 				Tokens = _state.Tokens,
 				RunEarnedTokens = _state.RunEarnedTokens,
@@ -80,6 +82,9 @@ public sealed class GameSaveService
 	// Balances are hydrated directly: loading is not a gameplay transaction.
 	public GameLoadStateResult ApplySave(SaveGameData save)
 	{
+		_state.Archive.Discovered.UnionWith(save.Archive.Discovered);
+		_state.Archive.HighestLevelBadgeTier = Math.Max(_state.Archive.HighestLevelBadgeTier,
+			Math.Max(save.Archive.HighestLevelBadgeTier, Math.Max(0, save.HighestClaimedLevelReward) / LevelBadgeProgress.LevelInterval));
 		_state.Events = save.Events.Copy();
 		_state.Tokens = save.Tokens;
 		_state.RunEarnedTokens = save.RunEarnedTokens;
@@ -286,6 +291,8 @@ public sealed class GameSaveService
 
 		}
 
+		AiArchiveDiscovery.ObserveRun(_state);
+		AiArchiveDiscovery.ObservePermanentRewards(_state);
 		return new GameLoadStateResult(restoredLifetimeLevelBase, lifetimeLevelMigrated);
 	}
 }

@@ -6,7 +6,7 @@ public enum EventChallengeType
 {
     EarnCurrency, EarnLifetimeCurrency, UpgradeGenerators, ReachGeneratorLevel,
     ReachTotalGeneratorLevels, UnlockGenerator, PerformPrestige, ReachPrestigeCurrency,
-    UnlockBot, ClaimRewards, PurchaseShopItems, ReachProductionPerSecond, PlayMinutes, OwnBot, EquipBot
+    UnlockBot, ClaimRewards, PurchaseShopItems, ReachProductionPerSecond, PlayMinutes, OwnBot, EquipBot, UnlockGenerators
 }
 public enum EventChallengeCategory { Daily, Event, Major }
 

@@ -23,7 +23,7 @@ internal sealed class EventChallengeCard
         Slot("ChallengeCategory", c.Category.ToString().ToUpperInvariant() + (c.Repeatable ? " • REPEATABLE" : ""), 12, 16, 12, 32);
         Slot("ChallengeTitle", c.Title, 16, 16, 36, 80, 2);
         Slot("ChallengeDescription", c.Description, 12, 16, 84, 126, 2);
-        var icon = new EventImageView(textures.Get(c.Reward.IconPath.Length == 0 ? d.IconPath : c.Reward.IconPath), new(48, 48))
+        var icon = new EventImageView(textures.Get(EventPresentation.RewardIcon(c.Reward, d)), new(48, 48))
             { Position = new(16, 134), Size = new(48, 48) };
         Root.AddChild(icon);
         Slot("ChallengeReward", "Reward: " + EventPresentation.RewardName(c.Reward, d), 14, 76, 134, 182, 2);

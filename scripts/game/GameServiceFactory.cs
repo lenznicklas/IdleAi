@@ -25,7 +25,6 @@ public static class GameServiceFactory
 		// Settings then loads preferences and starts music at the original point.
 		BotSkinService botSkins = new(state, economy);
 		MachineSkinService machineSkins = new(state, economy);
-		LevelRewardService levelRewards = new(state, progression, economy);
 		SettingsPersistenceService settingsPersistence = new(
             Godot.ProjectSettings.GlobalizePath(SettingsPersistenceService.SettingsSavePath),
             Godot.ProjectSettings.GlobalizePath(SettingsPersistenceService.TemporarySettingsSavePath),
@@ -38,6 +37,6 @@ public static class GameServiceFactory
 		return new GameServices(
 			state, economy, progression, production, bots, prestige, runReset, lab, offline, save,
 			shop, pipeline, infrastructure, quantum, botSkins, machineSkins,
-			levelRewards, settings, settingsPersistence, audio, haptics);
+			settings, settingsPersistence, audio, haptics);
 	}
 }

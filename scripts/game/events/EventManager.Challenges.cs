@@ -33,7 +33,7 @@ public sealed partial class EventManager
     {
         EventChallengeType.EarnCurrency or EventChallengeType.EarnLifetimeCurrency => EventChallengeSignal.Earnings,
         EventChallengeType.UpgradeGenerators => EventChallengeSignal.Upgrades,
-        EventChallengeType.ReachGeneratorLevel or EventChallengeType.ReachTotalGeneratorLevels or EventChallengeType.UnlockGenerator => EventChallengeSignal.Generators,
+        EventChallengeType.ReachGeneratorLevel or EventChallengeType.ReachTotalGeneratorLevels or EventChallengeType.UnlockGenerator or EventChallengeType.UnlockGenerators => EventChallengeSignal.Generators,
         EventChallengeType.PerformPrestige => EventChallengeSignal.Prestiges,
         EventChallengeType.ReachPrestigeCurrency => EventChallengeSignal.Cores,
         EventChallengeType.UnlockBot or EventChallengeType.OwnBot or EventChallengeType.EquipBot => EventChallengeSignal.Bots,
@@ -50,6 +50,7 @@ public sealed partial class EventManager
         EventChallengeType.ReachGeneratorLevel => _production[d.Id].Generators.Where(g => g.Enabled && p.Generators[g.Id].Unlocked
             && (c.GeneratorId.Length == 0 || g.Id == c.GeneratorId)).Select(g => (double)p.Generators[g.Id].Level).DefaultIfEmpty().Max(),
         EventChallengeType.ReachTotalGeneratorLevels => _production[d.Id].Generators.Where(g => g.Enabled && p.Generators[g.Id].Unlocked).Sum(g => (double)p.Generators[g.Id].Level),
+        EventChallengeType.UnlockGenerators => _production[d.Id].Generators.Count(g => g.Enabled && p.Generators[g.Id].Unlocked),
         EventChallengeType.UnlockGenerator => p.Generators.TryGetValue(c.GeneratorId, out var g) && g.Unlocked ? 1 : 0,
         EventChallengeType.PerformPrestige => p.PrestigeCount,
         EventChallengeType.ReachPrestigeCurrency => p.PrestigeResource,
@@ -203,7 +204,6 @@ public sealed partial class EventManager
             p.Challenges.Revision++;
             // Only active events advance other objectives; expired permanent grants cannot unlock tasks.
             if (IsActive(d)) RefreshChallenges(d, p, signals, NowUnix);
-            UpdateArchive(d, p);
             return true;
         }, eligible.Length == 1 ? "Challenge reward claimed." : eligible.Length + " challenge rewards claimed.");
     }

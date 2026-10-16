@@ -79,6 +79,8 @@ class Program
         var (s, e, m) = Create(); var fixture = Fixture();
         var result = m.ApplySave(fixture);
         Eq(result.LifetimeLevelMigrated, false, "current migration");
+        Eq(s.Archive.Discovered.Count > 0, true, "legacy current state seeds permanent discovery");
+        fixture.Archive = s.Archive.Copy();
         fixture.IncomePerSecond = e.GetTotalIncomeWithoutTemporaryShopBoost();
         Same(m.CreateSave(1000), fixture, "current roundtrip");
         var (s2, _, m2) = Create(); m2.ApplySave(m.CreateSave(1000));
@@ -92,6 +94,9 @@ class Program
         s.RoomStates[0].Slots[0].ClaimedDataShardMilestones.Add(999);
         s.Stats.AddMachineSpending("Test", 1);
         var original = Fixture(); original.IncomePerSecond = fixture.IncomePerSecond;
+        original.Archive = fixture.Archive.Copy();
+        s.Archive.Discover("future-entry");
+        Eq(snapshot.Archive.Contains("future-entry"), false, "archive snapshot independence");
         Same(snapshot, original, "snapshot independence");
         Eq(fixture.Stats.MachineSpending["Test"], 501.0, "existing stats hydration dictionary ownership");
         foreach (int version in new[] { 0, 1, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22 })

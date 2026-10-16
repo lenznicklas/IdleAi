@@ -29,10 +29,10 @@ func run_checks():
     var archive = game.get_node("AiArchiveOverlay")
     check(archive.visible, "archive opens")
     var category_buttons = archive.find_children("*", "Button", true, false)
-    check(category_buttons.size() == 7, "six categories and back")
+    check(category_buttons.size() == 10, "nine permanent collection categories and back")
     var back = category_buttons[0]
     check(not back.visible, "back hidden in overview")
-    for index in range(1,7):
+    for index in range(1,10):
         var category = archive.find_children("*", "Button", true, false)[index]
         category.pressed.emit()
         for i in range(3): await process_frame
@@ -45,7 +45,7 @@ func run_checks():
     await process_frame
     check(not archive.visible and stats.visible, "close returns to stats")
     check(scroll.scroll_vertical == saved_scroll, "stats scroll preserved")
-    print("AI Archive scene: ordering, six category pages, portrait bounds, navigation and Stats state passed")
+    print("AI Archive scene: ordering, permanent collection category pages, portrait bounds, navigation and Stats state passed")
     game.queue_free()
     for i in range(3): await process_frame
     quit(1 if failures > 0 else 0)
